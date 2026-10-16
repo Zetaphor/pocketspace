@@ -137,6 +137,53 @@ static void initFont() {
     std::fflush(stdout);
 }
 
+
+static void plotPixel(std::vector<unsigned char>& buf, int W, int H, int x, int y, unsigned char r,unsigned char g, unsigned char b, unsigned char a=255) {
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    size_t idx=(size_t)((y*W+x)*4);
+    buf[idx]=r; buf[idx+1]=g; buf[idx+2]=b; buf[idx+3]=a;
+}
+
+static void drawLine3d(std::vector<unsigned char>& buf, int W, int H, int x0, int y0, int x1, int y1, unsigned char r, unsigned char g, unsigned char b) {
+    int dx=abs(x1-x0), sx = x0<x1?1:-1;
+    int dy=abs(y1-y0), sy = y0<y1?1:-1;
+    int err=(dx>dy?dx:-dy)/2;
+    while(true) {
+        plotPixel(buf,W,H,x0,y0,r,g,b);
+        if (x0==x1 && y0==y1) break;
+        int e2=err;
+        if (e2 > -dx) { err -= dy; x0 += sx; }
+        if (e2 < dy) { err += dx; y0 += sy; }
+    }
+}
+
+static void drawCube25d(std::vector<unsigned char>& buf, int W, int H) {
+    static double t0 = (std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count());
+    double ang = (std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()-t0)*1.3;
+    float ca=cosf((float)ang), sa=sinf((float)ang);
+    const float C=0.13f;
+    // 8 corners of [-.3,.3]^3
+    float pts[8][3]={{-.3f,-.3f,-.3f},{.3f,-.3f,-.3f},{.3f,.3f,-.3f},{-.3f,.3f,-.3f},
+                     {-.3f,-.3f,.3f},{.3f,-.3f,.3f},{.3f,.3f,.3f},{-.3f,.3f,.3f}};
+    int px[8],py[8];
+    for(int i=0;i<8;i++){
+        float x=pts[i][0], y=pts[i][1], z=pts[i][2];
+        // rotate around Y and X
+        float X=x*ca + z*sa;
+        float Z=-x*sa + z*ca;
+        float Y=y;
+        // simple perspective scaling
+        float denom = 1.0f + (Z*0.25f);
+        px[i] = (int)((W*0.5f)+ (X*280.0f/denom));
+        py[i] = (int)((H*0.5f)- (Y*280.0f/denom));
+    }
+    // edges: 0-1,1-2,2-3,3-0, 4-5,5-6,6-7,7-4, 0-4,1-5,2-6,3-7
+    int edges[12][2]={{0,1},{1,2},{2,3},{3,0},{4,5},{5,6},{6,7},{7,4},{0,4},{1,5},{2,6},{3,7}};
+    for(int i=0;i<12;i++) drawLine3d(buf,W,H,px[edges[i][0]],py[edges[i][0]],px[edges[i][1]],py[edges[i][1]],180,140,255);
+    // bright vertex dots
+    for(int i=0;i<8;i++){ plotPixel(buf,W,H,px[i],py[i],255,255,255,255); plotPixel(buf,W,H,px[i]+1,py[i],255,255,255,255); plotPixel(buf,W,H,px[i],py[i]+1,255,255,255,255); }
+}
+
 static void renderHudTexture(GLuint tex) {
     const int W=1024,H=512;
     static std::vector<unsigned char> buf;
@@ -145,6 +192,7 @@ static void renderHudTexture(GLuint tex) {
     for (int i=0;i<W*H*4;i+=4){buf[i]=12;buf[i+1]=18;buf[i+2]=29;buf[i+3]=255;}
     std::string text;
     { std::lock_guard<std::mutex> l(g_textMutex); text = g_hud_text; }
+    drawCube25d(buf, W, H);
     if (g_faceOk) {
         FT_Face face = g_face;
         FT_Int ascender = (FT_Int)(face->size->metrics.ascender >> 6);
@@ -496,10 +544,9 @@ function update(dt) {
             continue;
         }
 
-        if (g_textDirty) {
-            renderHudTexture(tex);
-            g_textDirty = false;
-        }
+        // Always rebuild the 2D panel containing text + holographic cube.
+        renderHudTexture(tex);
+        g_textDirty = true;
         oe = overlay->SetOverlayTexture(h, &texture);
         if (oe != vr::VROverlayError_None) { std::fprintf(stderr, "[openvr] perframe SetOverlayTexture fail %d\n", (int)oe); }
         // call update(dt)
