@@ -45,6 +45,7 @@ static vr::IVRSystem *g_sys = nullptr;
 static FT_Library g_ft = nullptr;
 static FT_Face g_face = nullptr;
 static bool g_faceOk = false;
+static bool g_textDirty = true;
 static std::string g_hud_text = "Steam Frame overlay MVP\nMove laser to look. Trigger to count.";
 static std::mutex g_textMutex;
 
@@ -130,14 +131,14 @@ static void initFont() {
     std::string path = findFont();
     if (path.empty()) { std::fprintf(stderr,"[font] no font file found; set SF_FONT\n"); return; }
     if (FT_New_Face(g_ft, path.c_str(), 0, &g_face) != 0) { std::fprintf(stderr,"[font] failed to load %s\n", path.c_str()); return; }
-    FT_Set_Pixel_Sizes(g_face, 0, 22);
+    FT_Set_Pixel_Sizes(g_face, 0, 44);
     g_faceOk = true;
-    std::fprintf(stdout, "[font] loaded %s, glyphs at 22px\n", path.c_str());
+    std::fprintf(stdout, "[font] loaded %s, glyphs at 44px\n", path.c_str());
     std::fflush(stdout);
 }
 
 static void renderHudTexture(GLuint tex) {
-    const int W=512,H=256;
+    const int W=1024,H=512;
     static std::vector<unsigned char> buf;
     buf.assign(W*H*4, 0);
     // dark panel
@@ -185,7 +186,7 @@ static void renderHudTexture(GLuint tex) {
 static JSValue jsSetText(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv) {
     if (argc<1) return JS_UNDEFINED;
     const char* s = JS_ToCString(ctx, argv[0]);
-    if (s) { std::lock_guard<std::mutex> l(g_textMutex); g_hud_text.assign(s); JS_FreeCString(ctx,s); }
+    if (s) { std::lock_guard<std::mutex> l(g_textMutex); if (g_hud_text != s) { g_hud_text.assign(s); g_textDirty = true; } JS_FreeCString(ctx,s); }
     return JS_UNDEFINED;
 }
 
@@ -337,7 +338,7 @@ static int initEgl(EGLContext &ctx, EGLSurface &surf, EGLDisplay &disp) {
 }
 
 static GLuint makeHudTexture() {
-    const int W = 512; const int H = 256;
+    const int W = 1024; const int H = 512;
     std::vector<unsigned char> data(W*H*4, 0);
     GLuint tex=0;
     glGenTextures(1,&tex);
@@ -349,7 +350,7 @@ static GLuint makeHudTexture() {
     glPixelStorei(GL_UNPACK_ALIGNMENT,1);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,W,H,0,GL_RGBA,GL_UNSIGNED_BYTE,data.data());
     glBindTexture(GL_TEXTURE_2D, 0);
-    std::fprintf(stdout, "[host] GL texture id=%u (512x256 HUD)\n", tex);
+    std::fprintf(stdout, "[host] GL texture id=%u (1024x512 HUD)\n", tex);
     return tex;
 }
 
@@ -495,7 +496,10 @@ function update(dt) {
             continue;
         }
 
-        renderHudTexture(tex);
+        if (g_textDirty) {
+            renderHudTexture(tex);
+            g_textDirty = false;
+        }
         oe = overlay->SetOverlayTexture(h, &texture);
         if (oe != vr::VROverlayError_None) { std::fprintf(stderr, "[openvr] perframe SetOverlayTexture fail %d\n", (int)oe); }
         // call update(dt)
