@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
@@ -24,6 +23,8 @@ extern "C" {
 #include <openvr.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
+#include <ft2build.h>
+#include FT_FREETYPE_H
 #include <quickjs.h>
 }
 
@@ -40,6 +41,12 @@ static JSRuntime *g_rt = nullptr;
 static JSContext *g_ctx = nullptr;
 static JSValue g_updateFn = JS_UNDEFINED;
 static vr::IVRSystem *g_sys = nullptr;
+
+static FT_Library g_ft = nullptr;
+static FT_Face g_face = nullptr;
+static bool g_faceOk = false;
+static std::string g_hud_text = "Steam Frame overlay MVP\nMove laser to look. Trigger to count.";
+static std::mutex g_textMutex;
 
 static uint64_t nowMs() {
     using clock = std::chrono::steady_clock;
@@ -101,6 +108,88 @@ static JSValue jsPollControllers(JSContext *ctx, JSValueConst, int, JSValueConst
     return arr;
 }
 
+static std::string findFont() {
+    const char *env = std::getenv("SF_FONT");
+    if (env && env[0]) return std::string(env);
+    const char* candidates[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+        "/usr/share/fonts/TTF/Hack-Regular.ttf",
+        "/home/steamos/frametop/gaze/build/fonts/Consolas.ttf"
+    };
+    for (const char* p : candidates) {
+        struct stat st; if (stat(p,&st)==0 && S_ISREG(st.st_mode)) return std::string(p);
+    }
+    return std::string("");
+}
+
+static void initFont() {
+    if (FT_Init_FreeType(&g_ft) != 0) { std::fprintf(stderr,"[font] FT_Init_FreeType failed\n"); return; }
+    std::string path = findFont();
+    if (path.empty()) { std::fprintf(stderr,"[font] no font file found; set SF_FONT\n"); return; }
+    if (FT_New_Face(g_ft, path.c_str(), 0, &g_face) != 0) { std::fprintf(stderr,"[font] failed to load %s\n", path.c_str()); return; }
+    FT_Set_Pixel_Sizes(g_face, 0, 22);
+    g_faceOk = true;
+    std::fprintf(stdout, "[font] loaded %s, glyphs at 22px\n", path.c_str());
+    std::fflush(stdout);
+}
+
+static void renderHudTexture(GLuint tex) {
+    const int W=512,H=256;
+    static std::vector<unsigned char> buf;
+    buf.assign(W*H*4, 0);
+    // dark panel
+    for (int i=0;i<W*H*4;i+=4){buf[i]=12;buf[i+1]=18;buf[i+2]=29;buf[i+3]=255;}
+    std::string text;
+    { std::lock_guard<std::mutex> l(g_textMutex); text = g_hud_text; }
+    if (g_faceOk) {
+        FT_Face face = g_face;
+        FT_Int ascender = (FT_Int)(face->size->metrics.ascender >> 6);
+        int x=8, y=ascender+4;
+        for (size_t i=0;i<text.size();) {
+            if (text[i]=='\n') { x=8; y += (ascender+6); i++; continue; }
+            unsigned char uc=(unsigned char)text[i++];
+            if (FT_Load_Char(face, uc, FT_LOAD_RENDER) != 0) continue;
+            FT_Bitmap *bmp=&face->glyph->bitmap;
+            int gx=x+face->glyph->bitmap_left;
+            int gy=y-face->glyph->bitmap_top;
+            for (unsigned int row=0; row<bmp->rows && row+gy<H && row+gy>=0; row++) {
+                for (unsigned int col=0; col<bmp->width && col+gx<W && col+gx>=0; col++) {
+                    unsigned char v = bmp->buffer[row*bmp->pitch + col];
+                    int px=((int)row+gy)*W+(int)col+gx;
+                    if (px <0 || px>=W*H) continue;
+                    unsigned char *p=&buf[px*4];
+                    // additive-ish overlay on dark blue
+                    float a = v/255.0f;
+                    p[0]= (unsigned char)(p[0]*(1-a) + 235*a);
+                    p[1]= (unsigned char)(p[1]*(1-a) + 245*a);
+                    p[2]= (unsigned char)(p[2]*(1-a) + 255*a);
+                }
+            }
+            x += face->glyph->advance.x >> 6;
+            if (x+6 > W) { x=8; y += ascender+6; }
+        }
+    }
+    // OpenVR / SteamVR texture space is flipped both axes relative to CPU top-left raster.
+    std::vector<unsigned char> flipped(W*H*4);
+    for (int y=0;y<H;y++){ for (int x=0;x<W;x++){ for (int c=0;c<4;c++) flipped[((H-1-y)*W + x)*4 + c]=buf[(y*W+x)*4+c]; } }
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0,W,H,GL_RGBA,GL_UNSIGNED_BYTE,flipped.data());
+}
+
+
+
+static JSValue jsSetText(JSContext *ctx, JSValueConst, int argc, JSValueConst *argv) {
+    if (argc<1) return JS_UNDEFINED;
+    const char* s = JS_ToCString(ctx, argv[0]);
+    if (s) { std::lock_guard<std::mutex> l(g_textMutex); g_hud_text.assign(s); JS_FreeCString(ctx,s); }
+    return JS_UNDEFINED;
+}
+
+
 static void freeJs() {
     std::lock_guard<std::mutex> lock(g_jsMutex);
     if (g_ctx) { JS_FreeContext(g_ctx); g_ctx = nullptr; }
@@ -120,6 +209,7 @@ static void loadScript(const std::string &path, uint64_t &reloadMs) {
     {
         JSValue g = JS_GetGlobalObject(g_ctx);
         JS_SetPropertyStr(g_ctx, g, "__log", JS_NewCFunction(g_ctx, jsLog, "__log", 1));
+        JS_SetPropertyStr(g_ctx, g, "__setText", JS_NewCFunction(g_ctx, jsSetText, "__setText",1));
         JS_SetPropertyStr(g_ctx, g, "__pollControllers", JS_NewCFunction(g_ctx, jsPollControllers, "__pollControllers", 0));
         JSValue code = JS_NewString(g_ctx, "globalThis.print = __log; globalThis.console = {log: __log, error: __log};");
         JS_Eval(g_ctx, "globalThis.print = __log; globalThis.console = {log: __log, error: __log};", 0, "<boot>", JS_EVAL_TYPE_GLOBAL);
@@ -246,28 +336,20 @@ static int initEgl(EGLContext &ctx, EGLSurface &surf, EGLDisplay &disp) {
     return 0;
 }
 
-static GLuint makeCheckerTexture() {
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    static const int S = 128;
-    std::vector<unsigned char> data(S * S * 4);
-    for (int y = 0; y < S; y++)
-        for (int x = 0; x < S; x++) {
-            bool a = ((x / 16 + y / 16) % 2) == 0;
-            int idx = (y * S + x) * 4;
-            data[idx]   = a ? 255 : 20;
-            data[idx+1] = a ? 40 : 255;
-            data[idx+2] = a ? 240 : 255;
-            data[idx+3] = 255;
-            data[idx + 3] = 255;
-        }
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, S, S, 0, GL_RGBA, GL_UNSIGNED_BYTE, data.data());
+static GLuint makeHudTexture() {
+    const int W = 512; const int H = 256;
+    std::vector<unsigned char> data(W*H*4, 0);
+    GLuint tex=0;
+    glGenTextures(1,&tex);
+    glBindTexture(GL_TEXTURE_2D,tex);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,W,H,0,GL_RGBA,GL_UNSIGNED_BYTE,data.data());
     glBindTexture(GL_TEXTURE_2D, 0);
+    std::fprintf(stdout, "[host] GL texture id=%u (512x256 HUD)\n", tex);
     return tex;
 }
 
@@ -282,8 +364,8 @@ int main(int argc, char **argv) {
         std::fprintf(stderr, "[host] EGL init failed\n"); return 1;
     }
     // GL context is current now
-    GLuint tex = makeCheckerTexture();
-    std::fprintf(stdout, "[host] GL texture id=%u created (256x256 inside 64-image checkers is generated on device)\n", tex);
+    GLuint tex = makeHudTexture();
+    std::fprintf(stdout, "[host] GPU allocation complete\n");
     glFinish();
 
     // Init script file if missing
@@ -352,6 +434,8 @@ function update(dt) {
     // ---- unix socket command server ----
     std::thread net(socketThread);
 
+    initFont();
+
     // ---- main loop ----
     uint64_t loopStart = nowMs();
     uint64_t lastFileCheck = loopStart;
@@ -411,6 +495,9 @@ function update(dt) {
             continue;
         }
 
+        renderHudTexture(tex);
+        oe = overlay->SetOverlayTexture(h, &texture);
+        if (oe != vr::VROverlayError_None) { std::fprintf(stderr, "[openvr] perframe SetOverlayTexture fail %d\n", (int)oe); }
         // call update(dt)
         {
             std::lock_guard<std::mutex> lock(g_jsMutex);

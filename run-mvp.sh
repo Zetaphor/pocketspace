@@ -10,4 +10,5 @@ fi
 export LD_LIBRARY_PATH="/opt/steamvr/bin/linuxarm64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export DISPLAY="${DISPLAY:-:0}"
 export EGL_PLATFORM="${EGL_PLATFORM:-x11}"
+export SF_FONT="${SF_FONT:-/usr/share/fonts/TTF/Hack-Regular.ttf}"
 exec "$BIN" "$SCRIPT"
