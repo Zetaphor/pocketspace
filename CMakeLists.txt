@@ -19,3 +19,7 @@ set(QUICKJS_HEADER_LIBNAME qjs)
 if(NOT EXISTS "${QJS_LIBDIR}/libqjs.a")
   message(FATAL_ERROR "QuickJS static library (libqjs.a) not found in ${QJS_LIBDIR}")
 endif()
+
+
+add_executable(sf-scene-mvp src/scene_main.cpp)
+target_link_libraries(sf-scene-mvp PRIVATE openvr_api pthread EGL GLESv2)
