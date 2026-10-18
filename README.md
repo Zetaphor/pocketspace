@@ -19,6 +19,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh
 ./run-overlay-engine.sh scripts/sample-gallery.js
 ./run-overlay-engine.sh scripts/feature-gallery.js
+./run-overlay-engine.sh scripts/pointer-place.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -36,12 +37,28 @@ setObjectScale(object, scaleMeters);
 setObjectVisible(object, true);
 removeObject(object);
 print("message");
+const right = getController("right"); // { valid, x, y, z }
+enablePointerInput(); // opt this script into overlay laser events
+const pointer = getPointer(); // { valid, down, x, y }
 ```
 
 Coordinates are meters relative to the fixed anchor: +x right, +y up, +z
 farther into the scene. Each GLB is centered and normalized to unit maximum
 dimension; scale is its maximum rendered dimension in meters. A scene supports
 up to 32 loaded assets and 256 objects.
+
+`getController("left"|"right")` returns a tracked controller position relative
+to the same anchor as objects. Invalid tracking returns `valid: false`.
+`enablePointerInput()` opts a script into SteamVR overlay pointer events;
+`getPointer()` reports pointer position and primary-button state. The pointer
+placement demo moves a car while the overlay laser trigger is held and anchors
+it on release. Pointer scripts use a 1.8 m wide surface at 0.8 m; ordinary
+rendering scripts retain the 0.7 m surface at 1 m and leave laser input
+disabled. A single finite surface can still clip an object at its boundary,
+especially when the viewer leans. Tiled or adaptive surfaces are future work
+for room-wide placement. Direct SteamVR Input actions were inactive for this
+overlay during the first headset test; a reliable action and coexistence policy
+remain future input work.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
