@@ -12,15 +12,19 @@
 #include <thread>
 #include <vector>
 #include <atomic>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
 #include <quickjs.h>
+#define CGLTF_IMPLEMENTATION
+#include "../third_party/cgltf.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "../stb_image.h"
-#include "../avocado_model.h"
 
 constexpr int kEyeSize=1024,kWidth=2048,kHeight=1024;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -70,6 +74,51 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
   closeScript(active);active=candidate;fprintf(stdout,"[js] loaded %s\n",path.c_str());fflush(stdout);return true;
 }
+struct ModelData {std::vector<float> vertices;std::vector<unsigned char> rgba;int width=0,height=0;};
+static bool loadModel(const std::string &path,ModelData &model){
+  cgltf_options options{};cgltf_data *data=nullptr;
+  auto result=cgltf_parse_file(&options,path.c_str(),&data);
+  if(result!=cgltf_result_success){fprintf(stderr,"[model] parse failed: %s (%d)\n",path.c_str(),(int)result);return false;}
+  result=cgltf_load_buffers(&options,data,path.c_str());
+  if(result!=cgltf_result_success||cgltf_validate(data)!=cgltf_result_success){fprintf(stderr,"[model] invalid buffers or glTF\n");cgltf_free(data);return false;}
+  if(data->meshes_count<1||data->meshes[0].primitives_count<1){fprintf(stderr,"[model] no mesh primitive\n");cgltf_free(data);return false;}
+  const auto &primitive=data->meshes[0].primitives[0];
+  if(primitive.type!=cgltf_primitive_type_triangles||!primitive.indices){fprintf(stderr,"[model] expected indexed triangles\n");cgltf_free(data);return false;}
+  const cgltf_accessor *positions=nullptr,*uvs=nullptr;
+  for(cgltf_size i=0;i<primitive.attributes_count;i++){
+    const auto &attribute=primitive.attributes[i];
+    if(attribute.type==cgltf_attribute_type_position)positions=attribute.data;
+    if(attribute.type==cgltf_attribute_type_texcoord&&attribute.index==0)uvs=attribute.data;
+  }
+  if(!positions||!uvs){fprintf(stderr,"[model] missing POSITION or TEXCOORD_0\n");cgltf_free(data);return false;}
+  float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
+  float high[3]={-low[0],-low[1],-low[2]};
+  for(cgltf_size i=0;i<positions->count;i++){
+    float p[3];if(!cgltf_accessor_read_float(positions,i,p,3)){cgltf_free(data);return false;}
+    for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],p[axis]);high[axis]=std::max(high[axis],p[axis]);}
+  }
+  float extent=std::max({high[0]-low[0],high[1]-low[1],high[2]-low[2]});
+  if(!std::isfinite(extent)||extent<=0){fprintf(stderr,"[model] invalid bounds\n");cgltf_free(data);return false;}
+  float scale=1.f/extent;
+  model.vertices.reserve(primitive.indices->count*5);
+  for(cgltf_size i=0;i<primitive.indices->count;i++){
+    cgltf_size index=cgltf_accessor_read_index(primitive.indices,i);
+    if(index>=positions->count||index>=uvs->count){fprintf(stderr,"[model] bad index\n");cgltf_free(data);return false;}
+    float p[3],uv[2];
+    if(!cgltf_accessor_read_float(positions,index,p,3)||!cgltf_accessor_read_float(uvs,index,uv,2)){fprintf(stderr,"[model] accessor read failed\n");cgltf_free(data);return false;}
+    model.vertices.insert(model.vertices.end(),{(p[0]-(low[0]+high[0])*.5f)*scale,(p[1]-(low[1]+high[1])*.5f)*scale,(p[2]-(low[2]+high[2])*.5f)*scale,uv[0],1.f-uv[1]});
+  }
+  const cgltf_texture *texture=primitive.material&&primitive.material->has_pbr_metallic_roughness?primitive.material->pbr_metallic_roughness.base_color_texture.texture:nullptr;
+  const cgltf_image *image=texture?texture->image:nullptr;
+  if(!image||!image->buffer_view){fprintf(stderr,"[model] expected embedded base-color image\n");cgltf_free(data);return false;}
+  const auto *bytes=cgltf_buffer_view_data(image->buffer_view);
+  if(!bytes){fprintf(stderr,"[model] image buffer missing\n");cgltf_free(data);return false;}
+  int channels=0;unsigned char *pixels=stbi_load_from_memory(bytes,(int)image->buffer_view->size,&model.width,&model.height,&channels,4);
+  if(!pixels){fprintf(stderr,"[model] image decode failed\n");cgltf_free(data);return false;}
+  model.rgba.assign(pixels,pixels+(size_t)model.width*model.height*4);stbi_image_free(pixels);
+  fprintf(stdout,"[model] loaded %s vertices=%zu triangles=%zu image=%dx%d\n",path.c_str(),positions->count,primitive.indices->count/3,model.width,model.height);
+  cgltf_free(data);return true;
+}
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
   EGLConfig config;EGLint count=0;
@@ -109,7 +158,9 @@ static void setVec3(GLuint program,const char *name,float x,float y,float z){glU
 int main(int argc,char **argv) {
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
   std::string scriptPath=argc>1?argv[1]:"scripts/avocado.js";
+  std::string modelPath=argc>2?argv[2]:"assets/Avocado.glb";
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
+  ModelData model;if(!loadModel(modelPath,model))return 14;
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
   auto *system=vr::VRSystem();auto *overlays=vr::VROverlay();
@@ -143,13 +194,11 @@ precision mediump float;in vec2 t;uniform sampler2D material;out vec4 color;
 void main(){color=texture(material,t);if(color.a<0.1)discard;})";
   GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
   glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
-  int tw=0,th=0,tc=0;auto *pixels=stbi_load("assets/avocado_0.png",&tw,&th,&tc,4);if(!pixels)return 6;
   GLuint material;glGenTextures(1,&material);glBindTexture(GL_TEXTURE_2D,material);
-  glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,tw,th,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glGenerateMipmap(GL_TEXTURE_2D);stbi_image_free(pixels);
-  std::vector<float> vertices;vertices.reserve(kAvocadoIndexCount*5);
-  for(uint32_t i=0;i<kAvocadoIndexCount;i++){auto &a=kAvocadoVertices[kAvocadoIndices[i]];vertices.insert(vertices.end(),{a.x,a.y,a.z,a.u,1.f-a.v});}
-  GLuint vbo;glGenBuffers(1,&vbo);glBindBuffer(GL_ARRAY_BUFFER,vbo);glBufferData(GL_ARRAY_BUFFER,vertices.size()*sizeof(float),vertices.data(),GL_STATIC_DRAW);
+  glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,model.width,model.height,0,GL_RGBA,GL_UNSIGNED_BYTE,model.rgba.data());
+  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glGenerateMipmap(GL_TEXTURE_2D);
+  GLuint vbo;glGenBuffers(1,&vbo);glBindBuffer(GL_ARRAY_BUFFER,vbo);glBufferData(GL_ARRAY_BUFFER,model.vertices.size()*sizeof(float),model.vertices.data(),GL_STATIC_DRAW);
+  GLsizei vertexCount=(GLsizei)(model.vertices.size()/5);model.vertices.clear();model.rgba.clear();
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
@@ -186,7 +235,7 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
         float eye[3];for(int r=0;r<3;r++)eye[r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
         setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*kEyeSize,0,kEyeSize,kEyeSize);
         glUniform1f(glGetUniformLocation(program,"yaw"),modelYaw);
-        if(modelVisible)glDrawArrays(GL_TRIANGLES,0,kAvocadoIndexCount);
+        if(modelVisible)glDrawArrays(GL_TRIANGLES,0,vertexCount);
       }
       if(frame==0){std::vector<unsigned char> rgba(kWidth*kHeight*4);glReadPixels(0,0,kWidth,kHeight,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());size_t opaque[2]={0,0};for(int y=0;y<kHeight;y++)for(int x=0;x<kWidth;x++)opaque[x/kEyeSize]+=rgba[(size_t(y)*kWidth+x)*4+3]!=0;fprintf(stdout,"first frame opaque=%zu,%zu\n",opaque[0],opaque[1]);}
       glFinish();glBindFramebuffer(GL_FRAMEBUFFER,0);
