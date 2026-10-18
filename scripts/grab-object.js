@@ -1,14 +1,16 @@
-// Point at the car, hold the right trigger, move your controller in 6DoF,
+// Point at the car, hold either trigger, move your controller in 6DoF,
 // and release to leave the car at its new world position.
 const car = loadModel("assets/samples/ToyCar/ToyCar.glb");
 const object = createObject(car, 0, 0, 0, 0.26);
 enableObjectInteraction(object);
 let held = false;
 let grip;
+let activeHand = null;
 const objectPosition = { x: 0, y: 0, z: 0 };
 function update(dt) {
   const pointer = getPointer();
-  const hand = getController("right");
+  if (!held && pointer.down && pointer.hand) activeHand = pointer.hand;
+  const hand = activeHand ? getController(activeHand) : { valid: false };
   if (pointer.down && hand.valid) {
     if (!held) {
       const dx = objectPosition.x - hand.x;
@@ -28,6 +30,7 @@ function update(dt) {
     setObjectPosition(object, objectPosition.x, objectPosition.y, objectPosition.z);
   } else if (held) {
     held = false;
+    activeHand = null;
     print("car anchored");
   }
 }

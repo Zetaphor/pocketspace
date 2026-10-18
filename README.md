@@ -1,8 +1,8 @@
 # Steam Frame AR-in-VR overlay engine
 
 This is the sole active implementation. A SteamVR overlay remains beside the
-primary VR experience. One standing-space world anchor holds a side-by-side
-stereo image, rendered through three GPU DMA-BUFs. QuickJS scripts place and
+primary VR experience. Standing-space world anchors hold side-by-side
+stereo images, each rendered through three GPU DMA-BUFs. QuickJS scripts place and
 animate objects. The headset-verified avocado and three-object demos remain
 available; the curated Khronos samples exercise distinct glTF features.
 
@@ -20,6 +20,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/sample-gallery.js
 ./run-overlay-engine.sh scripts/feature-gallery.js
 ./run-overlay-engine.sh scripts/grab-object.js
+./run-overlay-engine.sh scripts/three-object-grab.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -38,8 +39,8 @@ setObjectVisible(object, true);
 removeObject(object);
 print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
-enableObjectInteraction(object); // small laser hit region follows this object
-const pointer = getPointer(); // { valid, down, x, y }
+enableObjectInteraction(object); // dedicated hit region follows this object
+const pointer = getPointer(object); // { valid, down, x, y, hand }
 ```
 
 Coordinates are meters relative to the fixed anchor: +x right, +y up, +z
@@ -49,15 +50,18 @@ up to 32 loaded assets and 256 objects.
 
 `getController("left"|"right")` returns a tracked controller position relative
 to the same anchor as objects. Invalid tracking returns `valid: false`.
-`enableObjectInteraction(object)` gives that object a compact 0.55 m surface
-and circular laser hit region. `getPointer()` reports its primary-button state.
-The grab demo preserves the object's position relative to the controller in
-all six pose dimensions while held; the render surface follows it. The rest of the view
-should remain available to Frametop's laser. Ordinary rendering scripts retain
-the 0.7 m surface at 1 m and leave laser input disabled. This is a one-object
-interaction prototype: precise mesh hit testing, multiple independently placed
-surfaces, and robust focus loss handling remain to build. Direct SteamVR Input
-actions were inactive for this overlay during the first headset test.
+`enableObjectInteraction(object)` gives that object its own compact surface
+and circular laser hit region. Up to four objects can be interactive at once.
+`getPointer(object)` reports its primary-button state and the left or right
+controller that pressed it. The one-object form `getPointer()` remains valid
+when only one object is interactive. The grab demos preserve each object's
+position relative to the selecting controller in all six pose dimensions while
+held; its surface follows it. The gaps between surfaces leave Frametop
+reachable. Ordinary rendering scripts use a shared 0.7 m surface with laser
+input disabled. The three-object demo is headset verified with both hands.
+Precise mesh hit testing and independent simultaneous grabs remain future
+work. Direct SteamVR Input actions were inactive for this overlay during the
+first headset test.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
