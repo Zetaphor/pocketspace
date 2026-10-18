@@ -19,7 +19,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh
 ./run-overlay-engine.sh scripts/sample-gallery.js
 ./run-overlay-engine.sh scripts/feature-gallery.js
-./run-overlay-engine.sh scripts/pointer-place.js
+./run-overlay-engine.sh scripts/grab-object.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -37,8 +37,8 @@ setObjectScale(object, scaleMeters);
 setObjectVisible(object, true);
 removeObject(object);
 print("message");
-const right = getController("right"); // { valid, x, y, z }
-enablePointerInput(); // opt this script into overlay laser events
+const right = getController("right"); // { valid, x, y, z, rotation[9] }
+enableObjectInteraction(object); // small laser hit region follows this object
 const pointer = getPointer(); // { valid, down, x, y }
 ```
 
@@ -49,16 +49,15 @@ up to 32 loaded assets and 256 objects.
 
 `getController("left"|"right")` returns a tracked controller position relative
 to the same anchor as objects. Invalid tracking returns `valid: false`.
-`enablePointerInput()` opts a script into SteamVR overlay pointer events;
-`getPointer()` reports pointer position and primary-button state. The pointer
-placement demo moves a car while the overlay laser trigger is held and anchors
-it on release. Pointer scripts use a 1.8 m wide surface at 0.8 m; ordinary
-rendering scripts retain the 0.7 m surface at 1 m and leave laser input
-disabled. A single finite surface can still clip an object at its boundary,
-especially when the viewer leans. Tiled or adaptive surfaces are future work
-for room-wide placement. Direct SteamVR Input actions were inactive for this
-overlay during the first headset test; a reliable action and coexistence policy
-remain future input work.
+`enableObjectInteraction(object)` gives that object a compact 0.55 m surface
+and circular laser hit region. `getPointer()` reports its primary-button state.
+The grab demo preserves the object's position relative to the controller in
+all six pose dimensions while held; the render surface follows it. The rest of the view
+should remain available to Frametop's laser. Ordinary rendering scripts retain
+the 0.7 m surface at 1 m and leave laser input disabled. This is a one-object
+interaction prototype: precise mesh hit testing, multiple independently placed
+surfaces, and robust focus loss handling remain to build. Direct SteamVR Input
+actions were inactive for this overlay during the first headset test.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
