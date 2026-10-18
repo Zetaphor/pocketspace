@@ -30,7 +30,7 @@ reload leaves it visible. `update(dt)` runs at the 90 Hz host target.
 The script API is:
 
 ```js
-const asset = loadModel("assets/samples/Box/Box.glb");
+const asset = loadModel("assets/samples/Box/Box.glb", 768); // eye pixels, optional
 const object = createObject(asset, x, y, z, scaleMeters);
 setObjectPosition(object, x, y, z);
 setObjectYaw(object, radians);
@@ -47,6 +47,16 @@ Coordinates are meters relative to the fixed anchor: +x right, +y up, +z
 farther into the scene. Each GLB is centered and normalized to unit maximum
 dimension; scale is its maximum rendered dimension in meters. A scene supports
 up to 32 loaded assets and 256 objects.
+
+`loadModel(path, eyePixels)` sets the per-eye render resolution for every
+interactive surface using that asset. The default is 768 pixels; accepted
+values are multiples of 64 from 256 to 2048. Loading the same path again at a
+different resolution is an error. A shared surface for noninteractive objects
+uses the highest requested resolution among those models. Three 2048-pixel
+interactive surfaces caused headset lag and ghosting at about 65 engine fps.
+At 768 pixels the three-object demo held about 90 fps and looked clear enough
+in the headset; 512 pixels was too blurry. Resolution is a quality and GPU
+memory tradeoff, so raise it only for models that need it.
 
 `getController("left"|"right")` returns a tracked controller position relative
 to the same anchor as objects. Invalid tracking returns `valid: false`.

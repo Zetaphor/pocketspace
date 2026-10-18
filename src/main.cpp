@@ -26,9 +26,9 @@
 #include <quickjs.h>
 #include "model_asset.h"
 
-constexpr int kEyeSize=2048,kWidth=2*kEyeSize,kHeight=kEyeSize;
+constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
-struct Surface {int objectId=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -95,9 +95,16 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   if(!currentScene||argc<1||currentScene->assets.size()>=32)return JS_ThrowRangeError(ctx,"loadModel(path) requires a path; limit is 32 assets");
   const char *path=JS_ToCString(ctx,argv[0]);if(!path)return JS_EXCEPTION;
   std::string name(path);JS_FreeCString(ctx,path);
-  for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name)return JS_NewInt32(ctx,(int)i+1);
+  int eyePixels=kDefaultEyePixels;
+  if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
+  if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
+  for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name){
+    if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
+    return JS_NewInt32(ctx,(int)i+1);
+  }
   ModelAsset asset;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
+  asset.eyePixels=eyePixels;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
@@ -190,23 +197,24 @@ static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface)
   if(!eglChooseConfig(display,attrs,&config,1,&count)||!count)return false;
   const EGLint ctxAttrs[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
   context=eglCreateContext(display,config,EGL_NO_CONTEXT,ctxAttrs);
-  const EGLint surfAttrs[]={EGL_WIDTH,kEyeSize,EGL_HEIGHT,kEyeSize,EGL_NONE};
+  const EGLint surfAttrs[]={EGL_WIDTH,kDefaultEyePixels,EGL_HEIGHT,kDefaultEyePixels,EGL_NONE};
   surface=eglCreatePbufferSurface(display,config,surfAttrs);
   return eglMakeCurrent(display,surface,surface,context)==EGL_TRUE;
 }
-static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display) {
-  b.bo=gbm_bo_create(gbm,kWidth,kHeight,GBM_FORMAT_ABGR8888,GBM_BO_USE_RENDERING|GBM_BO_USE_LINEAR);
+static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixels) {
+  const int width=2*eyePixels,height=eyePixels;
+  b.bo=gbm_bo_create(gbm,width,height,GBM_FORMAT_ABGR8888,GBM_BO_USE_RENDERING|GBM_BO_USE_LINEAR);
   if(!b.bo||(b.fd=gbm_bo_get_fd(b.bo))<0)return false;
   vr::DmabufAttributes_t a{};
-  a.unWidth=kWidth;a.unHeight=kHeight;a.unDepth=a.unMipLevels=a.unArrayLayers=a.unSampleCount=1;
+  a.unWidth=width;a.unHeight=height;a.unDepth=a.unMipLevels=a.unArrayLayers=a.unSampleCount=1;
   a.unFormat=DRM_FORMAT_ABGR8888;a.ulModifier=DRM_FORMAT_MOD_LINEAR;a.unPlaneCount=1;
   a.plane[0].nFd=b.fd;a.plane[0].unOffset=gbm_bo_get_offset(b.bo,0);a.plane[0].unStride=gbm_bo_get_stride(b.bo);
   if(!vr::VRIPCResourceManager()->ImportDmabuf(vr::VRApplication_Overlay,&a,&b.handle)||!b.handle)return false;
-  const EGLint attrs[]={EGL_WIDTH,kWidth,EGL_HEIGHT,kHeight,EGL_LINUX_DRM_FOURCC_EXT,EGLint(DRM_FORMAT_ABGR8888),EGL_DMA_BUF_PLANE0_FD_EXT,b.fd,EGL_DMA_BUF_PLANE0_OFFSET_EXT,EGLint(a.plane[0].unOffset),EGL_DMA_BUF_PLANE0_PITCH_EXT,EGLint(a.plane[0].unStride),EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,EGLint(DRM_FORMAT_MOD_LINEAR&0xffffffff),EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,EGLint(DRM_FORMAT_MOD_LINEAR>>32),EGL_NONE};
+  const EGLint attrs[]={EGL_WIDTH,width,EGL_HEIGHT,height,EGL_LINUX_DRM_FOURCC_EXT,EGLint(DRM_FORMAT_ABGR8888),EGL_DMA_BUF_PLANE0_FD_EXT,b.fd,EGL_DMA_BUF_PLANE0_OFFSET_EXT,EGLint(a.plane[0].unOffset),EGL_DMA_BUF_PLANE0_PITCH_EXT,EGLint(a.plane[0].unStride),EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT,EGLint(DRM_FORMAT_MOD_LINEAR&0xffffffff),EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT,EGLint(DRM_FORMAT_MOD_LINEAR>>32),EGL_NONE};
   b.image=createImage(display,EGL_NO_CONTEXT,EGL_LINUX_DMA_BUF_EXT,nullptr,attrs);
   if(b.image==EGL_NO_IMAGE_KHR){fprintf(stderr,"eglCreateImage error=%x\n",(unsigned)eglGetError());return false;}
   glGenRenderbuffers(1,&b.color);glBindRenderbuffer(GL_RENDERBUFFER,b.color);imageRenderbuffer(GL_RENDERBUFFER,b.image);
-  glGenRenderbuffers(1,&b.depth);glBindRenderbuffer(GL_RENDERBUFFER,b.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,kWidth,kHeight);
+  glGenRenderbuffers(1,&b.depth);glBindRenderbuffer(GL_RENDERBUFFER,b.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,width,height);
   glGenFramebuffers(1,&b.fbo);glBindFramebuffer(GL_FRAMEBUFFER,b.fbo);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,b.color);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,b.depth);
@@ -230,8 +238,8 @@ static void destroySurface(Surface &surface,EGLDisplay display){
   for(auto &buffer:surface.buffers)destroyBuffer(buffer,display);
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
-static bool createSurface(Surface &surface,int id,float width,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
-  surface.objectId=id;surface.width=width;
+static bool createSurface(Surface &surface,int id,float width,int eyePixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
+  surface.objectId=id;surface.width=width;surface.eyePixels=eyePixels;
   const std::string key="sf_overlay_engine."+std::to_string(id);
   auto *overlays=vr::VROverlay();
   auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&surface.overlay);
@@ -253,8 +261,8 @@ static bool createSurface(Surface &surface,int id,float width,gbm_device *gbm,EG
     overlays->SetOverlayIntersectionMask(surface.overlay,&mask,1);
     vr::HmdVector2_t scale{{1,1}};overlays->SetOverlayMouseScale(surface.overlay,&scale);
   }
-  for(auto &buffer:surface.buffers)if(!makeBuffer(buffer,gbm,display)){fprintf(stderr,"[surface] buffer id=%d failed\n",id);return false;}
-  fprintf(stdout,"[surface] created id=%d width=%.3f\n",id,width);fflush(stdout);
+  for(auto &buffer:surface.buffers)if(!makeBuffer(buffer,gbm,display,eyePixels)){fprintf(stderr,"[surface] buffer id=%d failed\n",id);return false;}
+  fprintf(stdout,"[surface] created id=%d width=%.3f eye_px=%d\n",id,width,eyePixels);fflush(stdout);
   return true;
 }
 static GLuint compile(GLenum type,const char *source) {
@@ -323,11 +331,19 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     }
     for(int id:desired){
       float width=.7f;
-      if(id>0){for(const auto &object:script.scene.objects)if(object.id==id){width=std::max(.55f,object.scale*2.1f);break;}}
+      int eyePixels=id==0?256:kDefaultEyePixels;
+      if(id>0){for(const auto &object:script.scene.objects)if(object.id==id){width=std::max(.55f,object.scale*2.1f);eyePixels=script.scene.assets[(size_t)object.asset-1].eyePixels;break;}}
+      else for(const auto &object:script.scene.objects){
+        if(std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),object.id)==script.scene.interactiveIds.end())
+          eyePixels=std::max(eyePixels,script.scene.assets[(size_t)object.asset-1].eyePixels);
+      }
       auto found=surfaces.find(id);
+      if(found!=surfaces.end()&&found->second->eyePixels!=eyePixels){
+        pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
+      }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,id,width,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!createSurface(*created,id,width,eyePixels,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(std::fabs(found->second->width-width)>.0001f){
         found->second->width=width;
@@ -346,7 +362,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   GLint yawLocation=glGetUniformLocation(program,"yaw"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  auto next=std::chrono::steady_clock::now();int frame=0;
+  auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
   while(running){
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,.011f,poses,vr::k_unMaxTrackedDeviceCount);
     for(int hand=0;hand<2;hand++){
@@ -426,12 +442,12 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         setVec3(program,"center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);
         glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),surface->width*.5f);
         Buffer &buffer=surface->buffers[frame%3];
-        glBindFramebuffer(GL_FRAMEBUFFER,buffer.fbo);glViewport(0,0,kWidth,kHeight);
+        glBindFramebuffer(GL_FRAMEBUFFER,buffer.fbo);glViewport(0,0,2*surface->eyePixels,surface->eyePixels);
         glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         for(int i=0;i<2;i++){
           auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
           float eye[3];for(int r=0;r<3;r++)eye[r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
-          setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*kEyeSize,0,kEyeSize,kEyeSize);
+          setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
           for(int pass=0;pass<2;pass++){
             if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
             else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
@@ -466,7 +482,8 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,(int)error);
         if(!surface->shown){overlays->ShowOverlay(surface->overlay);surface->shown=true;}
       }
-      if(frame++%900==0){fprintf(stdout,"frames=%d surfaces=%zu ready=%zu gl_error=%x\n",frame,surfaces.size(),ready.size(),(unsigned)glGetError());fflush(stdout);}
+      ++frame;
+      if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError());fflush(stdout);}
     }
     next+=std::chrono::microseconds(11111);std::this_thread::sleep_until(next);
   }

@@ -17,6 +17,7 @@ struct PrimitiveAsset {
 };
 struct ModelAsset {
   std::string path;
+  int eyePixels=768;
   std::vector<PrimitiveAsset> primitives;
   bool uploaded=false;
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
