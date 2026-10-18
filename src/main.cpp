@@ -33,8 +33,8 @@ static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
-struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true;};
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> dedicatedIds,interactiveIds;int nextId=1;};
+struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true;};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> interactiveIds;int nextId=1;bool laserVisible[2]{};};
 static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -61,11 +61,20 @@ static JSValue jsGetController(JSContext *ctx,JSValueConst,int argc,JSValueConst
   JS_SetPropertyStr(ctx,object,"rotation",rotation);
   return object;
 }
+static JSValue jsSetLaserVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<2)return JS_ThrowTypeError(ctx,"setLaserVisible(hand, visible)");
+  const char *hand=JS_ToCString(ctx,argv[0]);if(!hand)return JS_EXCEPTION;
+  int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;JS_FreeCString(ctx,hand);
+  if(index<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
+  currentScene->laserVisible[index]=JS_ToBool(ctx,argv[1])>0;
+  return JS_UNDEFINED;
+}
 static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc>0&&JS_ToInt32(ctx,&id,argv[0])<0)return JS_EXCEPTION;
   if(argc==0&&currentScene&&currentScene->interactiveIds.size()==1)id=currentScene->interactiveIds.front();
   const auto found=pointerStates.find(id);
-  const PointerSnapshot state=found==pointerStates.end()?PointerSnapshot{}:found->second;
+  PointerSnapshot state=found==pointerStates.end()?PointerSnapshot{}:found->second;
+  if(currentScene)for(const auto &object:currentScene->objects)if(object.id==id&&!object.grabbable)state.down=false;
   JSValue object=JS_NewObject(ctx);
   JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,state.valid));
   JS_SetPropertyStr(ctx,object,"down",JS_NewBool(ctx,state.down));
@@ -81,11 +90,7 @@ static Object *findObject(int id){
 }
 static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectInteraction(objectId) requires a live object");
-  auto &dedicated=currentScene->dedicatedIds;
-  if(std::find(dedicated.begin(),dedicated.end(),id)==dedicated.end()){
-    if(dedicated.size()>=4)return JS_ThrowRangeError(ctx,"dedicated surface limit is four objects");
-    dedicated.push_back(id);
-  }
+  auto *object=findObject(id);object->laserPassThrough=false;object->grabbable=true;
   auto &ids=currentScene->interactiveIds;
   if(std::find(ids.begin(),ids.end(),id)==ids.end()){
     ids.push_back(id);
@@ -94,11 +99,20 @@ static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JS
 }
 static JSValue jsEnableObjectSurface(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectSurface(objectId) requires a live object");
-  auto &ids=currentScene->dedicatedIds;
-  if(std::find(ids.begin(),ids.end(),id)==ids.end()){
-    if(ids.size()>=4)return JS_ThrowRangeError(ctx,"dedicated surface limit is four objects");
-    ids.push_back(id);
-  }
+  // Kept for existing scripts: every object now owns a full-sphere surface.
+  return JS_UNDEFINED;
+}
+static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!JS_IsObject(argv[1]))return JS_ThrowTypeError(ctx,"setObjectInteraction(id, options)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  auto readBool=[&](const char *name,bool &value){JSValue field=JS_GetPropertyStr(ctx,argv[1],name);if(!JS_IsUndefined(field))value=JS_ToBool(ctx,field)>0;JS_FreeValue(ctx,field);};
+  readBool("laserPassThrough",object->laserPassThrough);
+  readBool("grabbable",object->grabbable);
+  readBool("directGrab",object->directGrab);
+  if(object->grabbable)object->laserPassThrough=false;
+  auto &ids=currentScene->interactiveIds;
+  ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
+  if(!object->laserPassThrough)ids.push_back(id);
   return JS_UNDEFINED;
 }
 static bool number(JSContext *ctx,JSValueConst value,float &out){
@@ -160,8 +174,6 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
-  auto &dedicated=currentScene->dedicatedIds;
-  dedicated.erase(std::remove(dedicated.begin(),dedicated.end(),id),dedicated.end());
   pointerStates.erase(id);
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
@@ -184,8 +196,10 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   currentScene=&candidate.scene;
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
+  bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,1);
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
+  bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"createObject",jsCreateObject,5);
@@ -306,6 +320,45 @@ static void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,
   up[2]=right[0]*forward[1]-right[1]*forward[0];
   for(int i=0;i<3;i++){panel.m[i][0]=right[i];panel.m[i][1]=up[i];panel.m[i][2]=-forward[i];}
 }
+static bool createLaser(vr::VROverlayHandle_t &handle,int hand){
+  auto *overlays=vr::VROverlay();const std::string key="sf_overlay_engine.laser."+std::to_string(hand);
+  if(overlays->CreateOverlay(key.c_str(),key.c_str(),&handle)!=vr::VROverlayError_None)return false;
+  unsigned char pixels[256*2*4]{};
+  for(int x=0;x<256;x++)for(int y=0;y<2;y++){
+    const int i=(y*256+x)*4;pixels[i]=hand?40:255;pixels[i+1]=hand?220:150;pixels[i+2]=255;
+    pixels[i+3]=(unsigned char)(x<4?x*38:x>251?(255-x)*38:150);
+  }
+  if(overlays->SetOverlayRaw(handle,pixels,256,2,4)!=vr::VROverlayError_None)return false;
+  overlays->SetOverlayInputMethod(handle,vr::VROverlayInputMethod_None);
+  overlays->SetOverlayWidthInMeters(handle,2.f);
+  return true;
+}
+static void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,int hand,const vr::TrackedDevicePose_t &controller,const vr::HmdMatrix34_t &head){
+  auto *overlays=vr::VROverlay();
+  if(!visible||!controller.bPoseIsValid){if(shown){overlays->HideOverlay(handle);shown=false;}return;}
+  const auto &pose=controller.mDeviceToAbsoluteTracking;
+  // Frame controller /pose/tip and /pose/openxr_aim: 40 degrees about local X.
+  constexpr float tilt=.6981317008f;
+  const float localOrigin[3]={hand==0?.012694f:-.012694f,-.02522f,.020687f};
+  float direction[3],origin[3],center[3],normal[3],up[3],viewLength=0;
+  for(int i=0;i<3;i++){
+    origin[i]=pose.m[i][3];
+    for(int axis=0;axis<3;axis++)origin[i]+=pose.m[i][axis]*localOrigin[axis];
+    direction[i]=-std::sin(tilt)*pose.m[i][1]-std::cos(tilt)*pose.m[i][2];
+    center[i]=origin[i]+direction[i];normal[i]=head.m[i][3]-center[i];
+  }
+  float along=normal[0]*direction[0]+normal[1]*direction[1]+normal[2]*direction[2];
+  for(int i=0;i<3;i++){normal[i]-=along*direction[i];viewLength+=normal[i]*normal[i];}
+  if(viewLength<.0001f){for(int i=0;i<3;i++)normal[i]=pose.m[i][1];}
+  else {viewLength=std::sqrt(viewLength);for(int i=0;i<3;i++)normal[i]/=viewLength;}
+  up[0]=normal[1]*direction[2]-normal[2]*direction[1];
+  up[1]=normal[2]*direction[0]-normal[0]*direction[2];
+  up[2]=normal[0]*direction[1]-normal[1]*direction[0];
+  vr::HmdMatrix34_t beam{};
+  for(int i=0;i<3;i++){beam.m[i][0]=direction[i];beam.m[i][1]=up[i];beam.m[i][2]=normal[i];beam.m[i][3]=center[i];}
+  overlays->SetOverlayTransformAbsolute(handle,vr::TrackingUniverseStanding,&beam);
+  if(!shown){overlays->ShowOverlay(handle);shown=true;}
+}
 int main(int argc,char **argv) {
   if(argc>2&&std::string(argv[1])=="--inspect"){
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
@@ -352,26 +405,23 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   auto anchor=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
   for(int r=0;r<3;r++)anchor.m[r][3]+=anchor.m[r][1]*-.2f+anchor.m[r][2]*-1.f;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
+  vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
+  if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
   std::map<int,std::unique_ptr<Surface>> surfaces;
   auto syncSurfaces=[&]()->bool{
-    std::vector<int> desired=script.scene.dedicatedIds;
-    bool stage=false;
-    for(const auto &object:script.scene.objects)if(std::find(desired.begin(),desired.end(),object.id)==desired.end())stage=true;
-    if(stage)desired.push_back(0);
+    std::vector<int> desired;
+    for(const auto &object:script.scene.objects)if(object.visible)desired.push_back(object.id);
     for(auto it=surfaces.begin();it!=surfaces.end();){
       if(std::find(desired.begin(),desired.end(),it->first)==desired.end()){
         pointerStates.erase(it->first);destroySurface(*it->second,display);it=surfaces.erase(it);
       }else ++it;
     }
     for(int id:desired){
-      float width=.7f;
-      int eyePixels=id==0?256:kDefaultEyePixels;
-      const bool interactive=id>0&&std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),id)!=script.scene.interactiveIds.end();
-      if(id>0){for(const auto &object:script.scene.objects)if(object.id==id){width=std::max(.55f,object.scale*2.1f);eyePixels=script.scene.assets[(size_t)object.asset-1].eyePixels;break;}}
-      else for(const auto &object:script.scene.objects){
-        if(std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)==script.scene.dedicatedIds.end())
-          eyePixels=std::max(eyePixels,script.scene.assets[(size_t)object.asset-1].eyePixels);
-      }
+      const Object *object=nullptr;for(const auto &entry:script.scene.objects)if(entry.id==id){object=&entry;break;}
+      if(!object)continue;
+      const float width=std::max(.55f,object->scale*2.1f);
+      const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
+      const bool interactive=!object->laserPassThrough;
       auto found=surfaces.find(id);
       if(found!=surfaces.end()&&(found->second->eyePixels!=eyePixels||found->second->interactive!=interactive)){
         pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
@@ -459,20 +509,27 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
+      for(int hand=0;hand<2;hand++){
+        auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
+        auto device=system->GetTrackedDeviceIndexForControllerRole(role);
+        vr::TrackedDevicePose_t pose{};
+        if(device!=vr::k_unTrackedDeviceIndexInvalid)pose=poses[device];
+        updateLaser(lasers[hand],laserShown[hand],script.scene.laserVisible[hand],hand,pose,head);
+      }
       std::vector<Surface*> ready;
       for(auto &[id,surface]:surfaces){
         const Object *target=nullptr;
-        if(id>0){for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}}
-        bool hasVisible=false;
-        for(const auto &object:script.scene.objects){
-          if(!object.visible)continue;
-          const bool dedicated=std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)!=script.scene.dedicatedIds.end();
-          if(id==object.id||id==0&&!dedicated){hasVisible=true;break;}
-        }
-        if(!hasVisible){if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}continue;}
-        float surfaceX=target?target->x:0,surfaceY=target?target->y:0,surfaceZ=target?target->z:0;
+        for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
+        if(!target)continue;
+        float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
         auto panel=anchor;
         for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
+        float distanceSquared=0,facing=0;
+        for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
+        if(facing<.25f*std::sqrt(distanceSquared)-target->scale*.6f){
+          if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}
+          continue;
+        }
         float panelRight[3],panelUp[3],panelForward[3];
         faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
         overlays->SetOverlayTransformAbsolute(surface->overlay,vr::TrackingUniverseStanding,&panel);
@@ -492,9 +549,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
             if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
             else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
             for(const auto &object:script.scene.objects){
-              if(!object.visible)continue;
-              const bool dedicated=std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)!=script.scene.dedicatedIds.end();
-              if(id!=object.id&&(id!=0||dedicated))continue;
+              if(!object.visible||id!=object.id)continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
@@ -528,6 +583,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     next+=std::chrono::microseconds(11111);std::this_thread::sleep_until(next);
   }
   fprintf(stdout,"completed frames=%d\n",frame);
+  for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
   for(auto &[id,surface]:surfaces)destroySurface(*surface,display);
   closeScript(script);gbm_device_destroy(gbm);close(drm);vr::VR_Shutdown();
 }
