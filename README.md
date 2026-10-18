@@ -22,6 +22,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/grab-object.js
 ./run-overlay-engine.sh scripts/three-object-grab.js
 ./run-overlay-engine.sh scripts/full-sphere-gallery.js
+./run-overlay-engine.sh scripts/dual-laser-test.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -40,8 +41,9 @@ setObjectVisible(object, true);
 removeObject(object);
 print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
-enableObjectInteraction(object); // dedicated hit region follows this object
-enableObjectSurface(object); // dedicated full-sphere surface without input
+enableObjectInteraction(object); // grabbable by the SteamVR laser
+setObjectInteraction(object, {laserPassThrough: true, grabbable: false});
+setLaserVisible("left", true); // optional visual beam, also supports "right"
 const pointer = getPointer(object); // { valid, down, x, y, hand }
 ```
 
@@ -50,11 +52,10 @@ farther into the scene. Each GLB is centered and normalized to unit maximum
 dimension; scale is its maximum rendered dimension in meters. A scene supports
 up to 32 loaded assets and 256 objects.
 
-`loadModel(path, eyePixels)` sets the per-eye render resolution for every
-interactive surface using that asset. The default is 768 pixels; accepted
+`loadModel(path, eyePixels)` sets the per-eye render resolution for each
+object surface using that asset. The default is 768 pixels; accepted
 values are multiples of 64 from 256 to 2048. Loading the same path again at a
-different resolution is an error. A shared surface for noninteractive objects
-uses the highest requested resolution among those models. Three 2048-pixel
+different resolution is an error. Three 2048-pixel
 interactive surfaces caused headset lag and ghosting at about 65 engine fps.
 At 768 pixels the three-object demo held about 90 fps and looked clear enough
 in the headset; 512 pixels was too blurry. Resolution is a quality and GPU
@@ -62,10 +63,18 @@ memory tradeoff, so raise it only for models that need it.
 
 `getController("left"|"right")` returns a tracked controller position relative
 to the same anchor as objects. Invalid tracking returns `valid: false`.
-`enableObjectInteraction(object)` gives that object its own compact surface
-and circular laser hit region. `enableObjectSurface(object)` creates the same
-dedicated surface without intercepting controller input. Up to four objects
-can have dedicated surfaces at once.
+Every visible object gets a compact surface that follows it throughout the
+full sphere. Surfaces turn toward the headset while their objects stay at
+fixed world positions. By default, the SteamVR laser passes through them.
+`setObjectInteraction(object, {laserPassThrough, grabbable})` changes that
+behavior. A grabbable object always blocks the laser. An object can also block
+the laser without being grabbable. `enableObjectInteraction(object)` is the
+short form for a grabbable object. `enableObjectSurface(object)` remains a
+compatibility no-op. The previous four-surface limit is gone; GPU memory and
+SteamVR overlay capacity remain practical limits for large scenes.
+`setLaserVisible(hand, visible)` draws a noninteractive beam from either
+controller using the Frame controller's aim transform. Both can be shown at
+once. These beams are visual only; SteamVR still owns pointer events.
 `getPointer(object)` reports its primary-button state and the left or right
 controller that pressed it. The one-object form `getPointer()` remains valid
 when only one object is interactive. The grab demos preserve each object's
@@ -73,15 +82,17 @@ position relative to the selecting controller in all six pose dimensions while
 held; its surface follows it. The gaps between surfaces leave Frametop
 reachable. Ordinary rendering scripts use a shared 0.7 m surface with laser
 input disabled. The three-object demo is headset verified with both hands.
-Each interactive surface turns toward the headset while its object remains at
-the same world position. The full-sphere gallery places objects in front, to
+The full-sphere gallery places objects in front, to
 the side, and behind the starting viewpoint; all three remained visible, and
 an object dragged behind the user remained visible and grabbable in headset
-testing. The shared surface remains a single plane; use dedicated surfaces
-for objects that must span the full sphere.
+testing.
 Precise mesh hit testing and independent simultaneous grabs remain future
-work. Direct SteamVR Input actions were inactive for this overlay during the
-first headset test.
+work. Direct hand grabbing, joystick rotation and depth adjustment, grip
+modifiers, and per-axis hand rotation are not implemented yet. Direct SteamVR
+Input actions remained inactive in overlay input probes even after the action
+manifest and controller bindings loaded, so these controls need further
+SteamVR Input investigation. The `directGrab` interaction option is reserved
+and does not yet enable hand grabbing.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
