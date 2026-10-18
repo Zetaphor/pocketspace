@@ -28,13 +28,13 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
 struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true;};
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> interactiveIds;int nextId=1;};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> dedicatedIds,interactiveIds;int nextId=1;};
 static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -81,9 +81,22 @@ static Object *findObject(int id){
 }
 static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectInteraction(objectId) requires a live object");
+  auto &dedicated=currentScene->dedicatedIds;
+  if(std::find(dedicated.begin(),dedicated.end(),id)==dedicated.end()){
+    if(dedicated.size()>=4)return JS_ThrowRangeError(ctx,"dedicated surface limit is four objects");
+    dedicated.push_back(id);
+  }
   auto &ids=currentScene->interactiveIds;
   if(std::find(ids.begin(),ids.end(),id)==ids.end()){
-    if(ids.size()>=4)return JS_ThrowRangeError(ctx,"interactive surface limit is four objects");
+    ids.push_back(id);
+  }
+  return JS_UNDEFINED;
+}
+static JSValue jsEnableObjectSurface(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectSurface(objectId) requires a live object");
+  auto &ids=currentScene->dedicatedIds;
+  if(std::find(ids.begin(),ids.end(),id)==ids.end()){
+    if(ids.size()>=4)return JS_ThrowRangeError(ctx,"dedicated surface limit is four objects");
     ids.push_back(id);
   }
   return JS_UNDEFINED;
@@ -147,6 +160,8 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
+  auto &dedicated=currentScene->dedicatedIds;
+  dedicated.erase(std::remove(dedicated.begin(),dedicated.end(),id),dedicated.end());
   pointerStates.erase(id);
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
@@ -170,6 +185,7 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,1);
+  bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"createObject",jsCreateObject,5);
@@ -238,8 +254,8 @@ static void destroySurface(Surface &surface,EGLDisplay display){
   for(auto &buffer:surface.buffers)destroyBuffer(buffer,display);
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
-static bool createSurface(Surface &surface,int id,float width,int eyePixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
-  surface.objectId=id;surface.width=width;surface.eyePixels=eyePixels;
+static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
+  surface.objectId=id;surface.width=width;surface.eyePixels=eyePixels;surface.interactive=interactive;
   const std::string key="sf_overlay_engine."+std::to_string(id);
   auto *overlays=vr::VROverlay();
   auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&surface.overlay);
@@ -250,7 +266,7 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,gbm_
   if(error!=vr::VROverlayError_None)return false;
   vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(surface.overlay,&bounds);
   overlays->SetOverlayTransformAbsolute(surface.overlay,vr::TrackingUniverseStanding,&anchor);
-  if(id>0){
+  if(interactive){
     overlays->SetOverlayInputMethod(surface.overlay,vr::VROverlayInputMethod_Mouse);
     overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);
     vr::VROverlayIntersectionMaskPrimitive_t mask{};
@@ -272,6 +288,24 @@ static GLuint compile(GLenum type,const char *source) {
   return shader;
 }
 static void setVec3(GLuint program,const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
+static void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]){
+  float length=0;
+  for(int i=0;i<3;i++){forward[i]=panel.m[i][3]-head.m[i][3];length+=forward[i]*forward[i];}
+  if(length<.0001f){for(int i=0;i<3;i++)forward[i]=-anchor.m[i][2];}
+  else {length=std::sqrt(length);for(int i=0;i<3;i++)forward[i]/=length;}
+  float hint[3]={anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]};
+  float alignment=forward[0]*hint[0]+forward[1]*hint[1]+forward[2]*hint[2];
+  if(std::fabs(alignment)>.95f)for(int i=0;i<3;i++)hint[i]=anchor.m[i][2];
+  right[0]=forward[1]*hint[2]-forward[2]*hint[1];
+  right[1]=forward[2]*hint[0]-forward[0]*hint[2];
+  right[2]=forward[0]*hint[1]-forward[1]*hint[0];
+  length=std::sqrt(right[0]*right[0]+right[1]*right[1]+right[2]*right[2]);
+  for(int i=0;i<3;i++)right[i]/=length;
+  up[0]=right[1]*forward[2]-right[2]*forward[1];
+  up[1]=right[2]*forward[0]-right[0]*forward[2];
+  up[2]=right[0]*forward[1]-right[1]*forward[0];
+  for(int i=0;i<3;i++){panel.m[i][0]=right[i];panel.m[i][1]=up[i];panel.m[i][2]=-forward[i];}
+}
 int main(int argc,char **argv) {
   if(argc>2&&std::string(argv[1])=="--inspect"){
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
@@ -289,7 +323,7 @@ int main(int argc,char **argv) {
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
   const char *vs=R"(#version 300 es
 layout(location=0) in vec3 p;layout(location=1) in vec2 uv;
-uniform vec3 center,right,up,forward,eye;
+uniform vec3 center,right,up,forward,panelRight,panelUp,panelForward,eye;
 uniform vec3 offset;
 uniform float yaw,modelScale,panelHalfWidth;
 out vec2 t;
@@ -298,11 +332,11 @@ void main(){
   vec3 rotated=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);
   vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+modelScale*(right*rotated.x+up*rotated.y-forward*rotated.z);
   vec3 ray=world-eye;
-  float distanceAlong=dot(ray,forward);
-  float hitScale=dot(center-eye,forward)/distanceAlong;
+  float distanceAlong=dot(ray,panelForward);
+  float hitScale=dot(center-eye,panelForward)/distanceAlong;
   vec3 hit=eye+hitScale*ray;
-  float x=dot(hit-center,right)/panelHalfWidth;
-  float y=dot(hit-center,up)/panelHalfWidth;
+  float x=dot(hit-center,panelRight)/panelHalfWidth;
+  float y=dot(hit-center,panelUp)/panelHalfWidth;
   float z=(distanceAlong-0.05)/4.95*2.0-1.0;
   gl_Position=vec4(x*distanceAlong,y*distanceAlong,z*distanceAlong,distanceAlong);
   t=uv;
@@ -320,7 +354,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   std::map<int,std::unique_ptr<Surface>> surfaces;
   auto syncSurfaces=[&]()->bool{
-    std::vector<int> desired=script.scene.interactiveIds;
+    std::vector<int> desired=script.scene.dedicatedIds;
     bool stage=false;
     for(const auto &object:script.scene.objects)if(std::find(desired.begin(),desired.end(),object.id)==desired.end())stage=true;
     if(stage)desired.push_back(0);
@@ -332,18 +366,19 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     for(int id:desired){
       float width=.7f;
       int eyePixels=id==0?256:kDefaultEyePixels;
+      const bool interactive=id>0&&std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),id)!=script.scene.interactiveIds.end();
       if(id>0){for(const auto &object:script.scene.objects)if(object.id==id){width=std::max(.55f,object.scale*2.1f);eyePixels=script.scene.assets[(size_t)object.asset-1].eyePixels;break;}}
       else for(const auto &object:script.scene.objects){
-        if(std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),object.id)==script.scene.interactiveIds.end())
+        if(std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)==script.scene.dedicatedIds.end())
           eyePixels=std::max(eyePixels,script.scene.assets[(size_t)object.asset-1].eyePixels);
       }
       auto found=surfaces.find(id);
-      if(found!=surfaces.end()&&found->second->eyePixels!=eyePixels){
+      if(found!=surfaces.end()&&(found->second->eyePixels!=eyePixels||found->second->interactive!=interactive)){
         pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,id,width,eyePixels,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!createSurface(*created,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(std::fabs(found->second->width-width)>.0001f){
         found->second->width=width;
@@ -431,15 +466,20 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         bool hasVisible=false;
         for(const auto &object:script.scene.objects){
           if(!object.visible)continue;
-          const bool interactive=std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),object.id)!=script.scene.interactiveIds.end();
-          if(id==object.id||id==0&&!interactive){hasVisible=true;break;}
+          const bool dedicated=std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)!=script.scene.dedicatedIds.end();
+          if(id==object.id||id==0&&!dedicated){hasVisible=true;break;}
         }
         if(!hasVisible){if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}continue;}
         float surfaceX=target?target->x:0,surfaceY=target?target->y:0,surfaceZ=target?target->z:0;
         auto panel=anchor;
         for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
+        float panelRight[3],panelUp[3],panelForward[3];
+        faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
         overlays->SetOverlayTransformAbsolute(surface->overlay,vr::TrackingUniverseStanding,&panel);
         setVec3(program,"center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);
+        setVec3(program,"panelRight",panelRight[0],panelRight[1],panelRight[2]);
+        setVec3(program,"panelUp",panelUp[0],panelUp[1],panelUp[2]);
+        setVec3(program,"panelForward",panelForward[0],panelForward[1],panelForward[2]);
         glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),surface->width*.5f);
         Buffer &buffer=surface->buffers[frame%3];
         glBindFramebuffer(GL_FRAMEBUFFER,buffer.fbo);glViewport(0,0,2*surface->eyePixels,surface->eyePixels);
@@ -453,8 +493,8 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
             else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
             for(const auto &object:script.scene.objects){
               if(!object.visible)continue;
-              const bool interactive=std::find(script.scene.interactiveIds.begin(),script.scene.interactiveIds.end(),object.id)!=script.scene.interactiveIds.end();
-              if(id!=object.id&&(id!=0||interactive))continue;
+              const bool dedicated=std::find(script.scene.dedicatedIds.begin(),script.scene.dedicatedIds.end(),object.id)!=script.scene.dedicatedIds.end();
+              if(id!=object.id&&(id!=0||dedicated))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);

@@ -21,6 +21,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/feature-gallery.js
 ./run-overlay-engine.sh scripts/grab-object.js
 ./run-overlay-engine.sh scripts/three-object-grab.js
+./run-overlay-engine.sh scripts/full-sphere-gallery.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -40,6 +41,7 @@ removeObject(object);
 print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
 enableObjectInteraction(object); // dedicated hit region follows this object
+enableObjectSurface(object); // dedicated full-sphere surface without input
 const pointer = getPointer(object); // { valid, down, x, y, hand }
 ```
 
@@ -61,7 +63,9 @@ memory tradeoff, so raise it only for models that need it.
 `getController("left"|"right")` returns a tracked controller position relative
 to the same anchor as objects. Invalid tracking returns `valid: false`.
 `enableObjectInteraction(object)` gives that object its own compact surface
-and circular laser hit region. Up to four objects can be interactive at once.
+and circular laser hit region. `enableObjectSurface(object)` creates the same
+dedicated surface without intercepting controller input. Up to four objects
+can have dedicated surfaces at once.
 `getPointer(object)` reports its primary-button state and the left or right
 controller that pressed it. The one-object form `getPointer()` remains valid
 when only one object is interactive. The grab demos preserve each object's
@@ -69,6 +73,12 @@ position relative to the selecting controller in all six pose dimensions while
 held; its surface follows it. The gaps between surfaces leave Frametop
 reachable. Ordinary rendering scripts use a shared 0.7 m surface with laser
 input disabled. The three-object demo is headset verified with both hands.
+Each interactive surface turns toward the headset while its object remains at
+the same world position. The full-sphere gallery places objects in front, to
+the side, and behind the starting viewpoint; all three remained visible, and
+an object dragged behind the user remained visible and grabbable in headset
+testing. The shared surface remains a single plane; use dedicated surfaces
+for objects that must span the full sphere.
 Precise mesh hit testing and independent simultaneous grabs remain future
 work. Direct SteamVR Input actions were inactive for this overlay during the
 first headset test.
