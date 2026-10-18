@@ -1,6 +1,6 @@
-// Coordinates are meters relative to the fixed world anchor captured at startup.
-// +x is right, +y is up, and +z is farther into the scene.
-const avocado = createObject(0, 0, 0, 0.55);
-function update(dt) {
-  // To animate the model: setObjectYaw(avocado, elapsedRadians);
-}
+// Fixed world anchor: +x right, +y up, +z farther into the scene.
+const avocadoModel = loadModel("assets/Avocado.glb");
+const avocado = createObject(avocadoModel, 0, 0, 0, 0.55);
+// The source GLB has a half-turn node transform; retain the verified facing.
+setObjectYaw(avocado, Math.PI);
+function update(dt) {}

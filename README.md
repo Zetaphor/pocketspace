@@ -1,15 +1,10 @@
 # Steam Frame AR-in-VR overlay engine
 
-`src/main.cpp` is the sole active implementation. It combines the headset-verified
-world-anchored stereo OpenVR renderer with embedded QuickJS and loads a GLB model at
-runtime. The first model is `assets/Avocado.glb`, tracked in this repository.
-The script can create multiple independently animated instances of that model.
-Loading distinct models and controller actions are the next milestones.
-
-The host remains a `VRApplication_Overlay`. It uses one standing-space absolute
-overlay, side-by-side eye images, and three imported GPU DMA-BUFs. It runs until
-Ctrl-C or SIGTERM. The first model is normalized to a one-meter maximum dimension
-and centered; the physical overlay is 0.7 meters wide.
+This is the sole active implementation. A SteamVR overlay remains beside the
+primary VR experience. One standing-space world anchor holds a side-by-side
+stereo image, rendered through three GPU DMA-BUFs. QuickJS scripts place and
+animate objects. The headset-verified avocado and three-object demos remain
+available; the curated Khronos samples exercise distinct glTF features.
 
 Build on Deckard:
 
@@ -18,44 +13,46 @@ cmake -S . -B build
 cmake --build build -j2
 ```
 
-Run:
+Run the default avocado or a sample gallery:
 
 ```sh
 ./run-overlay-engine.sh
+./run-overlay-engine.sh scripts/sample-gallery.js
+./run-overlay-engine.sh scripts/feature-gallery.js
 ```
 
-Pass a JS path as the first argument and a GLB path as the second. The default
-`scripts/avocado.js` is polled for changes about three times per second.
-`update(dt)` runs at the host's 90 Hz target. `scripts/three-avocados.js` is a
-multi-object example; run it with `./run-overlay-engine.sh scripts/three-avocados.js`.
+Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
+times per second. A successful reload replaces the previous scene; a failed
+reload leaves it visible. `update(dt)` runs at the 90 Hz host target.
 
-The current script API is:
+The script API is:
 
 ```js
-const id = createObject(x, y, z, scaleMeters);
-setObjectPosition(id, x, y, z);
-setObjectYaw(id, radians);
-setObjectScale(id, scaleMeters);
-setObjectVisible(id, true);
-removeObject(id);
+const asset = loadModel("assets/samples/Box/Box.glb");
+const object = createObject(asset, x, y, z, scaleMeters);
+setObjectPosition(object, x, y, z);
+setObjectYaw(object, radians);
+setObjectScale(object, scaleMeters);
+setObjectVisible(object, true);
+removeObject(object);
 print("message");
 ```
 
-Positions are meters relative to the fixed world anchor captured at startup:
-`+x` right, `+y` up, and `+z` farther into the scene. They remain fixed as the
-head moves. Scale is the normalized model's maximum dimension in meters.
-The first version supports up to 256 live objects sharing one GLB and material.
-On a script load error the last working scene remains active. A successful reload
-replaces all objects owned by the previous script. If `update` fails, the scene
-remains visible and the failing callback is disabled.
+Coordinates are meters relative to the fixed anchor: +x right, +y up, +z
+farther into the scene. Each GLB is centered and normalized to unit maximum
+dimension; scale is its maximum rendered dimension in meters. A scene supports
+up to 32 loaded assets and 256 objects.
 
-The current loader supports the first mesh's first indexed triangle primitive,
-`POSITION`, `TEXCOORD_0`, and an embedded base-color image. Broader glTF materials,
-multiple primitives, animation, and external images are future loader work.
+The loader handles GLB triangle primitives across all mesh nodes, node
+transforms, embedded base-color textures, material factors, alpha modes,
+texture UV transforms, and a basic sheen tint. The sheen tint is an
+approximation; full PBR lighting, skinning, morph animation, and glTF animation
+playback are future milestones. The current feature gallery shows the default
+pose for animated assets. `build/sf-overlay-engine --inspect path.glb` checks
+an asset without opening VR.
 
-Headset acceptance: the avocado is upright, stereo converged, continuously visible,
-and stable relative to Frametop while rotating and leaning. Test with a primary VR
-application open as well. Logs and build success cannot substitute for this check.
-
-`third_party/cgltf.h` is from [cgltf](https://github.com/jkuhlmann/cgltf) at commit
-`85cd62382dfea638278962690cf515023f33ed00`; see `third_party/cgltf-LICENSE`.
+The sample models, upstream references, and licenses are listed in
+`assets/samples/ATTRIBUTION.md`. `third_party/cgltf.h` is from
+[cgltf](https://github.com/jkuhlmann/cgltf) commit
+`85cd62382dfea638278962690cf515023f33ed00`; see
+`third_party/cgltf-LICENSE`.
