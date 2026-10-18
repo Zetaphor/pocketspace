@@ -31,9 +31,9 @@ static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
 struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true;};
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;int nextId=1;bool pointerEnabled=false;};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;int nextId=1;int surfaceObject=0;};
 static Scene *currentScene=nullptr;
-struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;};
+struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
 struct PointerSnapshot {bool valid=false,down=false;float x=0,y=0;};
 static PointerSnapshot pointerState;
@@ -53,9 +53,11 @@ static JSValue jsGetController(JSContext *ctx,JSValueConst,int argc,JSValueConst
   JS_SetPropertyStr(ctx,object,"x",JS_NewFloat64(ctx,c.x));
   JS_SetPropertyStr(ctx,object,"y",JS_NewFloat64(ctx,c.y));
   JS_SetPropertyStr(ctx,object,"z",JS_NewFloat64(ctx,c.z));
+  JSValue rotation=JS_NewArray(ctx);
+  for(int i=0;i<9;i++)JS_SetPropertyUint32(ctx,rotation,i,JS_NewFloat64(ctx,c.rotation[i]));
+  JS_SetPropertyStr(ctx,object,"rotation",rotation);
   return object;
 }
-static JSValue jsEnablePointerInput(JSContext *,JSValueConst,int,JSValueConst *){if(currentScene)currentScene->pointerEnabled=true;return JS_UNDEFINED;}
 static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int,JSValueConst *){
   JSValue object=JS_NewObject(ctx);
   JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,pointerState.valid));
@@ -68,6 +70,10 @@ static Object *findObject(int id){
   if(!currentScene)return nullptr;
   for(auto &object:currentScene->objects)if(object.id==id)return &object;
   return nullptr;
+}
+static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectInteraction(objectId) requires a live object");
+  currentScene->surfaceObject=id;return JS_UNDEFINED;
 }
 static bool number(JSContext *ctx,JSValueConst value,float &out){
   double n=0;if(JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n))return false;out=(float)n;return std::isfinite(out);
@@ -119,6 +125,7 @@ static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueCo
 static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  if(currentScene->surfaceObject==id)currentScene->surfaceObject=0;
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
 }
@@ -140,7 +147,7 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   currentScene=&candidate.scene;
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
-  bind(candidate.ctx,"enablePointerInput",jsEnablePointerInput,0);
+  bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,1);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"createObject",jsCreateObject,5);
@@ -204,7 +211,7 @@ int main(int argc,char **argv) {
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
   std::string scriptPath=argc>1?argv[1]:"scripts/avocado.js";
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
-  float panelWidth=script.scene.pointerEnabled?1.8f:.7f;
+  float panelWidth=script.scene.surfaceObject?.55f:.7f;
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
   auto *system=vr::VRSystem();auto *overlays=vr::VROverlay();
@@ -243,7 +250,8 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
   auto panel=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
-  for(int r=0;r<3;r++)panel.m[r][3]+=panel.m[r][1]*-.2f+panel.m[r][2]*(script.scene.pointerEnabled?-.8f:-1.f);
+  for(int r=0;r<3;r++)panel.m[r][3]+=panel.m[r][1]*-.2f+panel.m[r][2]*-1.f;
+  const auto anchor=panel;
   vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;
   auto err=overlays->CreateOverlay("sf_stereo_overlay_engine","SF Stereo Overlay Engine",&overlay);if(err!=vr::VROverlayError_None)return 8;
   err=overlays->SetOverlayFlag(overlay,vr::VROverlayFlags_SideBySide_Parallel,true);if(err!=vr::VROverlayError_None)return 9;
@@ -263,7 +271,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   auto next=std::chrono::steady_clock::now();int frame=0;bool pointerConfigured=false;
   while(running){
-    system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
+    system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,.011f,poses,vr::k_unMaxTrackedDeviceCount);
     for(int hand=0;hand<2;hand++){
       auto &snapshot=controllers[hand];snapshot={};
       auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
@@ -273,20 +281,30 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(frame%900==0){fprintf(stdout,"[input] hand=%d device=%u pose=%d\n",hand,device,pose.bPoseIsValid);fflush(stdout);}
       if(!pose.bPoseIsValid)continue;
       snapshot.valid=true;
-      float relative[3];for(int i=0;i<3;i++)relative[i]=pose.mDeviceToAbsoluteTracking.m[i][3]-panel.m[i][3];
+      float relative[3];for(int i=0;i<3;i++)relative[i]=pose.mDeviceToAbsoluteTracking.m[i][3]-anchor.m[i][3];
       for(int axis=0;axis<3;axis++){
-        float value=0;for(int i=0;i<3;i++)value+=relative[i]*panel.m[i][axis];
+        float value=0;for(int i=0;i<3;i++)value+=relative[i]*anchor.m[i][axis];
         if(axis==0)snapshot.x=value;else if(axis==1)snapshot.y=value;else snapshot.z=-value;
+      }
+      for(int row=0;row<3;row++)for(int col=0;col<3;col++){
+        float value=0;for(int i=0;i<3;i++)value+=anchor.m[i][row]*pose.mDeviceToAbsoluteTracking.m[i][col];
+        snapshot.rotation[row*3+col]=row==2?-value:value;
       }
     }
     if(frame%30==0){std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);if(!ec&&modified!=script.mtime){if(!loadScript(script,scriptPath))script.mtime=modified;}}
-    if(script.scene.pointerEnabled!=pointerConfigured){
-      pointerConfigured=script.scene.pointerEnabled;
-      panelWidth=pointerConfigured?1.8f:.7f;
+    if(bool(script.scene.surfaceObject)!=pointerConfigured){
+      pointerConfigured=script.scene.surfaceObject!=0;
+      panelWidth=pointerConfigured?.55f:.7f;
       overlays->SetOverlayWidthInMeters(overlay,panelWidth);
       glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),panelWidth*.5f);
       overlays->SetOverlayInputMethod(overlay,pointerConfigured?vr::VROverlayInputMethod_Mouse:vr::VROverlayInputMethod_None);
       overlays->SetOverlayFlag(overlay,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,pointerConfigured);
+      vr::VROverlayIntersectionMaskPrimitive_t mask{};
+      mask.m_nPrimitiveType=vr::OverlayIntersectionPrimitiveType_Circle;
+      mask.m_Primitive.m_Circle.m_flCenterX=.5f;
+      mask.m_Primitive.m_Circle.m_flCenterY=.5f;
+      mask.m_Primitive.m_Circle.m_flRadius=.3f;
+      overlays->SetOverlayIntersectionMask(overlay,pointerConfigured?&mask:nullptr,pointerConfigured?1:0);
       vr::HmdVector2_t scale{{1,1}};overlays->SetOverlayMouseScale(overlay,&scale);
       pointerState={};
       fprintf(stdout,"[input] overlay pointer=%d\n",pointerConfigured);fflush(stdout);
@@ -309,6 +327,14 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(JS_IsException(result)){JSValue exception=JS_GetException(script.ctx);const char *message=JS_ToCString(script.ctx,exception);fprintf(stderr,"[js] update error: %s\n",message?message:"unknown");if(message)JS_FreeCString(script.ctx,message);JS_FreeValue(script.ctx,exception);JS_FreeValue(script.ctx,script.update);script.update=JS_UNDEFINED;}
       JS_FreeValue(script.ctx,result);
     }
+    float surfaceX=0,surfaceY=0,surfaceZ=0;
+    if(script.scene.surfaceObject){
+      for(const auto &object:script.scene.objects)if(object.id==script.scene.surfaceObject){surfaceX=object.x;surfaceY=object.y;surfaceZ=object.z;break;}
+    }
+    panel=anchor;
+    for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
+    overlays->SetOverlayTransformAbsolute(overlay,vr::TrackingUniverseStanding,&panel);
+    setVec3(program,"center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);
     for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
@@ -325,7 +351,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
             if(!object.visible)continue;
             const auto &asset=script.scene.assets[(size_t)object.asset-1];
             glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
-            glUniform3f(offsetLocation,object.x,object.y,object.z);
+            glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
             for(const auto &part:asset.primitives){
               if((part.alphaMode==2)!=bool(pass))continue;
               glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
