@@ -106,7 +106,7 @@ static bool loadModel(const std::string &path,ModelData &model){
     if(index>=positions->count||index>=uvs->count){fprintf(stderr,"[model] bad index\n");cgltf_free(data);return false;}
     float p[3],uv[2];
     if(!cgltf_accessor_read_float(positions,index,p,3)||!cgltf_accessor_read_float(uvs,index,uv,2)){fprintf(stderr,"[model] accessor read failed\n");cgltf_free(data);return false;}
-    model.vertices.insert(model.vertices.end(),{(p[0]-(low[0]+high[0])*.5f)*scale,(p[1]-(low[1]+high[1])*.5f)*scale,(p[2]-(low[2]+high[2])*.5f)*scale,uv[0],1.f-uv[1]});
+    model.vertices.insert(model.vertices.end(),{(p[0]-(low[0]+high[0])*.5f)*scale,(p[1]-(low[1]+high[1])*.5f)*scale,(p[2]-(low[2]+high[2])*.5f)*scale,uv[0],uv[1]});
   }
   const cgltf_texture *texture=primitive.material&&primitive.material->has_pbr_metallic_roughness?primitive.material->pbr_metallic_roughness.base_color_texture.texture:nullptr;
   const cgltf_image *image=texture?texture->image:nullptr;
