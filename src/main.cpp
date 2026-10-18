@@ -20,6 +20,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <quickjs.h>
 #define CGLTF_IMPLEMENTATION
 #include "../third_party/cgltf.h"
@@ -32,22 +33,65 @@ static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
-static float modelYaw=0.f;
-static bool modelVisible=true;
+struct Object {int id;float x,y,z,scale,yaw;bool visible=true;};
+struct Scene {std::vector<Object> objects;int nextId=1;};
+static Scene *currentScene=nullptr;
 static void stop(int){running=false;}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){fprintf(stdout,"[js] %s\n",s);JS_FreeCString(ctx,s);}}
   return JS_UNDEFINED;
 }
-static JSValue jsSetYaw(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  double value=0;if(argc&&JS_ToFloat64(ctx,&value,argv[0])==0)modelYaw=(float)value;
+static Object *findObject(int id){
+  if(!currentScene)return nullptr;
+  for(auto &object:currentScene->objects)if(object.id==id)return &object;
+  return nullptr;
+}
+static bool number(JSContext *ctx,JSValueConst value,float &out){
+  double n=0;if(JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n))return false;out=(float)n;return std::isfinite(out);
+}
+static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<3||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs x, y, z; limit is 256 objects");
+  float values[4]={0,0,0,.55f};
+  for(int i=0;i<std::min(argc,4);i++)if(!number(ctx,argv[i],values[i]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
+  if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
+  int id=currentScene->nextId++;
+  currentScene->objects.push_back({id,values[0],values[1],values[2],values[3],0});
+  return JS_NewInt32(ctx,id);
+}
+static JSValue jsSetObjectPosition(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;float x,y,z;
+  if(argc<4||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],x)||!number(ctx,argv[2],y)||!number(ctx,argv[3],z))return JS_ThrowTypeError(ctx,"setObjectPosition(id, x, y, z)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  object->x=x;object->y=y;object->z=z;return JS_UNDEFINED;
+}
+static JSValue jsSetObjectYaw(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;float yaw;
+  if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],yaw))return JS_ThrowTypeError(ctx,"setObjectYaw(id, radians)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  object->yaw=yaw;return JS_UNDEFINED;
+}
+static JSValue jsSetObjectScale(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;float scale;
+  if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],scale))return JS_ThrowTypeError(ctx,"setObjectScale(id, meters)");
+  if(scale<=0||scale>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  object->scale=scale;return JS_UNDEFINED;
+}
+static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"setObjectVisible(id, visible)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  object->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;
+}
+static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
 }
-static JSValue jsSetVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  if(argc)modelVisible=JS_ToBool(ctx,argv[0])>0;
-  return JS_UNDEFINED;
+struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};Scene scene;};
+static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
+  JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
-struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};};
 static void closeScript(ScriptHost &s){
   if(s.ctx){JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
   s={};
@@ -58,21 +102,25 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   ScriptHost candidate;candidate.rt=JS_NewRuntime();if(!candidate.rt)return false;
   JS_SetMemoryLimit(candidate.rt,128*1024*1024);
   candidate.ctx=JS_NewContext(candidate.rt);if(!candidate.ctx){closeScript(candidate);return false;}
-  JSValue global=JS_GetGlobalObject(candidate.ctx);
-  JS_SetPropertyStr(candidate.ctx,global,"print",JS_NewCFunction(candidate.ctx,jsLog,"print",1));
-  JS_SetPropertyStr(candidate.ctx,global,"setModelYaw",JS_NewCFunction(candidate.ctx,jsSetYaw,"setModelYaw",1));
-  JS_SetPropertyStr(candidate.ctx,global,"setModelVisible",JS_NewCFunction(candidate.ctx,jsSetVisible,"setModelVisible",1));
-  JS_FreeValue(candidate.ctx,global);
+  currentScene=&candidate.scene;
+  bind(candidate.ctx,"print",jsLog,1);
+  bind(candidate.ctx,"createObject",jsCreateObject,4);
+  bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
+  bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
+  bind(candidate.ctx,"setObjectScale",jsSetObjectScale,2);
+  bind(candidate.ctx,"setObjectVisible",jsSetObjectVisible,2);
+  bind(candidate.ctx,"removeObject",jsRemoveObject,1);
   JSValue result=JS_Eval(candidate.ctx,source.c_str(),source.size(),path.c_str(),JS_EVAL_TYPE_GLOBAL);
   if(JS_IsException(result)){
     JSValue exception=JS_GetException(candidate.ctx);const char *message=JS_ToCString(candidate.ctx,exception);
     fprintf(stderr,"[js] load error: %s\n",message?message:"unknown");if(message)JS_FreeCString(candidate.ctx,message);
-    JS_FreeValue(candidate.ctx,exception);JS_FreeValue(candidate.ctx,result);closeScript(candidate);return false;
+    JS_FreeValue(candidate.ctx,exception);JS_FreeValue(candidate.ctx,result);closeScript(candidate);currentScene=&active.scene;return false;
   }
   JS_FreeValue(candidate.ctx,result);
-  global=JS_GetGlobalObject(candidate.ctx);candidate.update=JS_GetPropertyStr(candidate.ctx,global,"update");JS_FreeValue(candidate.ctx,global);
+  JSValue global=JS_GetGlobalObject(candidate.ctx);candidate.update=JS_GetPropertyStr(candidate.ctx,global,"update");JS_FreeValue(candidate.ctx,global);
   std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
-  closeScript(active);active=candidate;fprintf(stdout,"[js] loaded %s\n",path.c_str());fflush(stdout);return true;
+  closeScript(active);active=std::move(candidate);currentScene=&active.scene;
+  fprintf(stdout,"[js] loaded %s objects=%zu\n",path.c_str(),active.scene.objects.size());fflush(stdout);return true;
 }
 struct ModelData {std::vector<float> vertices;std::vector<unsigned char> rgba;int width=0,height=0;};
 static bool loadModel(const std::string &path,ModelData &model){
@@ -173,12 +221,13 @@ int main(int argc,char **argv) {
   const char *vs=R"(#version 300 es
 layout(location=0) in vec3 p;layout(location=1) in vec2 uv;
 uniform vec3 center,right,up,forward,eye;
-uniform float yaw;
+uniform vec3 offset;
+uniform float yaw,modelScale;
 out vec2 t;
 void main(){
   float c=cos(yaw),s=sin(yaw);
   vec3 rotated=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);
-  vec3 world=center+0.55*(right*rotated.x+up*rotated.y-forward*rotated.z);
+  vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+modelScale*(right*rotated.x+up*rotated.y-forward*rotated.z);
   vec3 ray=world-eye;
   float distanceAlong=dot(ray,forward);
   float hitScale=dot(center-eye,forward)/distanceAlong;
@@ -217,6 +266,7 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
   setVec3(program,"right",panel.m[0][0],panel.m[1][0],panel.m[2][0]);
   setVec3(program,"up",panel.m[0][1],panel.m[1][1],panel.m[2][1]);
   setVec3(program,"forward",-panel.m[0][2],-panel.m[1][2],-panel.m[2][2]);
+  GLint yawLocation=glGetUniformLocation(program,"yaw"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   auto next=std::chrono::steady_clock::now();int frame=0;
   while(running){
     if(frame%30==0){std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);if(!ec&&modified!=script.mtime){if(!loadScript(script,scriptPath))script.mtime=modified;}}
@@ -234,8 +284,12 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
         auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
         float eye[3];for(int r=0;r<3;r++)eye[r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
         setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*kEyeSize,0,kEyeSize,kEyeSize);
-        glUniform1f(glGetUniformLocation(program,"yaw"),modelYaw);
-        if(modelVisible)glDrawArrays(GL_TRIANGLES,0,vertexCount);
+        for(const auto &object:script.scene.objects){
+          if(!object.visible)continue;
+          glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
+          glUniform3f(offsetLocation,object.x,object.y,object.z);
+          glDrawArrays(GL_TRIANGLES,0,vertexCount);
+        }
       }
       if(frame==0){std::vector<unsigned char> rgba(kWidth*kHeight*4);glReadPixels(0,0,kWidth,kHeight,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());size_t opaque[2]={0,0};for(int y=0;y<kHeight;y++)for(int x=0;x<kWidth;x++)opaque[x/kEyeSize]+=rgba[(size_t(y)*kWidth+x)*4+3]!=0;fprintf(stdout,"first frame opaque=%zu,%zu\n",opaque[0],opaque[1]);}
       glFinish();glBindFramebuffer(GL_FRAMEBUFFER,0);
