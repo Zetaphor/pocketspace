@@ -23,6 +23,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/three-object-grab.js
 ./run-overlay-engine.sh scripts/full-sphere-gallery.js
 ./run-overlay-engine.sh scripts/dual-laser-test.js
+./run-overlay-engine.sh scripts/native-grab-demo.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -43,6 +44,10 @@ print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
 enableObjectInteraction(object); // grabbable by the SteamVR laser
 setObjectInteraction(object, {laserPassThrough: true, grabbable: false});
+setObjectInteraction(object, {
+  grabbable: true, directGrab: true, laserYaw: true, depthAdjust: true,
+  handRotationAxes: {pitch: true, yaw: true, roll: true}
+});
 setLaserVisible("left", true); // optional visual beam, also supports "right"
 const pointer = getPointer(object); // { valid, down, x, y, hand }
 ```
@@ -86,13 +91,21 @@ The full-sphere gallery places objects in front, to
 the side, and behind the starting viewpoint; all three remained visible, and
 an object dragged behind the user remained visible and grabbable in headset
 testing.
-Precise mesh hit testing and independent simultaneous grabs remain future
-work. Direct hand grabbing, joystick rotation and depth adjustment, grip
-modifiers, and per-axis hand rotation are not implemented yet. Direct SteamVR
-Input actions remained inactive in overlay input probes even after the action
-manifest and controller bindings loaded, so these controls need further
-SteamVR Input investigation. The `directGrab` interaction option is reserved
-and does not yet enable hand grabbing.
+The native grab demo uses the active SteamVR laser's trigger to pick up an
+object. Moving the controller moves the object with it. While holding an
+object at a distance, thumbstick left/right rotates its yaw and thumbstick
+up/down moves it farther/closer; up means farther. If the object is close to
+the controller when selected, `directGrab` holds it at the hand, and enabled
+`handRotationAxes` follow the hand's pitch, yaw, and roll. These controls were
+verified in the headset. SteamVR's grip click changes the active laser and
+releases a native pointer grab, so it cannot currently act as a modifier.
+`laserPitchWithStickClick` is experimental: stick clicks reach the engine,
+but the user did not see pitch rotation. Leave it off in normal demos.
+The optional `getInput(hand)` action bindings cover the Steam Frame controls,
+but action data was inactive in the overlay input probes with the native
+laser. The engine polls them only when a script requests them. Precise mesh
+hit testing and simultaneous independent grabs are still unverified.
+See `docs/interaction-status.md` for the detailed verified state and next steps.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
