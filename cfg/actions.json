@@ -1,0 +1,165 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "frame_controller",
+      "binding_url": "bindings/frame_controller.json"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/hands/in/grip_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/grip_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/grip_value",
+      "type": "vector1",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/trigger_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/trigger_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/trigger_value",
+      "type": "vector1",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/stick",
+      "type": "vector2",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/thumbstick_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/thumbstick_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/bumper_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/bumper_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/system_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/system_touch",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/menu_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/view_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/a_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/b_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/x_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/y_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/dpad_up_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/dpad_down_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/dpad_left_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/in/dpad_right_click",
+      "type": "boolean",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/hands/out/haptic",
+      "type": "vibration"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/hands",
+      "usage": "leftright"
+    }
+  ],
+  "localization": [
+    {
+      "language_tag": "en_US",
+      "/actions/hands": "Steam Frame overlay input",
+      "/actions/hands/in/grip_click": "Grip Click",
+      "/actions/hands/in/grip_touch": "Grip Touch",
+      "/actions/hands/in/grip_value": "Grip Value",
+      "/actions/hands/in/trigger_click": "Trigger Click",
+      "/actions/hands/in/trigger_touch": "Trigger Touch",
+      "/actions/hands/in/trigger_value": "Trigger Value",
+      "/actions/hands/in/stick": "Stick",
+      "/actions/hands/in/thumbstick_click": "Thumbstick Click",
+      "/actions/hands/in/thumbstick_touch": "Thumbstick Touch",
+      "/actions/hands/in/bumper_click": "Bumper Click",
+      "/actions/hands/in/bumper_touch": "Bumper Touch",
+      "/actions/hands/in/system_click": "System Click",
+      "/actions/hands/in/system_touch": "System Touch",
+      "/actions/hands/in/menu_click": "Menu Click",
+      "/actions/hands/in/view_click": "View Click",
+      "/actions/hands/in/a_click": "A Click",
+      "/actions/hands/in/b_click": "B Click",
+      "/actions/hands/in/x_click": "X Click",
+      "/actions/hands/in/y_click": "Y Click",
+      "/actions/hands/in/dpad_up_click": "Dpad Up Click",
+      "/actions/hands/in/dpad_down_click": "Dpad Down Click",
+      "/actions/hands/in/dpad_left_click": "Dpad Left Click",
+      "/actions/hands/in/dpad_right_click": "Dpad Right Click",
+      "/actions/hands/out/haptic": "Haptic feedback"
+    }
+  ]
+}

@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <thread>
 #include <vector>
+#include <array>
 #include <atomic>
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,7 @@
 #include <utility>
 #include <quickjs.h>
 #include "model_asset.h"
+#include "controller_input.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -33,12 +35,19 @@ static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
-struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true;};
+struct Object {
+  int id,asset;float x,y,z,scale,yaw,pitch=0,roll=0;
+  bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true,autoManipulate=false;
+  bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
+  bool handPitch=false,handYaw=false,handRoll=false;
+};
 struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> interactiveIds;int nextId=1;bool laserVisible[2]{};};
 static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
-struct PointerSnapshot {bool valid=false,down=false;float x=0,y=0;int hand=-1;};
+static controller_input::Input controllerInput;
+static bool inputPollingRequested=false;
+struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
 static std::map<int,PointerSnapshot> pointerStates;
 static void stop(int){running=false;}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -60,6 +69,43 @@ static JSValue jsGetController(JSContext *ctx,JSValueConst,int argc,JSValueConst
   for(int i=0;i<9;i++)JS_SetPropertyUint32(ctx,rotation,i,JS_NewFloat64(ctx,c.rotation[i]));
   JS_SetPropertyStr(ctx,object,"rotation",rotation);
   return object;
+}
+static int handIndex(JSContext *ctx,JSValueConst value){
+  const char *hand=JS_ToCString(ctx,value);if(!hand)return -1;
+  int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;
+  JS_FreeCString(ctx,hand);return index;
+}
+static JSValue jsGetInput(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"getInput(hand): hand is left or right");
+  inputPollingRequested=true;
+  const int h=handIndex(ctx,argv[0]);if(h<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
+  const auto &state=controllerInput.hand(h);
+  auto value=[&](controller_input::Control c)->const controller_input::Value &{return state.values[controller_input::index(c)];};
+  JSValue object=JS_NewObject(ctx);JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,state.valid));
+  auto digital=[&](const char *name,controller_input::Control c){JS_SetPropertyStr(ctx,object,name,JS_NewBool(ctx,value(c).active&&value(c).down));};
+  auto analog=[&](const char *name,controller_input::Control c){JS_SetPropertyStr(ctx,object,name,JS_NewFloat64(ctx,value(c).active?value(c).x:0));};
+  digital("gripClick",controller_input::Control::GripClick);digital("gripTouch",controller_input::Control::GripTouch);analog("gripValue",controller_input::Control::GripValue);
+  digital("triggerClick",controller_input::Control::TriggerClick);digital("triggerTouch",controller_input::Control::TriggerTouch);analog("triggerValue",controller_input::Control::TriggerValue);
+  digital("thumbstickClick",controller_input::Control::ThumbstickClick);digital("thumbstickTouch",controller_input::Control::ThumbstickTouch);
+  JSValue stick=JS_NewObject(ctx);const auto &axis=value(controller_input::Control::Thumbstick);
+  JS_SetPropertyStr(ctx,stick,"x",JS_NewFloat64(ctx,axis.active?axis.x:0));JS_SetPropertyStr(ctx,stick,"y",JS_NewFloat64(ctx,axis.active?axis.y:0));
+  JS_SetPropertyStr(ctx,object,"thumbstick",stick);
+  digital("bumperClick",controller_input::Control::BumperClick);digital("bumperTouch",controller_input::Control::BumperTouch);
+  digital("systemClick",controller_input::Control::SystemClick);digital("systemTouch",controller_input::Control::SystemTouch);
+  digital("menuClick",controller_input::Control::MenuClick);digital("viewClick",controller_input::Control::ViewClick);
+  digital("aClick",controller_input::Control::AClick);digital("bClick",controller_input::Control::BClick);
+  digital("xClick",controller_input::Control::XClick);digital("yClick",controller_input::Control::YClick);
+  digital("dpadUpClick",controller_input::Control::DpadUpClick);digital("dpadDownClick",controller_input::Control::DpadDownClick);
+  digital("dpadLeftClick",controller_input::Control::DpadLeftClick);digital("dpadRightClick",controller_input::Control::DpadRightClick);
+  return object;
+}
+static JSValue jsPulse(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"pulse(hand, seconds=0.05, amplitude=0.5)");
+  const int h=handIndex(ctx,argv[0]);if(h<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
+  double seconds=.05,amplitude=.5;if(argc>1&&JS_ToFloat64(ctx,&seconds,argv[1])<0)return JS_EXCEPTION;
+  if(argc>2&&JS_ToFloat64(ctx,&amplitude,argv[2])<0)return JS_EXCEPTION;
+  if(!std::isfinite(seconds)||!std::isfinite(amplitude)||seconds<0||seconds>1||amplitude<0||amplitude>1)return JS_ThrowRangeError(ctx,"invalid pulse duration or amplitude");
+  return JS_NewBool(ctx,controllerInput.pulse(h,(float)seconds,(float)amplitude));
 }
 static JSValue jsSetLaserVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<2)return JS_ThrowTypeError(ctx,"setLaserVisible(hand, visible)");
@@ -109,6 +155,16 @@ static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSVal
   readBool("laserPassThrough",object->laserPassThrough);
   readBool("grabbable",object->grabbable);
   readBool("directGrab",object->directGrab);
+  readBool("laserYaw",object->laserYaw);
+  readBool("laserPitchWithStickClick",object->laserPitchWithStickClick);
+  readBool("depthAdjust",object->depthAdjust);
+  JSValue axes=JS_GetPropertyStr(ctx,argv[1],"handRotationAxes");
+  if(JS_IsObject(axes)){
+    auto readAxis=[&](const char *name,bool &value){JSValue field=JS_GetPropertyStr(ctx,axes,name);if(!JS_IsUndefined(field))value=JS_ToBool(ctx,field)>0;JS_FreeValue(ctx,field);};
+    readAxis("pitch",object->handPitch);readAxis("yaw",object->handYaw);readAxis("roll",object->handRoll);
+  }
+  JS_FreeValue(ctx,axes);
+  object->autoManipulate=object->grabbable;
   if(object->grabbable)object->laserPassThrough=false;
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
@@ -157,6 +213,13 @@ static JSValue jsSetObjectYaw(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   object->yaw=yaw;return JS_UNDEFINED;
 }
+static JSValue jsSetObjectRotation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;float pitch,yaw,roll;
+  if(argc<4||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],pitch)||!number(ctx,argv[2],yaw)||!number(ctx,argv[3],roll))
+    return JS_ThrowTypeError(ctx,"setObjectRotation(id, pitch, yaw, roll)");
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  object->pitch=pitch;object->yaw=yaw;object->roll=roll;return JS_UNDEFINED;
+}
 static JSValue jsSetObjectScale(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;float scale;
   if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],scale))return JS_ThrowTypeError(ctx,"setObjectScale(id, meters)");
@@ -196,6 +259,8 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   currentScene=&candidate.scene;
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
+  bind(candidate.ctx,"getInput",jsGetInput,1);
+  bind(candidate.ctx,"pulse",jsPulse,3);
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,1);
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
@@ -205,6 +270,7 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"createObject",jsCreateObject,5);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
+  bind(candidate.ctx,"setObjectRotation",jsSetObjectRotation,4);
   bind(candidate.ctx,"setObjectScale",jsSetObjectScale,2);
   bind(candidate.ctx,"setObjectVisible",jsSetObjectVisible,2);
   bind(candidate.ctx,"removeObject",jsRemoveObject,1);
@@ -283,6 +349,7 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
   if(interactive){
     overlays->SetOverlayInputMethod(surface.overlay,vr::VROverlayInputMethod_Mouse);
     overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);
+    overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_SendVRSmoothScrollEvents,true);
     vr::VROverlayIntersectionMaskPrimitive_t mask{};
     mask.m_nPrimitiveType=vr::OverlayIntersectionPrimitiveType_Circle;
     mask.m_Primitive.m_Circle.m_flCenterX=.5f;
@@ -359,6 +426,82 @@ static void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,in
   overlays->SetOverlayTransformAbsolute(handle,vr::TrackingUniverseStanding,&beam);
   if(!shown){overlays->ShowOverlay(handle);shown=true;}
 }
+struct GrabState {
+  int objectId=0;bool direct=false;float offset[3]{},startHand[9]{},startPitch=0,startYaw=0,startRoll=0;
+};
+static void beginGrab(GrabState &grab,const Object &object,const ControllerSnapshot &hand,bool direct){
+  grab={};grab.objectId=object.id;grab.direct=direct;
+  const float delta[3]={object.x-hand.x,object.y-hand.y,object.z-hand.z};
+  for(int axis=0;axis<3;axis++)for(int row=0;row<3;row++)grab.offset[axis]+=hand.rotation[row*3+axis]*delta[row];
+  std::copy(hand.rotation,hand.rotation+9,grab.startHand);
+  grab.startPitch=object.pitch;grab.startYaw=object.yaw;grab.startRoll=object.roll;
+}
+static void objectRotationMatrix(float pitch,float yaw,float roll,float m[9]){
+  const float cp=std::cos(pitch),sp=std::sin(pitch),cy=std::cos(yaw),sy=std::sin(yaw),cr=std::cos(roll),sr=std::sin(roll);
+  m[0]=cy*cr+sy*sp*sr;m[1]=-cy*sr+sy*sp*cr;m[2]=sy*cp;
+  m[3]=cp*sr;m[4]=cp*cr;m[5]=-sp;
+  m[6]=-sy*cr+cy*sp*sr;m[7]=sy*sr+cy*sp*cr;m[8]=cy*cp;
+}
+static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt){
+  for(int h=0;h<2;h++){
+    const auto &hand=controllers[h];
+    auto &grab=grabs[h];
+    auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
+    Object *object=nullptr;for(auto &candidate:scene.objects)if(candidate.id==grab.objectId){object=&candidate;break;}
+    if(object&&(!object->visible||!object->autoManipulate||!object->grabbable||!hand.valid)){grab={};object=nullptr;}
+    if(object){
+      auto state=pointerStates.find(object->id);
+      if(state==pointerStates.end()||!state->second.down||state->second.hand!=h){grab={};object=nullptr;}
+    }
+    if(!object&&hand.valid){
+      for(auto &candidate:scene.objects){
+        if(!candidate.visible||!candidate.autoManipulate||!candidate.grabbable||ownedByOther(candidate.id))continue;
+        auto pointer=pointerStates.find(candidate.id);
+        if(pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h){
+          const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
+          const float reach=.10f+candidate.scale*.5f;
+          const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
+          beginGrab(grab,candidate,hand,direct);object=&candidate;break;
+        }
+      }
+    }
+    if(object&&hand.valid){
+      auto pointer=pointerStates.find(object->id);
+      const float x=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollX,-1.f,1.f):0;
+      const float y=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollY,-1.f,1.f):0;
+      if(!grab.direct&&(x||y)){
+        if(x){
+          if(pointer!=pointerStates.end()&&pointer->second.secondaryDown&&object->laserPitchWithStickClick)object->pitch+=x*6.f*dt;
+          else if(object->laserYaw)object->yaw+=x*6.f*dt;
+        }
+        if(y&&object->depthAdjust){
+          const float length=std::sqrt(grab.offset[0]*grab.offset[0]+grab.offset[1]*grab.offset[1]+grab.offset[2]*grab.offset[2]);
+          if(length>.001f){const float next=std::max(.06f,length+y*3.2f*dt);for(float &v:grab.offset)v*=next/length;}
+        }
+      }
+      const auto &r=hand.rotation;
+      object->x=hand.x+r[0]*grab.offset[0]+r[1]*grab.offset[1]+r[2]*grab.offset[2];
+      object->y=hand.y+r[3]*grab.offset[0]+r[4]*grab.offset[1]+r[5]*grab.offset[2];
+      object->z=hand.z+r[6]*grab.offset[0]+r[7]*grab.offset[1]+r[8]*grab.offset[2];
+      if(grab.direct&&(object->handPitch||object->handYaw||object->handRoll)){
+        float delta[9]{};
+        for(int row=0;row<3;row++)for(int col=0;col<3;col++)for(int k=0;k<3;k++)delta[row*3+col]+=r[row*3+k]*grab.startHand[col*3+k];
+        // Controller snapshots use forward-positive Z; model vertices use backward-positive Z.
+        for(int row=0;row<3;row++)for(int col=0;col<3;col++)if((row==2)!=(col==2))delta[row*3+col]=-delta[row*3+col];
+        const float pitch=object->handPitch?std::asin(std::clamp(-delta[5],-1.f,1.f)):0;
+        const float yaw=object->handYaw?std::atan2(delta[2],delta[8]):0;
+        const float roll=object->handRoll?std::atan2(delta[3],delta[4]):0;
+        float gesture[9],initial[9],combined[9]{};
+        objectRotationMatrix(pitch,yaw,roll,gesture);
+        objectRotationMatrix(grab.startPitch,grab.startYaw,grab.startRoll,initial);
+        for(int row=0;row<3;row++)for(int col=0;col<3;col++)for(int k=0;k<3;k++)combined[row*3+col]+=gesture[row*3+k]*initial[k*3+col];
+        object->pitch=std::asin(std::clamp(-combined[5],-1.f,1.f));
+        object->yaw=std::atan2(combined[2],combined[8]);
+        object->roll=std::atan2(combined[3],combined[4]);
+      }
+    }
+  }
+}
 int main(int argc,char **argv) {
   if(argc>2&&std::string(argv[1])=="--inspect"){
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
@@ -368,6 +511,7 @@ int main(int argc,char **argv) {
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
+  if(!controllerInput.init(std::filesystem::current_path().string(),argv[0]))fprintf(stderr,"[input] SteamVR actions unavailable; controller poses and overlay pointer events remain active\n");
   auto *system=vr::VRSystem();auto *overlays=vr::VROverlay();
   int drm=open("/dev/dri/renderD128",O_RDWR|O_CLOEXEC);auto *gbm=drm>=0?gbm_create_device(drm):nullptr;
   createImage=(PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
@@ -378,11 +522,13 @@ int main(int argc,char **argv) {
 layout(location=0) in vec3 p;layout(location=1) in vec2 uv;
 uniform vec3 center,right,up,forward,panelRight,panelUp,panelForward,eye;
 uniform vec3 offset;
-uniform float yaw,modelScale,panelHalfWidth;
+uniform float yaw,pitch,roll,modelScale,panelHalfWidth;
 out vec2 t;
 void main(){
-  float c=cos(yaw),s=sin(yaw);
-  vec3 rotated=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);
+  float cr=cos(roll),sr=sin(roll),cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);
+  vec3 rolled=vec3(cr*p.x-sr*p.y,sr*p.x+cr*p.y,p.z);
+  vec3 pitched=vec3(rolled.x,cp*rolled.y-sp*rolled.z,sp*rolled.y+cp*rolled.z);
+  vec3 rotated=vec3(cy*pitched.x+sy*pitched.z,pitched.y,-sy*pitched.x+cy*pitched.z);
   vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+modelScale*(right*rotated.x+up*rotated.y-forward*rotated.z);
   vec3 ray=world-eye;
   float distanceAlong=dot(ray,panelForward);
@@ -408,6 +554,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
   std::map<int,std::unique_ptr<Surface>> surfaces;
+  std::array<GrabState,2> grabs{};
   auto syncSurfaces=[&]()->bool{
     std::vector<int> desired;
     for(const auto &object:script.scene.objects)if(object.visible)desired.push_back(object.id);
@@ -444,7 +591,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   setVec3(program,"right",anchor.m[0][0],anchor.m[1][0],anchor.m[2][0]);
   setVec3(program,"up",anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
   setVec3(program,"forward",-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
-  GLint yawLocation=glGetUniformLocation(program,"yaw"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
+  GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
@@ -474,7 +621,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(!ec&&modified!=script.mtime){
         if(loadScript(script,scriptPath)){
           for(auto &[id,surface]:surfaces)destroySurface(*surface,display);
-          surfaces.clear();pointerStates.clear();
+          surfaces.clear();pointerStates.clear();grabs={};
         }else script.mtime=modified;
       }
     }
@@ -483,22 +630,34 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(id==0)continue;
       vr::VREvent_t event{};
       auto &state=pointerStates[id];
+      state.scrollX=state.scrollY=0;
       while(overlays->PollNextOverlayEvent(surface->overlay,&event,sizeof(event))){
-        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.hand=-1;continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;state.hand=-1;continue;}
+        if(event.eventType==vr::VREvent_ScrollSmooth){
+          state.scrollX+=event.data.scroll.xdelta;
+          state.scrollY+=event.data.scroll.ydelta;
+          continue;
+        }
         if(event.eventType==vr::VREvent_MouseMove||event.eventType==vr::VREvent_MouseButtonDown||event.eventType==vr::VREvent_MouseButtonUp){
           state.valid=true;
           state.x=(event.data.mouse.x-.5f)*surface->width;
           state.y=(.5f-event.data.mouse.y)*surface->width;
           if(event.eventType==vr::VREvent_MouseButtonDown){
-            state.down=true;
+            if(event.data.mouse.button==vr::VRMouseButton_Left)state.down=true;
+            if(event.data.mouse.button==vr::VRMouseButton_Right)state.secondaryDown=true;
             auto role=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
             state.hand=role==vr::TrackedControllerRole_LeftHand?0:role==vr::TrackedControllerRole_RightHand?1:-1;
           }
-          if(event.eventType==vr::VREvent_MouseButtonUp)state.down=false;
-          if(event.eventType!=vr::VREvent_MouseMove){fprintf(stdout,"[input] object=%d event=%u device=%u hand=%d down=%d\n",id,event.eventType,event.trackedDeviceIndex,state.hand,state.down);fflush(stdout);}
+          if(event.eventType==vr::VREvent_MouseButtonUp){
+            if(event.data.mouse.button==vr::VRMouseButton_Left)state.down=false;
+            if(event.data.mouse.button==vr::VRMouseButton_Right)state.secondaryDown=false;
+          }
+          if(event.eventType!=vr::VREvent_MouseMove){fprintf(stdout,"[input] object=%d event=%u button=%u device=%u hand=%d down=%d\n",id,event.eventType,event.data.mouse.button,event.trackedDeviceIndex,state.hand,state.down);fflush(stdout);}
         }
       }
     }
+    if(inputPollingRequested)controllerInput.poll();
+    updateManipulation(script.scene,grabs,1.f/90.f);
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);
       JSValue result=JS_Call(script.ctx,script.update,JS_UNDEFINED,1,&dt);JS_FreeValue(script.ctx,dt);
@@ -551,7 +710,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
             for(const auto &object:script.scene.objects){
               if(!object.visible||id!=object.id)continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
-              glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
+              glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
               for(const auto &part:asset.primitives){
                 if((part.alphaMode==2)!=bool(pass))continue;
