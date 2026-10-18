@@ -22,19 +22,16 @@
 #include <string>
 #include <utility>
 #include <quickjs.h>
-#define CGLTF_IMPLEMENTATION
-#include "../third_party/cgltf.h"
-#define STB_IMAGE_IMPLEMENTATION
-#include "../stb_image.h"
+#include "model_asset.h"
 
-constexpr int kEyeSize=1024,kWidth=2048,kHeight=1024;
+constexpr int kEyeSize=2048,kWidth=2*kEyeSize,kHeight=kEyeSize;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
-struct Object {int id;float x,y,z,scale,yaw;bool visible=true;};
-struct Scene {std::vector<Object> objects;int nextId=1;};
+struct Object {int id,asset;float x,y,z,scale,yaw;bool visible=true;};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;int nextId=1;};
 static Scene *currentScene=nullptr;
 static void stop(int){running=false;}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -49,13 +46,24 @@ static Object *findObject(int id){
 static bool number(JSContext *ctx,JSValueConst value,float &out){
   double n=0;if(JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n))return false;out=(float)n;return std::isfinite(out);
 }
+static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<1||currentScene->assets.size()>=32)return JS_ThrowRangeError(ctx,"loadModel(path) requires a path; limit is 32 assets");
+  const char *path=JS_ToCString(ctx,argv[0]);if(!path)return JS_EXCEPTION;
+  std::string name(path);JS_FreeCString(ctx,path);
+  for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name)return JS_NewInt32(ctx,(int)i+1);
+  ModelAsset asset;
+  if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
+  currentScene->assets.push_back(std::move(asset));
+  return JS_NewInt32(ctx,(int)currentScene->assets.size());
+}
 static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  if(!currentScene||argc<3||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs x, y, z; limit is 256 objects");
+  if(!currentScene||argc<4||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs asset, x, y, z; limit is 256 objects");
+  int asset=0;if(JS_ToInt32(ctx,&asset,argv[0])<0||asset<1||asset>(int)currentScene->assets.size())return JS_ThrowRangeError(ctx,"unknown asset id");
   float values[4]={0,0,0,.55f};
-  for(int i=0;i<std::min(argc,4);i++)if(!number(ctx,argv[i],values[i]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
+  for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
   if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
   int id=currentScene->nextId++;
-  currentScene->objects.push_back({id,values[0],values[1],values[2],values[3],0});
+  currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
   return JS_NewInt32(ctx,id);
 }
 static JSValue jsSetObjectPosition(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -93,6 +101,7 @@ static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc)
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
 static void closeScript(ScriptHost &s){
+  for(auto &asset:s.scene.assets)deleteModel(asset);
   if(s.ctx){JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
   s={};
 }
@@ -104,7 +113,8 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   candidate.ctx=JS_NewContext(candidate.rt);if(!candidate.ctx){closeScript(candidate);return false;}
   currentScene=&candidate.scene;
   bind(candidate.ctx,"print",jsLog,1);
-  bind(candidate.ctx,"createObject",jsCreateObject,4);
+  bind(candidate.ctx,"loadModel",jsLoadModel,1);
+  bind(candidate.ctx,"createObject",jsCreateObject,5);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
   bind(candidate.ctx,"setObjectScale",jsSetObjectScale,2);
@@ -120,52 +130,7 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   JSValue global=JS_GetGlobalObject(candidate.ctx);candidate.update=JS_GetPropertyStr(candidate.ctx,global,"update");JS_FreeValue(candidate.ctx,global);
   std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
   closeScript(active);active=std::move(candidate);currentScene=&active.scene;
-  fprintf(stdout,"[js] loaded %s objects=%zu\n",path.c_str(),active.scene.objects.size());fflush(stdout);return true;
-}
-struct ModelData {std::vector<float> vertices;std::vector<unsigned char> rgba;int width=0,height=0;};
-static bool loadModel(const std::string &path,ModelData &model){
-  cgltf_options options{};cgltf_data *data=nullptr;
-  auto result=cgltf_parse_file(&options,path.c_str(),&data);
-  if(result!=cgltf_result_success){fprintf(stderr,"[model] parse failed: %s (%d)\n",path.c_str(),(int)result);return false;}
-  result=cgltf_load_buffers(&options,data,path.c_str());
-  if(result!=cgltf_result_success||cgltf_validate(data)!=cgltf_result_success){fprintf(stderr,"[model] invalid buffers or glTF\n");cgltf_free(data);return false;}
-  if(data->meshes_count<1||data->meshes[0].primitives_count<1){fprintf(stderr,"[model] no mesh primitive\n");cgltf_free(data);return false;}
-  const auto &primitive=data->meshes[0].primitives[0];
-  if(primitive.type!=cgltf_primitive_type_triangles||!primitive.indices){fprintf(stderr,"[model] expected indexed triangles\n");cgltf_free(data);return false;}
-  const cgltf_accessor *positions=nullptr,*uvs=nullptr;
-  for(cgltf_size i=0;i<primitive.attributes_count;i++){
-    const auto &attribute=primitive.attributes[i];
-    if(attribute.type==cgltf_attribute_type_position)positions=attribute.data;
-    if(attribute.type==cgltf_attribute_type_texcoord&&attribute.index==0)uvs=attribute.data;
-  }
-  if(!positions||!uvs){fprintf(stderr,"[model] missing POSITION or TEXCOORD_0\n");cgltf_free(data);return false;}
-  float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
-  float high[3]={-low[0],-low[1],-low[2]};
-  for(cgltf_size i=0;i<positions->count;i++){
-    float p[3];if(!cgltf_accessor_read_float(positions,i,p,3)){cgltf_free(data);return false;}
-    for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],p[axis]);high[axis]=std::max(high[axis],p[axis]);}
-  }
-  float extent=std::max({high[0]-low[0],high[1]-low[1],high[2]-low[2]});
-  if(!std::isfinite(extent)||extent<=0){fprintf(stderr,"[model] invalid bounds\n");cgltf_free(data);return false;}
-  float scale=1.f/extent;
-  model.vertices.reserve(primitive.indices->count*5);
-  for(cgltf_size i=0;i<primitive.indices->count;i++){
-    cgltf_size index=cgltf_accessor_read_index(primitive.indices,i);
-    if(index>=positions->count||index>=uvs->count){fprintf(stderr,"[model] bad index\n");cgltf_free(data);return false;}
-    float p[3],uv[2];
-    if(!cgltf_accessor_read_float(positions,index,p,3)||!cgltf_accessor_read_float(uvs,index,uv,2)){fprintf(stderr,"[model] accessor read failed\n");cgltf_free(data);return false;}
-    model.vertices.insert(model.vertices.end(),{(p[0]-(low[0]+high[0])*.5f)*scale,(p[1]-(low[1]+high[1])*.5f)*scale,(p[2]-(low[2]+high[2])*.5f)*scale,uv[0],uv[1]});
-  }
-  const cgltf_texture *texture=primitive.material&&primitive.material->has_pbr_metallic_roughness?primitive.material->pbr_metallic_roughness.base_color_texture.texture:nullptr;
-  const cgltf_image *image=texture?texture->image:nullptr;
-  if(!image||!image->buffer_view){fprintf(stderr,"[model] expected embedded base-color image\n");cgltf_free(data);return false;}
-  const auto *bytes=cgltf_buffer_view_data(image->buffer_view);
-  if(!bytes){fprintf(stderr,"[model] image buffer missing\n");cgltf_free(data);return false;}
-  int channels=0;unsigned char *pixels=stbi_load_from_memory(bytes,(int)image->buffer_view->size,&model.width,&model.height,&channels,4);
-  if(!pixels){fprintf(stderr,"[model] image decode failed\n");cgltf_free(data);return false;}
-  model.rgba.assign(pixels,pixels+(size_t)model.width*model.height*4);stbi_image_free(pixels);
-  fprintf(stdout,"[model] loaded %s vertices=%zu triangles=%zu image=%dx%d\n",path.c_str(),positions->count,primitive.indices->count/3,model.width,model.height);
-  cgltf_free(data);return true;
+  fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
@@ -204,11 +169,12 @@ static GLuint compile(GLenum type,const char *source) {
 }
 static void setVec3(GLuint program,const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
 int main(int argc,char **argv) {
+  if(argc>2&&std::string(argv[1])=="--inspect"){
+    ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
+  }
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
   std::string scriptPath=argc>1?argv[1]:"scripts/avocado.js";
-  std::string modelPath=argc>2?argv[2]:"assets/Avocado.glb";
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
-  ModelData model;if(!loadModel(modelPath,model))return 14;
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
   auto *system=vr::VRSystem();auto *overlays=vr::VROverlay();
@@ -239,15 +205,10 @@ void main(){
   t=uv;
 })";
   const char *fs=R"(#version 300 es
-precision mediump float;in vec2 t;uniform sampler2D material;out vec4 color;
-void main(){color=texture(material,t);if(color.a<0.1)discard;})";
+precision mediump float;in vec2 t;uniform sampler2D material;uniform vec4 factor;uniform vec3 sheen;uniform int alphaMode;uniform float alphaCutoff;out vec4 color;
+void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(color.rgb+texel.rgb*sheen*0.8,0.0,1.0);if(alphaMode==1&&color.a<alphaCutoff)discard;if(alphaMode==0)color.a=1.0;})";
   GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
   glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
-  GLuint material;glGenTextures(1,&material);glBindTexture(GL_TEXTURE_2D,material);
-  glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,model.width,model.height,0,GL_RGBA,GL_UNSIGNED_BYTE,model.rgba.data());
-  glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glGenerateMipmap(GL_TEXTURE_2D);
-  GLuint vbo;glGenBuffers(1,&vbo);glBindBuffer(GL_ARRAY_BUFFER,vbo);glBufferData(GL_ARRAY_BUFFER,model.vertices.size()*sizeof(float),model.vertices.data(),GL_STATIC_DRAW);
-  GLsizei vertexCount=(GLsizei)(model.vertices.size()/5);model.vertices.clear();model.rgba.clear();
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
@@ -260,13 +221,15 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
   vr::VRTextureBounds_t bounds{0,1,1,0};err=overlays->SetOverlayTextureBounds(overlay,&bounds);if(err!=vr::VROverlayError_None)return 11;
   err=overlays->SetOverlayTransformAbsolute(overlay,vr::TrackingUniverseStanding,&panel);if(err!=vr::VROverlayError_None)return 12;
   fprintf(stdout,"panel world=%f,%f,%f\n",panel.m[0][3],panel.m[1][3],panel.m[2][3]);fflush(stdout);
-  glUseProgram(program);glBindBuffer(GL_ARRAY_BUFFER,vbo);glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)0);glEnableVertexAttribArray(1);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-  glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,material);glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
+  glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+  glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
   setVec3(program,"center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);
   setVec3(program,"right",panel.m[0][0],panel.m[1][0],panel.m[2][0]);
   setVec3(program,"up",panel.m[0][1],panel.m[1][1],panel.m[2][1]);
   setVec3(program,"forward",-panel.m[0][2],-panel.m[1][2],-panel.m[2][2]);
   GLint yawLocation=glGetUniformLocation(program,"yaw"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
+  GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
+  GLint sheenLocation=glGetUniformLocation(program,"sheen");
   auto next=std::chrono::steady_clock::now();int frame=0;
   while(running){
     if(frame%30==0){std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);if(!ec&&modified!=script.mtime){if(!loadScript(script,scriptPath))script.mtime=modified;}}
@@ -276,6 +239,7 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
       if(JS_IsException(result)){JSValue exception=JS_GetException(script.ctx);const char *message=JS_ToCString(script.ctx,exception);fprintf(stderr,"[js] update error: %s\n",message?message:"unknown");if(message)JS_FreeCString(script.ctx,message);JS_FreeValue(script.ctx,exception);JS_FreeValue(script.ctx,script.update);script.update=JS_UNDEFINED;}
       JS_FreeValue(script.ctx,result);
     }
+    for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
@@ -284,12 +248,27 @@ void main(){color=texture(material,t);if(color.a<0.1)discard;})";
         auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
         float eye[3];for(int r=0;r<3;r++)eye[r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
         setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*kEyeSize,0,kEyeSize,kEyeSize);
-        for(const auto &object:script.scene.objects){
-          if(!object.visible)continue;
-          glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
-          glUniform3f(offsetLocation,object.x,object.y,object.z);
-          glDrawArrays(GL_TRIANGLES,0,vertexCount);
+        for(int pass=0;pass<2;pass++){
+          if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
+          else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
+          for(const auto &object:script.scene.objects){
+            if(!object.visible)continue;
+            const auto &asset=script.scene.assets[(size_t)object.asset-1];
+            glUniform1f(yawLocation,object.yaw);glUniform1f(scaleLocation,object.scale);
+            glUniform3f(offsetLocation,object.x,object.y,object.z);
+            for(const auto &part:asset.primitives){
+              if((part.alphaMode==2)!=bool(pass))continue;
+              glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
+              glUniform3fv(sheenLocation,1,part.sheen);
+              glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
+              glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)0);
+              glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
+              glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
+              glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
+            }
+          }
         }
+        glDepthMask(GL_TRUE);glDisable(GL_BLEND);
       }
       if(frame==0){std::vector<unsigned char> rgba(kWidth*kHeight*4);glReadPixels(0,0,kWidth,kHeight,GL_RGBA,GL_UNSIGNED_BYTE,rgba.data());size_t opaque[2]={0,0};for(int y=0;y<kHeight;y++)for(int x=0;x<kWidth;x++)opaque[x/kEyeSize]+=rgba[(size_t(y)*kWidth+x)*4+3]!=0;fprintf(stdout,"first frame opaque=%zu,%zu\n",opaque[0],opaque[1]);}
       glFinish();glBindFramebuffer(GL_FRAMEBUFFER,0);
