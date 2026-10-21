@@ -60,7 +60,7 @@ panel.canvas.line(20, 80, 220, 180, 255, 255, 255, 255);
 panel.canvas.circle(300, 120, 32, 240, 180, 80, 255, true);
 panel.canvas.image(360, 90, "assets/panel-test.png");
 panel.canvas.present();
-panelSetTransform(panel, "viewerFacing", 0, .2, -1);
+panelSetTransform(panel, "viewerFacing", 0, .2, 0);
 panelSetVisible(panel, true);
 // Later: removePanel(panel);
 ```
@@ -74,8 +74,12 @@ render frame, after the GL context exists. Legacy `panelClear`, `panelText`,
 Transform modes are `world` (standing anchor), `viewerFacing` (faces the current
 HMD pose), `headLocked` (follows the HMD), and `arbitrary` (absolute rotation).
 For arbitrary mode, call `panelSetRotation(panel, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
-with a row-major 3x3 orientation matrix. Its position still uses the standing
-anchor coordinates. `removePanel` releases the retained texture; the engine
+with a row-major 3x3 orientation matrix relative to the scene standing
+anchor. Its position also uses standing-anchor coordinates. The standing anchor
+is initialized about one meter in front of the headset; `z=0` uses that
+anchor and positive `z` moves farther forward. `headLocked` positions are
+relative to the headset itself, so a positive `z` (around 1 meter) is needed
+to place that panel in front of the eyes. `removePanel` releases the retained texture; the engine
 removes its SteamVR overlay on the next frame. Script reload removes the old
 panels, overlays, callback, and model surfaces before installing the new scene.
 
