@@ -46,7 +46,9 @@ RGBA panel. `interactive` defaults to false. When enabled, SteamVR mouse events
 produce `panel.hoverStart`, `panel.hover`, `panel.hoverEnd`, `panel.pointerDown`,
 and `panel.pointerUp` in both the callback and the event queue. These events use
 the panel ID in `objectId`; their `panel.*` type distinguishes them from model
-events. A panel receives native laser input only when it is visible.
+events. Pointer and hover events include pixel `x`/`y` coordinates measured
+from the top-left of the panel. Pointer events set `control` to the mouse
+button and `down` to its state. The engine sets OpenVR mouse scale to the panel pixel dimensions and keeps the last mouse move position for button events. A panel receives native laser input only when it is visible.
 
 ```js
 const panel = createPanel({widthPixels: 1024, heightPixels: 512,
@@ -76,6 +78,8 @@ with a row-major 3x3 orientation matrix. Its position still uses the standing
 anchor coordinates. `removePanel` releases the retained texture; the engine
 removes its SteamVR overlay on the next frame. Script reload removes the old
 panels, overlays, callback, and model surfaces before installing the new scene.
+
+OpenVR reference: [SetOverlayMouseScale](https://github.com/ValveSoftware/openvr/wiki/IVROverlay%3A%3ASetOverlayMouseScale) and the [official overlay sample](https://github.com/ValveSoftware/openvr/blob/master/samples/helloworldoverlay/openvroverlaycontroller.cpp).
 
 Run `./run-overlay-engine.sh scripts/panel-test-suite.js` on Deckard for a visual
 integration check. It shows raw controller state, callback and queue counts,

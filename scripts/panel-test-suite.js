@@ -25,7 +25,7 @@ setLaserVisible('left',true);setLaserVisible('right',true);
 const callback={},queued={};
 let lastEvent='none',lastDraw=-1,elapsed=0,removed=false,imageOk=false,firstDraw=true;
 function count(map,type){map[type]=(map[type]||0)+1;}
-onInputEvent(e=>{count(callback,e.type);lastEvent=`${e.type} ${e.hand} id=${e.objectId}`;});
+onInputEvent(e=>{count(callback,e.type);lastEvent=`${e.type} ${e.hand} id=${e.objectId} x=${e.x.toFixed(0)} y=${e.y.toFixed(0)}`;});
 function draw(){
   const l=getControllerInput('left'),r=getControllerInput('right');
   const c=dashboard.canvas;

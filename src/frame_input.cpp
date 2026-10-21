@@ -42,5 +42,6 @@ void Monitor::poll(){if(!started_)return;char buf[65536];for(;;){ssize_t n=recv(
 std::vector<Event> Monitor::takeEvents(){auto result=events_;events_.clear();return result;}
 std::vector<Event> Monitor::takeCallbackEvents(){auto result=std::move(callbackEvents_);callbackEvents_.clear();return result;}
 void Monitor::setHoveredObject(int hand,int objectId){if(hand>=0&&hand<2)hovered_[hand]=objectId;}
+void Monitor::addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button,bool down){Event event;event.type=type;event.objectId=panelId;event.x=x;event.y=y;event.control=button;event.component.isBoolean=!button.empty();event.component.boolean=down;if(hand>=0)event.hand=hand?"right":"left";events_.push_back(event);callbackEvents_.push_back(std::move(event));}
 void Monitor::addOverlayEvent(const std::string &type,int objectId,int hand,float dx,float dy,float dz,float dpitch,float dyaw,float droll){Event event;event.type=type;event.objectId=objectId;event.dx=dx;event.dy=dy;event.dz=dz;event.dpitch=dpitch;event.dyaw=dyaw;event.droll=droll;if(hand>=0)event.hand=hand?"right":"left";events_.push_back(event);callbackEvents_.push_back(std::move(event));}
 }
