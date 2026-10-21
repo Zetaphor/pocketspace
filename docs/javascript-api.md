@@ -19,6 +19,24 @@ const right = getControllerInput("right");
 print(JSON.stringify(right.raw));
 ```
 
+For Steam Frame, `buttons.trigger.down` is the main trigger click,
+`buttons.bumper.down` is the upper trigger button, and
+`buttons.thumbstick.down` is the stick press. Each exists for both hands.
+`analog.trigger` and `analog.grip` expose their continuous values; the
+thumbstick axes are `analog.thumbstick.x` and `.y`. The diagnostic panel shows these clicks and values separately. All listed
+channels emit events on **both** `onInputEvent(callback)` and
+`pollInputEvents()`; `control` carries the raw SteamVR path and `hand` is
+`left` or `right`.
+
+| Physical control | Event `type` | Event `control` | Read |
+| --- | --- | --- | --- |
+| Main trigger press | `controller.button` | `/input/trigger/click` | `down` |
+| Main trigger pull | `controller.value` | `/input/trigger/value` | `value` |
+| Upper trigger (bumper) | `controller.button` | `/input/bumper/click` | `down` |
+| Thumbstick press | `controller.button` | `/input/thumbstick/click` | `down` |
+| Thumbstick movement | `controller.value` | `/input/thumbstick/x`, `/input/thumbstick/y` | `value` |
+| Grip press / pull | `controller.button` / `controller.value` | `/input/grip/click`, `/input/grip/value` | `down` / `value` |
+
 `pollInputEvents()` drains low-level controller events observed since the last
 call. Events include `type`, `hand`, `control`, `objectId`, `down`, and `value`.
 Movement events additionally include `dx`, `dy`, and `dz`; rotation events
