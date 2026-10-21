@@ -1,8 +1,9 @@
 # Interaction status (2026-10-18)
 
 This engine is an AR-in-VR SteamVR overlay. It coexists with a primary VR app
-and other overlays; it has no full scene mode. The implementation is on
-Deckard, mirrored to Sigma, and tracked in the private GitHub repository.
+and other overlays; it has no full scene mode. Sigma is the committed source
+checkout; Deckard is the SteamVR build and runtime host. See
+`panel-integration-status.md` for the later panel and raw input validation.
 
 ## Headset verified
 
@@ -51,7 +52,9 @@ Frame: thumbstick actions were observed without overlay hover, but trigger,
 grip, and other actions remained inactive. The raw controller-state WebSocket
 served by `vrserver` does expose all Frame controller components without focus.
 The project now includes `scripts/steam-frame-input.py`, based on Frametop's
-implementation, as the authoritative diagnostic route. A Deckard inventory
+implementation, as an independent diagnostic route. The native monitor also
+delivers raw state and events to JavaScript on both hands; see
+`javascript-api.md` and `input-architecture.md`. A Deckard inventory
 reported 77 live components, 37 left-hand and 40 right-hand, including all
 public button, touch, scalar, thumbstick, and capacitive paths. It is
 undocumented SteamVR behavior and may change across updates.

@@ -11,8 +11,9 @@ overlays.
 
 The stable normalized fields are `valid`, `hand`, `buttons`, `analog`, and
 `capacitive`; `raw` preserves the original `/input/...` component paths and
-values. The current implementation is adding these normalized projections while
-retaining raw paths for forward compatibility with SteamVR changes.
+values. These projections are implemented. Missing components read as false or
+zero, so check `valid` and inspect `raw` before assuming a path is present.
+The WebSocket schema is undocumented and may change with SteamVR.
 
 ```js
 const right = getControllerInput("right");
@@ -39,6 +40,8 @@ channels emit events on **both** `onInputEvent(callback)` and
 
 `pollInputEvents()` drains low-level controller events observed since the last
 call. Events include `type`, `hand`, `control`, `objectId`, `down`, and `value`.
+Both callback and polling queues retain at most 4096 events; drain the polling
+queue each update if every event matters.
 Movement events additionally include `dx`, `dy`, and `dz`; rotation events
 include `dpitch`, `dyaw`, and `droll`. Raw controller events use the latest
 surface-hover object ID for that hand, or zero when no target is hovered.
