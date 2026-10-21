@@ -41,31 +41,48 @@ bindings, but raw global monitoring uses `getControllerInput` and
 
 ## 2D panels
 
-`createPanel({widthPixels, heightPixels, widthMeters})` creates a retained 2D
-panel. Drawing uses the current compatibility bindings while the canvas member
-API is finalized:
+`createPanel({widthPixels, heightPixels, widthMeters, interactive})` creates a retained
+RGBA panel. `interactive` defaults to false. When enabled, SteamVR mouse events
+produce `panel.hoverStart`, `panel.hover`, `panel.hoverEnd`, `panel.pointerDown`,
+and `panel.pointerUp` in both the callback and the event queue. These events use
+the panel ID in `objectId`; their `panel.*` type distinguishes them from model
+events. A panel receives native laser input only when it is visible.
 
 ```js
-const panel = createPanel({widthPixels: 1024, heightPixels: 512, widthMeters: 1.2});
-panelClear(panel, 12, 18, 29, 255);
-panelText(panel, 24, 24, "Controller Debug", 255, 255, 255, 255, 32);
-panelLoadFont(panel, "/path/to/font.ttf", 32);
+const panel = createPanel({widthPixels: 1024, heightPixels: 512,
+  widthMeters: 1.2, interactive: true});
+panel.canvas.clear(12, 18, 29, 255);
+panel.canvas.text(24, 24, "Controller Debug", 255, 255, 255, 255, 32);
+panel.canvas.rect(20, 80, 200, 100, 80, 160, 240, 255, false);
+panel.canvas.line(20, 80, 220, 180, 255, 255, 255, 255);
+panel.canvas.circle(300, 120, 32, 240, 180, 80, 255, true);
+panel.canvas.image(360, 90, "assets/panel-test.png");
+panel.canvas.present();
 panelSetTransform(panel, "viewerFacing", 0, .2, -1);
 panelSetVisible(panel, true);
-panelPresent(panel);
+// Later: removePanel(panel);
 ```
 
-The panel renderer uses FreeType, supports multiline text, RGBA drawing,
-rectangles, lines, circles, file-backed images, explicit `present`, and
-pixel-plus-meter sizing. `panelCanvasClear` and `panelCanvasText` are the
-current canvas-member compatibility aliases; they operate on the same retained
-panel buffer and are intended to become `panel.canvas.clear` and
-`panel.canvas.text` without changing rendering semantics. The supported transform modes are `world`,
-`viewerFacing`, `headLocked`, and `arbitrary`; viewer-facing and head-locked rendering are integrated. `world` uses the
-standing anchor and panel position; `headLocked` uses the current HMD pose;
-`viewerFacing` recomputes the panel basis toward the HMD. `arbitrary` currently
-retains its mode and position state and is the next transform extension. Panel textures use the same SteamVR overlay
-path as the engine's 3D surfaces.
+`panelLoadFont(panel, path, pixels)` selects a FreeType font file. The text API
+returns false when the font cannot be loaded; `image` returns false when the
+image cannot be loaded. `panel.canvas.present()` requests an upload on the next
+render frame, after the GL context exists. Legacy `panelClear`, `panelText`,
+`panelPresent`, `panelCanvasClear`, and `panelCanvasText` remain available.
+
+Transform modes are `world` (standing anchor), `viewerFacing` (faces the current
+HMD pose), `headLocked` (follows the HMD), and `arbitrary` (absolute rotation).
+For arbitrary mode, call `panelSetRotation(panel, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
+with a row-major 3x3 orientation matrix. Its position still uses the standing
+anchor coordinates. `removePanel` releases the retained texture; the engine
+removes its SteamVR overlay on the next frame. Script reload removes the old
+panels, overlays, callback, and model surfaces before installing the new scene.
+
+Run `./run-overlay-engine.sh scripts/panel-test-suite.js` on Deckard for a visual
+integration check. It shows raw controller state, callback and queue counts,
+model hover/grab/move/rotate events, panel pointer events, four transform modes,
+text and drawing primitives, image loading, and panel removal. The labels
+report observed events; headset appearance and control behavior still require
+an operator to inspect the display and use the controllers.
 
 ## Object interaction
 
