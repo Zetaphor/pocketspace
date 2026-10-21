@@ -20,6 +20,16 @@ therefore reads SteamVR's local `vrserver` input WebSocket.
    execution.
 6. QuickJS bindings expose state and drainable events.
 
+WebSocket client frames must carry exactly four masking bytes. A previous native
+implementation accidentally wrote sixteen masking bytes, so the connection
+opened but SteamVR could not decode its subscription messages; controller
+state remained at zero. The corrected frame writer uses four random bytes.
+Both hands emit `controller.button` events for `/input/trigger/click`,
+`/input/bumper/click`, `/input/thumbstick/click`, and `/input/grip/click`;
+`controller.value` covers trigger/grip values and thumbstick x/y axes.
+The event queues are bounded at 4096 entries each, so scripts that do not
+poll cannot accumulate input indefinitely.
+
 The wire protocol is undocumented SteamVR behavior. Keep the reference monitor
 `scripts/steam-frame-input.py` alongside the native implementation: it is a
 small independent probe and a regression oracle after SteamVR updates.
@@ -70,18 +80,19 @@ object ID for that hand, or zero when no surface is hovered.
 ## 2D panel path
 
 Panels retain a CPU RGBA8 canvas, rasterize text through FreeType, and upload
-that texture explicitly on `present`. The main loop creates a SteamVR overlay
-for each panel and submits the uploaded texture. Panel transform mode and
-position are kept with the panel so world, viewer-facing, head-locked, and
-arbitrary transform policies can be implemented without changing the drawing
-backend. World and viewer-facing modes are active, and head-locked mode uses
-the current HMD transform; arbitrary mode remains a stored state for the next
-transform extension. Panel overlays are intended to share the same pointer and controller
-event routing as object surfaces.
+on the next render frame after `present`. SteamVR overlays use OpenGL texture
+handles and the engine clears and destroys them when panels are removed or a
+script reloads. Interactive panels use SteamVR's native laser as mouse input.
+They emit hover and pointer events, with top-left pixel coordinates, through
+the same callback and queue as controller and model events. World,
+viewer-facing, head-locked, and arbitrary transform modes are active.
+Arbitrary orientation is relative to the standing anchor.
 
 ## Verification
 
-Deckard successfully built the engine after adding the native monitor source.
-The standalone monitor captured 77 unique components in a bounded run without
-overlay hover. OpenVR action polling separately captured thumbstick actions but
-not the complete controller surface.
+Deckard built the engine and ran the panel test scene at about 90 FPS with no GL
+error. After the four-byte mask fix, the native monitor delivered live events
+through both callback and queue; snapshots showed valid raw state for both
+hands. The user confirmed that trigger, grip, and thumbstick values update for
+both hands in the headset dashboard. The standalone Python monitor remains an
+independent comparison probe.
