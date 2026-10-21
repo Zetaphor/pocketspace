@@ -52,15 +52,23 @@ void Input::poll(){
   vr::VRActiveActionSet_t active{};active.ulActionSet=set_;active.ulRestrictedToDevice=vr::k_ulInvalidInputValueHandle;
   active.nPriority=0;
   auto updateError=input->UpdateActionState(&active,sizeof(active),1);
-  if(updateError!=vr::VRInputError_None)return;
+  if(updateError!=vr::VRInputError_None){
+    static vr::EVRInputError lastError=vr::VRInputError_None;
+    if(updateError!=lastError){fprintf(stderr,"[input] UpdateActionState error=%d\n",int(updateError));lastError=updateError;}
+    return;
+  }
   for(int h=0;h<2;h++){
     for(unsigned i=0;i<index(Control::Count);i++){
       auto &v=hands_[h].values[i];
       if(actions_[i]==vr::k_ulInvalidActionHandle)continue;
       if(definitions[i].type==0){vr::InputDigitalActionData_t data{};
-        if(input->GetDigitalActionData(actions_[i],&data,sizeof(data),sources_[h])==vr::VRInputError_None){v.active=data.bActive;v.down=data.bState;}
+        const auto error=input->GetDigitalActionData(actions_[i],&data,sizeof(data),sources_[h]);
+        if(error==vr::VRInputError_None){v.active=data.bActive;v.down=data.bState;}
+        else if(h==0&&i==0)fprintf(stderr,"[input] GetDigitalActionData error=%d\n",int(error));
       }else {vr::InputAnalogActionData_t data{};
-        if(input->GetAnalogActionData(actions_[i],&data,sizeof(data),sources_[h])==vr::VRInputError_None){v.active=data.bActive;v.x=data.x;v.y=data.y;}
+        const auto error=input->GetAnalogActionData(actions_[i],&data,sizeof(data),sources_[h]);
+        if(error==vr::VRInputError_None){v.active=data.bActive;v.x=data.x;v.y=data.y;}
+        else if(h==0&&i==0)fprintf(stderr,"[input] GetAnalogActionData error=%d\n",int(error));
       }
       hands_[h].valid|=v.active;
     }

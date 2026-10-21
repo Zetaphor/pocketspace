@@ -46,6 +46,17 @@ farther away; down pulls it closer.
 
 ## Known gaps and next steps
 
+The SteamVR `IVRInput` action API is not a complete global monitor on Steam
+Frame: thumbstick actions were observed without overlay hover, but trigger,
+grip, and other actions remained inactive. The raw controller-state WebSocket
+served by `vrserver` does expose all Frame controller components without focus.
+The project now includes `scripts/steam-frame-input.py`, based on Frametop's
+implementation, as the authoritative diagnostic route. A Deckard inventory
+reported 77 live components, 37 left-hand and 40 right-hand, including all
+public button, touch, scalar, thumbstick, and capacitive paths. It is
+undocumented SteamVR behavior and may change across updates.
+
+
 1. **Laser pitch:** `laserPitchWithStickClick` is present but not verified.
    Native right-button events arrive when the stick is clicked, yet the user
    saw no pitch motion. Log smooth-scroll events while the stick is clicked

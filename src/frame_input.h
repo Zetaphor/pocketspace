@@ -1,0 +1,30 @@
+#pragma once
+#include <openvr.h>
+#include <map>
+#include <string>
+#include <vector>
+
+namespace frame_input {
+struct Component { bool boolean=false; float value=0; bool isBoolean=false; };
+struct Event { std::string type, hand, control; Component component; int objectId=0; float dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; };
+struct HandState { bool valid=false; std::map<std::string,Component> raw; };
+class Monitor {
+public:
+  ~Monitor();
+  bool start();
+  bool started() const { return started_; }
+  void poll();
+  const HandState &hand(int index) const { return hands_[index]; }
+  std::vector<Event> takeEvents();
+  std::vector<Event> takeCallbackEvents();
+  const std::vector<Event> &events() const { return events_; }
+  void addOverlayEvent(const std::string &type,int objectId,int hand=-1,float dx=0,float dy=0,float dz=0,float dpitch=0,float dyaw=0,float droll=0);
+  void setHoveredObject(int hand,int objectId);
+  bool reconnect();
+private:
+  int fd_=-1; std::string buffer_,fragment_; bool started_=false;
+  HandState hands_[2]; int hovered_[2]={0,0}; std::vector<Event> events_,callbackEvents_;
+  bool sendFrame(unsigned char opcode,const std::string &payload);
+  void processMessage(const std::string &message);
+};
+}

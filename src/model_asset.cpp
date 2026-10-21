@@ -76,6 +76,7 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   out.path=path;out.hasAnimation=data->animations_count>0;out.hasSkin=data->skins_count>0;
   float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
   float high[3]={-low[0],-low[1],-low[2]};
+  out.low[0]=out.low[1]=out.low[2]=std::numeric_limits<float>::max();out.high[0]=out.high[1]=out.high[2]=-std::numeric_limits<float>::max();
   for(cgltf_size i=0;i<data->nodes_count;i++){
     const auto &node=data->nodes[i];if(!node.mesh)continue;
     for(cgltf_size j=0;j<node.mesh->primitives_count;j++){
@@ -104,7 +105,7 @@ void uploadModel(ModelAsset &asset){
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
     glGenerateMipmap(GL_TEXTURE_2D);
-    part.vertices.clear();part.rgba.clear();
+    part.rgba.clear();
   }
   asset.uploaded=true;
 }

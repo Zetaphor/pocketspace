@@ -20,6 +20,7 @@ struct ModelAsset {
   int eyePixels=768;
   std::vector<PrimitiveAsset> primitives;
   bool uploaded=false;
+  float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
