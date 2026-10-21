@@ -13,6 +13,12 @@ cmake -S . -B build
 cmake --build build -j2
 ```
 
+Documentation: [JavaScript API](docs/javascript-api.md) covers controller,
+panel, and object events; [input architecture](docs/input-architecture.md)
+explains the raw Steam Frame path; [panel integration status](docs/panel-integration-status.md)
+records headset verification; [interaction status](docs/interaction-status.md)
+tracks object controls and remaining gaps.
+
 Run the default avocado or a sample gallery:
 
 ```sh
@@ -108,10 +114,14 @@ verified in the headset. SteamVR's grip click changes the active laser and
 releases a native pointer grab, so it cannot currently act as a modifier.
 `laserPitchWithStickClick` is experimental: stick clicks reach the engine,
 but the user did not see pitch rotation. Leave it off in normal demos.
-The optional `getInput(hand)` action bindings cover the Steam Frame controls,
+`getControllerInput(hand)` and `onInputEvent`/`pollInputEvents` expose raw
+controls on both hands, including main trigger, upper bumper, thumbstick click
+and axes, and grip. Both callback and queue delivery were tested for these
+controls. The optional `getInput(hand)` action bindings cover the Steam Frame controls,
 but action data was inactive in the overlay input probes with the native
-laser. The engine polls them only when a script requests them. Precise mesh
-hit testing and simultaneous independent grabs are still unverified.
+laser. The engine polls them only when a script requests them. Mesh hover
+events are implemented; exact mesh-based selection and simultaneous
+independent grabs remain unverified.
 See `docs/interaction-status.md` for the detailed verified state and next steps.
 
 The loader handles GLB triangle primitives across all mesh nodes, node

@@ -29,3 +29,9 @@ DeepSeek Harness handoff: `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`. Sigma'
 ## Maintenance note
 
 SteamVR's `vrserver` input WebSocket is undocumented. If a SteamVR update changes its messages, compare `scripts/steam-frame-input.py` with the native monitor before changing controller normalization. The standalone monitor and the headset dashboard are the current regression probes.
+
+## Remaining work
+
+- Test exact mesh-based selection and two simultaneous independent grabs before relying on either behavior.
+- Keep `laserPitchWithStickClick` experimental until headset motion is confirmed; evaluate a dedicated grip gesture separately from SteamVR's native pointer ownership.
+- Measure larger scenes and implement animation playback, richer lighting, physics, and persistence as separate milestones. The current gallery displays animated assets in their default pose.
