@@ -7,7 +7,7 @@ set(QJS_INCLUDE "$ENV{HOME}/Code/third_party/quickjs-ng" CACHE PATH "QuickJS hea
 set(QJS_LIB "$ENV{HOME}/Code/third_party/quickjs-ng/build/libqjs.a" CACHE FILEPATH "QuickJS library")
 set(STEAMVR_BIN "/opt/steamvr/bin/linuxarm64" CACHE PATH "SteamVR binaries")
 find_path(DRM_INCLUDE drm_fourcc.h PATH_SUFFIXES libdrm REQUIRED)
-add_executable(sf-overlay-engine src/main.cpp src/model_asset.cpp src/controller_input.cpp)
+add_executable(sf-overlay-engine src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp)
 target_include_directories(sf-overlay-engine PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${DRM_INCLUDE})
 target_link_directories(sf-overlay-engine PRIVATE ${STEAMVR_BIN})
 target_link_libraries(sf-overlay-engine PRIVATE openvr_api ${QJS_LIB} pthread EGL GLESv2 gbm drm m)

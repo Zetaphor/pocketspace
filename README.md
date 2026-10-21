@@ -30,6 +30,13 @@ Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
 times per second. A successful reload replaces the previous scene; a failed
 reload leaves it visible. `update(dt)` runs at the 90 Hz host target.
 
+For global Steam Frame controller diagnostics, independent of overlay hover or
+application focus, run `python3 scripts/steam-frame-input.py` on Deckard. This
+uses SteamVR's local controller-state WebSocket, the same undocumented route
+used by Frametop, and prints raw component updates including buttons, values,
+touch state, capacitive sensors, and thumbstick axes. Use `--changes-only` to
+suppress repeated values, or `--seconds 30` for a bounded diagnostic run.
+
 The script API is:
 
 ```js

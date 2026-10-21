@@ -27,6 +27,7 @@
 #include <quickjs.h>
 #include "model_asset.h"
 #include "controller_input.h"
+#include "frame_input.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -46,10 +47,13 @@ static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
 static controller_input::Input controllerInput;
-static bool inputPollingRequested=false;
+static frame_input::Monitor frameInput;
+static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0};
 struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
 static std::map<int,PointerSnapshot> pointerStates;
+static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;
 static void stop(int){running=false;}
+static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));return item;}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){fprintf(stdout,"[js] %s\n",s);JS_FreeCString(ctx,s);}}
   return JS_UNDEFINED;
@@ -74,6 +78,20 @@ static int handIndex(JSContext *ctx,JSValueConst value){
   const char *hand=JS_ToCString(ctx,value);if(!hand)return -1;
   int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;
   JS_FreeCString(ctx,hand);return index;
+}
+static JSValue jsGetControllerInput(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"getControllerInput(hand): hand is left or right");
+  const int h=handIndex(ctx,argv[0]);if(h<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
+  const auto &state=frameInput.hand(h);JSValue object=JS_NewObject(ctx);JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,state.valid));JS_SetPropertyStr(ctx,object,"hand",JS_NewString(ctx,h?"right":"left"));
+  JSValue raw=JS_NewObject(ctx);for(const auto &[name,value]:state.raw){JS_SetPropertyStr(ctx,raw,name.c_str(),value.isBoolean?JS_NewBool(ctx,value.boolean):JS_NewFloat64(ctx,value.value));}JS_SetPropertyStr(ctx,object,"raw",raw);
+  auto rawValue=[&](const char *name){auto it=state.raw.find(name);return it==state.raw.end()?0.f:it->second.isBoolean?(it->second.boolean?1.f:0.f):it->second.value;};
+  JSValue buttons=JS_NewObject(ctx);const char *controls[]={"trigger","grip","bumper","thumbstick","a","b","x","y","menu","system","view","dpad_up","dpad_down","dpad_left","dpad_right"};for(const char *name:controls){JSValue item=JS_NewObject(ctx);std::string base=std::string("/input/")+name;JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,rawValue((base+"/click").c_str())!=0));JS_SetPropertyStr(ctx,item,"touched",JS_NewBool(ctx,rawValue((base+"/touch").c_str())!=0));JS_SetPropertyStr(ctx,buttons,name, item);}JS_SetPropertyStr(ctx,object,"buttons",buttons);
+  JSValue analog=JS_NewObject(ctx);JS_SetPropertyStr(ctx,analog,"trigger",JS_NewFloat64(ctx,rawValue("/input/trigger/value")));JS_SetPropertyStr(ctx,analog,"grip",JS_NewFloat64(ctx,rawValue("/input/grip/value")));JSValue stick=JS_NewObject(ctx);JS_SetPropertyStr(ctx,stick,"x",JS_NewFloat64(ctx,rawValue("/input/thumbstick/x")));JS_SetPropertyStr(ctx,stick,"y",JS_NewFloat64(ctx,rawValue("/input/thumbstick/y")));JS_SetPropertyStr(ctx,analog,"thumbstick",stick);JS_SetPropertyStr(ctx,object,"analog",analog);
+  JSValue capacitive=JS_NewObject(ctx);for(const char *name:controls){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}JS_SetPropertyStr(ctx,object,"capacitive",capacitive);return object;
+}
+static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1||!JS_IsFunction(ctx,argv[0]))return JS_ThrowTypeError(ctx,"onInputEvent(callback)");if(inputCallbackCtx)JS_FreeValue(inputCallbackCtx,inputCallback);inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);return JS_UNDEFINED;}
+static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
+  JSValue array=JS_NewArray(ctx);auto events=frameInput.takeEvents();uint32_t i=0;for(const auto &event:events){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));JS_SetPropertyUint32(ctx,array,i++,item);}return array;
 }
 static JSValue jsGetInput(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc<1)return JS_ThrowTypeError(ctx,"getInput(hand): hand is left or right");
@@ -259,6 +277,9 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   currentScene=&candidate.scene;
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
+  bind(candidate.ctx,"getControllerInput",jsGetControllerInput,1);
+  bind(candidate.ctx,"pollInputEvents",jsPollInputEvents,0);
+  bind(candidate.ctx,"onInputEvent",jsOnInputEvent,1);
   bind(candidate.ctx,"getInput",jsGetInput,1);
   bind(candidate.ctx,"pulse",jsPulse,3);
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
@@ -442,16 +463,20 @@ static void objectRotationMatrix(float pitch,float yaw,float roll,float m[9]){
   m[3]=cp*sr;m[4]=cp*cr;m[5]=-sp;
   m[6]=-sy*cr+cy*sp*sr;m[7]=sy*sr+cy*sp*cr;m[8]=cy*cp;
 }
+static bool frameButtonDown(int hand,const char *path){auto it=frameInput.hand(hand).raw.find(path);return it!=frameInput.hand(hand).raw.end()&&it->second.isBoolean&&it->second.boolean;}
+static float frameAxis(int hand,const char *path){auto it=frameInput.hand(hand).raw.find(path);return it==frameInput.hand(hand).raw.end()?0.f:it->second.value;}
 static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt){
   for(int h=0;h<2;h++){
     const auto &hand=controllers[h];
     auto &grab=grabs[h];
     auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
+    const int previousGrab=grab.objectId;
     Object *object=nullptr;for(auto &candidate:scene.objects)if(candidate.id==grab.objectId){object=&candidate;break;}
-    if(object&&(!object->visible||!object->autoManipulate||!object->grabbable||!hand.valid)){grab={};object=nullptr;}
+    if(object&&(!object->visible||!object->autoManipulate||!object->grabbable||!hand.valid)){frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;}
     if(object){
       auto state=pointerStates.find(object->id);
-      if(state==pointerStates.end()||!state->second.down||state->second.hand!=h){grab={};object=nullptr;}
+      const bool rawDown=frameButtonDown(h,"/input/trigger/click");
+      if((state==pointerStates.end()||state->second.hand!=h||(!state->second.down&&!rawDown))){frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;}
     }
     if(!object&&hand.valid){
       for(auto &candidate:scene.objects){
@@ -461,11 +486,12 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
           const float reach=.10f+candidate.scale*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
-          beginGrab(grab,candidate,hand,direct);object=&candidate;break;
+          beginGrab(grab,candidate,hand,direct);frameInput.addOverlayEvent("overlay.grabStart",candidate.id,h);object=&candidate;break;
         }
       }
     }
     if(object&&hand.valid){
+      const float oldX=object->x,oldY=object->y,oldZ=object->z,oldPitch=object->pitch,oldYaw=object->yaw,oldRoll=object->roll;
       auto pointer=pointerStates.find(object->id);
       const float x=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollX,-1.f,1.f):0;
       const float y=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollY,-1.f,1.f):0;
@@ -483,6 +509,8 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
       object->x=hand.x+r[0]*grab.offset[0]+r[1]*grab.offset[1]+r[2]*grab.offset[2];
       object->y=hand.y+r[3]*grab.offset[0]+r[4]*grab.offset[1]+r[5]*grab.offset[2];
       object->z=hand.z+r[6]*grab.offset[0]+r[7]*grab.offset[1]+r[8]*grab.offset[2];
+      frameInput.addOverlayEvent("overlay.grabMove",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
+      if(std::fabs(object->x-oldX)+std::fabs(object->y-oldY)+std::fabs(object->z-oldZ)>.00001f)frameInput.addOverlayEvent("overlay.move",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
       if(grab.direct&&(object->handPitch||object->handYaw||object->handRoll)){
         float delta[9]{};
         for(int row=0;row<3;row++)for(int col=0;col<3;col++)for(int k=0;k<3;k++)delta[row*3+col]+=r[row*3+k]*grab.startHand[col*3+k];
@@ -499,9 +527,12 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
         object->yaw=std::atan2(combined[2],combined[8]);
         object->roll=std::atan2(combined[3],combined[4]);
       }
+      if(std::fabs(object->pitch-oldPitch)+std::fabs(object->yaw-oldYaw)+std::fabs(object->roll-oldRoll)>.00001f)frameInput.addOverlayEvent("overlay.rotate",object->id,h,0,0,0,object->pitch-oldPitch,object->yaw-oldYaw,object->roll-oldRoll);
     }
   }
 }
+static bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
+static bool meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand){float o[3]={hand.x,hand.y,hand.z},d[3]={hand.rotation[2],hand.rotation[5],hand.rotation[8]};float best=std::numeric_limits<float>::max();float cp=std::cos(object.pitch),sp=std::sin(object.pitch),cy=std::cos(object.yaw),sy=std::sin(object.yaw),cr=std::cos(object.roll),sr=std::sin(object.roll);for(const auto &part:asset.primitives)for(size_t i=0;i+14<part.vertices.size();i+=15){float tri[3][3];for(int n=0;n<3;n++){float x=part.vertices[i+n*5]*object.scale,y=part.vertices[i+n*5+1]*object.scale,z=part.vertices[i+n*5+2]*object.scale;float rx=cr*x-sr*y,ry=sr*x+cr*y,rz=z,px=rx,py=cp*ry-sp*rz,pz=sp*ry+cp*rz;tri[n][0]=object.x+cy*px+sy*pz;tri[n][1]=object.y+py;tri[n][2]=object.z-sy*px+cy*pz;}float t;if(rayTriangle(o,d,tri[0],tri[1],tri[2],t))best=std::min(best,t);}return best<std::numeric_limits<float>::max();}
 int main(int argc,char **argv) {
   if(argc>2&&std::string(argv[1])=="--inspect"){
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
@@ -512,6 +543,7 @@ int main(int argc,char **argv) {
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
   if(!controllerInput.init(std::filesystem::current_path().string(),argv[0]))fprintf(stderr,"[input] SteamVR actions unavailable; controller poses and overlay pointer events remain active\n");
+  if(!frameInput.start())fprintf(stderr,"[input] raw Steam Frame WebSocket unavailable; action input remains active\n");
   auto *system=vr::VRSystem();auto *overlays=vr::VROverlay();
   int drm=open("/dev/dri/renderD128",O_RDWR|O_CLOEXEC);auto *gbm=drm>=0?gbm_create_device(drm):nullptr;
   createImage=(PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
@@ -632,7 +664,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       auto &state=pointerStates[id];
       state.scrollX=state.scrollY=0;
       while(overlays->PollNextOverlayEvent(surface->overlay,&event,sizeof(event))){
-        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;state.hand=-1;continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){frameInput.addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;frameInput.setHoveredObject(state.hand,0);}state.hand=-1;continue;}
         if(event.eventType==vr::VREvent_ScrollSmooth){
           state.scrollX+=event.data.scroll.xdelta;
           state.scrollY+=event.data.scroll.ydelta;
@@ -640,6 +672,9 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         }
         if(event.eventType==vr::VREvent_MouseMove||event.eventType==vr::VREvent_MouseButtonDown||event.eventType==vr::VREvent_MouseButtonUp){
           state.valid=true;
+          const int eventHand=event.trackedDeviceIndex==vr::k_unTrackedDeviceIndexInvalid?-1:system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex)==vr::TrackedControllerRole_RightHand?1:0;
+          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])frameInput.addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;frameInput.setHoveredObject(eventHand,id);frameInput.addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
+          frameInput.addOverlayEvent(event.eventType==vr::VREvent_MouseMove?"overlay.surfaceHover":"overlay.pointer",id,eventHand);
           state.x=(event.data.mouse.x-.5f)*surface->width;
           state.y=(.5f-event.data.mouse.y)*surface->width;
           if(event.eventType==vr::VREvent_MouseButtonDown){
@@ -656,7 +691,11 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         }
       }
     }
-    if(inputPollingRequested)controllerInput.poll();
+    controllerInput.poll();
+    frameInput.poll();
+    for(int h=0;h<2;h++){int hit=0;for(const auto &object:script.scene.objects){if(!object.visible)continue;const auto &asset=script.scene.assets[(size_t)object.asset-1];if(meshHit(object,asset,controllers[h])){hit=object.id;break;}}if(hit!=meshHoveredObject[h]){if(meshHoveredObject[h])frameInput.addOverlayEvent("overlay.meshHoverEnd",meshHoveredObject[h],h);if(hit)frameInput.addOverlayEvent("overlay.meshHoverStart",hit,h);meshHoveredObject[h]=hit;}}
+    if(!frameInput.started() && frame%900==0)frameInput.reconnect();
+    if(inputCallbackCtx){auto events=frameInput.takeCallbackEvents();for(const auto &event:events){JSValue value=inputEventValue(inputCallbackCtx,event);JSValue result=JS_Call(inputCallbackCtx,inputCallback,JS_UNDEFINED,1,&value);JS_FreeValue(inputCallbackCtx,value);if(JS_IsException(result))JS_FreeValue(inputCallbackCtx,JS_GetException(inputCallbackCtx));else JS_FreeValue(inputCallbackCtx,result);}}
     updateManipulation(script.scene,grabs,1.f/90.f);
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);
