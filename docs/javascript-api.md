@@ -39,6 +39,34 @@ The existing `getInput(hand)` action API remains available for SteamVR action
 bindings, but raw global monitoring uses `getControllerInput` and
 `pollInputEvents`.
 
+## 2D panels
+
+`createPanel({widthPixels, heightPixels, widthMeters})` creates a retained 2D
+panel. Drawing uses the current compatibility bindings while the canvas member
+API is finalized:
+
+```js
+const panel = createPanel({widthPixels: 1024, heightPixels: 512, widthMeters: 1.2});
+panelClear(panel, 12, 18, 29, 255);
+panelText(panel, 24, 24, "Controller Debug", 255, 255, 255, 255, 32);
+panelLoadFont(panel, "/path/to/font.ttf", 32);
+panelSetTransform(panel, "viewerFacing", 0, .2, -1);
+panelSetVisible(panel, true);
+panelPresent(panel);
+```
+
+The panel renderer uses FreeType, supports multiline text, RGBA drawing,
+rectangles, lines, circles, file-backed images, explicit `present`, and
+pixel-plus-meter sizing. `panelCanvasClear` and `panelCanvasText` are the
+current canvas-member compatibility aliases; they operate on the same retained
+panel buffer and are intended to become `panel.canvas.clear` and
+`panel.canvas.text` without changing rendering semantics. The supported transform modes are `world`,
+`viewerFacing`, `headLocked`, and `arbitrary`; viewer-facing and head-locked rendering are integrated. `world` uses the
+standing anchor and panel position; `headLocked` uses the current HMD pose;
+`viewerFacing` recomputes the panel basis toward the HMD. `arbitrary` currently
+retains its mode and position state and is the next transform extension. Panel textures use the same SteamVR overlay
+path as the engine's 3D surfaces.
+
 ## Object interaction
 
 Objects are created with `createObject` and configured with

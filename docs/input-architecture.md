@@ -67,6 +67,18 @@ object ID for that hand, or zero when no surface is hovered.
   the legacy native pointer state, allowing future controller-only grabs while
   preserving the verified laser path.
 
+## 2D panel path
+
+Panels retain a CPU RGBA8 canvas, rasterize text through FreeType, and upload
+that texture explicitly on `present`. The main loop creates a SteamVR overlay
+for each panel and submits the uploaded texture. Panel transform mode and
+position are kept with the panel so world, viewer-facing, head-locked, and
+arbitrary transform policies can be implemented without changing the drawing
+backend. World and viewer-facing modes are active, and head-locked mode uses
+the current HMD transform; arbitrary mode remains a stored state for the next
+transform extension. Panel overlays are intended to share the same pointer and controller
+event routing as object surfaces.
+
 ## Verification
 
 Deckard successfully built the engine after adding the native monitor source.

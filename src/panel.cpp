@@ -1,0 +1,20 @@
+#include "panel.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <cstdlib>
+#include <fstream>
+#include "../stb_image.h"
+namespace { FT_Library library=nullptr; std::string defaultFont(){const char *env=std::getenv("SF_FONT");if(env&&*env)return env;for(const char *p:{"/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf","/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf","/usr/share/fonts/truetype/freefont/FreeMono.ttf"})if(std::filesystem::exists(p))return p;return {};}
+void pixel(Panel&p,int x,int y,unsigned char r,unsigned char g,unsigned char b,unsigned char a){if(x<0||y<0||x>=p.width||y>=p.height)return;auto*q=&p.rgba[(size_t)(y*p.width+x)*4];float alpha=a/255.f;float old=1-alpha;q[0]=(unsigned char)(r*alpha+q[0]*old);q[1]=(unsigned char)(g*alpha+q[1]*old);q[2]=(unsigned char)(b*alpha+q[2]*old);q[3]=(unsigned char)std::min(255.f,a+q[3]*old);}}
+bool panelInit(Panel&p,int id,int w,int h,float wm,float hm,const std::string&font){p={};p.id=id;p.width=w;p.height=h;p.widthMeters=wm;p.heightMeters=hm;p.fontPath=font.empty()?defaultFont():font;p.rgba.assign((size_t)w*h*4,0);if(!library&&FT_Init_FreeType(&library)!=0)return false;return true;}
+void panelClear(Panel&p,unsigned char r,unsigned char g,unsigned char b,unsigned char a){for(size_t i=0;i<p.rgba.size();i+=4){p.rgba[i]=r;p.rgba[i+1]=g;p.rgba[i+2]=b;p.rgba[i+3]=a;}p.dirty=true;}
+void panelRect(Panel&p,int x,int y,int w,int h,unsigned char r,unsigned char g,unsigned char b,unsigned char a,bool fill){for(int yy=std::max(0,y);yy<std::min(p.height,y+h);yy++)for(int xx=std::max(0,x);xx<std::min(p.width,x+w);xx++)if(fill||xx==x||yy==y||xx==x+w-1||yy==y+h-1)pixel(p,xx,yy,r,g,b,a);p.dirty=true;}
+void panelLine(Panel&p,int x1,int y1,int x2,int y2,unsigned char r,unsigned char g,unsigned char b,unsigned char a){int dx=std::abs(x2-x1),sx=x1<x2?1:-1,dy=-std::abs(y2-y1),sy=y1<y2?1:-1,err=dx+dy;for(;;){pixel(p,x1,y1,r,g,b,a);if(x1==x2&&y1==y2)break;int e=2*err;if(e>=dy){err+=dy;x1+=sx;}if(e<=dx){err+=dx;y1+=sy;}}p.dirty=true;}
+bool panelText(Panel&p,int x,int y,const std::string&text,unsigned char r,unsigned char g,unsigned char b,unsigned char a,int pixels){FT_Face face=nullptr;if(p.fontPath.empty()||FT_New_Face(library,p.fontPath.c_str(),0,&face)!=0)return false;FT_Set_Pixel_Sizes(face,0,pixels);int pen=x,baseline=y+(face->size->metrics.ascender>>6);for(unsigned char ch:text){if(ch=='\n'){pen=x;baseline+=pixels+4;continue;}if(FT_Load_Char(face,ch,FT_LOAD_RENDER))continue;auto*bm=&face->glyph->bitmap;for(unsigned row=0;row<bm->rows;row++)for(unsigned col=0;col<bm->width;col++){unsigned char v=bm->buffer[row*bm->pitch+col];pixel(p,pen+face->glyph->bitmap_left+col,baseline-face->glyph->bitmap_top+row,r,g,b,(unsigned char)(v*a/255));}pen+=face->glyph->advance.x>>6;}FT_Done_Face(face);p.dirty=true;return true;}
+bool panelImage(Panel&p,int x,int y,const std::string&path){int w=0,h=0,n=0;unsigned char*data=stbi_load(path.c_str(),&w,&h,&n,4);if(!data)return false;for(int yy=0;yy<h;yy++)for(int xx=0;xx<w;xx++){auto*src=&data[(size_t)(yy*w+xx)*4];pixel(p,x+xx,y+yy,src[0],src[1],src[2],src[3]);}stbi_image_free(data);p.dirty=true;return true;}
+void panelCircle(Panel&p,int cx,int cy,int radius,unsigned char r,unsigned char g,unsigned char b,unsigned char a,bool fill){for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++){int d=x*x+y*y;if((fill&&d<=radius*radius)||(!fill&&d<=radius*radius&&d>=(radius-1)*(radius-1)))pixel(p,cx+x,cy+y,r,g,b,a);}p.dirty=true;}
+void panelUpload(Panel&p){if(!p.texture)glGenTextures(1,&p.texture);glBindTexture(GL_TEXTURE_2D,p.texture);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,p.width,p.height,0,GL_RGBA,GL_UNSIGNED_BYTE,p.rgba.data());glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);p.dirty=false;}
+void panelDestroy(Panel&p){if(p.texture)glDeleteTextures(1,&p.texture);p.texture=0;p.rgba.clear();}

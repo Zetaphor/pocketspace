@@ -28,10 +28,11 @@
 #include "model_asset.h"
 #include "controller_input.h"
 #include "frame_input.h"
+#include "panel.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -42,7 +43,7 @@ struct Object {
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
   bool handPitch=false,handYaw=false,handRoll=false;
 };
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<int> interactiveIds;int nextId=1;bool laserVisible[2]{};};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};};
 static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -147,6 +148,15 @@ static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *a
   JS_SetPropertyStr(ctx,object,"hand",state.hand==0?JS_NewString(ctx,"left"):state.hand==1?JS_NewString(ctx,"right"):JS_NULL);
   return object;
 }
+static Panel *findPanel(int id){if(!currentScene)return nullptr;for(auto &panel:currentScene->panels)if(panel.id==id)return &panel;return nullptr;}
+static int colorPart(JSContext *ctx,JSValueConst value,int fallback){if(JS_IsNumber(value)){int n=0;JS_ToInt32(ctx,&n,value);return std::clamp(n,0,255);}return fallback;}
+static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(!currentScene||argc<1)return JS_ThrowTypeError(ctx,"createPanel(options)");if(!JS_IsObject(argv[0]))return JS_ThrowTypeError(ctx,"createPanel options must be an object");int w=1024,h=512;double wm=1.2;JSValue f=JS_GetPropertyStr(ctx,argv[0],"widthPixels");if(!JS_IsUndefined(f))JS_ToInt32(ctx,&w,f);JS_FreeValue(ctx,f);f=JS_GetPropertyStr(ctx,argv[0],"heightPixels");if(!JS_IsUndefined(f))JS_ToInt32(ctx,&h,f);JS_FreeValue(ctx,f);f=JS_GetPropertyStr(ctx,argv[0],"widthMeters");if(!JS_IsUndefined(f))JS_ToFloat64(ctx,&wm,f);JS_FreeValue(ctx,f);Panel panel;if(!panelInit(panel,currentScene->nextPanelId++,w,h,(float)wm,(float)(wm*h/w),""))return JS_ThrowInternalError(ctx,"panel initialization failed");currentScene->panels.push_back(std::move(panel));return JS_NewInt32(ctx,currentScene->panels.back().id);}
+static JSValue jsPanelClear(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"panel.clear(id,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");int r=argc>1?colorPart(ctx,argv[1],0):0,g=argc>2?colorPart(ctx,argv[2],0):0,b=argc>3?colorPart(ctx,argv[3],0):0,a=argc>4?colorPart(ctx,argv[4],255):255;panelClear(*p,r,g,b,a);return JS_UNDEFINED;}
+static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"panel.loadFont(id,path,pixels)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;if(argc>2)JS_ToInt32(ctx,&p->fontPixels,argv[2]);JS_FreeCString(ctx,path);return JS_UNDEFINED;}
+static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0,x=0,y=0;if(argc<4||JS_ToInt32(ctx,&id,argv[0])<0||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=panelText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],p->fontPixels):p->fontPixels);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
+static JSValue jsPanelSetTransform(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<5||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"panel.setTransform(id,mode,x,y,z)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*mode=JS_ToCString(ctx,argv[1]);if(mode){p->mode=mode;JS_FreeCString(ctx,mode);}double x=0,y=0,z=0;if(JS_ToFloat64(ctx,&x,argv[2])<0||JS_ToFloat64(ctx,&y,argv[3])<0||JS_ToFloat64(ctx,&z,argv[4])<0)return JS_EXCEPTION;p->x=(float)x;p->y=(float)y;p->z=(float)z;return JS_UNDEFINED;}
+static JSValue jsPanelVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"panel.setVisible(id,visible)");auto*p=findPanel(id);if(p)p->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;}
+static JSValue jsPanelPresent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_EXCEPTION;auto*p=findPanel(id);if(p)panelUpload(*p);return JS_UNDEFINED;}
 static Object *findObject(int id){
   if(!currentScene)return nullptr;
   for(auto &object:currentScene->objects)if(object.id==id)return &object;
@@ -287,6 +297,15 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
+  bind(candidate.ctx,"createPanel",jsCreatePanel,1);
+  bind(candidate.ctx,"panelClear",jsPanelClear,5);
+  bind(candidate.ctx,"panelText",jsPanelText,9);
+  bind(candidate.ctx,"panelLoadFont",jsPanelSetFont,3);
+  bind(candidate.ctx,"panelPresent",jsPanelPresent,1);
+  bind(candidate.ctx,"panelCanvasClear",jsPanelClear,5);
+  bind(candidate.ctx,"panelCanvasText",jsPanelText,9);
+  bind(candidate.ctx,"panelSetTransform",jsPanelSetTransform,5);
+  bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"createObject",jsCreateObject,5);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
@@ -585,7 +604,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
-  std::map<int,std::unique_ptr<Surface>> surfaces;
+  std::map<int,std::unique_ptr<Surface>> surfaces;std::map<int,vr::VROverlayHandle_t> panelOverlays;std::map<int,vr::Texture_t> panelTextures;
   std::array<GrabState,2> grabs{};
   auto syncSurfaces=[&]()->bool{
     std::vector<int> desired;
@@ -617,6 +636,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     return true;
   };
   if(!syncSurfaces())return 8;
+  for(auto &panel:script.scene.panels){if(panel.dirty)panelUpload(panel);auto found=panelOverlays.find(panel.id);if(found==panelOverlays.end()){vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;std::string key="sf_overlay_engine.panel."+std::to_string(panel.id);if(overlays->CreateOverlay(key.c_str(),key.c_str(),&handle)==vr::VROverlayError_None){overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);vr::VRTextureBounds_t panelBounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&panelBounds);panelOverlays.emplace(panel.id,handle);}}}
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
   setVec3(program,"center",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);
@@ -715,6 +735,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         updateLaser(lasers[hand],laserShown[hand],script.scene.laserVisible[hand],hand,pose,head);
       }
       std::vector<Surface*> ready;
+      for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end()||!panelData.texture||!panelData.visible)continue;auto &texture=panelTextures[panelData.id];texture={&panelData.texture,vr::TextureType_OpenGL,vr::ColorSpace_Gamma};overlays->SetOverlayTexture(h->second,&texture);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
       for(auto &[id,surface]:surfaces){
         const Object *target=nullptr;
         for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
