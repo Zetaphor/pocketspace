@@ -1,14 +1,14 @@
 // Run in the headset. Aim at the large panel, then hover, grab, and move the model.
-const dashboard = createPanel({widthPixels:1024,heightPixels:640,widthMeters:1.15,interactive:true});
-panelSetTransform(dashboard,'viewerFacing',0,.36,-1.25);
+const dashboard = createPanel({widthPixels:1024,heightPixels:640,widthMeters:.9,interactive:true});
+panelSetTransform(dashboard,'viewerFacing',0,0,0);
 const modePanels = [
-  ['world',-.72,.05,-1.35],
-  ['headLocked',.52,-.27,-1.4],
-  ['arbitrary',.75,.05,-1.35]
+  ['world',-.32,-.4,0],
+  ['headLocked',0,-.6,1.1],
+  ['arbitrary',.32,-.4,0]
 ].map(([mode,x,y,z]) => {
-  const p=createPanel({widthPixels:320,heightPixels:96,widthMeters:.36});
+  const p=createPanel({widthPixels:320,heightPixels:96,widthMeters:.28});
   panelSetTransform(p,mode,x,y,z);
-  if(mode==='arbitrary') panelSetRotation(p,.866,0,.5,0,1,0,-.5,0,.866);
+  if(mode==='arbitrary') panelSetRotation(p,.978,0,.208,0,1,0,-.208,0,.978);
   p.canvas.clear(20,38,58,235);
   p.canvas.text(12,18,mode,255,255,255,255,24);
   p.canvas.present();
@@ -18,7 +18,7 @@ const temporary=createPanel({widthPixels:64,heightPixels:32,widthMeters:.1});
 temporary.canvas.clear(255,0,0,255);temporary.canvas.present();
 const imagePath='assets/panel-test.png';
 const asset=loadModel('assets/Avocado.glb',768);
-const object=createObject(asset,0,-.18,0,.28);
+const object=createObject(asset,-.58,-.05,0,.24);
 setObjectInteraction(object,{grabbable:true,directGrab:true,laserYaw:true,depthAdjust:true,
   handRotationAxes:{pitch:true,yaw:true,roll:true}});
 setLaserVisible('left',true);setLaserVisible('right',true);

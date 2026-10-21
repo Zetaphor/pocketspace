@@ -17,11 +17,22 @@ The DeepSeek Harness handoff was session `session-ccca95f8-9c7a-4acf-8a91-8a5d2b
 - A bounded SteamVR run loaded `scripts/panel-test-suite.js`, detected both controller poses, drew its first frame with `image=true`, removed the temporary panel after two seconds, and received a native pointer event on the model.
 - `git diff --check` passed.
 
+## Headset placement feedback and correction
+
+The first live headset check found the dashboard too high and the arbitrary panel
+facing away. A second placement put one panel too close to the eyes. The root
+cause was the test script using negative depth even though the scene anchor is
+already initialized roughly one meter in front of the HMD. The test scene now
+uses `z=0` for standing-anchor panels and positive `z` for the head-locked
+panel. Arbitrary rotation is relative to the standing anchor, so its initial
+orientation faces the user. The revised scene is running on Deckard; the user's
+visual confirmation is pending.
+
 ## In-headset checks still needed
 
 An operator wearing the Steam Frame should run `./run-overlay-engine.sh scripts/panel-test-suite.js` from the Deckard checkout and verify:
 
-1. The four panels appear in the intended positions, including stable world anchoring, viewer facing, head locking, and arbitrary rotation.
+1. Confirm that the revised four-panel layout is visible in front of the headset, including stable world anchoring, viewer facing, head locking, and arbitrary rotation.
 2. Aiming at and clicking the large panel increases `panel.hoverStart` and `panel.pointerDown` in both callback and queue columns.
 3. Hovering the avocado increments surface and mesh hover counts. Grab, move, rotate, and release increase the corresponding counts and feel correct in the headset.
 4. Text, line, rectangle, circles, and checkerboard image are readable. The temporary panel disappears after two seconds.
