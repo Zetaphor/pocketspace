@@ -18,9 +18,10 @@ DeepSeek Harness handoff: `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`. Sigma'
 - The dashboard showed live raw input from both controllers. The user confirmed trigger, grip, and thumbstick values change. The physical main trigger, upper bumper, and thumbstick click indicators worked on both hands; Deckard logged `/input/trigger/click`, `/input/bumper/click`, and `/input/thumbstick/click` events from left and right. An API probe received all eight expected trigger, bumper, stick, and grip click/value/axis paths per hand through both callback and queue.
 - The two-hand probe placed an avocado and box in the scene. Each colored custom laser selected a model through its controller's raw trigger without requiring that hand to own SteamVR's native laser. The user confirmed simultaneous independent grabs, beams stopping at the held models, and grabs persisting through quick hand motion until trigger release. The probe ran at about 90 FPS with `gl_error=0` and logged distinct held object IDs for left and right.
 
-Run `./run-overlay-engine.sh scripts/two-hand-grab-test.js` on Deckard to repeat that headset probe.
 - A reload probe loaded a valid revision, retained the previous scene through an intentionally broken edit, then loaded a corrected revision. The test scene also reloaded cleanly while the user watched in the headset.
 - The temporary panel was removed after two seconds, and the engine logged `font=true` and `image=true` on first draw. Framecorder recording `~/Videos/framecorder/2026-10-20_23-03-49.mp4` captured the earlier missing-font state and helped identify the font-path issue.
+
+Run `./run-overlay-engine.sh scripts/two-hand-grab-test.js` on Deckard to repeat the two-hand headset probe.
 
 ## Defects corrected during validation
 

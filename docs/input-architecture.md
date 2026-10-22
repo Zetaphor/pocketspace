@@ -73,9 +73,9 @@ object ID for that hand, or zero when no surface is hovered.
 - Controller role changes: refresh controller discovery and resubscribe paths.
 - Input focus: do not substitute `GetControllerState` for the WebSocket route;
   it is documented but unavailable in the tested overlay context.
-- Manipulation activation accepts the unified raw trigger-click state as well as
-  the legacy native pointer state, allowing future controller-only grabs while
-  preserving the verified laser path.
+- Manipulation activation accepts raw trigger click or value state as well as
+  the legacy native pointer state. The two-hand avocado/box headset probe
+  verified independent custom-laser grabs without native pointer focus.
 
 ## 2D panel path
 

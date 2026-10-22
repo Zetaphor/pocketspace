@@ -17,7 +17,8 @@ Documentation: [JavaScript API](docs/javascript-api.md) covers controller,
 panel, and object events; [input architecture](docs/input-architecture.md)
 explains the raw Steam Frame path; [panel integration status](docs/panel-integration-status.md)
 records headset verification; [interaction status](docs/interaction-status.md)
-tracks object controls and remaining gaps.
+tracks object controls; [remaining work](docs/remaining-work.md) lists the
+next milestones and their completion checks.
 
 Run the default avocado or a sample gallery:
 
@@ -55,13 +56,13 @@ setObjectVisible(object, true);
 removeObject(object);
 print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
-enableObjectInteraction(object); // grabbable by the SteamVR laser
+enableObjectInteraction(object); // grabbable by either custom laser
 setObjectInteraction(object, {laserPassThrough: true, grabbable: false});
 setObjectInteraction(object, {
   grabbable: true, directGrab: true, laserYaw: true, depthAdjust: true,
   handRotationAxes: {pitch: true, yaw: true, roll: true}
 });
-setLaserVisible("left", true); // optional visual beam, also supports "right"
+setLaserVisible("left", true); // optional selection beam, also supports "right"
 const pointer = getPointer(object); // { valid, down, x, y, hand }
 ```
 
@@ -90,9 +91,10 @@ the laser without being grabbable. `enableObjectInteraction(object)` is the
 short form for a grabbable object. `enableObjectSurface(object)` remains a
 compatibility no-op. The previous four-surface limit is gone; GPU memory and
 SteamVR overlay capacity remain practical limits for large scenes.
-`setLaserVisible(hand, visible)` draws a noninteractive beam from either
+`setLaserVisible(hand, visible)` draws a selection beam from either
 controller using the Frame controller's aim transform. Both can be shown at
-once. These beams are visual only; SteamVR still owns pointer events.
+once, and each can grab a model through its raw trigger without native
+SteamVR laser focus. SteamVR still owns panel pointer events.
 `getPointer(object)` reports its primary-button state and the left or right
 controller that pressed it. The one-object form `getPointer()` remains valid
 when only one object is interactive. The grab demos preserve each object's
@@ -104,8 +106,8 @@ The full-sphere gallery places objects in front, to
 the side, and behind the starting viewpoint; all three remained visible, and
 an object dragged behind the user remained visible and grabbable in headset
 testing.
-The native grab demo uses the active SteamVR laser's trigger to pick up an
-object. Moving the controller moves the object with it. While holding an
+The grab demo uses a controller trigger to pick up an object. Moving the
+controller moves the object with it. While holding an
 object at a distance, thumbstick left/right rotates its yaw and thumbstick
 up/down moves it farther/closer; up means farther. If the object is close to
 the controller when selected, `directGrab` holds it at the hand, and enabled
@@ -120,9 +122,9 @@ and axes, and grip. Both callback and queue delivery were tested for these
 controls. The optional `getInput(hand)` action bindings cover the Steam Frame controls,
 but action data was inactive in the overlay input probes with the native
 laser. The engine polls them only when a script requests them. Mesh hover
-events are implemented; exact mesh-based selection and simultaneous
-independent grabs remain unverified.
-See `docs/interaction-status.md` for the detailed verified state and next steps.
+uses transformed triangle hits with a small bounds fallback. Independent
+two-hand grabs are headset verified with the avocado and box probe; see
+`docs/remaining-work.md` for model-selection tests still needed.
 
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
