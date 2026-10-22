@@ -1,286 +1,158 @@
 # JavaScript API
 
-This document describes the QuickJS API exposed by `sf-overlay-engine`.
+Scripts execute as QuickJS globals, without Node.js/browser modules, filesystem
+APIs, or timers. Define an optional `update(dt)` function at load time. The host
+caches it and supplies `1 / 90` seconds at its 90 Hz target; use `Date.now()`
+when actual elapsed time matters. Native animation uses elapsed wall time.
+`print(...values)` writes to the engine log. Relative asset paths resolve from
+the process working directory; the launcher uses the repository root.
 
-## Eye and finger tracking
+## Coordinates and models
 
-`getEyeTracking()` returns raw combined gaze in scene coordinates;
-`getCalibratedEyeTracking()` optionally applies a personal correction loaded with
-`--eye-calibration FILE` (see [eye calibration](eye-calibration.md));
-`getEyeTrackingCalibration()` reports whether a correction is loaded and the
-configured save path; `saveEyeTrackingCalibration(object)` validates, writes, and
-activates a correction at the startup-selected `--eye-calibration-output FILE` path;
-`getEyeFoveationCenters()` returns separate per-eye NDC centers;
-`getFingerTracking("left"|"right")` returns raw capacitance/contact channels
-with explicit availability, null missing values, and freshness metadata.
-See [tracking API](tracking-api.md) for their full contracts and test scenes.
-Gaze-action polling is suppressed while another scene application is running.
-Native skeleton poses, bare-hand tracking, and eye openness are not implemented.
+Scene coordinates are meters: +X right, +Y up, +Z forward. The fixed standing-space
+anchor starts one meter ahead and 0.2 meters below the initial HMD position.
+Imported geometry is centered and normalized to a unit maximum default-pose
+extent. Object scale specifies that extent in meters. Animated poses can extend
+beyond it. Positions and rotations below are relative to the scene anchor.
 
-## Animation
+| Function | Behavior |
+| --- | --- |
+| `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Resolution must be a multiple of 64 from 256 through 2048. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
+| `createObject(assetId, x, y, z, scale)` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. |
+| `setObjectPosition(id, x, y, z)` | Set position. |
+| `setObjectYaw(id, radians)` | Set yaw. |
+| `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
+| `setObjectScale(id, scale)` | Set positive scale, at most 2 meters. |
+| `setObjectVisible(id, visible)` | Show/hide rendering and selection. |
+| `removeObject(id)` | Remove the instance and its interaction state. |
 
-[Animation playback](animation-api.md) documents `getAnimations(assetId)`,
-`playAnimation(objectId, clip, options)`, `pauseAnimation`, `resumeAnimation`,
-`seekAnimation`, `stopAnimation`, and `getAnimationState`. Node translation,
-rotation, and scale support STEP, LINEAR, and CUBICSPLINE, including joint
-animation with CPU skinning. Morph clips remain unsupported. Playback and
-evaluated picking geometry are per object.
+Invalid IDs and invalid arguments throw. Assets remain loaded until the scene
+is replaced. Instances share source materials/textures; object transforms and
+animation playback remain independent. Render resolution trades clarity for
+GPU time and memory; there is no shared scene-wide surface.
 
-## Controller input
+GLB triangle primitives across mesh nodes, node transforms, embedded base-color
+textures, material factors, alpha modes, UV transforms, and approximate sheen
+are supported. [Animation](animation-api.md) covers skinning and clip limits.
 
-`getControllerInput("left"|"right")` returns the latest globally observed Steam
-Frame controller state. It is populated from SteamVR's local `vrserver` input
-WebSocket and does not require the controller to hover one of this engine's
-overlays.
-
-The stable normalized fields are `valid`, `hand`, `buttons`, `analog`, and
-`capacitive`; `raw` preserves the original `/input/...` component paths and
-values. These projections are implemented. Missing components read as false or
-zero, so check `valid` and inspect `raw` before assuming a path is present.
-The WebSocket schema is undocumented and may change with SteamVR.
+## Grabbing and selection
 
 ```js
-const right = getControllerInput("right");
-print(JSON.stringify(right.raw));
-```
-
-For Steam Frame, `buttons.trigger.down` is the main trigger click,
-`buttons.bumper.down` is the upper trigger button, and
-`buttons.thumbstick.down` is the stick press. Each exists for both hands.
-`analog.trigger` and `analog.grip` expose their continuous values; the
-thumbstick axes are `analog.thumbstick.x` and `.y`. The diagnostic panel shows these clicks and values separately. All listed
-channels emit events on **both** `onInputEvent(callback)` and
-`pollInputEvents()`; `control` carries the raw SteamVR path and `hand` is
-`left` or `right`.
-
-| Physical control | Event `type` | Event `control` | Read |
-| --- | --- | --- | --- |
-| Main trigger press | `controller.button` | `/input/trigger/click` | `down` |
-| Main trigger pull | `controller.value` | `/input/trigger/value` | `value` |
-| Upper trigger (bumper) | `controller.button` | `/input/bumper/click` | `down` |
-| Thumbstick press | `controller.button` | `/input/thumbstick/click` | `down` |
-| Thumbstick movement | `controller.value` | `/input/thumbstick/x`, `/input/thumbstick/y` | `value` |
-| Grip press / pull | `controller.button` / `controller.value` | `/input/grip/click`, `/input/grip/value` | `down` / `value` |
-
-`pollInputEvents()` drains low-level controller events observed since the last
-call. Events include `type`, `hand`, `control`, `objectId`, `down`, and `value`.
-Both callback and polling queues retain at most 4096 events; drain the polling
-queue each update if every event matters.
-Movement events additionally include `dx`, `dy`, and `dz`; rotation events
-include `dpitch`, `dyaw`, and `droll`. Raw controller events use the latest
-surface-hover object ID for that hand, or zero when no target is hovered.
-Use it from `update(dt)` for deterministic processing. `onInputEvent(callback)`
-registers a callback convenience layer; it receives the same event objects as
-they arrive. Registering a new callback replaces the previous callback.
-
-```js
-for (const event of pollInputEvents()) {
-  if (event.type === "controller.button" && event.down)
-    print(`${event.hand} ${event.control}`);
-}
-```
-
-The existing `getInput(hand)` action API remains available for SteamVR action
-bindings, but raw global monitoring uses `getControllerInput` and
-`pollInputEvents`.
-
-## 2D panels
-
-`createPanel({widthPixels, heightPixels, widthMeters, interactive})` creates a retained
-RGBA panel. `interactive` defaults to false. When enabled, SteamVR mouse events
-produce `panel.hoverStart`, `panel.hover`, `panel.hoverEnd`, `panel.pointerDown`,
-and `panel.pointerUp` in both the callback and the event queue. These events use
-the panel ID in `objectId`; their `panel.*` type distinguishes them from model
-events. Pointer and hover events include pixel `x`/`y` coordinates measured
-from the top-left of the panel. Pointer events set `control` to the mouse
-button and `down` to its state. The engine sets OpenVR mouse scale to the panel pixel dimensions and keeps the last mouse move position for button events. A panel receives native laser input only when it is visible.
-
-```js
-const panel = createPanel({widthPixels: 1024, heightPixels: 512,
-  widthMeters: 1.2, interactive: true});
-panel.canvas.clear(12, 18, 29, 255);
-panel.canvas.text(24, 24, "Controller Debug", 255, 255, 255, 255, 32);
-panel.canvas.rect(20, 80, 200, 100, 80, 160, 240, 255, false);
-panel.canvas.line(20, 80, 220, 180, 255, 255, 255, 255);
-panel.canvas.circle(300, 120, 32, 240, 180, 80, 255, true);
-panel.canvas.image(360, 90, "assets/panel-test.png");
-panel.canvas.present();
-panelSetTransform(panel, "viewerFacing", 0, .2, 0);
-panelSetVisible(panel, true);
-// Later: removePanel(panel);
-```
-
-`panelLoadFont(panel, path, pixels)` selects a FreeType font file. The text API
-returns false when the font cannot be loaded; `image` returns false when the
-image cannot be loaded. `panel.canvas.present()` requests an upload on the next
-render frame, after the GL context exists. Legacy `panelClear`, `panelText`,
-`panelPresent`, `panelCanvasClear`, and `panelCanvasText` remain available.
-
-Transform modes are `world` (standing anchor), `viewerFacing` (faces the current
-HMD pose), `headLocked` (follows the HMD), and `arbitrary` (absolute rotation).
-For arbitrary mode, call `panelSetRotation(panel, r00,r01,r02,r10,r11,r12,r20,r21,r22)`
-with a row-major 3x3 orientation matrix relative to the scene standing
-anchor. Its position also uses standing-anchor coordinates. The standing anchor
-is initialized about one meter in front of the headset; `z=0` uses that
-anchor and positive `z` moves farther forward. `headLocked` positions are
-relative to the headset itself, so a positive `z` (around 1 meter) is needed
-to place that panel in front of the eyes. `removePanel` releases the retained texture; the engine
-removes its SteamVR overlay on the next frame. Script reload removes the old
-panels, overlays, callback, and model surfaces before installing the new scene.
-
-OpenVR reference: [SetOverlayMouseScale](https://github.com/ValveSoftware/openvr/wiki/IVROverlay%3A%3ASetOverlayMouseScale) and the [official overlay sample](https://github.com/ValveSoftware/openvr/blob/master/samples/helloworldoverlay/openvroverlaycontroller.cpp).
-
-Run `./run-overlay-engine.sh scripts/panel-test-suite.js` on Deckard for a visual
-integration check. It shows raw controller state, callback and queue counts,
-model hover/grab/move/rotate events, panel pointer events, four transform modes,
-text and drawing primitives, image loading, and panel removal. The labels
-report observed events; headset appearance and control behavior still require
-an operator to inspect the display and use the controllers.
-
-## Object interaction
-
-Objects are created with `createObject` and configured with
-`setObjectInteraction`. Laser-grab, direct-grab, depth, yaw, and hand
-rotation options control native manipulation. A visible custom laser can start
-a grab from either hand's configured raw button, independent of SteamVR native laser focus.
-Its length stops at a hit and remains fixed during a grab except when depth
-adjustment moves the model. Raw grabs release after all allowed buttons are up
-for five consecutive engine updates, including after brief tracking or native
-pointer focus loss. The default remains trigger.
-When a custom laser is visible, native rectangular object surfaces cannot
-override its mesh selection. A new laser grab requires a current triangle hit;
-the brief hover grace period cannot start a grab through empty space.
-
-Configure the allowed grab button per object:
-
-```js
-setObjectInteraction(id, {grabbable: true, grabButton: 'trigger'}); // default
-setObjectInteraction(id, {grabButton: 'grip'});
-setObjectInteraction(id, {grabButton: 'both'}); // either button, not a chord
-
-// Convenience helper: options opt into native movement.
-enableObjectInteraction(id, {grabButton: 'grip'});
-```
-
-`grabButton` accepts exactly `'trigger'`, `'grip'`, or `'both'`; other strings
-throw a range error, and non-string values throw a type error. Omitted or
-`undefined` values preserve the object's current setting. Newly created objects
-use `'trigger'`. Invalid button values are rejected before changing interaction
-settings. `setObjectInteraction()` still controls `grabbable`, `directGrab`,
-rotation, and the other existing options.
-
-With `'both'`, pressing either button acquires the object; it remains held while
-at least one is down, so you can hand over from trigger to grip without dropping
-it. Raw click or analog value greater than 0.2 counts as down for each button.
-The allowed buttons apply to acquisition and release for both distant laser grabs
-and the existing near-hand direct mode. Changing the option during a grab makes
-release follow the new setting. A grip-only object cannot be acquired through a
-native trigger-pointer event. Native pointer fallback remains available for
-trigger-enabled objects when custom lasers are hidden.
-
-Button choice does not change picking: a raw grab still requires a current mesh
-hit, including when a nearby object enters direct mode. This does not add
-proximity-only pickup. One object remains owned by at most one hand.
-
-`enableObjectInteraction(id, {grabButton})` makes the object grabbable, blocks laser
-pass-through, and enables native movement with the chosen button. Its optional
-options object recognizes `grabButton`; use `setObjectInteraction()` for other
-settings. For compatibility, `enableObjectInteraction(id)` (or an `undefined`
-second argument) retains its original event-oriented behavior: it marks the
-object interactive without enabling native movement on an object that did not
-already have it. Existing scripts that move objects themselves continue to work.
-A supplied empty options object enables native movement with the current/default
-button. Neither form resets an existing button choice.
-
-Interaction events are delivered through the input event queue and callback.
-The event model includes controller button/value events and overlay pointer and
-surface-hover start/end events. Object IDs are the stable JavaScript identity;
-native overlay handles are implementation details and may be exposed only in
-diagnostic event fields. Grab start/move/end, `overlay.move`, and `overlay.rotate` events are emitted by
-native manipulation. Move/grab events include `dx`, `dy`, and `dz`; rotation
-events include `dpitch`, `dyaw`, and `droll`. Mesh hover emits `overlay.meshHoverStart` and
-`overlay.meshHoverEnd` using the controller aim ray, transformed model
-triangles. Bounds reject distant candidates but do not turn triangle misses
-into hits, preserving openings and concave gaps. Queue polling and
-callbacks receive independent copies of each
-event.
-
-## Existing object API
-
-```js
-const asset = loadModel("assets/Avocado.glb", 768);
-const id = createObject(asset, 0, 0, 0, .3);
-setObjectInteraction(id, {
-  grabbable: true,
-  grabButton: 'both',
-  directGrab: true,
-  laserYaw: true,
-  depthAdjust: true,
+const asset = loadModel('assets/samples/Box/Box.glb');
+const box = createObject(asset, 0, 0, 0, .3);
+enableObjectInteraction(box, {grabButton: 'both'});
+setObjectInteraction(box, {
+  laserYaw: true, depthAdjust: true,
   handRotationAxes: {pitch: true, yaw: true, roll: true}
 });
+setLaserVisible('left', true);
+setLaserVisible('right', true);
 ```
 
-See `README.md` for the complete existing object and pointer function list.
+`setObjectInteraction(id, options)` updates only supplied fields:
 
-## Interaction test script
+| Option | Default on a new object | Meaning |
+| --- | --- | --- |
+| `grabbable` | `false` | Enable native grab/movement handling. |
+| `grabButton` | `'trigger'` | `'trigger'`, `'grip'`, or `'both'`; either allowed button can acquire/hold. |
+| `laserPassThrough` | `true` | Let native laser input pass through the surface; grabbable forces this false. |
+| `directGrab` | `true` | Use near-hand holding when acquired close to the controller. |
+| `laserYaw` | `false` | Distant grab: stick left/right changes yaw. |
+| `depthAdjust` | `false` | Distant grab: stick up moves farther, down moves nearer. |
+| `handRotationAxes` | All `false` | `{pitch, yaw, roll}` chooses hand rotation axes for direct grabs. |
 
-The repository includes `scripts/input-interaction-smoke.js`, which creates one
-grabbable object, registers the callback API, reads the normalized state, and
-drains queued events. Run it with:
+Acquisition requires a current transformed triangle hit. Empty mesh gaps never
+fall back to a bounding sphere. Near-hand mode is selected after that hit when
+the controller-to-object-center distance is below `0.10 + scale * 0.5` meters;
+there is no proximity-only pickup. Static picking uses a shared per-asset BVH;
+animated instances refit their own picking geometry. Each hand can hold its own
+object. A held object releases after all allowed buttons are up for five frames.
 
-```sh
-./run-overlay-engine.sh scripts/input-interaction-smoke.js
-```
+`enableObjectInteraction(id, {grabButton})` enables native grabbing with the
+chosen button. Its options object recognizes `grabButton`; configure other
+fields with `setObjectInteraction`. The legacy one-argument form marks the
+object interactive without newly enabling automatic movement, for scripts that
+handle movement themselves. `enableObjectSurface(id)` is a compatibility no-op.
 
-A headset/controller session is required to observe controller-valid state,
-hover transitions, mesh-hover transitions, or grab deltas. If no controllers are
-tracked, the script still verifies API loading and the complete empty-state
-shape.
+`setLaserVisible(hand, visible)` controls the engine's selection beam for
+`'left'` or `'right'`. Its raw-controller grabs are independent of native laser
+focus. SteamVR owns panel pointer delivery.
 
-## Grab button verification
+`getPointer(id)` returns native surface state `{valid, down, x, y, hand}`;
+`hand` is `'left'`, `'right'`, or `null`. Coordinates are surface-local, not
+panel pixels. This is not the custom beam's grab state. `getPointer()` is usable
+only when exactly one object is interactive.
 
-Run `python3 tests/grab-buttons-regression.py` for the native manipulation state
-machine: both hands, all three button policies, analog thresholds, current-hit
-requirements, native pointer gating, direct/laser modes, release grace, ownership,
-and policy changes during a grab. It compiles the actual engine functions with
-mock input rather than reproducing their decisions in a separate implementation.
+## Controllers
 
-On Deckard, `tests/grab-buttons-api-smoke.js` exercises the QuickJS helpers,
-valid and invalid options, and legacy calls. `scripts/grab-buttons-test.js` draws
-three labeled boxes (left trigger-only, middle grip-only, right either button):
+`getController(hand)` returns `{valid, connected, x, y, z, rotation}`.
+`rotation` is a row-major 3×3 matrix. Positions use scene coordinates.
+`connected` can remain true during temporary pose loss; check `valid` before
+using pose data. An invalid pose returns zero position/rotation values.
 
-```sh
-./run-overlay-engine.sh tests/grab-buttons-api-smoke.js
-./run-overlay-engine.sh scripts/grab-buttons-test.js
-```
+`getControllerInput(hand)` reads the cached raw controller stream:
 
-Stop with Ctrl-C. API success logs `GRAB_BUTTON_API_PASS`; the visible scene logs
-`GRAB_BUTTON_TEST_READY`. For wearer acceptance, test allowed and disallowed
-buttons on each box with each hand, switching buttons on the either-button box,
-releasing both, near-hand rotation, and simultaneous grabs of different boxes.
-Confirm a held object cannot be taken by the other hand and panel input still
-works. Runtime startup and synthetic checks do not establish those wearer results.
+| Field | Contents |
+| --- | --- |
+| `valid`, `hand` | Stream validity and requested hand. |
+| `raw` | Component paths mapped to boolean or finite numeric values. |
+| `buttons` | `{down, touched}` for trigger, grip, bumper, thumbstick, a/b/x/y, menu, system, view, and dpad_up/down/left/right. |
+| `analog` | Numeric `trigger`, `grip`, and `thumbstick: {x, y}`. |
+| `capacitive` | Sensor projections, including ring, pinky, thumbrest, and dpad. |
 
-Deckard Release build, QuickJS API smoke, and labeled-scene startup passed.
-Runtime logs: `/tmp/grab-buttons-api-smoke.log` and
-`/tmp/grab-buttons-startup.log`. Both bounded runs stopped. Wearer interaction
-checks subsequently passed the initial wearer acceptance below.
+Missing convenience values are false/zero. Unsupported structured values are
+invalidated. Use [getFingerTracking](tracking-api.md) when missing values and
+freshness must be distinguished from real zero.
 
-Wearer acceptance on `ab8a5c1`: `scripts/grab-buttons-test.js` was launched with
-left trigger-only, middle grip-only, and right either-button boxes. After the
-allowed/disallowed-button, release, either-button handover, and both-hand test
-instructions, the wearer reported “Works great.” The log records grab start/end
-activity and about 89.6–90 FPS with `gl_error=0`:
-`/tmp/grab-buttons-wearer-ab8a5c1.log`. The scene was stopped afterward. This is
-initial wearer acceptance of the requested button selection; individual test
-steps, simultaneous ownership, near-hand rotation, and panel interactions were
-not separately reported and remain available as broader regression checks.
+`getInput(hand)` reads optional OpenVR action bindings. It returns `valid`,
+`gripClick/Touch/Value`, `triggerClick/Touch/Value`, `thumbstick: {x,y}`,
+`thumbstickClick/Touch`, `bumperClick/Touch`, `systemClick/Touch`, `menuClick`,
+`viewClick`, `aClick`, `bClick`, `xClick`, `yClick`, and
+`dpadUp/Down/Left/RightClick`. Action availability depends on SteamVR focus and
+bindings; unavailable values are false/zero.
 
-## Lifecycle contracts
+`pulse(hand, seconds = .05, amplitude = .5)` requests action-based haptics and
+returns success. Both numbers must be finite within `[0, 1]`; availability
+still depends on native action bindings. All hand arguments use `'left'` or
+`'right'`.
 
-See [lifecycle behavior](lifecycle.md) for reload rollback, event-queue boundaries,
-held-object removal, controller disconnects, and SteamVR shutdown. Controller pose
-snapshots now include `connected`: a connected controller with `valid: false` has
-lost tracking; `connected: false` reports a disconnected or absent device.
-A scene reload or disconnected/removed held object requires button release before
-another grab. Removed panels retain texture ownership until native detachment.
+## Events
+
+`onInputEvent(callback)` replaces the single callback. `pollInputEvents()`
+drains an independent queue, so polling does not consume callback delivery.
+Delivery happens in the host loop. The bounded queue evicts the oldest 1024
+entries when it exceeds 4096; consumers should drain it regularly.
+
+Events include `type`, `hand`, `control`, `objectId`, `x`, `y`, `down`, `value`,
+`dx`, `dy`, `dz`, `dpitch`, `dyaw`, and `droll`; interpret fields by event type.
+
+| Type | Meaning |
+| --- | --- |
+| `controller.button` | Raw boolean path in `control`, state in `down`. |
+| `controller.value` | Raw numeric path in `control`, number in `value`. |
+| `overlay.pointer` | Native surface pointer update. |
+| `overlay.surfaceHoverStart`, `overlay.surfaceHover`, `overlay.surfaceHoverEnd` | Native rectangular surface hover. |
+| `overlay.meshHoverStart`, `overlay.meshHoverEnd` | Actual model hit transitions. |
+| `overlay.grabStart`, `overlay.grabMove`, `overlay.grabEnd` | Native object grab lifecycle. |
+| `overlay.move`, `overlay.rotate` | Object transform changes with position/rotation deltas. |
+| `panel.hoverStart`, `panel.hover`, `panel.hoverEnd` | Panel hover with top-left-origin pixel coordinates. |
+| `panel.pointerDown`, `panel.pointerUp` | Panel button transition; `control` is `left`, `right`, or `other`. |
+
+Raw controller events can carry the latest native surface-hover `objectId`,
+or zero. That field is not a promise that the hand owns or selected that object.
+Panel IDs and object IDs are separate numeric namespaces; distinguish them by
+`type`. Animation does not emit completion events; inspect playback state.
+
+## Additional APIs
+
+- [Panels](panels.md): `createPanel`, canvas drawing, `panelLoadFont`,
+  `panelSetTransform`, `panelSetRotation`, `panelSetVisible`, `removePanel`, and
+  compatibility functions `panelClear`, `panelText`, `panelPresent`,
+  `panelCanvasClear`, `panelCanvasText`.
+- [Animation](animation-api.md): `getAnimations`, `playAnimation`, `pauseAnimation`,
+  `resumeAnimation`, `stopAnimation`, `seekAnimation`, `getAnimationState`.
+- [Tracking](tracking-api.md): `getEyeTracking`, `getCalibratedEyeTracking`,
+  `getEyeFoveationCenters`, `getFingerTracking`.
+- [Calibration](eye-calibration.md): `saveEyeTrackingCalibration`,
+  `getEyeTrackingCalibration`.
+- [Lifecycle](lifecycle.md): reload and resource ownership.

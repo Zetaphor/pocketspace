@@ -1,197 +1,28 @@
-# Steam Frame overlay engine — agent handoff
+# Maintainer handoff
 
-Prepared October 22, 2026. This guide supplements [remaining work](remaining-work.md) and the repository's `docs/panel-integration-status.md`, `docs/interaction-status.md`, `docs/input-architecture.md`, and `docs/javascript-api.md`.
+Start with the [README](../README.md) for build/run commands and examples, the
+[JavaScript API](javascript-api.md) for exposed behavior, and
+[remaining work](remaining-work.md) for future scope. Keep current contracts in
+these guides; implementation history belongs in Git.
 
-## Current: personal eye calibration
+## Source map
 
-File-based head-relative correction and an in-headset generator are implemented;
-Deckard Release build, file round-trip, schema rejection, and generator startup
-checks passed (see calibration document);
-see [eye calibration](eye-calibration.md) for commands, format, validation, and
-API behavior. `getEyeTracking()` stays raw; consumers opt into
-`getCalibratedEyeTracking()`. Wearer calibration passed on `fc44af2`: median
-validation error improved from 13.46° to 1.38°, maximum corrected error 1.85°.
-The saved `/home/steamos/eye-calibration.json` was loaded in a fresh diagnostic;
-the wearer accepted it as good enough for now. Both tests are stopped and the
-personal file remains on Deckard, outside Git. Quantified head-motion/refit
-checks and further tuning are deferred. Earlier raw-accuracy/plane-fit notes
-below are historical. Further performance
-optimizations remain deferred by user direction.
+| File | Responsibility |
+| --- | --- |
+| `src/main.cpp` | QuickJS bindings, scene lifecycle, interaction, rendering, and OpenVR host loop. |
+| `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
+| `src/controller_input.cpp` | OpenVR controller actions and haptics. |
+| `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
+| `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
+| `cfg/` | Runtime OpenVR action manifest and bindings. |
+| `scripts/` | Concise examples and the personal calibration generator. |
+| `assets/samples/ATTRIBUTION.md` | Bundled model provenance and licenses. |
 
-## Current interaction follow-up
+CMake defaults to Release. Keep runtime host paths configurable through its
+cache variables. The launcher resolves relative paths from the checkout root.
+Personal calibration files are runtime data and must remain outside Git.
 
-Laser pitch is no longer planned. Configurable trigger/grip/either-button grabs
-are implemented with per-object `grabButton` options. See
-[object API](javascript-api.md#object-interaction) for compatibility details and
-[grab checks](javascript-api.md#grab-button-verification) for test coverage.
-The wearer accepted the three-box test on `ab8a5c1` (“Works great”); runtime
-reported about 89.6–90 FPS with `gl_error=0`. The test is stopped.
-This preserves existing mesh acquisition; it does not add proximity-only pickup.
-
-## Current: lifecycle reliability
-
-Reload/removal/disconnect/shutdown fixes and automated checks are implemented.
-See [lifecycle behavior and tests](lifecycle.md) for contracts, commands, measured
-resource counts, and remaining hardware checks. The wearer scene is
-`scripts/lifecycle-test.js`; do not equate synthetic disconnect coverage or
-SIGTERM cleanup with a completed physical controller or SteamVR-restart test.
-The user asked to move on from the physical-disconnect test as impractical; the
-wearer scene is stopped and remaining manual checks are deferred.
-
-## Current: animation playback
-
-Khronos `InterpolationTest` is imported and passes the current engine's CPU
-inspection. See [animation test asset](animation-test-assets.md) for the pinned
-source, hash, license, clip names, and intended implementation order. It has
-nine two-second TRS clips and no skins. Node playback, per-object clocks/geometry,
-controls, and refitted picking are implemented; see [animation API](animation-api.md).
-Automated/native checks passed; the wearer accepted all nine clips on `b53c9d6`
-(about 89.9 FPS, `gl_error=0`). Log: `/tmp/animation-wearer-b53c9d6.log`.
-The test is stopped. Individual control/grab checks were not separately reported.
-CPU skeletal skinning is now implemented through the same API. CesiumMan and
-synthetic rig tests pass; the two-instance bounded run held about 89.3 FPS with
-`gl_error=0`. See [skinning verification](animation-api.md#skinning-verification).
-The wearer accepted the two-character scene on `312dafc` (“All works”); about
-89.5–89.8 FPS with `gl_error=0`. Log: `/tmp/skinning-wearer-312dafc.log`.
-The test is stopped. Morph playback, GPU skinning,
-and clip blending remain later work.
-
-## Current direction: tracking API research
-
-The initial implementation now provides `getEyeTracking()`,
-`getEyeFoveationCenters()`, and `getFingerTracking(hand)`. See
-[tracking API](tracking-api.md) for exact semantics, null/freshness behavior,
-the conservative scene-app gaze policy, regression commands, and logs.
-`scripts/tracking-test.js` is the wearer diagnostic; `scripts/tracking-smoke.js`
-checks the API without drawing. Live data and reload checks passed at 90 FPS
-headlessly. The diagnostic text panel reported 83 FPS. Gaze alignment, individual
-finger interpretation, and primary-app coexistence remain wearer checks.
-The historical research-only state described below is superseded by this API.
-
-Wearer results: fingers worked with the Spigen cover removed; gaze aligned best
-on the right and poorly at the center/left. No gaze correction was applied.
-The raw diagnostic `scripts/gaze-accuracy-test.js` captured two nine-point grids
-without a live dot; results are analyzed in the historical follow-up below.
-The subsequent calibration and corrected diagnostic were accepted by the wearer
-for current use, as recorded in eye-calibration.md.
-
-The user deferred further performance work and requested eye/finger tracking
-research. See [tracking research](tracking-research.md) for primary documentation,
-actual Deckard probes, API proposal, and limitations. Combined OpenVR gaze and
-global raw finger capacitance were observed; native skeleton bindings resolve
-31 bones but remain inactive/NoData in this overlay probe. WebSocket discovery
-advertises gaze and skeleton types without delivering them in ordinary component
-updates. The isolated diagnostic is `scripts/tracking-probe.cpp` with manifests
-under `cfg/tracking-probe/`; normal engine bindings/API are unchanged. Further
-API implementation must preserve primary-app focus and distinguish raw sensors
-from reconstructed skeletons. No primary scene app or wearer test was used in
-the documented native probes.
-
-## Start here
-
-### Latest selection session (October 22, 2026)
-
-Performance follow-up is documented in [performance measurements](performance.md).
-The initial code and measurement notes are committed as `4ee849f` and `f9b238d`.
-The follow-up cleanup caches uniform locations, hoists per-eye pose calculations,
-reuses the render-ready vector, avoids copying drained input events, and drops
-missed frame deadlines instead of accumulating catch-up work.
-Deckard now uses Release; model-space ray picking replaces per-triangle world
-transforms. The Toy Car runtime check held 90 FPS, and the fixed CPU benchmark
-reduced picking time by 32.8%. All bounded performance runs stopped cleanly.
-The user explicitly excluded investigation of the Frametop report from scope.
-After cleanup commit `bd44825`, a shared per-asset static triangle BVH replaces
-the runtime linear scan. Its direct benchmark compares BVH and linear hits;
-the four-car scene held 89.9–90 FPS with picking around 0.014 ms/frame.
-Rendering/GPU completion now dominates that measured workload. The index costs
-about 79 ms and 3.08 MiB for Toy Car, once per loaded asset. See performance.md
-for test commands, logs, and limitations; no new wearer confirmation was collected.
-
-Selection and initial performance changes on top of `d7db4b9` were committed as
-`4ee849f` and `f9b238d`; the subsequent cleanup is recorded in Git history.
-Do not overwrite these changes using the older baseline below. See
-[model selection test](model-selection-test.md) for exact logs and observations.
-The wearer confirmed the straight-on rear-cube / empty-frame regression fixed.
-Fixes remove spherical fallback hits, initialize triangle edges before cross
-products, populate normalized model bounds, and prevent native rectangular
-object surfaces or stale hover from overriding fresh custom-laser mesh picks.
-The final retest reported 90 FPS with `gl_error=0`. Toy Car is excluded after
-roughly 35 FPS and a reported Frametop disruption; causation is unconfirmed.
-Next: isolate rendering versus picking costs without repeating the car headset
-exposure, then complete explicit per-hand selection regression coverage.
-
-- Sigma (`192.168.50.240`, user `zetaphor`) holds the committed source at `/home/zetaphor/Code/sf-overlay-mvp`. Its Git remote is `https://github.com/Zetaphor/sf-overlay-engine.git`, branch `main`.
-- Deckard is the SteamVR build and headset runtime host at `/home/steamos/Code/sf-overlay-mvp`. Reach it from Sigma with `ssh deckard`.
-- At handoff, Sigma, Deckard, and `origin/main` were aligned at `efc825d726bf6f734fa72e9087bdebe0cbf98a43`; both working trees were clean, and no overlay engine was running. Verify those facts again before editing or starting a test.
-- From this WSL environment, the existing key works with `ssh -i ~/.ssh/id_ed25519 zetaphor@192.168.50.240`. Sigma's login shell is fish; use `bash -lc '...'` for Bash-specific commands.
-
-```sh
-ssh -i ~/.ssh/id_ed25519 zetaphor@192.168.50.240 'hostname; cd ~/Code/sf-overlay-mvp && git status --short && git rev-parse --short HEAD'
-ssh -i ~/.ssh/id_ed25519 zetaphor@192.168.50.240 'ssh deckard "hostname; cd ~/Code/sf-overlay-mvp && git status --short && git rev-parse --short HEAD && pgrep -af sf-overlay-engine || true"'
-```
-
-The historical DeepSeek Harness handoff is session `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`, stored on Sigma at `~/.dsh/sessions/--home-zetaphor-llm-wiki--/session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb/session.v4.jsonl.zstd`. The current repository documents the later work; read the historical session only when its earlier design context is needed.
-
-## Verified behavior
-
-- The wearer confirmed readable panels, pointer clicks with pixel coordinates, world/viewer-facing/head-locked/arbitrary transforms, clean script reload, avocado manipulation, and live raw controls from both hands.
-- The wearer confirmed independent custom-laser grabs of an avocado and a box, simultaneous distinct held objects, beams shortening at the targets and staying at their grabbed lengths, depth push/pull adjustment, and no drop during fast hand movement until trigger release. These were headset observations, not just logs.
-- The avocado/box test ran near 90 FPS with `gl_error=0`. The two-hand probe logs distinct `overlay.grabStart` IDs and `SIMULTANEOUS_GRABS`. A short rerun after the last source change loaded the scene, reported both controller poses, and exited cleanly.
-- Scope of that verification is the tested headset session and scenes. Exact selection on complex or concave meshes and performance with high-triangle assets remain open.
-
-## Code map
-
-| Area | Location | What it owns |
-| --- | --- | --- |
-| Scene, overlays, render loop, mesh picking, per-hand grabs, visible laser length | `src/main.cpp` | SteamVR integration and QuickJS object/event bindings |
-| Global Steam Frame component stream | `src/frame_input.cpp`, `src/frame_input.h` | Local `vrserver` WebSocket, raw state, callback and queue events |
-| Controller actions | `src/controller_input.cpp`, `src/controller_input.h` | Focus-sensitive SteamVR action mapping |
-| Models and asset bounds | `src/model_asset.cpp`, `src/model_asset.h` | GLB loading and GPU asset upload |
-| 2D panels | `src/panel.cpp`, `src/panel.h` | Canvas drawing, text, image, and panel texture lifecycle |
-| Headset regression scenes | `scripts/two-hand-grab-test.js`, `scripts/panel-test-suite.js` | Two-hand object behavior and panel/input behavior |
-| Independent raw-input comparison | `scripts/steam-frame-input.py` | Diagnoses SteamVR input changes without the engine |
-
-The input path is pose → mesh triangle hit (with a small bounds fallback) → per-hand hover/trigger → grab state. The grabbed beam length is fixed at acquisition; only depth adjustment changes it before release. Native SteamVR pointer events remain available for panels and as a legacy object-grab path.
-
-## Build and headset checks
-
-Build and run on Deckard:
-
-```sh
-cd ~/Code/sf-overlay-mvp
-cmake --build build -j2
-timeout -s TERM -k 5 180 ./run-overlay-engine.sh scripts/two-hand-grab-test.js
-timeout -s TERM -k 5 180 ./run-overlay-engine.sh scripts/panel-test-suite.js
-```
-
-Use one test scene at a time. Redirect output to a named `/tmp/` log when running in the background, record the PID, and stop that PID with `kill -TERM`; verify `completed frames=...` and that `pgrep -af sf-overlay-engine` finds no engine afterward. The two tests require a wearer for interaction checks. Inspect FPS, `gl_error`, grab/hover events, and the wearer's observations separately. A build, OpenVR success return, or event log does not prove what the wearer sees.
-
-## Remaining work and constraints
-
-Read [remaining work](remaining-work.md) for prioritized work and completion checks. Configurable grab buttons are implemented and initially accepted in the headset. Laser pitch is no longer planned; selection coverage remains available for follow-up and further performance work is deferred. The Toy Car probe used a 108,936-triangle asset and ran near 31 FPS; the cause was not isolated. Do not present that slowdown as a proven picking bottleneck.
-
-The `vrserver` input WebSocket is undocumented. If controller events stop after a SteamVR update, compare `src/frame_input.cpp` with `scripts/steam-frame-input.py` before changing action mappings. The documented SteamVR action API did not provide complete global button input in the tested overlay context.
-
-Live calls to `SetOverlayRaw` returned `VROverlayError_RequestFailed` (`23`) in this environment; dynamic texture/bounds experiments also failed to produce a reliable visible cutoff. The working laser shortens its overlay geometry with `SetOverlayWidthInMeters` and shifts its center. Preserve the grab-length lock when changing that renderer. Earlier panel submission passed a `GLuint` address rather than the texture handle and stalled the first frame; current panel submission uses the handle.
-
-## Change workflow
-
-1. Inspect `git status` on Sigma and Deckard before copying or resetting files. Sigma is the source checkout; Deckard is the runtime copy.
-2. Make and review source changes on Sigma, copy only the intended files to Deckard, then build and run a bounded headset test. Keep verified behavior distinct from code/log-only results.
-3. Commit and push from Sigma when the change is accepted. Deckard may not have GitHub credentials; the prior workflow transferred a Git bundle from Sigma, fetched it on Deckard, and aligned Deckard's checkout after confirming its only local changes were the files just copied. Never discard unknown Deckard work.
-4. Update the relevant status/API document and [remaining work](remaining-work.md) with the exact revision, test scene, outcome, and any unverified gap.
-
-## Latest gaze accuracy follow-up
-
-Two grids were completed in `/tmp/gaze-accuracy-c74481b.log`; stable median
-errors were 20.14 and 18.71 degrees with a large downward bias. Five native
-panel-coordinate comparisons passed (maximum 2.98e-8 m difference). No raw gaze
-correction was applied: affine fits across the separate grids still missed
-many targets. The capture script now retries unstable points (>50-pixel 95th-
-percentile spread). Offline analysis and synthetic tests are available in
-`scripts/analyze-gaze-accuracy.py` and `tests/gaze-analysis-test.py`; the native
-geometry diagnostic is `scripts/panel-ray-check.cpp`. Details and caveats are
-in tracking-api.md. That follow-up is now implemented in
-[personal eye calibration](eye-calibration.md); its initial wearer acceptance
-is complete. Further motion/refit measurements are deferred. Raw gaze remains
-a separate signal.
+After changing an API, update its reference guide and the smallest relevant
+example. Run `python3 tools/lint-docs.py` to check local documentation links,
+example inventory, and global binding coverage. Preserve upstream attribution
+and license files when changing bundled assets.

@@ -13,7 +13,7 @@ const context=vm.createContext({Math,JSON,Number,Date:{now:()=>now},
     const v=[((px+offset+(jitter?(Math.floor(now/10)%2?100:-100):0))/1024-.5)*1.1,(.5-py/768)*.825,1];const length=Math.hypot(...v);
     return {valid,tracked:true,status:valid?'valid':'invalid',origin:{x:0,y:0,z:-1},direction:{x:v[0]/length,y:v[1]/length,z:v[2]/length}};
   }});
-vm.runInContext(fs.readFileSync('scripts/gaze-accuracy-test.js','utf8'),context);
+vm.runInContext(fs.readFileSync('tests/scenes/gaze-accuracy-test.js','utf8'),context);
 function capture(){
   callback({type:'controller.button',down:true,control:'/input/trigger/click'});
   for(let i=0;i<140;i++){now+=10;vm.runInContext('update()',context);}

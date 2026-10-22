@@ -1,16 +1,14 @@
 # Eye and finger tracking API
 
-The first implementation uses documented OpenVR gaze/foveation calls and raw
-controller capacitance from the existing local vrserver stream. It does not
-implement bare-hand optical tracking, native hand skeletons, eye openness, or
-the experimental shared-memory eye backend. See [research](tracking-research.md)
-for the available sources and unresolved skeletal behavior.
+The engine exposes documented OpenVR gaze/foveation data and raw controller
+capacitance from the local vrserver stream. Bare-hand optical tracking, native
+hand skeletons, eye openness, and per-eye 3D poses are not exposed.
 
 ## Optional personal correction
 
 See [eye calibration](eye-calibration.md) for `--eye-calibration FILE`, the headset
-generator, and `getCalibratedEyeTracking()`. Existing `getEyeTracking()` remains
-raw. Both gaze getters now expose a nullable row-major `headBasis` matrix for
+generator, and `getCalibratedEyeTracking()`. `getEyeTracking()` remains
+raw. Both gaze getters expose a nullable row-major `headBasis` matrix for
 head-relative calculations; validity and coexistence policies remain as below.
 
 ## Combined gaze
@@ -39,6 +37,7 @@ hover, click, or grab is automatically enabled.
 | `fresh` | The native poll completed within 250 ms; not a device capture-time measurement |
 | `origin`, `target`, `direction` | `{x,y,z}` when valid; otherwise `null`. `target` is the fixation point; `direction` is normalized |
 | `pollAgeMs` | Time since the local native query completed, or `null` before querying |
+| `headBasis` | Nullable row-major 3×3 matrix mapping head-local +Z-forward coordinates into scene space. |
 | `sampleAgeMs` | Always `null`; the OpenVR action does not provide a capture timestamp |
 | `suppressed`, `sceneAppPid` | Whether another scene process prevented action polling, and its PID |
 | `error` | OpenVR input error number when a native query/update was attempted, otherwise `null` |
@@ -49,8 +48,7 @@ priority. If `GetCurrentSceneProcessId()` reports any nonzero PID, the engine
 does not activate that set or query the gaze action, clears the current gaze
 snapshot, and returns `status: "sceneAppActive"` with null geometry. There is no
 opt-out of this policy yet. It preserves the existing controller-action set.
-This is a conservative policy based on the coexistence concern found during
-research; actual game startup/focus behavior still needs a headset test.
+This suppression is part of the current runtime policy.
 
 ## Per-eye foveation centers
 
@@ -70,7 +68,7 @@ coordinates and local polls older than 250 ms.
 These are projection-dependent NDC points, not independent 3D eye poses,
 pupil diameters, eye openness, or gaze confidence. They are not clamped. This
 read-only system API remains separate from scene-app suppression of gaze actions;
-its game coexistence behavior has not yet been verified.
+it does not acquire the gaze action set.
 
 ## Raw finger sensing
 
@@ -111,146 +109,6 @@ trigger/grip/bumper/stick, and dpad directions. Values come from corresponding
 These are raw capacitance/contact channels, not calibrated finger angles or
 five anatomical curl values. `skeleton` stays null; no native bones are invented.
 Existing `controller.value`/`controller.button` events still carry raw updates.
-The older `getControllerInput(hand).capacitive` convenience object gains `ring`,
+The `getControllerInput(hand).capacitive` convenience object includes `ring`,
 `pinky`, `thumbrest`, and `dpad`, retaining its legacy zero-for-missing convention.
-Use the new getter for availability/freshness-sensitive code.
-
-## Verification and headset exercise
-
-```sh
-c++ -std=c++20 -O2 -pthread -I src tests/tracking-regression.cpp src/frame_input.cpp -o /tmp/tracking-regression
-/tmp/tracking-regression
-./run-overlay-engine.sh scripts/tracking-smoke.js
-./run-overlay-engine.sh scripts/tracking-test.js
-```
-
-The native regression checks scene transforms, invalid rays, freshness, the
-scene-PID policy, real loopback WebSocket snapshots/deltas, unavailable field
-handling, false/zero values, queue draining, and disconnect invalidation. It
-also passes with libstdc++ assertions enabled. The picking regression remains
-unchanged and passes.
-
-The diagnostic panel is noninteractive: keep the head still and look at each
-gold circle. A green dot shows where the combined gaze ray intersects the
-fixed panel plane. Lift/curl ring and pinky fingers individually and compare
-both controllers' raw values; confirm direction and independence rather than
-assuming a capacitance threshold is a curl angle. Wearer verification remains
-required for alignment, sensor interpretation, and main-app coexistence.
-
-Initial Deckard integration on top of `8a09717` built successfully and ran
-`scripts/tracking-test.js` for 20 seconds: live gaze, foveation, and both hands'
-capacitance reached JavaScript; the diagnostic assertions passed, `gl_error=0`,
-and shutdown completed at 1644 frames. The text-heavy panel run reported 83 FPS;
-this is not a 90 FPS tracking-performance claim. Log:
-`/tmp/tracking-api-smoke.log`. Final parser/reload verification is recorded in
-the session notes below.
-
-Final parser verification used the headless `scripts/tracking-smoke.js`, copied
-to `/tmp/sf-tracking-reload.js` and touched after five seconds. The bounded
-16-second run loaded twice, passed the schema/normalization/null-value checks
-before and after reload, held 90.1 FPS with `gl_error=0`, and stopped cleanly at
-1414 frames. Both eye APIs were valid in all logged frames; both hand streams
-became valid after initial delivery and remained valid in the logged samples.
-Log: `/tmp/tracking-api-reload.log`. This isolates API use from diagnostic text
-drawing overhead and does not establish behavior alongside a primary scene app.
-
-The existing `scripts/two-hand-grab-test.js` also ran for 15 seconds with the
-final native sources. Its log records distinct simultaneous held objects,
-independent release events, 90 FPS, `gl_error=0`, and clean shutdown at 1313
-frames (`/tmp/tracking-api-two-hand-regression.log`). No wearer observations
-were collected for this regression run.
-
-## Wearer results and gaze accuracy follow-up
-
-The wearer confirmed the finger readings worked after removing a Spigen
-controller cover; they did not work properly with that cover fitted. This is
-an observation for the tested cover/controller combination, not a general
-compatibility conclusion for every cover.
-
-In `scripts/tracking-test.js`, gaze was closest to the right gold circle and
-substantially farther off at the center and left circles. Source validity and
-tracked flags therefore do not establish gaze accuracy. The runtime log is
-`/tmp/tracking-wearer-d2662c2.log`. No calibration correction has been applied.
-
-Code inspection found the scene conversion and panel intersection consistent
-with the fixed panel transform. This does not independently establish that
-the runtime's calibration/projection is correct. To measure the error, run
-`scripts/gaze-accuracy-test.js`: nine fixed targets, one visible at a time,
-with no live gaze dot. Keep the head still and tap either trigger while looking
-at each target. Sampling starts after a 350 ms settling interval and lasts one
-second. At least 30 valid/tracked samples are required; otherwise retry the
-same point. Either bumper restarts. The final three targets complete the grid.
-
-`GAZE_ACCURACY_POINT` logs each target's median observed pixel position,
-signed pixel error, median angular error, and 95th-percentile spread around the
-median. `GAZE_ACCURACY_COMPLETE` logs the full set. These are explicit wearer
-target samples, not an automatically learned correction. The measurements are
-specific to this panel and headset fit; no head-pose stability claim is made.
-Any later general-purpose correction should account for head-relative gaze,
-headset repositioning, and held-out validation targets.
-
-`node tests/gaze-accuracy-test.cjs` exercises the actual scene script with exact
-synthetic target rays, a known 100-pixel bias, invalid samples/retry, nine-point
-completion, and restart. It passes. The completed wearer grids and analysis are recorded below.
-
-## Completed nine-point measurements (October 22, 2026)
-
-The wearer completed two grids in `/tmp/gaze-accuracy-c74481b.log`, using
-`c74481b` scripts with the `d2662c2` engine. Both grids had 89–90 valid/tracked
-samples per point. A 50-pixel 95th-percentile spread cutoff is used below as a
-quality heuristic, not a measured limit of physiological stability.
-
-| Grid | Stable points | Stable median angular error | Stable median horizontal / vertical pixel error |
-| --- | --- | --- | --- |
-| 1 | 6/9 | 20.14 degrees | +25.56 / +378.78 |
-| 2 | 7/9 | 18.71 degrees | +39.98 / +366.82 |
-
-Positive vertical pixel error means below the target. Across all points, errors
-were 14.05–24.22 degrees in grid 1 and 17.11–30.81 in grid 2. Grid 1 center,
-upper right, and upper center were unstable; grid 2 upper right and upper
-center were unstable. Some unstable spreads exceeded 200–500 pixels. This
-could reflect source instability, gaze changes, or movement; it does not
-establish which cause applies.
-
-An exploratory affine fit on stable grid-1 points, tested on stable grid-2
-points, left a median 28.66-pixel residual and maximum 95.56 pixels. Reversing
-the grids left a median 74.48 and maximum 90.63 pixels. These residuals exceed
-the displayed 25-pixel target radius on many points. The fit is specific to
-this panel and session and was NOT applied to the engine or saved as a user
-calibration. A constant translation alone does not describe all errors.
-
-Reproduce the analysis without NumPy:
-
-```sh
-python3 scripts/analyze-gaze-accuracy.py /tmp/gaze-accuracy-c74481b.log
-python3 tests/gaze-analysis-test.py
-```
-
-The capture script now rejects a point whose 95th-percentile spread exceeds
-50 pixels and asks for a retry without advancing. The synthetic script test
-covers this alongside exact rays, known bias, missing samples, and completion.
-
-### Independent native panel geometry check
-
-`scripts/panel-ray-check.cpp` runs as an OpenVR background client alongside the
-panel. It queries the actual overlay transform, texture dimensions, and width,
-then compares five calculated panel points with
-`IVROverlay::GetTransformForOverlayCoordinates`. It temporarily sets pixel mouse
-scale for that coordinate API, restores the original scale, and also checks
-that native `ComputeOverlayIntersection` hits each synthesized ray. It activates
-no input actions and performs no gaze calibration.
-
-The final check passed all five points; maximum position difference was
-2.98e-8 meters. Log: `/tmp/gaze-native-intersection.log`. The overlay was 1.1 by
-0.825 meters with a 1024 by 768 texture. Earlier diagnostic iterations wrongly
-assumed intersection `vUVs` could be directly treated as canvas coordinates;
-that assumption failed and was removed. The checked reference is the native
-3D coordinate transform, not that unverified UV interpretation. No normal
-engine coordinate transform was changed.
-
-This supports the current panel geometry calculation but does not independently
-validate optical rendering, the eye tracker, or the API's calibration. The
-subsequent [head-relative calibration implementation](eye-calibration.md) provides
-quality-gated capture and separate validation targets while preserving raw gaze.
-Its next step is wearer validation, including refitting the headset and moving
-the head before claiming a reusable correction. Tests are stopped after the measurements.
+Use `getFingerTracking` for availability/freshness-sensitive code.

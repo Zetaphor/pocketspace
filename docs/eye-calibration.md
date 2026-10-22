@@ -7,8 +7,7 @@ change foveation centers. No wearer correction is bundled in the repository.
 
 ## Generate in the headset
 
-Run these commands from the checkout on Deckard (`/home/steamos/Code/sf-overlay-mvp`)
-after building the engine. SteamVR must be running and the headset must have a
+Run these commands from the checkout on the runtime host after building the engine. SteamVR must be running and the headset must have a
 valid tracked pose. Close any primary scene application: the engine deliberately
 suppresses gaze action polling while another scene process is active. Controller
 finger sensing can still work while gaze is suppressed. See [tracking API](tracking-api.md)
@@ -16,10 +15,11 @@ for source validity, freshness, and coexistence behavior.
 
 Fit the headset comfortably before starting and keep the calibration panel in
 front of you. Choose a persistent output path whose parent directory exists,
-then run on Deckard:
+then run:
 
 ```sh
-./run-overlay-engine.sh scripts/eye-calibration.js --eye-calibration-output /home/steamos/eye-calibration.json
+mkdir -p "$HOME/.config/sf-overlay-engine"
+./run-overlay-engine.sh scripts/eye-calibration.js --eye-calibration-output "$HOME/.config/sf-overlay-engine/eye-calibration.json"
 ```
 
 Look at each gold circle and tap either trigger. Keep your head and eyes steady
@@ -52,7 +52,7 @@ file and renamed; a successful run replaces an existing file at the chosen path.
 ## Load and consume
 
 ```sh
-./run-overlay-engine.sh scripts/tracking-test.js --eye-calibration /home/steamos/eye-calibration.json
+./run-overlay-engine.sh scripts/tracking.js --eye-calibration "$HOME/.config/sf-overlay-engine/eye-calibration.json"
 ```
 
 ```js
@@ -63,7 +63,7 @@ if (corrected.valid && corrected.calibrationApplied) {
 }
 ```
 
-`scripts/tracking-test.js` displays the corrected green dot and correction status.
+`scripts/tracking.js` displays the corrected green dot and correction status.
 Check alignment across the panel, then turn your head slowly while looking at
 the same targets.
 
@@ -79,8 +79,8 @@ Both getters expose `headBasis`: a row-major 3x3 matrix mapping head coordinates
 (+X right, +Y up, +Z forward) into scene coordinates, or null without valid gaze
 and a current head pose. The engine samples an unpredicted standing-space head
 pose immediately before gaze polling. This is approximate synchronization;
-OpenVR supplies no gaze capture timestamp. Calibration is designed for steady
-fixation and has not yet been validated during rapid head motion.
+OpenVR supplies no gaze capture timestamp. Calibration captures steady fixation; timing and changes in headset fit can
+affect correction during motion.
 
 `getEyeTrackingCalibration()` returns `{loaded, outputPath}`. The output path is
 null unless `--eye-calibration-output FILE` was provided at startup.
@@ -132,7 +132,7 @@ gaze has `calibrationStatus: "notLoaded"` and `valid: false`. Use both `valid` a
 `calibrationApplied` when an interaction requires a corrected ray. If your scene
 allows raw fallback, gate on `valid` and display or record the correction status.
 
-## Troubleshooting and wearer acceptance
+## Troubleshooting
 
 | Symptom | Action |
 | --- | --- |
@@ -146,15 +146,6 @@ allows raw fallback, gate on `valid` and display or record the correction status
 | File loads but dot stays raw | Inspect `calibrationStatus` and ensure the scene calls `getCalibratedEyeTracking()`. |
 | `outOfRange` near panel edges or after head turns | This sample is outside supported coverage; raw fallback is intentional. Recalibrate with an appropriate headset fit and panel position. |
 | Previously good calibration becomes inaccurate | Refit/reseat the headset and repeat calibration. Choose the file for the current wearer. |
-
-Record the engine commit, file path, `EYE_CALIBRATION_VALIDATION` metrics, runtime
-log, and wearer observations. Check all three diagnostic circles and locations
-between them with the head still; then turn the head slowly while maintaining
-fixation. Confirm whether the status stays `applied` or falls back to raw.
-Repeat after restarting with the saved file to verify persistence. A repeat test
-after reseating the headset establishes whether that particular file remains
-useful. Current automated checks do not establish accuracy over different depths,
-the full field of view, rapid motion, other wearers, or changed headset fit.
 
 ## File format
 
@@ -185,56 +176,3 @@ runtime correction. Loading and the low-level save API enforce schema bounds,
 not the generator's accuracy gate; a manually edited file need not have passed
 wearer validation. There is no automatic identity/device matching: select the correct
 wearer's file when launching.
-
-## Verification
-
-```sh
-node tests/eye-calibration-test.cjs
-c++ -std=c++20 -O2 -Wall -Wextra -I src tests/eye-calibration-math.cpp -o /tmp/eye-calibration-math
-/tmp/eye-calibration-math
-```
-
-For native file checks on Deckard, use a disposable fixture path:
-
-```sh
-timeout -k 2 8 ./run-overlay-engine.sh tests/eye-calibration-smoke.js --eye-calibration-output /tmp/sf-eye-identity.json
-timeout -k 2 8 ./run-overlay-engine.sh tests/eye-calibration-smoke.js --eye-calibration /tmp/sf-eye-identity.json
-```
-
-A normal bounded run exits with timeout status 124. Look for
-`EYE_CALIBRATION_FILE_PASS`; with valid gaze and head tracking, also expect
-`EYE_CALIBRATION_IDENTITY_PASS`. No identity marker means that live ray check
-has not been established, even if the file marker appeared. The save run checks
-malformed save arguments before writing its identity fixture. A missing or
-malformed input file can be checked with `--eye-calibration /tmp/nonexistent.json`:
-expect `Invalid eye calibration` and exit 13 before VR initialization. The
-generator without an output flag should also fail script loading with exit 13.
-
-Synthetic tests cover known affine recovery, held-out validation, unstable/invalid
-capture rejection, failed validation refusing save, head rotation, domain limits,
-and an unloaded correction. `tests/eye-calibration-smoke.js` tests native file
-round trips and identity correction; use only a disposable output file because
-it deliberately writes an identity fixture. Wearer calibration and subsequent
-head-turn verification remain required before claiming real accuracy improvement.
-
-Deckard Release build, native save/load round trip, identity-ray check, malformed
-file startup rejection, expanded save-format rejection, generator startup, and
-missing-output-path rejection passed. Logs: `/tmp/eye-file-save-final.log`,
-`/tmp/eye-file-load.log`, `/tmp/eye-file-invalid.log`,
-`/tmp/eye-generator-final.log`, `/tmp/eye-generator-no-output-final.log`.
-The subsequent wearer run on `fc44af2` completed and saved
-`/home/steamos/eye-calibration.json` on Deckard (created
-`2026-10-22T20:39:22.317Z`). Across five independent validation captures, median
-error improved from 13.4595 degrees raw to 1.3777 degrees corrected; maximum
-corrected error was 1.8531 degrees. The generator ran about 89.9–90 FPS with
-`gl_error=0`. Log: `/tmp/eye-calibration-wearer-fc44af2.log`.
-
-The engine was restarted with that file and `scripts/tracking-test.js`; startup
-confirmed it loaded. After the visual diagnostic, the wearer accepted the
-correction as “good enough for now.” Detailed head-turn residuals and correction
-status changes were not reported, so this is acceptance for current use rather
-than quantified motion/refit accuracy. The text-heavy diagnostic reported about
-84.3 FPS with `gl_error=0`. Log:
-`/tmp/eye-calibration-corrected-fc44af2.log`. Both runs are stopped; the personal
-file remains on Deckard and is not committed. Further accuracy tuning and
-quantified head-motion/refit testing are deferred.
