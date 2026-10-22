@@ -12,7 +12,8 @@ queues, and installs the new callback. Allowed grab buttons must be released
 before they can acquire an object in the new scene. External side effects such
 as logging or saving calibration files are not rolled back with a failed scene.
 
-Removing an object cancels its grab/hover state. Removing a panel defers resource
+Removing an object cancels its grab/hover state and removes its physics body.
+Each scene owns an independent physics world, discarded on successful reload. Removing a panel defers resource
 release until its native overlay has detached. Scene assets live until scene
 replacement or shutdown, even if their last object is removed.
 

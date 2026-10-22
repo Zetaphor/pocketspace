@@ -21,7 +21,10 @@ header=r'''
 struct ModelPose;
 '''
 mocks=r'''
-struct Scene {std::vector<Object> objects;bool laserVisible[2]{true,true};};
+// This harness covers physics-disabled grabs; real-body integration lives in
+// physics-api-regression.cpp.
+struct NoPhysics {bool contains(int)const{return false;}void hold(int){}void release(int,bool){}void cancelThrow(int){}};
+struct Scene {std::vector<Object> objects;bool laserVisible[2]{true,true};NoPhysics *physics=nullptr;};
 struct Component {bool isBoolean=false,boolean=false;float value=0;};
 struct Hand {bool valid=true;std::map<std::string,Component> raw;};
 struct Monitor {

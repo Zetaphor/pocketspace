@@ -13,7 +13,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Scripted experiences
 
-- Define and implement physics and collision behavior beyond pointer picking.
+- Extend [rigid-body physics](physics-api.md) with collision events, authored
+  collider dimensions, convex/mesh shapes, constraints, and deforming collider
+  policies as scripted experiences require them.
 - Define persistence and save/restore APIs for scene state.
 - Define richer scene ownership/lifetime APIs for larger scripted experiences.
 

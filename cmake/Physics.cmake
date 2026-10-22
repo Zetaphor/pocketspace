@@ -1,0 +1,30 @@
+include(FetchContent)
+if(POLICY CMP0135)
+  cmake_policy(SET CMP0135 NEW)
+endif()
+# Pin both the upstream revision and archive digest. A local source checkout can
+# be supplied with FETCHCONTENT_SOURCE_DIR_JOLT for offline builds.
+set(OVERRIDE_CXX_FLAGS OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "" FORCE)
+set(GENERATE_DEBUG_SYMBOLS OFF CACHE BOOL "" FORCE)
+set(DEBUG_RENDERER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+set(PROFILER_IN_DEBUG_AND_RELEASE OFF CACHE BOOL "" FORCE)
+foreach(backend DX12 VK MTL CPU_COMPUTE)
+  set(JPH_USE_${backend} OFF CACHE BOOL "" FORCE)
+endforeach()
+set(ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+foreach(feature SSE4_1 SSE4_2 AVX AVX2 AVX512 LZCNT TZCNT F16C FMADD)
+  set(USE_${feature} OFF CACHE BOOL "" FORCE)
+endforeach()
+FetchContent_Declare(Jolt
+  URL https://codeload.github.com/jrouwe/JoltPhysics/tar.gz/e77f175595e64cb44218cc9d9d56fc365ad0e36a
+  URL_HASH SHA256=1f32328fb763135de10a244568d6ccb2ed9b1e6593fafe6dc6db5b2719d330bd
+  SOURCE_SUBDIR Build)
+FetchContent_MakeAvailable(Jolt)
+add_library(sf-physics STATIC src/physics_world.cpp)
+target_include_directories(sf-physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(sf-physics PUBLIC Jolt)
+add_executable(physics-regression EXCLUDE_FROM_ALL tests/physics-regression.cpp)
+target_link_libraries(physics-regression PRIVATE sf-physics)
+target_compile_options(physics-regression PRIVATE -UNDEBUG)
