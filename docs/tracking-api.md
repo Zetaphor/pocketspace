@@ -6,6 +6,13 @@ implement bare-hand optical tracking, native hand skeletons, eye openness, or
 the experimental shared-memory eye backend. See [research](tracking-research.md)
 for the available sources and unresolved skeletal behavior.
 
+## Optional personal correction
+
+See [eye calibration](eye-calibration.md) for `--eye-calibration FILE`, the headset
+generator, and `getCalibratedEyeTracking()`. Existing `getEyeTracking()` remains
+raw. Both gaze getters now expose a nullable row-major `headBasis` matrix for
+head-relative calculations; validity and coexistence policies remain as below.
+
 ## Combined gaze
 
 ```js

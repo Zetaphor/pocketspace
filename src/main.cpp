@@ -29,6 +29,7 @@
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
+#include "eye_calibration.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -91,6 +92,41 @@ static JSValue trackingVector(JSContext *ctx,const float *values,int count){
 static JSValue trackingAge(JSContext *ctx,tracking::Clock::time_point time){
   const double age=tracking::ageMs(time);return age<0?JS_NULL:JS_NewFloat64(ctx,age);
 }
+static tracking::EyeCalibration eyeCalibration;
+static std::string calibrationOutput;
+static float headBasis[3][3]{};static bool headBasisValid=false;
+static bool parseCalibration(JSContext *ctx,JSValueConst value,tracking::EyeCalibration &result){
+  auto stringIs=[&](const char *key,const char *expected){JSValue v=JS_GetPropertyStr(ctx,value,key);const char *s=JS_ToCString(ctx,v);bool ok=s&&std::string(s)==expected;if(s)JS_FreeCString(ctx,s);JS_FreeValue(ctx,v);return ok;};
+  JSValue version=JS_GetPropertyStr(ctx,value,"version");double n=0;bool ok=JS_IsNumber(version)&&JS_ToFloat64(ctx,&n,version)==0&&n==1;JS_FreeValue(ctx,version);
+  ok=ok&&stringIs("source","openvr")&&stringIs("model","head-angular-affine")&&stringIs("units","radians");
+  auto array=[&](const char *key,double *out,int count){JSValue a=JS_GetPropertyStr(ctx,value,key),length=JS_GetPropertyStr(ctx,a,"length");int32_t size=0;bool valid=JS_IsArray(a)&&JS_ToInt32(ctx,&size,length)==0&&size==count;JS_FreeValue(ctx,length);for(int i=0;i<count&&valid;i++){JSValue v=JS_GetPropertyUint32(ctx,a,i);valid=JS_IsNumber(v)&&JS_ToFloat64(ctx,&out[i],v)==0&&std::isfinite(out[i]);JS_FreeValue(ctx,v);}JS_FreeValue(ctx,a);return valid;};
+  ok=ok&&array("yaw",result.yaw,3)&&array("pitch",result.pitch,3)&&array("bounds",result.bounds,4);
+  for(double v:result.yaw)ok=ok&&std::abs(v)<=10;
+  for(double v:result.pitch)ok=ok&&std::abs(v)<=10;
+  ok=ok&&result.bounds[0]<result.bounds[1]&&result.bounds[2]<result.bounds[3];
+  for(double v:result.bounds)ok=ok&&std::abs(v)<=1.5;
+  result.loaded=ok;return ok;
+}
+static JSValue jsGetEyeCalibration(JSContext *ctx,JSValueConst,int,JSValueConst *){
+  JSValue info=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,info,"loaded",JS_NewBool(ctx,eyeCalibration.loaded));
+  JS_SetPropertyStr(ctx,info,"outputPath",calibrationOutput.empty()?JS_NULL:JS_NewString(ctx,calibrationOutput.c_str()));
+  return info;
+}
+static JSValue jsSaveEyeCalibration(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(calibrationOutput.empty())return JS_ThrowTypeError(ctx,"start with --eye-calibration-output FILE to save calibration");
+  tracking::EyeCalibration candidate;
+  if(argc!=1||!parseCalibration(ctx,argv[0],candidate))return JS_ThrowTypeError(ctx,"invalid eye calibration format");
+  JSValue json=JS_JSONStringify(ctx,argv[0],JS_UNDEFINED,JS_UNDEFINED);if(JS_IsException(json))return json;const char *data=JS_ToCString(ctx,json);
+  if(!data){JS_FreeValue(ctx,json);return JS_EXCEPTION;}
+  // Restrict writes to the startup-selected path; rename only a fully flushed file.
+  const std::string temp=calibrationOutput+".tmp."+std::to_string(getpid());
+  std::ofstream file(temp,std::ios::binary|std::ios::trunc);file<<data<<"\n";file.flush();bool ok=file.good();file.close();ok=ok&&!file.fail();
+  JS_FreeCString(ctx,data);JS_FreeValue(ctx,json);
+  std::error_code error;if(ok)std::filesystem::rename(temp,calibrationOutput,error);
+  if(!ok||error){std::filesystem::remove(temp,error);return JS_ThrowTypeError(ctx,"cannot save eye calibration file");}
+  eyeCalibration=candidate;return JS_NewString(ctx,calibrationOutput.c_str());
+}
 static JSValue jsGetEyeTracking(JSContext *ctx,JSValueConst,int,JSValueConst *){
   currentScene->eyeTrackingRequested=true;
   const auto &eye=controllerInput.eye();
@@ -118,6 +154,21 @@ static JSValue jsGetEyeTracking(JSContext *ctx,JSValueConst,int,JSValueConst *){
   JS_SetPropertyStr(ctx,object,"origin",valid?trackingVector(ctx,ray.origin,3):JS_NULL);
   JS_SetPropertyStr(ctx,object,"target",valid?trackingVector(ctx,ray.target,3):JS_NULL);
   JS_SetPropertyStr(ctx,object,"direction",valid?trackingVector(ctx,ray.direction,3):JS_NULL);
+  JSValue basis=JS_NULL;
+  if(valid&&headBasisValid){basis=JS_NewArray(ctx);for(int r=0;r<3;r++)for(int c=0;c<3;c++)JS_SetPropertyUint32(ctx,basis,r*3+c,JS_NewFloat64(ctx,headBasis[r][c]));}
+  JS_SetPropertyStr(ctx,object,"headBasis",basis);
+  return object;
+}
+static JSValue jsGetCalibratedEyeTracking(JSContext *ctx,JSValueConst self,int argc,JSValueConst *argv){
+  JSValue object=jsGetEyeTracking(ctx,self,argc,argv),validValue=JS_GetPropertyStr(ctx,object,"valid");
+  bool valid=JS_ToBool(ctx,validValue);JS_FreeValue(ctx,validValue);
+  const auto &eye=controllerInput.eye();auto ray=tracking::sceneRay(eye.origin,eye.target,trackingAnchor.m);
+  float direction[3]{};bool applied=valid&&headBasisValid&&eyeCalibration.correct(ray.direction,headBasis,direction);
+  if(applied){float length=0;for(int i=0;i<3;i++)length+=(ray.target[i]-ray.origin[i])*(ray.target[i]-ray.origin[i]);length=std::sqrt(length);for(int i=0;i<3;i++)ray.target[i]=ray.origin[i]+direction[i]*length;
+    JS_SetPropertyStr(ctx,object,"direction",trackingVector(ctx,direction,3));JS_SetPropertyStr(ctx,object,"target",trackingVector(ctx,ray.target,3));}
+  JS_SetPropertyStr(ctx,object,"calibrationLoaded",JS_NewBool(ctx,eyeCalibration.loaded));
+  JS_SetPropertyStr(ctx,object,"calibrationApplied",JS_NewBool(ctx,applied));
+  JS_SetPropertyStr(ctx,object,"calibrationStatus",JS_NewString(ctx,!eyeCalibration.loaded?"notLoaded":!valid?"gazeUnavailable":!headBasisValid?"headUnavailable":applied?"applied":"outOfRange"));
   return object;
 }
 static JSValue jsGetEyeFoveationCenters(JSContext *ctx,JSValueConst,int,JSValueConst *){
@@ -396,6 +447,9 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"getController",jsGetController,1);
   bind(candidate.ctx,"getControllerInput",jsGetControllerInput,1);
   bind(candidate.ctx,"getEyeTracking",jsGetEyeTracking,0);
+  bind(candidate.ctx,"getCalibratedEyeTracking",jsGetCalibratedEyeTracking,0);
+  bind(candidate.ctx,"saveEyeTrackingCalibration",jsSaveEyeCalibration,1);
+  bind(candidate.ctx,"getEyeTrackingCalibration",jsGetEyeCalibration,0);
   bind(candidate.ctx,"getEyeFoveationCenters",jsGetEyeFoveationCenters,0);
   bind(candidate.ctx,"getFingerTracking",jsGetFingerTracking,1);
   bind(candidate.ctx,"pollInputEvents",jsPollInputEvents,0);
@@ -752,7 +806,24 @@ int main(int argc,char **argv) {
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
   }
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
-  std::string scriptPath=argc>1?argv[1]:"scripts/avocado.js";
+  std::string scriptPath="scripts/avocado.js",calibrationPath;bool hasScript=false;
+  for(int i=1;i<argc;i++){
+    std::string arg=argv[i];
+    if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
+      if(i+1==argc){fprintf(stderr,"%s requires a file path\n",arg.c_str());return 13;}
+      (arg=="--eye-calibration"?calibrationPath:calibrationOutput)=argv[++i];
+    }else if(!arg.empty()&&arg[0]!='-'&&!hasScript){scriptPath=arg;hasScript=true;}
+    else{fprintf(stderr,"Unknown argument: %s\n",arg.c_str());return 13;}
+  }
+  if(!calibrationPath.empty()){
+    std::ifstream file(calibrationPath,std::ios::binary);std::string data((std::istreambuf_iterator<char>(file)),{});
+    JSRuntime *runtime=JS_NewRuntime();JSContext *ctx=JS_NewContext(runtime);
+    JSValue value=JS_ParseJSON(ctx,data.c_str(),data.size(),calibrationPath.c_str());
+    const bool ok=file.good()&&!JS_IsException(value)&&parseCalibration(ctx,value,eyeCalibration);
+    JS_FreeValue(ctx,value);JS_FreeContext(ctx);JS_FreeRuntime(runtime);
+    if(!ok){fprintf(stderr,"Invalid eye calibration: %s\n",calibrationPath.c_str());return 13;}
+    fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
+  }
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
   EGLDisplay display;EGLContext context;EGLSurface surface;if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
@@ -960,6 +1031,15 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         }
       }
     }
+    if(script.scene.eyeTrackingRequested){
+      vr::TrackedDevicePose_t headPoses[vr::k_unMaxTrackedDeviceCount]{};
+      system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,headPoses,vr::k_unMaxTrackedDeviceCount);
+      const auto &head=headPoses[vr::k_unTrackedDeviceIndex_Hmd];headBasisValid=head.bPoseIsValid&&head.bDeviceIsConnected;
+      if(headBasisValid)for(int r=0;r<3;r++)for(int c=0;c<3;c++){
+        float value=0;for(int k=0;k<3;k++)value+=anchor.m[k][r]*head.mDeviceToAbsoluteTracking.m[k][c];
+        headBasis[r][c]=value*(r==2?-1:1)*(c==2?-1:1);
+      }
+    }else headBasisValid=false;
     controllerInput.poll(script.scene.eyeTrackingRequested,script.scene.foveationRequested);
     frameInput.poll();
     const auto pickingStart=std::chrono::steady_clock::now();

@@ -2,6 +2,17 @@
 
 Status: October 22, 2026. Source of record: Sigma's `/home/zetaphor/Code/sf-overlay-mvp`; Deckard is the SteamVR build and headset test host. The verified custom-laser implementation was committed in `5c3c85b`; check current `HEAD` before starting work.
 
+## Current: personal eye calibration
+
+File-based head-relative correction and an in-headset generator are implemented;
+see [eye calibration](eye-calibration.md) for commands, format, validation, and
+API behavior. `getEyeTracking()` stays raw; consumers opt into
+`getCalibratedEyeTracking()`. Next wearer task: run the nine training plus five
+validation targets, then verify a saved correction while turning the head.
+Earlier plane-fit experiments and raw-accuracy notes below are historical;
+no personal correction has yet passed wearer validation. Further performance
+optimizations remain deferred by user direction.
+
 ## Verified baseline
 
 - The avocado and box headset probe supports independent custom-laser grabs from both hands. The beams stop at the selected model, keep their grab length until push/pull or release, and quick hand motion does not release a model while its trigger is held.
