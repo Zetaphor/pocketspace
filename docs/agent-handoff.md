@@ -9,10 +9,13 @@ Deckard Release build, file round-trip, schema rejection, and generator startup
 checks passed (see calibration document);
 see [eye calibration](eye-calibration.md) for commands, format, validation, and
 API behavior. `getEyeTracking()` stays raw; consumers opt into
-`getCalibratedEyeTracking()`. Next wearer task: run the nine training plus five
-validation targets, then verify a saved correction while turning the head.
-Earlier plane-fit experiments and raw-accuracy notes below are historical;
-no personal correction has yet passed wearer validation. Further performance
+`getCalibratedEyeTracking()`. Wearer calibration passed on `fc44af2`: median
+validation error improved from 13.46° to 1.38°, maximum corrected error 1.85°.
+The saved `/home/steamos/eye-calibration.json` was loaded in a fresh diagnostic;
+the wearer accepted it as good enough for now. Both tests are stopped and the
+personal file remains on Deckard, outside Git. Quantified head-motion/refit
+checks and further tuning are deferred. Earlier raw-accuracy/plane-fit notes
+below are historical. Further performance
 optimizations remain deferred by user direction.
 
 ## Current direction: tracking API research
@@ -31,8 +34,8 @@ Wearer results: fingers worked with the Spigen cover removed; gaze aligned best
 on the right and poorly at the center/left. No gaze correction was applied.
 The raw diagnostic `scripts/gaze-accuracy-test.js` captured two nine-point grids
 without a live dot; results are analyzed in the historical follow-up below.
-The next wearer run uses `scripts/eye-calibration.js` and the corrected tracking
-diagnostic, as described in eye-calibration.md.
+The subsequent calibration and corrected diagnostic were accepted by the wearer
+for current use, as recorded in eye-calibration.md.
 
 The user deferred further performance work and requested eye/finger tracking
 research. See [tracking research](tracking-research.md) for primary documentation,
@@ -151,5 +154,6 @@ percentile spread). Offline analysis and synthetic tests are available in
 `scripts/analyze-gaze-accuracy.py` and `tests/gaze-analysis-test.py`; the native
 geometry diagnostic is `scripts/panel-ray-check.cpp`. Details and caveats are
 in tracking-api.md. That follow-up is now implemented in
-[personal eye calibration](eye-calibration.md); next run its wearer acceptance
-checks. Raw gaze remains a separate signal.
+[personal eye calibration](eye-calibration.md); its initial wearer acceptance
+is complete. Further motion/refit measurements are deferred. Raw gaze remains
+a separate signal.

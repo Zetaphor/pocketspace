@@ -222,4 +222,19 @@ file startup rejection, expanded save-format rejection, generator startup, and
 missing-output-path rejection passed. Logs: `/tmp/eye-file-save-final.log`,
 `/tmp/eye-file-load.log`, `/tmp/eye-file-invalid.log`,
 `/tmp/eye-generator-final.log`, `/tmp/eye-generator-no-output-final.log`.
-No personal calibration file was generated; wearer validation is still pending.
+The subsequent wearer run on `fc44af2` completed and saved
+`/home/steamos/eye-calibration.json` on Deckard (created
+`2026-10-22T20:39:22.317Z`). Across five independent validation captures, median
+error improved from 13.4595 degrees raw to 1.3777 degrees corrected; maximum
+corrected error was 1.8531 degrees. The generator ran about 89.9–90 FPS with
+`gl_error=0`. Log: `/tmp/eye-calibration-wearer-fc44af2.log`.
+
+The engine was restarted with that file and `scripts/tracking-test.js`; startup
+confirmed it loaded. After the visual diagnostic, the wearer accepted the
+correction as “good enough for now.” Detailed head-turn residuals and correction
+status changes were not reported, so this is acceptance for current use rather
+than quantified motion/refit accuracy. The text-heavy diagnostic reported about
+84.3 FPS with `gl_error=0`. Log:
+`/tmp/eye-calibration-corrected-fc44af2.log`. Both runs are stopped; the personal
+file remains on Deckard and is not committed. Further accuracy tuning and
+quantified head-motion/refit testing are deferred.

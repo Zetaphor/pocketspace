@@ -7,10 +7,13 @@ Status: October 22, 2026. Source of record: Sigma's `/home/zetaphor/Code/sf-over
 File-based head-relative correction and an in-headset generator are implemented;
 see [eye calibration](eye-calibration.md) for commands, format, validation, and
 API behavior. `getEyeTracking()` stays raw; consumers opt into
-`getCalibratedEyeTracking()`. Next wearer task: run the nine training plus five
-validation targets, then verify a saved correction while turning the head.
-Earlier plane-fit experiments and raw-accuracy notes below are historical;
-no personal correction has yet passed wearer validation. Further performance
+`getCalibratedEyeTracking()`. Wearer calibration passed on `fc44af2`: median
+validation error improved from 13.46° to 1.38°, maximum corrected error 1.85°.
+The saved `/home/steamos/eye-calibration.json` was loaded in a fresh diagnostic;
+the wearer accepted it as good enough for now. Both tests are stopped and the
+personal file remains on Deckard, outside Git. Quantified head-motion/refit
+checks and further tuning are deferred. Earlier raw-accuracy/plane-fit notes
+below are historical. Further performance
 optimizations remain deferred by user direction.
 
 ## Verified baseline
@@ -86,8 +89,9 @@ bare-hand tracking, eye openness, and the experimental mmap backend remain open.
 Wearer follow-up: finger sensing worked after removing a Spigen controller
 cover. Raw gaze alignment was closest at the right target and worse at center/
 left. Two raw grids and native geometry checks have since been completed.
-The head-relative file/generator implementation is complete; next perform the
-[calibration wearer acceptance checks](eye-calibration.md#troubleshooting-and-wearer-acceptance).
+The file/generator implementation and initial wearer acceptance are complete;
+see [calibration results](eye-calibration.md#verification). Further quantified
+head-motion/refit checks are deferred.
 Do not treat validity as proof of accuracy or silently alter the raw gaze API.
 
 ## Later engine milestones
@@ -106,7 +110,7 @@ Latest gaze measurement: two completed grids showed stable median angular
 errors of 20.14 and 18.71 degrees, predominantly downward. Native panel geometry
 checks passed. A panel-specific affine fit did not validate consistently enough
 to apply globally. Head-relative calibration with quality gating and independent
-validation is now implemented. The next task is generating a real wearer file
-and verifying its accuracy, persistence, and behavior during head turns;
-raw gaze remains unchanged.
+validation is implemented and passed a wearer run; the saved file loaded
+successfully after restarting and the wearer accepted the result for now.
+Further tuning is deferred; raw gaze remains unchanged.
 See [tracking API measurements](tracking-api.md) for exact logs and residuals.
