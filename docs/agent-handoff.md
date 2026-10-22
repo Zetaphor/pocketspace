@@ -4,6 +4,27 @@ Prepared October 22, 2026. This guide supplements [remaining work](remaining-wor
 
 ## Start here
 
+### Latest selection session (October 22, 2026)
+
+Performance follow-up is documented in [performance measurements](performance.md).
+Deckard now uses Release; model-space ray picking replaces per-triangle world
+transforms. The Toy Car runtime check held 90 FPS, and the fixed CPU benchmark
+reduced picking time by 32.8%. All bounded performance runs stopped cleanly.
+The user explicitly excluded investigation of the Frametop report from scope.
+
+Uncommitted changes on top of `d7db4b9` are present in this checkout and Sigma;
+Deckard has the matching picker sources and selection scene. Do not overwrite
+them using the older clean-checkout baseline below. See
+[model selection test](model-selection-test.md) for exact logs and observations.
+The wearer confirmed the straight-on rear-cube / empty-frame regression fixed.
+Fixes remove spherical fallback hits, initialize triangle edges before cross
+products, populate normalized model bounds, and prevent native rectangular
+object surfaces or stale hover from overriding fresh custom-laser mesh picks.
+The final retest reported 90 FPS with `gl_error=0`. Toy Car is excluded after
+roughly 35 FPS and a reported Frametop disruption; causation is unconfirmed.
+Next: isolate rendering versus picking costs without repeating the car headset
+exposure, then complete explicit per-hand selection regression coverage.
+
 - Sigma (`192.168.50.240`, user `zetaphor`) holds the committed source at `/home/zetaphor/Code/sf-overlay-mvp`. Its Git remote is `https://github.com/Zetaphor/sf-overlay-engine.git`, branch `main`.
 - Deckard is the SteamVR build and headset runtime host at `/home/steamos/Code/sf-overlay-mvp`. Reach it from Sigma with `ssh deckard`.
 - At handoff, Sigma, Deckard, and `origin/main` were aligned at `efc825d726bf6f734fa72e9087bdebe0cbf98a43`; both working trees were clean, and no overlay engine was running. Verify those facts again before editing or starting a test.
