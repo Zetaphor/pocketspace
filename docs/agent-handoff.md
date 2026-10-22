@@ -2,6 +2,20 @@
 
 Prepared October 22, 2026. This guide supplements [remaining work](remaining-work.md) and the repository's `docs/panel-integration-status.md`, `docs/interaction-status.md`, `docs/input-architecture.md`, and `docs/javascript-api.md`.
 
+## Current direction: tracking API research
+
+The user deferred further performance work and requested eye/finger tracking
+research. See [tracking research](tracking-research.md) for primary documentation,
+actual Deckard probes, API proposal, and limitations. Combined OpenVR gaze and
+global raw finger capacitance were observed; native skeleton bindings resolve
+31 bones but remain inactive/NoData in this overlay probe. WebSocket discovery
+advertises gaze and skeleton types without delivering them in ordinary component
+updates. The isolated diagnostic is `scripts/tracking-probe.cpp` with manifests
+under `cfg/tracking-probe/`; normal engine bindings/API are unchanged. Further
+API implementation must preserve primary-app focus and distinguish raw sensors
+from reconstructed skeletons. No primary scene app or wearer test was used in
+the documented native probes.
+
 ## Start here
 
 ### Latest selection session (October 22, 2026)

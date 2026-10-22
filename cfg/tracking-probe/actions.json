@@ -1,0 +1,41 @@
+{
+  "default_bindings": [
+    {
+      "controller_type": "frame_controller",
+      "binding_url": "frame_controller.json"
+    },
+    {
+      "controller_type": "frame_hmd",
+      "binding_url": "frame_hmd.json"
+    }
+  ],
+  "action_sets": [
+    {
+      "name": "/actions/fingers",
+      "usage": "single"
+    },
+    {
+      "name": "/actions/eyes",
+      "usage": "single"
+    }
+  ],
+  "actions": [
+    {
+      "name": "/actions/fingers/in/left",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/left",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/fingers/in/right",
+      "type": "skeleton",
+      "skeleton": "/skeleton/hand/right",
+      "requirement": "optional"
+    },
+    {
+      "name": "/actions/eyes/in/gaze",
+      "type": "eyetracking",
+      "requirement": "optional"
+    }
+  ]
+}

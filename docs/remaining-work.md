@@ -47,6 +47,27 @@ and the excluded high-triangle car; performance isolation is the next priority.
 5. **Protect the raw-input integration against SteamVR changes.** The `vrserver` WebSocket is undocumented. Compare the native monitor with `scripts/steam-frame-input.py` after SteamVR updates; verify discovery, reconnect, resubscription, button/value normalization, and behavior during transient tracking loss. Evaluate a documented action path only if it can provide the needed controls in this overlay context.
 6. **Broaden lifecycle testing.** Exercise repeated scene reloads, object and panel removal, controller disconnect/reconnect, SteamVR restart, and shutdown while one or both models are held. Verify no stale grab state, ghost overlays, resource leaks, or retained input callbacks.
 
+## Deferred performance improvements
+
+Deferred performance work (tracking/API work takes priority):
+
+- Preserve shared vertices and use indexed rendering (`glDrawElements`); measure
+  vertex processing, GPU time, and memory against expanded triangle streams.
+- Replace repeated object/surface scans with direct lookups as object counts grow.
+- Avoid redundant unchanged panel texture, transform, and visibility submissions.
+- Investigate explicit GPU/shared-texture synchronization only with compositor
+  ownership and buffer-reuse validation; do not simply remove `glFinish`.
+
+## Current priority: eye and finger tracking
+
+Investigate Steam Frame's documented OpenVR/OpenXR APIs and the local vrserver
+interfaces, then expose supported signals through the JavaScript API with explicit
+source, availability, validity, coordinate-space, and freshness information.
+Distinguish controller capacitive/skeletal finger tracking from bare-hand optical
+tracking, and combined gaze from per-eye gaze/openness. Preserve overlay coexistence
+with the primary VR application. Research findings will be recorded in
+[tracking research](tracking-research.md).
+
 ## Later engine milestones
 
 7. **Scale scene performance.** Measure frame time, GPU/shared memory, overlay count, and Frametop responsiveness as objects, textures, panels, and per-eye resolution increase. The current 768-pixel default is the known usable starting point; 512 pixels looked too blurry, while three 2048-pixel surfaces lagged in headset testing.
