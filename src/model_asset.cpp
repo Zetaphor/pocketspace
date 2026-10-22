@@ -64,8 +64,60 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
     part.vertices.insert(part.vertices.end(),{world[0],world[1],world[2],uv[0],uv[1]});
   }
   part.vertexCount=(GLsizei)count;
+  if(out.hasAnimation){
+    part.localVertices.reserve(count*5);
+    for(cgltf_size i=0;i<count;i++){
+      const cgltf_size index=source.indices?cgltf_accessor_read_index(source.indices,i):i;
+      float position[3];if(!cgltf_accessor_read_float(positions,index,position,3))return false;
+      part.localVertices.insert(part.localVertices.end(),{position[0],position[1],position[2],part.vertices[i*5+3],part.vertices[i*5+4]});
+    }
+  }
   if(source.targets_count)out.hasMorph=true;
   out.primitives.push_back(std::move(part));
+  return true;
+}
+static bool loadAnimations(const cgltf_data &data,ModelAsset &out){
+  if(!data.animations_count)return true;
+  out.nodes.resize(data.nodes_count);
+  for(cgltf_size i=0;i<data.nodes_count;i++){
+    const auto &source=data.nodes[i];auto &node=out.nodes[i];
+    node.parent=source.parent?int(source.parent-data.nodes):-1;node.matrixOnly=source.has_matrix;
+    if(source.has_translation)std::copy(source.translation,source.translation+3,node.translation.begin());
+    if(source.has_rotation)std::copy(source.rotation,source.rotation+4,node.rotation.begin());
+    if(source.has_scale)std::copy(source.scale,source.scale+3,node.scale.begin());
+    if(source.has_matrix)std::copy(source.matrix,source.matrix+16,node.matrix.begin());
+  }
+  if(!animation::order(out.nodes,out.nodeOrder))return false;
+  for(cgltf_size i=0;i<data.animations_count;i++){
+    const auto &source=data.animations[i];animation::Clip clip;clip.name=source.name?source.name:"";
+    if(out.hasSkin)clip.unsupportedReason="skinning is not implemented";
+    for(cgltf_size j=0;j<source.channels_count;j++){
+      const auto &input=source.channels[j];const auto *sampler=input.sampler;animation::Channel channel;
+      float end=0;
+      if(!sampler||!sampler->input||!sampler->input->count||!cgltf_accessor_read_float(sampler->input,sampler->input->count-1,&end,1)||!std::isfinite(end)||end<0)return false;
+      clip.duration=std::max(clip.duration,double(end));
+      if(!input.target_node||!sampler||(input.target_path!=cgltf_animation_path_type_translation&&input.target_path!=cgltf_animation_path_type_rotation&&input.target_path!=cgltf_animation_path_type_scale)){clip.unsupportedReason="only node translation, rotation and scale channels are supported";continue;}
+      channel.node=int(input.target_node-data.nodes);
+      if(out.nodes[channel.node].matrixOnly){clip.unsupportedReason="animated matrix nodes are unsupported";continue;}
+      channel.path=input.target_path==cgltf_animation_path_type_rotation?animation::Path::Rotation:input.target_path==cgltf_animation_path_type_scale?animation::Path::Scale:animation::Path::Translation;
+      if(sampler->interpolation!=cgltf_interpolation_type_step&&sampler->interpolation!=cgltf_interpolation_type_linear&&sampler->interpolation!=cgltf_interpolation_type_cubic_spline)return false;
+      const size_t dimensions=channel.path==animation::Path::Rotation?4:3;
+      channel.interpolation=sampler->interpolation==cgltf_interpolation_type_step?animation::Interpolation::Step:sampler->interpolation==cgltf_interpolation_type_cubic_spline?animation::Interpolation::CubicSpline:animation::Interpolation::Linear;
+      const size_t multiplier=channel.interpolation==animation::Interpolation::CubicSpline?3:1;
+      if(!sampler->input||!sampler->output||sampler->input->type!=cgltf_type_scalar||sampler->input->count==0||sampler->output->count!=sampler->input->count*multiplier||cgltf_num_components(sampler->output->type)!=dimensions)return false;
+      for(cgltf_size k=0;k<sampler->input->count;k++){
+        float time;if(!cgltf_accessor_read_float(sampler->input,k,&time,1)||!std::isfinite(time)||time<0||(!channel.times.empty()&&time<=channel.times.back()))return false;
+        channel.times.push_back(time);
+      }
+      for(cgltf_size k=0;k<sampler->output->count;k++){
+        float value[4];if(!cgltf_accessor_read_float(sampler->output,k,value,dimensions))return false;
+        for(size_t c=0;c<dimensions;c++){if(!std::isfinite(value[c]))return false;channel.values.push_back(value[c]);}
+      }
+      clip.duration=std::max(clip.duration,double(channel.times.back()));clip.channels.push_back(std::move(channel));
+    }
+    if(clip.channels.empty()&&clip.unsupportedReason.empty())clip.unsupportedReason="clip has no supported channels";
+    out.animations.push_back(std::move(clip));
+  }
   return true;
 }
 bool loadModelFile(const std::string &path,ModelAsset &out) {
@@ -75,20 +127,25 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   result=cgltf_load_buffers(&options,data,path.c_str());
   if(result!=cgltf_result_success||cgltf_validate(data)!=cgltf_result_success){std::fprintf(stderr,"[model] invalid glTF %s\n",path.c_str());cgltf_free(data);return false;}
   out.path=path;out.hasAnimation=data->animations_count>0;out.hasSkin=data->skins_count>0;
+  if(!loadAnimations(*data,out)){std::fprintf(stderr,"[model] invalid animation data in %s\n",path.c_str());cgltf_free(data);return false;}
   float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
   float high[3]={-low[0],-low[1],-low[2]};
   out.low[0]=out.low[1]=out.low[2]=std::numeric_limits<float>::max();out.high[0]=out.high[1]=out.high[2]=-std::numeric_limits<float>::max();
   for(cgltf_size i=0;i<data->nodes_count;i++){
     const auto &node=data->nodes[i];if(!node.mesh)continue;
     for(cgltf_size j=0;j<node.mesh->primitives_count;j++){
+      const size_t before=out.primitives.size();
       if(!appendPrimitive(node,node.mesh->primitives[j],out,low,high)){std::fprintf(stderr,"[model] unsupported primitive in %s\n",path.c_str());cgltf_free(data);return false;}
+      if(out.primitives.size()>before)out.primitives.back().node=int(i);
     }
   }
   cgltf_free(data);
+  if(out.hasMorph)for(auto &clip:out.animations)clip.unsupportedReason="morph targets are not implemented";
   if(out.primitives.empty())return false;
   float extent=std::max({high[0]-low[0],high[1]-low[1],high[2]-low[2]});
   if(!std::isfinite(extent)||extent<=0)return false;
-  float scale=1.f/extent;
+  float scale=1.f/extent;out.normalization=scale;
+  for(int axis=0;axis<3;axis++)out.center[axis]=(low[axis]+high[axis])*.5f;
   for(auto &part:out.primitives)for(size_t i=0;i<part.vertices.size();i+=5)for(int axis=0;axis<3;axis++)part.vertices[i+axis]=(part.vertices[i+axis]-(low[axis]+high[axis])*.5f)*scale;
   // Picking bounds must use the same centered, normalized space as vertices.
   for(int axis=0;axis<3;axis++){
@@ -123,4 +180,37 @@ void uploadModel(ModelAsset &asset){
 void deleteModel(ModelAsset &asset){
   for(auto &part:asset.primitives){if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.texture=0;}
   asset.uploaded=false;
+}
+
+ModelPose::~ModelPose(){deleteModel(geometry);}
+void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose){
+  if(pose.geometry.primitives.empty()){
+    pose.geometry.primitives.resize(asset.primitives.size());
+    for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
+    pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
+  }
+  animation::evaluate(asset.nodes,asset.nodeOrder,asset.animations[state.clip],state.time,pose.nodes,pose.world);
+  pose.radius=0;
+  for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::numeric_limits<float>::max();pose.geometry.high[axis]=-std::numeric_limits<float>::max();}
+  for(size_t i=0;i<asset.primitives.size();i++){
+    const auto &source=asset.primitives[i];auto &target=pose.geometry.primitives[i];const auto &matrix=pose.world[source.node];
+    for(size_t v=0;v<source.localVertices.size();v+=5){
+      const float *p=source.localVertices.data()+v;float radiusSquared=0;
+      for(int axis=0;axis<3;axis++){
+        const float value=(matrix[axis]*p[0]+matrix[4+axis]*p[1]+matrix[8+axis]*p[2]+matrix[12+axis]-asset.center[axis])*asset.normalization;
+        target.vertices[v+axis]=value;radiusSquared+=value*value;
+        pose.geometry.low[axis]=std::min(pose.geometry.low[axis],value);pose.geometry.high[axis]=std::max(pose.geometry.high[axis],value);
+      }
+      pose.radius=std::max(pose.radius,std::sqrt(radiusSquared));
+    }
+  }
+  picking::refit(pose.geometry);pose.dirty=true;
+}
+void uploadModelPose(ModelPose &pose){
+  if(!pose.dirty)return;
+  for(auto &part:pose.geometry.primitives){
+    if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
+    else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
+  }
+  pose.dirty=false;
 }

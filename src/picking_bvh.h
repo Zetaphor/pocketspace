@@ -60,6 +60,22 @@ template<class Asset> void build(Asset &asset){
   split(split,0,static_cast<uint32_t>(asset.pickTriangles.size()));
 }
 
+// Reuse the split topology for animated instances whose vertex positions change.
+template<class Asset> void refit(Asset &asset){
+  if(asset.pickNodes.empty()){build(asset);return;}
+  for(size_t i=asset.pickNodes.size();i-->0;){
+    auto &node=asset.pickNodes[i];
+    for(int axis=0;axis<3;axis++){node.low[axis]=std::numeric_limits<float>::max();node.high[axis]=-std::numeric_limits<float>::max();}
+    if(node.count){
+      for(uint32_t j=node.first;j<node.first+node.count;j++){
+        const auto &triangle=asset.pickTriangles[j];const float *v=asset.primitives[triangle.primitive].vertices.data()+triangle.offset;
+        for(int axis=0;axis<3;axis++)for(int p=0;p<3;p++){node.low[axis]=std::min(node.low[axis],v[p*5+axis]);node.high[axis]=std::max(node.high[axis],v[p*5+axis]);}
+      }
+      for(int axis=0;axis<3;axis++){node.low[axis]-=1e-6f;node.high[axis]+=1e-6f;}
+    }else for(int axis=0;axis<3;axis++){node.low[axis]=std::min(asset.pickNodes[node.left].low[axis],asset.pickNodes[node.right].low[axis]);node.high[axis]=std::max(asset.pickNodes[node.left].high[axis],asset.pickNodes[node.right].high[axis]);}
+  }
+}
+
 inline bool bounds(const float origin[3],const float direction[3],const float low[3],const float high[3],float limit,float &near){
   near=0;float far=limit;
   for(int axis=0;axis<3;axis++){

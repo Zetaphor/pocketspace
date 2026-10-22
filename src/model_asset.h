@@ -3,9 +3,12 @@
 #include <string>
 #include <vector>
 #include "picking_bvh.h"
+#include "animation.h"
 
 struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
+  std::vector<float> localVertices; // retained only for animated assets
+  int node=-1;
   std::vector<unsigned char> rgba;
   int width=1,height=1;
   float factor[4]={1,1,1,1};
@@ -22,6 +25,10 @@ struct ModelAsset {
   std::vector<PrimitiveAsset> primitives;
   std::vector<picking::Triangle> pickTriangles;
   std::vector<picking::Node> pickNodes;
+  std::vector<animation::Node> nodes;
+  std::vector<int> nodeOrder;
+  std::vector<animation::Clip> animations;
+  float center[3]{},normalization=1;
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
@@ -29,3 +36,14 @@ struct ModelAsset {
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
+
+// Per-object deformed geometry; material textures remain on the shared asset.
+struct ModelPose {
+  ModelAsset geometry;
+  std::vector<animation::Node> nodes;
+  std::vector<animation::Matrix> world;
+  float radius=1;bool dirty=true;
+  ~ModelPose();
+};
+void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose);
+void uploadModelPose(ModelPose &pose);

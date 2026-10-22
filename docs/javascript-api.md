@@ -17,6 +17,14 @@ See [tracking API](tracking-api.md) for their full contracts and test scenes.
 Gaze-action polling is suppressed while another scene application is running.
 Native skeleton poses, bare-hand tracking, and eye openness are not implemented.
 
+## Animation
+
+[Animation playback](animation-api.md) documents `getAnimations(assetId)`,
+`playAnimation(objectId, clip, options)`, `pauseAnimation`, `resumeAnimation`,
+`seekAnimation`, `stopAnimation`, and `getAnimationState`. Node translation,
+rotation, and scale support STEP, LINEAR, and CUBICSPLINE; skinning/morph clips
+remain unsupported. Playback and evaluated picking geometry are per object.
+
 ## Controller input
 
 `getControllerInput("left"|"right")` returns the latest globally observed Steam
