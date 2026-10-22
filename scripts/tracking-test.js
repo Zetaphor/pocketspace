@@ -19,7 +19,7 @@ print('TRACKING_API unavailable values and invalid-hand checks passed');
 function format(field){return field.value===null?'--':typeof field.value==='boolean'?String(field.value):field.value.toFixed(3);}
 function update(dt){
   elapsed+=dt;
-  const gaze=getEyeTracking(),foveation=getEyeFoveationCenters();
+  const gaze=getCalibratedEyeTracking(),foveation=getEyeFoveationCenters();
   const left=getFingerTracking('left'),right=getFingerTracking('right');
   pollInputEvents();
   counts.gaze+=+gaze.valid;counts.foveation+=+foveation.valid;counts.left+=+left.valid;counts.right+=+right.valid;
@@ -44,7 +44,7 @@ function update(dt){
   c.text(24,16,'Eye gaze and raw finger sensors',240,245,255,255,30);
   c.text(24,65,`Gaze: ${gaze.status} tracked=${gaze.tracked} / foveation=${foveation.valid}`,180,220,255,255,23);
   c.text(24,105,'Look at each circle; keep your head still.',220,230,240,255,23);
-  c.text(24,140,'Green dot = gaze ray on this panel. Raw sensors are not curls.',180,200,220,255,20);
+  c.text(24,140,`Green dot: ${gaze.calibrationStatus}. Raw finger sensors are not curls.`,180,200,220,255,20);
   for(const x of [205,512,819]){c.circle(x,220,28,220,180,90,255,false);c.circle(x,220,3,220,180,90,255,true);}
   if(gaze.valid&&gaze.direction.z>1e-5){
     const distance=-gaze.origin.z/gaze.direction.z;
