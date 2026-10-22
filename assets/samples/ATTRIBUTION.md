@@ -1,6 +1,6 @@
 # Khronos glTF sample assets
 
-These six unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The model files are test fixtures for this engine; their inclusion does not imply the engine supports every feature shown.
+These seven unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The model files are test fixtures for this engine; their inclusion does not imply the engine supports every feature shown.
 
 | Model | Feature used for testing | License summary |
 | --- | --- | --- |
@@ -10,5 +10,9 @@ These six unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https
 | AlphaBlendModeTest | Opaque, masked, and blended materials | CC BY 4.0, Analytical Graphics, Inc. |
 | CesiumMan | Skin and animation | CC BY 4.0, Cesium; see upstream logo notice |
 | MorphPrimitivesTest | Multiple primitives and morph targets | CC BY 4.0, ft-lab and Frank Galligan |
+| InterpolationTest | Translation/rotation/scale clips with STEP, LINEAR, and CUBICSPLINE interpolation | CC0, Khronos |
 
-All six GLBs were checked against the upstream Git blob hashes before inclusion. See the upstream README beside each model for full credit and terms. For `CesiumMan`, the upstream Cesium logo notice is retained in `LICENSES/LicenseRef-LegalMark-Cesium.txt`.
+All seven GLBs were checked against the upstream Git blob hashes before inclusion. See the upstream README beside each model for full credit and terms. For `CesiumMan`, the upstream Cesium logo notice is retained in `LICENSES/LicenseRef-LegalMark-Cesium.txt`.
+
+`InterpolationTest/InterpolationTest.glb` is 7,952 bytes; verified upstream Git
+blob `4200fccc95261f36bf8af58e99f3180968333714`, SHA-256 `a86eb331b4a083715e75fe19a1f747eac5692d5b9ff120f1eaa457c23ba72bca`.
