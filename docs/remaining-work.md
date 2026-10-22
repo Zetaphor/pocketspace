@@ -16,6 +16,13 @@ checks and further tuning are deferred. Earlier raw-accuracy/plane-fit notes
 below are historical. Further performance
 optimizations remain deferred by user direction.
 
+## Next implementation: dedicated grip pickup
+
+Laser pitch is no longer important to the user and is removed from active work.
+The next implementation task is item 4: dedicated near-hand pickup using grip,
+with defined behavior alongside trigger-based laser grabs and panel input.
+This changes backlog priority only; no interaction behavior has changed.
+
 ## Verified baseline
 
 - The avocado and box headset probe supports independent custom-laser grabs from both hands. The beams stop at the selected model, keep their grab length until push/pull or release, and quick hand motion does not release a model while its trigger is held.
@@ -53,7 +60,7 @@ and the excluded high-triangle car; performance isolation is the next priority.
 
 1. **Validate model selection beyond the avocado and box.** The picker tests transformed triangles and uses a small bounds fallback for near misses. Exercise concave, thin, rotated, overlapping, and high-triangle models, including Toy Car and Lantern. Check false picks through gaps, nearest-object choice, per-hand isolation, hover stability, and the beam endpoint. Tighten or replace the fallback where it selects empty space. Done when both hands can select and release the intended model in those cases without selecting a nearer gap or an object behind it.
 2. **Optimize high-triangle picking.** The avocado/box probe held 90 FPS, but the earlier Toy Car probe ran near 31 FPS with a 108,936-triangle asset. Measure render time separately from picking time, then add a suitable acceleration structure or cheaper broad phase if picking is material to the slowdown. Done when the chosen multi-model test scene meets an agreed headset frame-time target without lag or ghosting.
-3. **Resolve laser pitch.** `laserPitchWithStickClick` is experimental: stick-click events were observed, but the user did not see pitch motion. Record smooth-scroll input while click and trigger are held, choose a nonconflicting control, implement it, and verify pitch direction and rate in the headset. Keep it out of normal demos until verified.
+3. **Laser pitch — no longer planned.** Removed from active work at the user's request. The existing experimental `laserPitchWithStickClick` option remains unverified; no further implementation or headset validation is planned.
 4. **Decide and implement a dedicated grip pickup gesture.** Near-hand pickup currently starts with the trigger. Define how grip pickup, laser grab, and release should interact, using the available raw grip input without relying on SteamVR native laser focus. Verify two-hand pickup and that panel/native pointer interactions still work.
 
 ## Input and reliability
