@@ -266,3 +266,12 @@ activity and about 89.6–90 FPS with `gl_error=0`:
 initial wearer acceptance of the requested button selection; individual test
 steps, simultaneous ownership, near-hand rotation, and panel interactions were
 not separately reported and remain available as broader regression checks.
+
+## Lifecycle contracts
+
+See [lifecycle behavior](lifecycle.md) for reload rollback, event-queue boundaries,
+held-object removal, controller disconnects, and SteamVR shutdown. Controller pose
+snapshots now include `connected`: a connected controller with `valid: false` has
+lost tracking; `connected: false` reports a disconnected or absent device.
+A scene reload or disconnected/removed held object requires button release before
+another grab. Removed panels retain texture ownership until native detachment.

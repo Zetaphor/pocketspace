@@ -22,6 +22,8 @@ next milestones and their completion checks. [Agent handoff](docs/agent-handoff.
 has access, build, test, and change-workflow details for a new maintainer.
 [Eye calibration](docs/eye-calibration.md) covers generating a personal correction
 inside the headset, loading its JSON file, corrected/raw gaze APIs, and troubleshooting.
+[Lifecycle behavior and tests](docs/lifecycle.md) covers reloads, removal, disconnects,
+and shutdown.
 
 Run the default avocado or a sample gallery:
 

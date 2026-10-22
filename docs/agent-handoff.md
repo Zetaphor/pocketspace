@@ -28,6 +28,16 @@ The wearer accepted the three-box test on `ab8a5c1` (“Works great”); runtime
 reported about 89.6–90 FPS with `gl_error=0`. The test is stopped.
 This preserves existing mesh acquisition; it does not add proximity-only pickup.
 
+## Current: lifecycle reliability
+
+Reload/removal/disconnect/shutdown fixes and automated checks are implemented.
+See [lifecycle behavior and tests](lifecycle.md) for contracts, commands, measured
+resource counts, and remaining hardware checks. The wearer scene is
+`scripts/lifecycle-test.js`; do not equate synthetic disconnect coverage or
+SIGTERM cleanup with a completed physical controller or SteamVR-restart test.
+The user asked to move on from the physical-disconnect test as impractical; the
+wearer scene is stopped and remaining manual checks are deferred.
+
 ## Current direction: tracking API research
 
 The initial implementation now provides `getEyeTracking()`,

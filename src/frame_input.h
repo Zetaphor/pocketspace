@@ -23,6 +23,9 @@ public:
   void addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button="",bool down=false);
   void setHoveredObject(int hand,int objectId);
   bool reconnect();
+  void stop();
+  void resetScene();
+  void invalidateHand(int hand);
 private:
   uint16_t port_;
   int fd_=-1; std::string buffer_,fragment_; bool started_=false;

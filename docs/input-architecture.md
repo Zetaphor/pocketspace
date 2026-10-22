@@ -63,17 +63,19 @@ object ID for that hand, or zero when no surface is hovered.
 
 ## Failure modes and maintenance
 
-- SteamVR not running: connection startup fails; action and pose paths remain
-  available where supported.
-- SteamVR restarts: the native monitor marks a closed socket unavailable and the
-  main loop retries connection periodically; controller paths are resubscribed
-  on a successful reconnect.
+- SteamVR not running: native engine VR initialization fails. A standalone raw
+  monitor also reports connection startup failure.
+- Raw-stream loss while the VR session remains active clears input state and
+  event queues; reconnection/resubscription is attempted once per second with a
+  200 ms connection/upgrade deadline. SteamVR quit events instead end the engine
+  through cleanup; relaunch it after restarting SteamVR. See [lifecycle](lifecycle.md).
 - Protocol/schema changes: compare native output with `scripts/steam-frame-input.py`
   and update frame parsing, component normalization, and this document.
 - Controller role changes: refresh controller discovery and resubscribe paths.
 - Input focus: do not substitute `GetControllerState` for the WebSocket route;
   it is documented but unavailable in the tested overlay context.
-- Manipulation activation accepts raw trigger click or value state as well as
+- Manipulation activation accepts the configured trigger/grip/either click or
+  value state as well as
   the legacy native pointer state. The two-hand avocado/box headset probe
   verified independent custom-laser grabs without native pointer focus.
 
