@@ -51,7 +51,9 @@ The test is stopped. Individual control/grab checks were not separately reported
 CPU skeletal skinning is now implemented through the same API. CesiumMan and
 synthetic rig tests pass; the two-instance bounded run held about 89.3 FPS with
 `gl_error=0`. See [skinning verification](animation-api.md#skinning-verification).
-The run is stopped; wearer acceptance is pending. Morph playback, GPU skinning,
+The wearer accepted the two-character scene on `312dafc` (“All works”); about
+89.5–89.8 FPS with `gl_error=0`. Log: `/tmp/skinning-wearer-312dafc.log`.
+The test is stopped. Morph playback, GPU skinning,
 and clip blending remain later work.
 
 ## Current direction: tracking API research

@@ -221,4 +221,9 @@ Initial Deckard Release and generated-fixture/native tests passed. The bounded
 two-character run reported 89.3 FPS at 900 frames, independent playback states,
 and `gl_error=0`. Logs: `/tmp/skinning-regression.log` and
 `/tmp/skinning-runtime.log`. The run is stopped. Headset acceptance of skinning
-is pending; the earlier nine-clip wearer acceptance covered node animation only.
+subsequently passed on `312dafc`: the wearer ran the two-character scene and
+reported “All works” after the limb deformation, independent controls, stop/start,
+and grab instructions. The log reported about 89.5–89.8 FPS with `gl_error=0`:
+`/tmp/skinning-wearer-312dafc.log`. The scene is stopped. This is initial headset
+acceptance of CesiumMan and these controls; other rigs, larger scenes, and
+individual quantitative deformation/selection errors remain unmeasured.
