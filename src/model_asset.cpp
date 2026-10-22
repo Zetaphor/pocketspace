@@ -89,6 +89,11 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   if(!std::isfinite(extent)||extent<=0)return false;
   float scale=1.f/extent;
   for(auto &part:out.primitives)for(size_t i=0;i<part.vertices.size();i+=5)for(int axis=0;axis<3;axis++)part.vertices[i+axis]=(part.vertices[i+axis]-(low[axis]+high[axis])*.5f)*scale;
+  // Picking bounds must use the same centered, normalized space as vertices.
+  for(int axis=0;axis<3;axis++){
+    out.low[axis]=(low[axis]-high[axis])*.5f*scale;
+    out.high[axis]=(high[axis]-low[axis])*.5f*scale;
+  }
   std::fprintf(stdout,"[model] loaded %s parts=%zu triangles=%zu skin=%d morph=%d animation=%d\n",path.c_str(),out.primitives.size(),[&]{size_t n=0;for(auto &p:out.primitives)n+=p.vertexCount/3;return n;}(),out.hasSkin,out.hasMorph,out.hasAnimation);
   std::fflush(stdout);
   return true;

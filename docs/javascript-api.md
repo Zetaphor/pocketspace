@@ -122,6 +122,9 @@ a grab from either hand's raw trigger, independent of SteamVR native laser focus
 Its length stops at a hit and remains fixed during a grab except when depth
 adjustment moves the model. Release follows trigger release, including after
 brief tracking or native pointer focus loss.
+When a custom laser is visible, native rectangular object surfaces cannot
+override its mesh selection. A new laser grab requires a current triangle hit;
+the brief hover grace period cannot start a grab through empty space.
 
 Interaction events are delivered through the input event queue and callback.
 The event model includes controller button/value events and overlay pointer and
@@ -131,7 +134,8 @@ diagnostic event fields. Grab start/move/end, `overlay.move`, and `overlay.rotat
 native manipulation. Move/grab events include `dx`, `dy`, and `dz`; rotation
 events include `dpitch`, `dyaw`, and `droll`. Mesh hover emits `overlay.meshHoverStart` and
 `overlay.meshHoverEnd` using the controller aim ray, transformed model
-triangles, and a small bounds fallback for near misses. Queue polling and
+triangles. Bounds reject distant candidates but do not turn triangle misses
+into hits, preserving openings and concave gaps. Queue polling and
 callbacks receive independent copies of each
 event.
 

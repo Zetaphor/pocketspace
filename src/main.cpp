@@ -49,7 +49,7 @@ struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{
 static ControllerSnapshot controllers[2];
 static controller_input::Input controllerInput;
 static frame_input::Monitor frameInput;
-static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0};static float meshHitDistance[2]={2.f,2.f};
+static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0},meshCurrentObject[2]={0,0};static float meshHitDistance[2]={2.f,2.f};
 static std::chrono::steady_clock::time_point meshLastHit[2]{};
 struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
 static std::map<int,PointerSnapshot> pointerStates;
@@ -530,8 +530,9 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
       for(auto &candidate:scene.objects){
         if(!candidate.visible||!candidate.autoManipulate||!candidate.grabbable||ownedByOther(candidate.id))continue;
         auto pointer=pointerStates.find(candidate.id);
-        const bool nativeDown=pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
-        const bool laserDown=meshHoveredObject[h]==candidate.id&&frameTriggerDown(h);
+        // Native surfaces are rectangles: custom lasers must acquire only a current mesh hit.
+        const bool nativeDown=!scene.laserVisible[h]&&pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
+        const bool laserDown=meshCurrentObject[h]==candidate.id&&frameTriggerDown(h);
         if(nativeDown||laserDown){
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
           const float reach=.10f+candidate.scale*.5f;
@@ -585,7 +586,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     }
   }
 }
-static bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
+static bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];}for(int i=0;i<3;i++){p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
 static float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex){
   if(!hand.valid)return std::numeric_limits<float>::max();
   constexpr float tilt=.6981317008f;
@@ -595,40 +596,63 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
     for(int axis=0;axis<3;axis++)origin[row]+=hand.rotation[row*3+axis]*tip[axis];
     direction[row]=-std::sin(tilt)*hand.rotation[row*3+1]-std::cos(tilt)*hand.rotation[row*3+2];
   }
-  float best=std::numeric_limits<float>::max();
-  const float cp=std::cos(object.pitch),sp=std::sin(object.pitch),cy=std::cos(object.yaw),sy=std::sin(object.yaw),cr=std::cos(object.roll),sr=std::sin(object.roll);
-  const float centerX=(asset.low[0]+asset.high[0])*.5f*object.scale,centerY=(asset.low[1]+asset.high[1])*.5f*object.scale,centerZ=(asset.low[2]+asset.high[2])*.5f*object.scale;
-  const float rotatedX=cr*centerX-sr*centerY,rotatedY=sr*centerX+cr*centerY;
-  const float pitchedY=cp*rotatedY-sp*centerZ,pitchedZ=sp*rotatedY+cp*centerZ;
-  const float center[3]={object.x+cy*rotatedX+sy*pitchedZ,object.y+pitchedY,object.z+sy*rotatedX-cy*pitchedZ};
-  const float halfX=(asset.high[0]-asset.low[0])*.5f*object.scale,halfY=(asset.high[1]-asset.low[1])*.5f*object.scale,halfZ=(asset.high[2]-asset.low[2])*.5f*object.scale;
-  const float outerRadiusSquared=halfX*halfX+halfY*halfY+halfZ*halfZ;
-  const float radius=std::max(.03f,std::min({halfX,halfY,halfZ})+.02f);
-  const float radiusSquared=radius*radius;
-  float along=0,centerDistanceSquared=0;
-  for(int axis=0;axis<3;axis++){const float delta=center[axis]-origin[axis];along+=delta*direction[axis];centerDistanceSquared+=delta*delta;}
-  if(along<0&&centerDistanceSquared>outerRadiusSquared)return best;
-  if(centerDistanceSquared-along*along>outerRadiusSquared)return best;
-  for(const auto &part:asset.primitives)for(size_t index=0;index+14<part.vertices.size();index+=15){
-    float triangle[3][3];
-    for(int vertex=0;vertex<3;vertex++){
-      const float x=part.vertices[index+vertex*5]*object.scale,y=part.vertices[index+vertex*5+1]*object.scale,z=part.vertices[index+vertex*5+2]*object.scale;
-      const float rotatedX=cr*x-sr*y,rotatedY=sr*x+cr*y;
-      const float pitchedY=cp*rotatedY-sp*z,pitchedZ=sp*rotatedY+cp*z;
-      triangle[vertex][0]=object.x+cy*rotatedX+sy*pitchedZ;
-      triangle[vertex][1]=object.y+pitchedY;
-      triangle[vertex][2]=object.z+sy*rotatedX-cy*pitchedZ;
-    }
-    float distance;
-    if(rayTriangle(origin,direction,triangle[0],triangle[1],triangle[2],distance))best=std::min(best,distance);
+  const float miss=std::numeric_limits<float>::max();
+  if(object.scale<=0)return miss;
+  // Invert the renderer's F*R transform once per ray, rather than applying it
+  // to every triangle. Keep direction unit length; convert hit distance back.
+  float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
+  const float delta[3]={origin[0]-object.x,origin[1]-object.y,-(origin[2]-object.z)};
+  const float reflectedDirection[3]={direction[0],direction[1],-direction[2]};
+  float localOrigin[3]{},localDirection[3]{};
+  for(int axis=0;axis<3;axis++)for(int row=0;row<3;row++){
+    localOrigin[axis]+=rotation[row*3+axis]*delta[row]/object.scale;
+    localDirection[axis]+=rotation[row*3+axis]*reflectedDirection[row];
   }
-  if(best<std::numeric_limits<float>::max())return best;
-  if(along<=0||centerDistanceSquared<=radiusSquared)return best;
-  if(centerDistanceSquared-along*along>radiusSquared)return best;
-  const float entry=along-std::sqrt(std::max(0.f,radiusSquared-(centerDistanceSquared-along*along)));
-  return entry>.05f&&entry<=2.f?entry:std::numeric_limits<float>::max();
+  // Slab bounds are rejection-only; openings still require a triangle hit.
+  float near=0,far=miss;
+  for(int axis=0;axis<3;axis++){
+    if(std::fabs(localDirection[axis])<1e-8f){
+      if(localOrigin[axis]<asset.low[axis]||localOrigin[axis]>asset.high[axis])return miss;
+    }else{
+      float a=(asset.low[axis]-localOrigin[axis])/localDirection[axis];
+      float b=(asset.high[axis]-localOrigin[axis])/localDirection[axis];
+      if(a>b)std::swap(a,b);
+      near=std::max(near,a);far=std::min(far,b);
+      if(near>far)return miss;
+    }
+  }
+  float best=miss;
+  for(const auto &part:asset.primitives)for(size_t index=0;index+14<part.vertices.size();index+=15){
+    const float *triangle=part.vertices.data()+index;
+    float distance;
+    if(rayTriangle(localOrigin,localDirection,triangle,triangle+5,triangle+10,distance))best=std::min(best,distance);
+  }
+  return best==miss?miss:best*object.scale;
 }
 int main(int argc,char **argv) {
+  // CPU-only workload: no SteamVR session or graphics context required.
+  if(argc>2&&std::string(argv[1])=="--benchmark-picking"){
+    ModelAsset asset;if(!loadModelFile(argv[2],asset))return 1;
+    Object object{1,1,0,0,0,.4f,.5f};
+    ControllerSnapshot hand;hand.valid=true;
+    constexpr float tilt=.6981317008f;
+    const float c=std::cos(tilt),s=std::sin(tilt);
+    const float rotation[9]={1,0,0,0,c,-s,0,s,c};
+    std::copy(rotation,rotation+9,hand.rotation);
+    hand.y=-(-.02522f*c-.020687f*s);
+    hand.z=1.f-(-.02522f*s+.020687f*c);
+    int hits=0;double checksum=0;
+    const auto start=std::chrono::steady_clock::now();
+    constexpr int frames=200;
+    for(int frame=0;frame<frames;frame++)for(int h=0;h<2;h++){
+      hand.x=(h==0?-.012694f:.012694f)+((frame%21)-10)*.012f;
+      const float distance=meshHit(object,asset,hand,h);
+      if(distance<std::numeric_limits<float>::max()){hits++;checksum+=distance;}
+    }
+    const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+    fprintf(stdout,"[benchmark] frames=%d hands=2 picking_ms=%.4f hits=%d checksum=%.6f\n",frames,ms/frames,hits,checksum);
+    return 0;
+  }
   if(argc>2&&std::string(argv[1])=="--inspect"){
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
   }
@@ -745,6 +769,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
+  double pickingMs=0,renderMs=0,finishMs=0;
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
   while(running){
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,.011f,poses,vr::k_unMaxTrackedDeviceCount);
@@ -831,6 +856,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     }
     controllerInput.poll();
     frameInput.poll();
+    const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){
       int hit=0;float nearest=std::numeric_limits<float>::max();
       for(const auto &object:script.scene.objects){
@@ -839,6 +865,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         const float distance=meshHit(object,asset,controllers[hand],hand);
         if(distance<nearest){nearest=distance;hit=object.id;}
       }
+      meshCurrentObject[hand]=hit;
       const auto now=std::chrono::steady_clock::now();
       if(hit)meshLastHit[hand]=now;
       else if(meshHoveredObject[hand]&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
@@ -851,6 +878,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       }
       meshHitDistance[hand]=std::min(nearest,2.f);
     }
+    pickingMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
     if(!frameInput.started() && frame%900==0)frameInput.reconnect();
     if(inputCallbackCtx){auto events=frameInput.takeCallbackEvents();for(const auto &event:events){JSValue value=inputEventValue(inputCallbackCtx,event);JSValue result=JS_Call(inputCallbackCtx,inputCallback,JS_UNDEFINED,1,&value);JS_FreeValue(inputCallbackCtx,value);if(JS_IsException(result))JS_FreeValue(inputCallbackCtx,JS_GetException(inputCallbackCtx));else JS_FreeValue(inputCallbackCtx,result);}}
     updateManipulation(script.scene,grabs,1.f/90.f);
@@ -872,6 +900,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         if(device!=vr::k_unTrackedDeviceIndexInvalid)pose=poses[device];
         updateLaser(lasers[hand],laserShown[hand],script.scene.laserVisible[hand],hand,pose,head,meshHitDistance[hand]);
       }
+      const auto renderStart=std::chrono::steady_clock::now();
       std::vector<Surface*> ready;
       for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end())continue;if(!panelData.texture||!panelData.visible){overlays->HideOverlay(h->second);continue;}auto &texture=panelTextures[panelData.id];texture={reinterpret_cast<void*>(static_cast<uintptr_t>(panelData.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};auto panelError=overlays->SetOverlayTexture(h->second,&texture);if(panelError!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,(int)panelError);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="arbitrary"){for(int row=0;row<3;row++)for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panelData.rotation[axis*3+col];transform.m[row][col]=value;}}if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
       for(auto &[id,surface]:surfaces){
@@ -926,7 +955,11 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         }
         ready.push_back(surface.get());
       }
-      glFinish();glBindFramebuffer(GL_FRAMEBUFFER,0);
+      const auto finishStart=std::chrono::steady_clock::now();
+      renderMs+=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();
+      glFinish();
+      finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
+      glBindFramebuffer(GL_FRAMEBUFFER,0);
       for(auto *surface:ready){
         auto &buffer=surface->buffers[frame%3];
         vr::Texture_t texture{&buffer.handle,vr::TextureType_SharedTextureHandle,vr::ColorSpace_Gamma};
@@ -935,6 +968,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         if(!surface->shown){overlays->ShowOverlay(surface->overlay);surface->shown=true;}
       }
       ++frame;
+      if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900);pickingMs=renderMs=finishMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
     next+=std::chrono::microseconds(11111);std::this_thread::sleep_until(next);
