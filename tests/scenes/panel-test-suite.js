@@ -16,7 +16,7 @@ const modePanels = [
 });
 const temporary=createPanel({widthPixels:64,heightPixels:32,widthMeters:.1});
 temporary.canvas.clear(255,0,0,255);temporary.canvas.present();
-const imagePath='assets/panel-test.png';
+const imagePath='assets/panel-icon.png';
 const asset=loadModel('assets/Avocado.glb',768);
 const object=createObject(asset,-.58,-.05,0,.24);
 setObjectInteraction(object,{grabbable:true,directGrab:true,laserYaw:true,depthAdjust:true,

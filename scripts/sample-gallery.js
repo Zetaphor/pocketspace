@@ -1,4 +1,4 @@
-// Three distinct Khronos samples share one world-anchored stereo overlay.
+// Three model assets with independent object transforms.
 const box = loadModel("assets/samples/Box/Box.glb");
 const car = loadModel("assets/samples/ToyCar/ToyCar.glb");
 const lantern = loadModel("assets/samples/Lantern/Lantern.glb");

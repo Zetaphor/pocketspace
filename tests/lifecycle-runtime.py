@@ -1,5 +1,5 @@
 """Deckard integration: repeated reload rollback, callbacks, removal and shutdown.
-Run after compiling scripts/lifecycle-probe.cpp as /tmp/sf-lifecycle-probe.
+Run after compiling tests/tools/lifecycle-probe.cpp as /tmp/sf-lifecycle-probe.
 No SteamVR restart or controller power cycling is performed by this script.
 """
 from pathlib import Path

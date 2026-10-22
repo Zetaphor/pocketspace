@@ -16,7 +16,8 @@ add_executable(sf-overlay-engine src/main.cpp src/model_asset.cpp src/controller
 # Explicit regression target: uses the actual QuickJS loader without starting VR.
 add_executable(lifecycle-script-regression EXCLUDE_FROM_ALL tests/lifecycle-script-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 add_executable(animation-regression EXCLUDE_FROM_ALL tests/animation-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
-foreach(engine_target sf-overlay-engine lifecycle-script-regression animation-regression)
+add_executable(examples-regression EXCLUDE_FROM_ALL tests/examples-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
+foreach(engine_target sf-overlay-engine lifecycle-script-regression animation-regression examples-regression)
   target_include_directories(${engine_target} PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${DRM_INCLUDE})
   target_link_directories(${engine_target} PRIVATE ${STEAMVR_BIN})
   target_link_libraries(${engine_target} PRIVATE openvr_api ${QJS_LIB} Freetype::Freetype pthread EGL GLESv2 gbm drm m)
@@ -25,3 +26,5 @@ endforeach()
 target_compile_options(lifecycle-script-regression PRIVATE -UNDEBUG)
 
 target_compile_options(animation-regression PRIVATE -UNDEBUG)
+
+target_compile_options(examples-regression PRIVATE -UNDEBUG)

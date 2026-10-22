@@ -12,7 +12,7 @@ int main(int argc,char **argv){
   vr::EVRInitError error;vr::VR_Init(&error,vr::VRApplication_Overlay);
   if(error!=vr::VRInitError_None){fprintf(stderr,"init=%d\n",int(error));return 1;}
   auto *input=vr::VRInput();auto *system=vr::VRSystem();
-  const auto manifest=std::filesystem::absolute("cfg/tracking-probe/actions.json").string();
+  const auto manifest=std::filesystem::absolute("tests/fixtures/tracking-probe/actions.json").string();
   const auto manifestError=input->SetActionManifestPath(manifest.c_str());
   printf("manifest=%d SDK=%s system=%s scene_pid=%u\n",int(manifestError),vr::IVRInput_Version,vr::IVRSystem_Version,vr::VRApplications()->GetCurrentSceneProcessId());
   if(manifestError!=vr::VRInputError_None){vr::VR_Shutdown();return 2;}

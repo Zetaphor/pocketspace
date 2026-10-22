@@ -1,8 +1,8 @@
 # Khronos glTF sample assets
 
-These seven unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The model files are test fixtures for this engine; their inclusion does not imply the engine supports every feature shown.
+These seven unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The files provide examples of glTF features; inclusion does not imply the engine supports every feature shown.
 
-| Model | Feature used for testing | License summary |
+| Model | glTF feature | License summary |
 | --- | --- | --- |
 | Box | Geometry without a texture | CC BY 4.0, Cesium |
 | Lantern | Several meshes and embedded textures | CC0, Microsoft and Frank Galligan |

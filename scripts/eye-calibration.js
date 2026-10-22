@@ -60,6 +60,6 @@ function update(){
   c.text(24,70,`${index<9?'Training':'Validation'} ${Math.min(index+1,14)}/14 | gaze ${gaze.status}`,180,220,255,255,22);
   c.text(24,110,'Keep head still. Look at circle. Tap either trigger.',220,230,240,255,22);
   if(!done){const t=(index<9?training:validation)[index<9?index:index-9];c.circle(t[0],t[1],25,240,195,80,255,false);c.circle(t[0],t[1],3,240,195,80,255,true);}
-  c.text(24,650,message,220,220,180,255,18);c.text(24,700,'Bumper restarts. Controller covers can interfere with finger sensors.',180,200,220,255,18);c.present();
+  c.text(24,650,message,220,220,180,255,18);c.text(24,700,'Bumper restarts the full calibration.',180,200,220,255,18);c.present();
 }
 print('EYE_CALIBRATION_READY 9 training + 5 validation targets; trigger captures; bumper restarts');

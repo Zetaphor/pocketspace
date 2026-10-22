@@ -4,7 +4,7 @@ import importlib.util
 import sys
 sys.dont_write_bytecode = True
 from pathlib import Path
-spec = importlib.util.spec_from_file_location('analysis', Path(__file__).resolve().parents[1] / 'scripts/analyze-gaze-accuracy.py')
+spec = importlib.util.spec_from_file_location('analysis', Path(__file__).resolve().parents[1] / 'tests/tools/analyze-gaze-accuracy.py')
 analysis = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(analysis)
 points = []

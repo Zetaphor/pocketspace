@@ -31,7 +31,7 @@ document = {
 metadata = json.dumps(document, separators=(',', ':')).encode()
 metadata += b' ' * (-len(metadata) % 4)
 binary += b'\0' * (-len(binary) % 4)
-output = Path(__file__).resolve().parents[1] / 'assets/tests/HollowFrame.glb'
+output = Path(__file__).resolve().parents[2] / 'assets/tests/HollowFrame.glb'
 output.write_bytes(struct.pack('<III', 0x46546c67, 2, 28+len(metadata)+len(binary))
                    + struct.pack('<II', len(metadata), 0x4e4f534a) + metadata
                    + struct.pack('<II', len(binary), 0x004e4942) + binary)
