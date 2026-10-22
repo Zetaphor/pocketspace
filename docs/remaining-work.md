@@ -22,8 +22,8 @@ Laser pitch is no longer important to the user and is removed from active work.
 Per-object `grabButton: 'trigger' | 'grip' | 'both'` is implemented through
 `setObjectInteraction` and the options form of `enableObjectInteraction`.
 The existing selection/direct-mode rules remain; this adds configurable button
-choice, not proximity-only acquisition. Next validate the labeled three-box
-scene in the headset; see [API and checks](javascript-api.md#grab-button-verification).
+choice, not proximity-only acquisition. The wearer accepted the labeled
+three-box test on `ab8a5c1` (“Works great”); see [API and checks](javascript-api.md#grab-button-verification).
 
 ## Verified baseline
 
@@ -63,7 +63,7 @@ and the excluded high-triangle car; performance isolation is the next priority.
 1. **Validate model selection beyond the avocado and box.** The picker tests transformed triangles and uses a small bounds fallback for near misses. Exercise concave, thin, rotated, overlapping, and high-triangle models, including Toy Car and Lantern. Check false picks through gaps, nearest-object choice, per-hand isolation, hover stability, and the beam endpoint. Tighten or replace the fallback where it selects empty space. Done when both hands can select and release the intended model in those cases without selecting a nearer gap or an object behind it.
 2. **Optimize high-triangle picking.** The avocado/box probe held 90 FPS, but the earlier Toy Car probe ran near 31 FPS with a 108,936-triangle asset. Measure render time separately from picking time, then add a suitable acceleration structure or cheaper broad phase if picking is material to the slowdown. Done when the chosen multi-model test scene meets an agreed headset frame-time target without lag or ghosting.
 3. **Laser pitch — no longer planned.** Removed from active work at the user's request. The existing experimental `laserPitchWithStickClick` option remains unverified; no further implementation or headset validation is planned.
-4. **Configurable grab buttons — implemented, wearer checks pending.** Objects can allow trigger, grip, or either for existing laser/direct grabs. The original trigger default and legacy interaction helper remain compatible. Validate both hands, disallowed-button rejection, either-button handover, release, and panel input using `scripts/grab-buttons-test.js`. Independent proximity-only pickup is outside this change.
+4. **Configurable grab buttons — implemented and wearer accepted.** Objects can allow trigger, grip, or either for existing laser/direct grabs. The original trigger default and legacy interaction helper remain compatible. The wearer accepted `scripts/grab-buttons-test.js` on `ab8a5c1`; the run held about 89.6–90 FPS with `gl_error=0`. Broader per-step, ownership, and panel-input regression coverage remains available. Independent proximity-only pickup is outside this change.
 
 ## Input and reliability
 

@@ -23,7 +23,9 @@ optimizations remain deferred by user direction.
 Laser pitch is no longer planned. Configurable trigger/grip/either-button grabs
 are implemented with per-object `grabButton` options. See
 [object API](javascript-api.md#object-interaction) for compatibility details and
-[grab checks](javascript-api.md#grab-button-verification) for the next wearer run.
+[grab checks](javascript-api.md#grab-button-verification) for test coverage.
+The wearer accepted the three-box test on `ab8a5c1` (“Works great”); runtime
+reported about 89.6–90 FPS with `gl_error=0`. The test is stopped.
 This preserves existing mesh acquisition; it does not add proximity-only pickup.
 
 ## Current direction: tracking API research
@@ -138,7 +140,7 @@ Use one test scene at a time. Redirect output to a named `/tmp/` log when runnin
 
 ## Remaining work and constraints
 
-Read [remaining work](remaining-work.md) for prioritized work and completion checks. Configurable grab buttons are implemented; next validate their headset behavior. Laser pitch is no longer planned; selection coverage remains available for follow-up and further performance work is deferred. The Toy Car probe used a 108,936-triangle asset and ran near 31 FPS; the cause was not isolated. Do not present that slowdown as a proven picking bottleneck.
+Read [remaining work](remaining-work.md) for prioritized work and completion checks. Configurable grab buttons are implemented and initially accepted in the headset. Laser pitch is no longer planned; selection coverage remains available for follow-up and further performance work is deferred. The Toy Car probe used a 108,936-triangle asset and ran near 31 FPS; the cause was not isolated. Do not present that slowdown as a proven picking bottleneck.
 
 The `vrserver` input WebSocket is undocumented. If controller events stop after a SteamVR update, compare `src/frame_input.cpp` with `scripts/steam-frame-input.py` before changing action mappings. The documented SteamVR action API did not provide complete global button input in the tested overlay context.
 

@@ -255,4 +255,14 @@ works. Runtime startup and synthetic checks do not establish those wearer result
 Deckard Release build, QuickJS API smoke, and labeled-scene startup passed.
 Runtime logs: `/tmp/grab-buttons-api-smoke.log` and
 `/tmp/grab-buttons-startup.log`. Both bounded runs stopped. Wearer interaction
-checks have not yet been performed for these new button policies.
+checks subsequently passed the initial wearer acceptance below.
+
+Wearer acceptance on `ab8a5c1`: `scripts/grab-buttons-test.js` was launched with
+left trigger-only, middle grip-only, and right either-button boxes. After the
+allowed/disallowed-button, release, either-button handover, and both-hand test
+instructions, the wearer reported “Works great.” The log records grab start/end
+activity and about 89.6–90 FPS with `gl_error=0`:
+`/tmp/grab-buttons-wearer-ab8a5c1.log`. The scene was stopped afterward. This is
+initial wearer acceptance of the requested button selection; individual test
+steps, simultaneous ownership, near-hand rotation, and panel interactions were
+not separately reported and remain available as broader regression checks.
