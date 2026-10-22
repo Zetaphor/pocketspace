@@ -1,15 +1,16 @@
 #pragma once
-#include <openvr.h>
+#include "tracking_state.h"
 #include <map>
 #include <string>
 #include <vector>
 
 namespace frame_input {
-struct Component { bool boolean=false; float value=0; bool isBoolean=false; };
+struct Component { bool boolean=false; float value=0; bool isBoolean=false; tracking::Clock::time_point updatedAt{}; };
 struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; };
-struct HandState { bool valid=false; std::map<std::string,Component> raw; };
+struct HandState { bool valid=false; std::map<std::string,Component> raw; tracking::Clock::time_point updatedAt{}; };
 class Monitor {
 public:
+  explicit Monitor(uint16_t port=27062):port_(port){}
   ~Monitor();
   bool start();
   bool started() const { return started_; }
@@ -23,8 +24,10 @@ public:
   void setHoveredObject(int hand,int objectId);
   bool reconnect();
 private:
+  uint16_t port_;
   int fd_=-1; std::string buffer_,fragment_; bool started_=false;
   HandState hands_[2]; int hovered_[2]={0,0}; std::vector<Event> events_,callbackEvents_;
+  void disconnect();
   bool sendFrame(unsigned char opcode,const std::string &payload);
   void processMessage(const std::string &message);
 };

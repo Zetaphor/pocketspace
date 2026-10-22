@@ -1,5 +1,6 @@
 #include "controller_input.h"
 #include <filesystem>
+#include <algorithm>
 #include <fstream>
 #include <cstdio>
 #include <unistd.h>
@@ -43,19 +44,48 @@ bool Input::init(const std::string &root,const std::string &executable){
   }
   input->GetActionHandle("/actions/hands/out/haptic",&haptic_);
   for(int h=0;h<2;h++)if(input->GetInputSourceHandle(h?"/user/hand/right":"/user/hand/left",&sources_[h])!=vr::VRInputError_None)return false;
+  input->GetActionSetHandle("/actions/eyes",&eyeSet_);
+  input->GetActionHandle("/actions/eyes/in/gaze",&gaze_);
   ready_=true;fprintf(stdout,"[input] SteamVR Frame actions ready\n");return true;
 }
-void Input::poll(){
+void Input::poll(bool requestEye,bool requestFoveation){
+  eye_={};foveation_={};
+  eye_.status=requestEye?"notReady":"notRequested";
+  if(requestFoveation&&vr::VRSystem()){
+    auto &f=foveation_;f.available=true;
+    vr::HmdVector2_t left{},right{};
+    f.valid=vr::VRSystem()->GetEyeTrackedFoveationCenter(&left,&right);
+    f.polledAt=tracking::Clock::now();
+    for(int i=0;i<2;i++){f.left[i]=left.v[i];f.right[i]=right.v[i];f.valid=f.valid&&std::isfinite(left.v[i])&&std::isfinite(right.v[i]);}
+  }
   for(auto &h:hands_)h=Hand{};
   if(!ready_)return;
   auto *input=vr::VRInput();
-  vr::VRActiveActionSet_t active{};active.ulActionSet=set_;active.ulRestrictedToDevice=vr::k_ulInvalidInputValueHandle;
-  active.nPriority=0;
-  auto updateError=input->UpdateActionState(&active,sizeof(active),1);
+  std::array<vr::VRActiveActionSet_t,2> active{};
+  active[0].ulActionSet=set_;active[0].nPriority=0;
+  eye_.configured=eyeSet_!=vr::k_ulInvalidActionSetHandle&&gaze_!=vr::k_ulInvalidActionHandle;
+  if(requestEye)eye_.scenePid=vr::VRApplications()->GetCurrentSceneProcessId();
+  const bool readEye=tracking::canPollGaze(requestEye,eye_.configured,eye_.scenePid);
+  eye_.suppressed=requestEye&&eye_.scenePid!=0;
+  if(eye_.suppressed)eye_.status="sceneAppActive";
+  active[1].ulActionSet=eyeSet_;active[1].nPriority=vr::k_nActionSetOverlayGlobalPriorityMin;
+  auto updateError=input->UpdateActionState(active.data(),sizeof(active[0]),readEye?2:1);
   if(updateError!=vr::VRInputError_None){
+    if(readEye){eye_.error=int(updateError);eye_.status="error";}
     static vr::EVRInputError lastError=vr::VRInputError_None;
     if(updateError!=lastError){fprintf(stderr,"[input] UpdateActionState error=%d\n",int(updateError));lastError=updateError;}
     return;
+  }
+  if(readEye){
+    vr::VREyeTrackingData_t data{};
+    const auto error=input->GetEyeTrackingDataRelativeToNow(gaze_,vr::TrackingUniverseStanding,0,&data,sizeof(data));
+    eye_.polledAt=tracking::Clock::now();eye_.error=int(error);
+    if(error==vr::VRInputError_None){
+      eye_.active=data.bActive;eye_.valid=data.bValid;eye_.tracked=data.bTracked;
+      std::copy(data.vGazeOrigin.v,data.vGazeOrigin.v+3,eye_.origin);
+      std::copy(data.vGazeTarget.v,data.vGazeTarget.v+3,eye_.target);
+      eye_.status=!data.bActive?"inactive":data.bValid?"valid":"invalid";
+    }else eye_.status="error";
   }
   for(int h=0;h<2;h++){
     for(unsigned i=0;i<index(Control::Count);i++){

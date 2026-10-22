@@ -68,6 +68,11 @@ tracking, and combined gaze from per-eye gaze/openness. Preserve overlay coexist
 with the primary VR application. Research findings will be recorded in
 [tracking research](tracking-research.md).
 
+The initial [tracking API](tracking-api.md) now exposes combined OpenVR gaze,
+per-eye foveation NDC, and global raw finger sensors. Headset alignment/finger
+exercises and primary-app coexistence are next. Native skeletal activation,
+bare-hand tracking, eye openness, and the experimental mmap backend remain open.
+
 ## Later engine milestones
 
 7. **Scale scene performance.** Measure frame time, GPU/shared memory, overlay count, and Frametop responsiveness as objects, textures, panels, and per-eye resolution increase. The current 768-pixel default is the known usable starting point; 512 pixels looked too blurry, while three 2048-pixel surfaces lagged in headset testing.

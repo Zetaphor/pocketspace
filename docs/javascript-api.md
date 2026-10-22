@@ -2,6 +2,16 @@
 
 This document describes the QuickJS API exposed by `sf-overlay-engine`.
 
+## Eye and finger tracking
+
+`getEyeTracking()` returns combined gaze in scene coordinates;
+`getEyeFoveationCenters()` returns separate per-eye NDC centers;
+`getFingerTracking("left"|"right")` returns raw capacitance/contact channels
+with explicit availability, null missing values, and freshness metadata.
+See [tracking API](tracking-api.md) for their full contracts and test scenes.
+Gaze-action polling is suppressed while another scene application is running.
+Native skeleton poses, bare-hand tracking, and eye openness are not implemented.
+
 ## Controller input
 
 `getControllerInput("left"|"right")` returns the latest globally observed Steam
