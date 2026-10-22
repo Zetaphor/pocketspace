@@ -33,7 +33,7 @@ checkout; Deckard is the SteamVR build and runtime host. See
 
 ## Current API and controls
 
-`setObjectInteraction(id, {laserPassThrough, grabbable, directGrab, laserYaw,
+`setObjectInteraction(id, {laserPassThrough, grabbable, grabButton, directGrab, laserYaw,
 depthAdjust, handRotationAxes: {pitch, yaw, roll}})` configures each object.
 Grabbable objects force `laserPassThrough` off. `setLaserVisible(hand, bool)`
 controls the optional visual beam. `loadModel(path, eyePixels)` chooses the
@@ -64,10 +64,11 @@ undocumented SteamVR behavior and may change across updates.
 1. **Laser pitch — no longer planned:** The user removed this feature from
    active work. Existing `laserPitchWithStickClick` behavior remains experimental
    and unverified; no further implementation or validation is planned.
-2. **Direct pickup gesture:** Near-hand pickup currently uses the controller
-   trigger. Grip click switches or disables the SteamVR laser. A
-   dedicated grip-based grab remains to be implemented; raw trigger grabs work
-   independently of native pointer ownership.
+2. **Grab button choice — implemented:** Per-object `grabButton` selects trigger,
+   grip, or either button for existing laser and direct grabs. Trigger remains
+   the default. Near-hand mode still requires current mesh selection; this does
+   not add proximity-only pickup. Native/synthetic checks and wearer acceptance
+   are distinguished in [API verification](javascript-api.md#grab-button-verification).
 3. **Action input:** The engine has an action manifest and Steam Frame binding
    map for grip, trigger, sticks, bumpers, face buttons, and haptics. Probes
    did not receive active action data while native overlay laser input was in

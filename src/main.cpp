@@ -38,9 +38,11 @@ static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
+enum class GrabButton { Trigger, Grip, Both };
 struct Object {
   int id,asset;float x,y,z,scale,yaw,pitch=0,roll=0;
   bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true,autoManipulate=false;
+  GrabButton grabButton=GrabButton::Trigger;
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
   bool handPitch=false,handYaw=false,handRoll=false;
 };
@@ -318,9 +320,28 @@ static Object *findObject(int id){
   for(auto &object:currentScene->objects)if(object.id==id)return &object;
   return nullptr;
 }
+static bool readGrabButton(JSContext *ctx,JSValueConst options,GrabButton &button){
+  JSValue value=JS_GetPropertyStr(ctx,options,"grabButton");
+  if(JS_IsException(value))return false;
+  if(JS_IsUndefined(value)){JS_FreeValue(ctx,value);return true;}
+  if(!JS_IsString(value)){JS_FreeValue(ctx,value);JS_ThrowTypeError(ctx,"grabButton must be trigger, grip, or both");return false;}
+  const char *text=JS_ToCString(ctx,value);JS_FreeValue(ctx,value);if(!text)return false;
+  std::string name=text;JS_FreeCString(ctx,text);
+  if(name=="trigger")button=GrabButton::Trigger;
+  else if(name=="grip")button=GrabButton::Grip;
+  else if(name=="both")button=GrabButton::Both;
+  else{JS_ThrowRangeError(ctx,"grabButton must be trigger, grip, or both");return false;}
+  return true;
+}
 static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectInteraction(objectId) requires a live object");
-  auto *object=findObject(id);object->laserPassThrough=false;object->grabbable=true;
+  auto *object=findObject(id);GrabButton button=object->grabButton;
+  const bool options=argc>1&&!JS_IsUndefined(argv[1]);
+  if(options&&(!JS_IsObject(argv[1])||JS_IsNull(argv[1])))return JS_ThrowTypeError(ctx,"enableObjectInteraction(id, options) requires an options object");
+  if(options&&!readGrabButton(ctx,argv[1],button))return JS_EXCEPTION;
+  object->grabButton=button;object->laserPassThrough=false;object->grabbable=true;
+  // Keep the legacy one-argument helper available to scripts doing their own movement.
+  if(options)object->autoManipulate=true;
   auto &ids=currentScene->interactiveIds;
   if(std::find(ids.begin(),ids.end(),id)==ids.end()){
     ids.push_back(id);
@@ -335,6 +356,8 @@ static JSValue jsEnableObjectSurface(JSContext *ctx,JSValueConst,int argc,JSValu
 static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!JS_IsObject(argv[1]))return JS_ThrowTypeError(ctx,"setObjectInteraction(id, options)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  GrabButton button=object->grabButton;if(!readGrabButton(ctx,argv[1],button))return JS_EXCEPTION;
+  object->grabButton=button;
   auto readBool=[&](const char *name,bool &value){JSValue field=JS_GetPropertyStr(ctx,argv[1],name);if(!JS_IsUndefined(field))value=JS_ToBool(ctx,field)>0;JS_FreeValue(ctx,field);};
   readBool("laserPassThrough",object->laserPassThrough);
   readBool("grabbable",object->grabbable);
@@ -457,7 +480,7 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"getInput",jsGetInput,1);
   bind(candidate.ctx,"pulse",jsPulse,3);
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
-  bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,1);
+  bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,2);
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
@@ -656,6 +679,11 @@ static void objectRotationMatrix(float pitch,float yaw,float roll,float m[9]){
 static bool frameButtonDown(int hand,const char *path){auto it=frameInput.hand(hand).raw.find(path);return it!=frameInput.hand(hand).raw.end()&&it->second.isBoolean&&it->second.boolean;}
 static float frameAxis(int hand,const char *path){auto it=frameInput.hand(hand).raw.find(path);return it==frameInput.hand(hand).raw.end()?0.f:it->second.value;}
 static bool frameTriggerDown(int hand){return frameButtonDown(hand,"/input/trigger/click")||frameAxis(hand,"/input/trigger/value")>.2f;}
+static bool frameGrabDown(int hand,GrabButton button){
+  const bool trigger=button!=GrabButton::Grip&&frameTriggerDown(hand);
+  const bool grip=button!=GrabButton::Trigger&&(frameButtonDown(hand,"/input/grip/click")||frameAxis(hand,"/input/grip/value")>.2f);
+  return trigger||grip;
+}
 static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt){
   for(int h=0;h<2;h++){
     const auto &hand=controllers[h];
@@ -666,10 +694,10 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     if(object&&(!object->visible||!object->autoManipulate||!object->grabbable)){frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;}
     if(object){
       auto state=pointerStates.find(object->id);
-      const bool triggerDown=frameTriggerDown(h);
-      const bool nativeDown=state!=pointerStates.end()&&state->second.hand==h&&state->second.down;
-      if(grab.rawGrab)grab.releaseFrames=triggerDown?0:grab.releaseFrames+1;
-      if((grab.rawGrab&&grab.releaseFrames>=5)||(!grab.rawGrab&&!nativeDown)){
+      const bool buttonDown=frameGrabDown(h,object->grabButton);
+      const bool nativeDown=object->grabButton!=GrabButton::Grip&&state!=pointerStates.end()&&state->second.hand==h&&state->second.down;
+      if(grab.rawGrab)grab.releaseFrames=buttonDown?0:grab.releaseFrames+1;
+      if((grab.rawGrab&&grab.releaseFrames>=5)||(!grab.rawGrab&&!nativeDown&&!buttonDown)){
         frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;
       }
     }
@@ -678,14 +706,14 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
         if(!candidate.visible||!candidate.autoManipulate||!candidate.grabbable||ownedByOther(candidate.id))continue;
         auto pointer=pointerStates.find(candidate.id);
         // Native surfaces are rectangles: custom lasers must acquire only a current mesh hit.
-        const bool nativeDown=!scene.laserVisible[h]&&pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
-        const bool laserDown=meshCurrentObject[h]==candidate.id&&frameTriggerDown(h);
+        const bool nativeDown=candidate.grabButton!=GrabButton::Grip&&!scene.laserVisible[h]&&pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
+        const bool laserDown=meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton);
         if(nativeDown||laserDown){
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
           const float reach=.10f+candidate.scale*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
           beginGrab(grab,candidate,hand,direct);
-          grab.rawGrab=frameTriggerDown(h);
+          grab.rawGrab=frameGrabDown(h,candidate.grabButton);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
           grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,candidate.scale*.5f)),.02f,2.f);
           frameInput.addOverlayEvent("overlay.grabStart",candidate.id,h);object=&candidate;break;

@@ -59,10 +59,11 @@ setObjectVisible(object, true);
 removeObject(object);
 print("message");
 const right = getController("right"); // { valid, x, y, z, rotation[9] }
-enableObjectInteraction(object); // grabbable by either custom laser
+enableObjectInteraction(object); // legacy interaction events; script handles movement
+enableObjectInteraction(object, {grabButton: "grip"}); // native movement with grip
 setObjectInteraction(object, {laserPassThrough: true, grabbable: false});
 setObjectInteraction(object, {
-  grabbable: true, directGrab: true, laserYaw: true, depthAdjust: true,
+  grabbable: true, grabButton: "both", directGrab: true, laserYaw: true, depthAdjust: true,
   handRotationAxes: {pitch: true, yaw: true, roll: true}
 });
 setLaserVisible("left", true); // optional selection beam, also supports "right"
@@ -91,7 +92,10 @@ fixed world positions. By default, the SteamVR laser passes through them.
 `setObjectInteraction(object, {laserPassThrough, grabbable})` changes that
 behavior. A grabbable object always blocks the laser. An object can also block
 the laser without being grabbable. `enableObjectInteraction(object)` is the
-short form for a grabbable object. `enableObjectSurface(object)` remains a
+legacy event-oriented helper. Pass `{grabButton: "trigger"|"grip"|"both"}`
+as its second argument to enable native movement with the chosen grab button.
+`setObjectInteraction` accepts the same `grabButton` option; new objects default
+to trigger and `"both"` means either button can hold the object. `enableObjectSurface(object)` remains a
 compatibility no-op. The previous four-surface limit is gone; GPU memory and
 SteamVR overlay capacity remain practical limits for large scenes.
 `setLaserVisible(hand, visible)` draws a selection beam from either

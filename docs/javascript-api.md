@@ -133,13 +133,55 @@ an operator to inspect the display and use the controllers.
 Objects are created with `createObject` and configured with
 `setObjectInteraction`. Laser-grab, direct-grab, depth, yaw, and hand
 rotation options control native manipulation. A visible custom laser can start
-a grab from either hand's raw trigger, independent of SteamVR native laser focus.
+a grab from either hand's configured raw button, independent of SteamVR native laser focus.
 Its length stops at a hit and remains fixed during a grab except when depth
-adjustment moves the model. Release follows trigger release, including after
-brief tracking or native pointer focus loss.
+adjustment moves the model. Raw grabs release after all allowed buttons are up
+for five consecutive engine updates, including after brief tracking or native
+pointer focus loss. The default remains trigger.
 When a custom laser is visible, native rectangular object surfaces cannot
 override its mesh selection. A new laser grab requires a current triangle hit;
 the brief hover grace period cannot start a grab through empty space.
+
+Configure the allowed grab button per object:
+
+```js
+setObjectInteraction(id, {grabbable: true, grabButton: 'trigger'}); // default
+setObjectInteraction(id, {grabButton: 'grip'});
+setObjectInteraction(id, {grabButton: 'both'}); // either button, not a chord
+
+// Convenience helper: options opt into native movement.
+enableObjectInteraction(id, {grabButton: 'grip'});
+```
+
+`grabButton` accepts exactly `'trigger'`, `'grip'`, or `'both'`; other strings
+throw a range error, and non-string values throw a type error. Omitted or
+`undefined` values preserve the object's current setting. Newly created objects
+use `'trigger'`. Invalid button values are rejected before changing interaction
+settings. `setObjectInteraction()` still controls `grabbable`, `directGrab`,
+rotation, and the other existing options.
+
+With `'both'`, pressing either button acquires the object; it remains held while
+at least one is down, so you can hand over from trigger to grip without dropping
+it. Raw click or analog value greater than 0.2 counts as down for each button.
+The allowed buttons apply to acquisition and release for both distant laser grabs
+and the existing near-hand direct mode. Changing the option during a grab makes
+release follow the new setting. A grip-only object cannot be acquired through a
+native trigger-pointer event. Native pointer fallback remains available for
+trigger-enabled objects when custom lasers are hidden.
+
+Button choice does not change picking: a raw grab still requires a current mesh
+hit, including when a nearby object enters direct mode. This does not add
+proximity-only pickup. One object remains owned by at most one hand.
+
+`enableObjectInteraction(id, {grabButton})` makes the object grabbable, blocks laser
+pass-through, and enables native movement with the chosen button. Its optional
+options object recognizes `grabButton`; use `setObjectInteraction()` for other
+settings. For compatibility, `enableObjectInteraction(id)` (or an `undefined`
+second argument) retains its original event-oriented behavior: it marks the
+object interactive without enabling native movement on an object that did not
+already have it. Existing scripts that move objects themselves continue to work.
+A supplied empty options object enables native movement with the current/default
+button. Neither form resets an existing button choice.
 
 Interaction events are delivered through the input event queue and callback.
 The event model includes controller button/value events and overlay pointer and
@@ -161,6 +203,7 @@ const asset = loadModel("assets/Avocado.glb", 768);
 const id = createObject(asset, 0, 0, 0, .3);
 setObjectInteraction(id, {
   grabbable: true,
+  grabButton: 'both',
   directGrab: true,
   laserYaw: true,
   depthAdjust: true,
@@ -184,3 +227,32 @@ A headset/controller session is required to observe controller-valid state,
 hover transitions, mesh-hover transitions, or grab deltas. If no controllers are
 tracked, the script still verifies API loading and the complete empty-state
 shape.
+
+## Grab button verification
+
+Run `python3 tests/grab-buttons-regression.py` for the native manipulation state
+machine: both hands, all three button policies, analog thresholds, current-hit
+requirements, native pointer gating, direct/laser modes, release grace, ownership,
+and policy changes during a grab. It compiles the actual engine functions with
+mock input rather than reproducing their decisions in a separate implementation.
+
+On Deckard, `tests/grab-buttons-api-smoke.js` exercises the QuickJS helpers,
+valid and invalid options, and legacy calls. `scripts/grab-buttons-test.js` draws
+three labeled boxes (left trigger-only, middle grip-only, right either button):
+
+```sh
+./run-overlay-engine.sh tests/grab-buttons-api-smoke.js
+./run-overlay-engine.sh scripts/grab-buttons-test.js
+```
+
+Stop with Ctrl-C. API success logs `GRAB_BUTTON_API_PASS`; the visible scene logs
+`GRAB_BUTTON_TEST_READY`. For wearer acceptance, test allowed and disallowed
+buttons on each box with each hand, switching buttons on the either-button box,
+releasing both, near-hand rotation, and simultaneous grabs of different boxes.
+Confirm a held object cannot be taken by the other hand and panel input still
+works. Runtime startup and synthetic checks do not establish those wearer results.
+
+Deckard Release build, QuickJS API smoke, and labeled-scene startup passed.
+Runtime logs: `/tmp/grab-buttons-api-smoke.log` and
+`/tmp/grab-buttons-startup.log`. Both bounded runs stopped. Wearer interaction
+checks have not yet been performed for these new button policies.
