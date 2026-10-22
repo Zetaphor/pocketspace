@@ -37,3 +37,7 @@ skins, and extensions. Deckard's existing engine `--inspect` loaded it successfu
 10 rendered parts, 110 triangles, animation present, no skins or morph targets.
 This inspection was CPU-only and did not launch an overlay or prove animation
 playback. The two source meshes are `Cube` and `Plane.001`.
+
+The wearer tested `scripts/animation-test.js` on `b53c9d6` and confirmed all nine
+clips work. See [recorded verification](animation-api.md#recorded-verification)
+for scope and logs.

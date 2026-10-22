@@ -45,7 +45,9 @@ inspection. See [animation test asset](animation-test-assets.md) for the pinned
 source, hash, license, clip names, and intended implementation order. It has
 nine two-second TRS clips and no skins. Node playback, per-object clocks/geometry,
 controls, and refitted picking are implemented; see [animation API](animation-api.md).
-Automated and native runtime checks are separate from pending wearer validation.
+Automated/native checks passed; the wearer accepted all nine clips on `b53c9d6`
+(about 89.9 FPS, `gl_error=0`). Log: `/tmp/animation-wearer-b53c9d6.log`.
+The test is stopped. Individual control/grab checks were not separately reported.
 Skeletal/morph playback and blending remain later work.
 
 ## Current direction: tracking API research

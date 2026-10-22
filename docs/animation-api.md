@@ -137,6 +137,13 @@ QuickJS lifecycle regression after the loader/binding changes.
   with one animated fixture and the diagnostic text panel; `gl_error=0`.
 - `/tmp/lifecycle-after-animation.log`: loader rollback/context cleanup passed.
 
-These runs are stopped. The visual scene was started as a bounded runtime check;
-wearer confirmation of motion, interpolation appearance, and animated grabbing
-is pending. This is not a performance claim for large meshes or many instances.
+These automated runs are stopped. The subsequent wearer run on `b53c9d6` used
+`scripts/animation-test.js` and cycled all nine clips. The wearer reported “They
+all work.” The log confirms clip changes and about 89.9 FPS with `gl_error=0`:
+`/tmp/animation-wearer-b53c9d6.log`. The wearer test is stopped too.
+
+This establishes initial headset acceptance of the nine node-animation clips.
+Pause/resume/restart and animated grabbing were offered in the instructions but
+were not separately reported as tested; neither independent-instance visual
+behavior nor large-scene performance is established by that response. Skeletal,
+morph, blending, and larger animated workloads remain future work.
