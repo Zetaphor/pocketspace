@@ -18,6 +18,12 @@ checks and further tuning are deferred. Earlier raw-accuracy/plane-fit notes
 below are historical. Further performance
 optimizations remain deferred by user direction.
 
+## Next implementation
+
+The user dropped laser pitch from active work; do not resume it as the next task.
+The next implementation item is dedicated grip pickup (item 4 in remaining-work.md).
+Existing experimental pitch code is unchanged and remains unverified.
+
 ## Current direction: tracking API research
 
 The initial implementation now provides `getEyeTracking()`,
@@ -130,7 +136,7 @@ Use one test scene at a time. Redirect output to a named `/tmp/` log when runnin
 
 ## Remaining work and constraints
 
-Read [remaining work](remaining-work.md) for prioritized work and completion checks. The immediate engineering items are complex/concave model selection, profiling high-triangle picking versus rendering, experimental laser pitch, and a dedicated grip pickup gesture. The Toy Car probe used a 108,936-triangle asset and ran near 31 FPS; the cause was not isolated. Do not present that slowdown as a proven picking bottleneck.
+Read [remaining work](remaining-work.md) for prioritized work and completion checks. The next implementation item is a dedicated grip pickup gesture. Laser pitch is no longer planned; selection coverage remains available for follow-up and further performance work is deferred. The Toy Car probe used a 108,936-triangle asset and ran near 31 FPS; the cause was not isolated. Do not present that slowdown as a proven picking bottleneck.
 
 The `vrserver` input WebSocket is undocumented. If controller events stop after a SteamVR update, compare `src/frame_input.cpp` with `scripts/steam-frame-input.py` before changing action mappings. The documented SteamVR action API did not provide complete global button input in the tested overlay context.
 

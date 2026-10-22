@@ -61,11 +61,9 @@ public button, touch, scalar, thumbstick, and capacitive paths. It is
 undocumented SteamVR behavior and may change across updates.
 
 
-1. **Laser pitch:** `laserPitchWithStickClick` is present but not verified.
-   Native right-button events arrive when the stick is clicked, yet the user
-   saw no pitch motion. Log smooth-scroll events while the stick is clicked
-   and the trigger is held, then correct the event handling or choose another
-   workable modifier. Do not enable this option in the normal demo yet.
+1. **Laser pitch — no longer planned:** The user removed this feature from
+   active work. Existing `laserPitchWithStickClick` behavior remains experimental
+   and unverified; no further implementation or validation is planned.
 2. **Direct pickup gesture:** Near-hand pickup currently uses the controller
    trigger. Grip click switches or disables the SteamVR laser. A
    dedicated grip-based grab remains to be implemented; raw trigger grabs work
