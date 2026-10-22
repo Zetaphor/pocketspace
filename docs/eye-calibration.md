@@ -111,7 +111,9 @@ round trips and identity correction; use only a disposable output file because
 it deliberately writes an identity fixture. Wearer calibration and subsequent
 head-turn verification remain required before claiming real accuracy improvement.
 
-Initial Deckard Release build, native save/load round trip, identity-ray check,
-and malformed-file startup rejection passed. The last smoke expansion and
-corrected diagnostic update were made after Deckard stopped resolving; final
-Deckard synchronization/build and generator startup remain pending connectivity.
+Deckard Release build, native save/load round trip, identity-ray check, malformed
+file startup rejection, expanded save-format rejection, generator startup, and
+missing-output-path rejection passed. Logs: `/tmp/eye-file-save-final.log`,
+`/tmp/eye-file-load.log`, `/tmp/eye-file-invalid.log`,
+`/tmp/eye-generator-final.log`, `/tmp/eye-generator-no-output-final.log`.
+No personal calibration file was generated; wearer validation is still pending.
