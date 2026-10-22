@@ -5,8 +5,8 @@ Prepared October 22, 2026. This guide supplements [remaining work](remaining-wor
 ## Current: personal eye calibration
 
 File-based head-relative correction and an in-headset generator are implemented;
-initial Deckard build/file round-trip checks passed, but Deckard stopped resolving
-before the final synchronization and startup checks (see calibration document);
+Deckard Release build, file round-trip, schema rejection, and generator startup
+checks passed (see calibration document);
 see [eye calibration](eye-calibration.md) for commands, format, validation, and
 API behavior. `getEyeTracking()` stays raw; consumers opt into
 `getCalibratedEyeTracking()`. Next wearer task: run the nine training plus five
