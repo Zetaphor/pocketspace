@@ -38,6 +38,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/dual-laser-test.js
 ./run-overlay-engine.sh scripts/native-grab-demo.js
 ./run-overlay-engine.sh scripts/animation-test.js
+./run-overlay-engine.sh scripts/skinning-test.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -140,8 +141,8 @@ two-hand grabs are headset verified with the avocado and box probe; see
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
 texture UV transforms, and a basic sheen tint. The sheen tint is an
-approximation; full PBR lighting, skinning, and morph animation remain future
-milestones. Node translation/rotation/scale animation supports STEP, LINEAR, and
+approximation; full PBR lighting and morph animation remain future milestones.
+Node and skeletal translation/rotation/scale animation supports STEP, LINEAR, and
 CUBICSPLINE through the [animation API](docs/animation-api.md). Playback is opt-in;
 existing galleries still show default poses unless they call `playAnimation`. `build/sf-overlay-engine --inspect path.glb` checks
 an asset without opening VR.

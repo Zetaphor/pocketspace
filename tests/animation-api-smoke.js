@@ -21,7 +21,7 @@ rejected(()=>seekAnimation(a,0));rejected(()=>resumeAnimation(a));
 const box=loadModel('assets/samples/Box/Box.glb',512),staticObject=createObject(box,0,0,0,.1);
 check(getAnimations(box).length===0,'static asset metadata');rejected(()=>playAnimation(staticObject));
 const skin=loadModel('assets/samples/CesiumMan/CesiumMan.glb',512),skinObject=createObject(skin,0,0,0,.1);
-check(getAnimations(skin).length>0&&getAnimations(skin).every(c=>!c.supported),'skin support must be explicit');rejected(()=>playAnimation(skinObject));
+check(getAnimations(skin).length>0&&getAnimations(skin).every(c=>c.supported),'skin clips must support playback');playAnimation(skinObject,0);pauseAnimation(skinObject);seekAnimation(skinObject,.5);check(getAnimationState(skinObject).time===.5,'skin seek');stopAnimation(skinObject);
 const morph=loadModel('assets/samples/MorphPrimitivesTest/MorphPrimitivesTest.glb',512),morphObject=createObject(morph,0,0,0,.1);
 check(getAnimations(morph).every(c=>!c.supported),'morph clips must not claim playback support');rejected(()=>playAnimation(morphObject));
 removeObject(staticObject);removeObject(skinObject);removeObject(morphObject);
@@ -33,4 +33,4 @@ function update(){
  if(state.finished&&!finished){check(state.time===2&&!state.playing,'nonloop endpoint');finished=true;stoppedAt=Date.now();print('ANIMATION_ENDPOINT_PASS');}
  if(finished&&!removed&&Date.now()-stoppedAt>100){removed=true;removeObject(a);removeObject(b);print('ANIMATION_REMOVE_PASS');update=function(){};}
 }
-print('ANIMATION_API_PASS metadata, controls, invalid inputs, independent objects, all nine clips, unsupported skins');
+print('ANIMATION_API_PASS metadata, controls, invalid inputs, independent objects, all nine clips, skin playback');

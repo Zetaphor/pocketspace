@@ -1,11 +1,11 @@
-# Node animation playback
+# Node and skeletal animation playback
 
 The engine supports per-object glTF node translation, quaternion rotation, and
 scale animation with STEP, LINEAR, and CUBICSPLINE interpolation. Playback is
 opt-in: loading an animated model still starts in its static bind/default pose.
-Skinned and morph-target assets are not yet playable; clips report support status
-and unsupported playback requests throw. There is one selected clip per object,
-with no cross-fade, blending, skeletal deformation, or animation event stream.
+Skeletal clips use CPU linear blend skinning through the same API. Morph-target
+assets remain unsupported; clips report support status and unsupported requests throw. There is one selected clip per object,
+with no cross-fade, clip blending, or animation event stream.
 
 ## Example
 
@@ -52,6 +52,46 @@ bind pose. Looping wraps at duration, including back to time 0 at exact boundari
 Seeking to duration shows the endpoint immediately; a playing loop wraps on its
 next tick. Zero-duration clips finish on their first advancement. Reverse speed
 and automatic playback on load are not implemented.
+
+## Skeletal skinning
+
+```js
+const asset = loadModel('assets/samples/CesiumMan/CesiumMan.glb');
+const character = createObject(asset, 0, 0, 0, .6);
+playAnimation(character, 0, {loop: true});
+```
+
+CesiumMan has one unnamed two-second clip and 19 joints; select it by index 0.
+All play/pause/resume/seek/stop and independent-instance behavior is identical to
+node animation. No separate bone-control API is required to play an imported
+skeletal clip. `getAnimations()` now reports CesiumMan's clip as supported.
+
+The importer retains each skin's joint-node indices and inverse-bind matrices.
+Missing inverse-bind matrices default to identity. For each pose, it evaluates
+the full node hierarchy, including ancestors that are not themselves joints,
+and builds `jointWorld * inverseBind` palettes in the skin's joint order.
+Vertex positions are weighted sums of those transformed positions. These results
+are already in asset world coordinates, so the skinned mesh-node transform is
+not applied again. Rigid primitives still use their own node-world transforms.
+This follows the [glTF skinning specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#skins).
+
+Paired, contiguous `JOINTS_n` / `WEIGHTS_n` sets starting at 0 are supported,
+including more than four influences per vertex. Joint accessors use unsigned
+byte/short indices. Weights use float or normalized unsigned byte/short values;
+all sets are normalized together for each vertex. Missing pairs, invalid joint
+indices, negative/nonfinite weights, zero total weight, and malformed inverse-bind
+matrices fail model loading. Sparse accessors remain unsupported by the existing
+cgltf accessor-read path used here; failures are explicit rather than silently
+ignoring influences. The current renderer deforms positions and retains UVs;
+normal/tangent deformation for a future lit renderer is outside this implementation.
+
+Default-pose geometry is also skinned during import, including rigs without any
+animation clips. Normalization uses that default pose once and remains fixed
+while playing. `stopAnimation()` restores that default skinned pose rather than
+leaving the last deformed frame. Per-object skin palettes, vertices, dynamic
+buffers, refitted BVH, and radius bounds remain independent; material textures
+stay shared. This is CPU skinning, with work proportional to vertex/influence
+count; GPU skinning and larger-rig performance are later work.
 
 ## Time, geometry, and picking
 
@@ -145,5 +185,40 @@ all work.” The log confirms clip changes and about 89.9 FPS with `gl_error=0`:
 This establishes initial headset acceptance of the nine node-animation clips.
 Pause/resume/restart and animated grabbing were offered in the instructions but
 were not separately reported as tested; neither independent-instance visual
-behavior nor large-scene performance is established by that response. Skeletal,
-morph, blending, and larger animated workloads remain future work.
+behavior nor large-scene performance is established by that response. Skeletal playback was added subsequently as described above; morph playback,
+blending, and larger animated workloads remain future work.
+
+## Skinning verification
+
+```sh
+c++ -std=c++20 -O2 -Wall -Wextra -Werror -I src tests/skinning-math.cpp -o /tmp/skinning-math
+/tmp/skinning-math
+```
+
+On Deckard, after building `animation-regression`:
+
+```sh
+LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 python3 tests/skinning-loader-regression.py ./build/animation-regression
+./run-overlay-engine.sh scripts/skinning-test.js
+```
+
+The math test verifies joint-index remapping, inverse-bind cancellation and
+multiplication order, ancestor transforms, weighted blending across sets, and
+rotation. The generated GLB fixtures test normalized packed weights in two sets,
+identity inverse binds when omitted, skinning without clips, a mesh transform
+that must not be applied twice, and six malformed-rig cases. The native regression
+also evaluates CesiumMan at four times, checks motion/bounds and independent
+poses, and compares BVH/triangle picking over 1,600 additional rays. The original
+nine-clip API/interpolation tests continue to run.
+
+The headset scene displays two instances with different speeds/start times.
+Each hand controls its matching character: A/X pauses/resumes, B/Y restarts,
+and bumper toggles stop/play. Grip or trigger grabs either character. Verify
+limbs bend without tearing/exploding, pause/seek/stop poses remain sensible,
+characters remain independent, and moving limbs remain selectable.
+
+Initial Deckard Release and generated-fixture/native tests passed. The bounded
+two-character run reported 89.3 FPS at 900 frames, independent playback states,
+and `gl_error=0`. Logs: `/tmp/skinning-regression.log` and
+`/tmp/skinning-runtime.log`. The run is stopped. Headset acceptance of skinning
+is pending; the earlier nine-clip wearer acceptance covered node animation only.

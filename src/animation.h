@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -75,6 +76,25 @@ inline void evaluate(const std::vector<Node> &base,const std::vector<int> &order
   else for(int i=0;i<3;i++)(channel.path==Path::Scale?node.scale:node.translation)[i]=value[i];
  }
  for(int i:order){world[i]=local(nodes[i]);if(nodes[i].parent>=0)world[i]=multiply(world[nodes[i].parent],world[i]);}
+}
+struct Skin {std::vector<int> joints;std::vector<Matrix> inverseBind;};
+struct Influence {std::array<uint32_t,4> joints{};std::array<float,4> weights{};};
+using InfluenceSets=std::vector<std::vector<Influence>>;
+inline std::array<float,3> transformPoint(const Matrix &matrix,const float *p){
+ std::array<float,3> out{};for(int axis=0;axis<3;axis++)out[axis]=matrix[axis]*p[0]+matrix[4+axis]*p[1]+matrix[8+axis]*p[2]+matrix[12+axis];return out;
+}
+inline void palettes(const std::vector<Skin> &skins,const std::vector<Matrix> &world,std::vector<std::vector<Matrix>> &out){
+ out.resize(skins.size());
+ for(size_t s=0;s<skins.size();s++){out[s].resize(skins[s].joints.size());for(size_t j=0;j<skins[s].joints.size();j++)out[s][j]=multiply(world[skins[s].joints[j]],skins[s].inverseBind[j]);}
+}
+inline std::array<float,3> skinPoint(const float *p,const std::vector<Matrix> &palette,const InfluenceSets &sets,size_t vertex){
+ std::array<float,3> out{};
+ for(const auto &set:sets)for(int lane=0;lane<4;lane++){
+  const auto &influence=set[vertex];const float weight=influence.weights[lane];if(weight==0)continue;
+  const auto transformed=transformPoint(palette[influence.joints[lane]],p);
+  for(int axis=0;axis<3;axis++)out[axis]+=weight*transformed[axis];
+ }
+ return out;
 }
 inline bool advance(Playback &state,const Clip &clip,double dt){
  if(!state.playing||dt<=0)return false;

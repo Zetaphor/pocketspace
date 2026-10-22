@@ -22,8 +22,9 @@ Native skeleton poses, bare-hand tracking, and eye openness are not implemented.
 [Animation playback](animation-api.md) documents `getAnimations(assetId)`,
 `playAnimation(objectId, clip, options)`, `pauseAnimation`, `resumeAnimation`,
 `seekAnimation`, `stopAnimation`, and `getAnimationState`. Node translation,
-rotation, and scale support STEP, LINEAR, and CUBICSPLINE; skinning/morph clips
-remain unsupported. Playback and evaluated picking geometry are per object.
+rotation, and scale support STEP, LINEAR, and CUBICSPLINE, including joint
+animation with CPU skinning. Morph clips remain unsupported. Playback and
+evaluated picking geometry are per object.
 
 ## Controller input
 

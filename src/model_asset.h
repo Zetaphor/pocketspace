@@ -7,8 +7,9 @@
 
 struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
-  std::vector<float> localVertices; // retained only for animated assets
-  int node=-1;
+  std::vector<float> localVertices; // retained for animated or skinned assets
+  int node=-1,skin=-1;
+  animation::InfluenceSets influences;
   std::vector<unsigned char> rgba;
   int width=1,height=1;
   float factor[4]={1,1,1,1};
@@ -25,6 +26,7 @@ struct ModelAsset {
   std::vector<PrimitiveAsset> primitives;
   std::vector<picking::Triangle> pickTriangles;
   std::vector<picking::Node> pickNodes;
+  std::vector<animation::Skin> skins;
   std::vector<animation::Node> nodes;
   std::vector<int> nodeOrder;
   std::vector<animation::Clip> animations;
@@ -42,6 +44,7 @@ struct ModelPose {
   ModelAsset geometry;
   std::vector<animation::Node> nodes;
   std::vector<animation::Matrix> world;
+  std::vector<std::vector<animation::Matrix>> palettes;
   float radius=1;bool dirty=true;
   ~ModelPose();
 };
