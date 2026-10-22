@@ -22,15 +22,15 @@ Start playback implementation with the three LINEAR clips. Rotation exercises
 quaternion interpolation; translation and scale exercise vector interpolation.
 Then use the STEP and CUBICSPLINE clips to verify the additional interpolation
 rules. Independent per-object playback can later be checked by creating several
-instances of this shared asset with different clips/times. Skeletal and morph
-animation are separate follow-ups; `CesiumMan` and `MorphPrimitivesTest` already
-exist in the repository for those cases.
+instances of this shared asset with different clips/times. Skeletal playback now uses the existing `CesiumMan` fixture;
+`MorphPrimitivesTest` remains available for the later morph implementation.
 
 ## Current support and validation
 
 Node TRS playback is now implemented; see the [animation API](animation-api.md)
 for controls, limitations, and tests. Loading alone still shows the static pose;
-call `playAnimation` to start a clip. Skinning and morph playback remain deferred.
+call `playAnimation` to start a clip. Skeletal skinning is now supported as well;
+morph playback remains deferred.
 The GLB's Git blob hash was compared with GitHub's metadata at the pinned revision;
 the local JSON chunk was inspected for clip paths, interpolation, durations,
 skins, and extensions. Deckard's existing engine `--inspect` loaded it successfully:

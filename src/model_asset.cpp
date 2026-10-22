@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <map>
 #define CGLTF_IMPLEMENTATION
 #include "../third_party/cgltf.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -21,7 +22,7 @@ static bool decodeBaseColor(const cgltf_image *image,PrimitiveAsset &part) {
   stbi_image_free(pixels);
   return true;
 }
-static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source,ModelAsset &out,float low[3],float high[3]) {
+static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source,ModelAsset &out,float low[3],float high[3],int skinIndex,const std::vector<std::vector<animation::Matrix>> &bindPalettes) {
   if(source.type!=cgltf_primitive_type_triangles){std::fprintf(stderr,"[model] skipping non-triangle primitive\n");return true;}
   const cgltf_accessor *positions=nullptr,*uvs=nullptr;
   for(cgltf_size i=0;i<source.attributes_count;i++){
@@ -30,7 +31,23 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
     if(attribute.type==cgltf_attribute_type_texcoord&&attribute.index==0)uvs=attribute.data;
   }
   if(!positions)return false;
-  PrimitiveAsset part;
+  PrimitiveAsset part;part.skin=skinIndex;
+  std::map<int,std::pair<const cgltf_accessor*,const cgltf_accessor*>> sets;
+  if(skinIndex>=0){
+    for(cgltf_size i=0;i<source.attributes_count;i++){
+      const auto &a=source.attributes[i];
+      if(a.type==cgltf_attribute_type_joints){if(sets[a.index].first)return false;sets[a.index].first=a.data;}
+      if(a.type==cgltf_attribute_type_weights){if(sets[a.index].second)return false;sets[a.index].second=a.data;}
+    }
+    if(sets.empty())return false;
+    int expected=0;
+    for(const auto &[index,pair]:sets){
+      const auto *j=pair.first,*w=pair.second;
+      if(index!=expected++||!j||!w||j->type!=cgltf_type_vec4||w->type!=cgltf_type_vec4||j->count!=positions->count||w->count!=positions->count||j->normalized||(j->component_type!=cgltf_component_type_r_8u&&j->component_type!=cgltf_component_type_r_16u))return false;
+      if(w->component_type!=cgltf_component_type_r_32f&&!((w->component_type==cgltf_component_type_r_8u||w->component_type==cgltf_component_type_r_16u)&&w->normalized))return false;
+    }
+    part.influences.resize(sets.size());
+  }
   const cgltf_material *material=source.material;
   const cgltf_texture_view *view=nullptr;
   if(material){
@@ -45,9 +62,11 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
   }
   const cgltf_image *image=view&&view->texture?view->texture->image:nullptr;
   if(!decodeBaseColor(image,part)){std::fprintf(stderr,"[model] base-color image decode failed\n");return false;}
-  float matrix[16];cgltf_node_transform_world(&node,matrix);
+  animation::Matrix transform;cgltf_node_transform_world(&node,transform.data());
   cgltf_size count=source.indices?source.indices->count:positions->count;
   part.vertices.reserve(count*5);
+  if(out.hasAnimation||out.hasSkin)part.localVertices.reserve(count*5);
+  for(auto &set:part.influences)set.reserve(count);
   for(cgltf_size i=0;i<count;i++){
     cgltf_size index=source.indices?cgltf_accessor_read_index(source.indices,i):i;
     if(index>=positions->count||uvs&&index>=uvs->count)return false;
@@ -59,25 +78,32 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
       float u=uv[0]*t.scale[0],v=uv[1]*t.scale[1],c=std::cos(t.rotation),s=std::sin(t.rotation);
       uv[0]=t.offset[0]+c*u-s*v;uv[1]=t.offset[1]+s*u+c*v;
     }
-    float world[3]={matrix[0]*p[0]+matrix[4]*p[1]+matrix[8]*p[2]+matrix[12],matrix[1]*p[0]+matrix[5]*p[1]+matrix[9]*p[2]+matrix[13],matrix[2]*p[0]+matrix[6]*p[1]+matrix[10]*p[2]+matrix[14]};
+    if(skinIndex>=0){
+      double total=0;size_t set=0;
+      for(const auto &[number,pair]:sets){
+        (void)number;animation::Influence influence;
+        if(!cgltf_accessor_read_uint(pair.first,index,influence.joints.data(),4)||!cgltf_accessor_read_float(pair.second,index,influence.weights.data(),4))return false;
+        for(int lane=0;lane<4;lane++){
+          if(influence.joints[lane]>=out.skins[skinIndex].joints.size()||!std::isfinite(influence.weights[lane])||influence.weights[lane]<0)return false;
+          total+=influence.weights[lane];
+        }
+        part.influences[set++].push_back(influence);
+      }
+      if(!std::isfinite(total)||total<=0)return false;
+      for(auto &influences:part.influences)for(float &weight:influences.back().weights)weight=float(weight/total);
+    }
+    const auto world=skinIndex>=0?animation::skinPoint(p,bindPalettes[skinIndex],part.influences,size_t(i)):animation::transformPoint(transform,p);
+    if(out.hasAnimation||out.hasSkin)part.localVertices.insert(part.localVertices.end(),{p[0],p[1],p[2],uv[0],uv[1]});
     for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],world[axis]);high[axis]=std::max(high[axis],world[axis]);}
     part.vertices.insert(part.vertices.end(),{world[0],world[1],world[2],uv[0],uv[1]});
   }
   part.vertexCount=(GLsizei)count;
-  if(out.hasAnimation){
-    part.localVertices.reserve(count*5);
-    for(cgltf_size i=0;i<count;i++){
-      const cgltf_size index=source.indices?cgltf_accessor_read_index(source.indices,i):i;
-      float position[3];if(!cgltf_accessor_read_float(positions,index,position,3))return false;
-      part.localVertices.insert(part.localVertices.end(),{position[0],position[1],position[2],part.vertices[i*5+3],part.vertices[i*5+4]});
-    }
-  }
   if(source.targets_count)out.hasMorph=true;
   out.primitives.push_back(std::move(part));
   return true;
 }
 static bool loadAnimations(const cgltf_data &data,ModelAsset &out){
-  if(!data.animations_count)return true;
+  if(!data.animations_count&&!data.skins_count)return true;
   out.nodes.resize(data.nodes_count);
   for(cgltf_size i=0;i<data.nodes_count;i++){
     const auto &source=data.nodes[i];auto &node=out.nodes[i];
@@ -88,9 +114,23 @@ static bool loadAnimations(const cgltf_data &data,ModelAsset &out){
     if(source.has_matrix)std::copy(source.matrix,source.matrix+16,node.matrix.begin());
   }
   if(!animation::order(out.nodes,out.nodeOrder))return false;
+  out.skins.resize(data.skins_count);
+  for(cgltf_size i=0;i<data.skins_count;i++){
+    const auto &source=data.skins[i];auto &skin=out.skins[i];if(!source.joints_count)return false;
+    const auto *inverse=source.inverse_bind_matrices;
+    if(inverse&&(inverse->type!=cgltf_type_mat4||inverse->component_type!=cgltf_component_type_r_32f||inverse->count<source.joints_count))return false;
+    for(cgltf_size j=0;j<source.joints_count;j++){
+      if(!source.joints[j])return false;
+      skin.joints.push_back(int(source.joints[j]-data.nodes));
+      animation::Matrix matrix=animation::local(animation::Node{});
+      if(inverse&&!cgltf_accessor_read_float(inverse,j,matrix.data(),16))return false;
+      for(float value:matrix)if(!std::isfinite(value))return false;
+      if(matrix[3]!=0||matrix[7]!=0||matrix[11]!=0||matrix[15]!=1)return false;
+      skin.inverseBind.push_back(matrix);
+    }
+  }
   for(cgltf_size i=0;i<data.animations_count;i++){
     const auto &source=data.animations[i];animation::Clip clip;clip.name=source.name?source.name:"";
-    if(out.hasSkin)clip.unsupportedReason="skinning is not implemented";
     for(cgltf_size j=0;j<source.channels_count;j++){
       const auto &input=source.channels[j];const auto *sampler=input.sampler;animation::Channel channel;
       float end=0;
@@ -128,6 +168,9 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   if(result!=cgltf_result_success||cgltf_validate(data)!=cgltf_result_success){std::fprintf(stderr,"[model] invalid glTF %s\n",path.c_str());cgltf_free(data);return false;}
   out.path=path;out.hasAnimation=data->animations_count>0;out.hasSkin=data->skins_count>0;
   if(!loadAnimations(*data,out)){std::fprintf(stderr,"[model] invalid animation data in %s\n",path.c_str());cgltf_free(data);return false;}
+  std::vector<animation::Node> bindNodes;std::vector<animation::Matrix> bindWorld;
+  std::vector<std::vector<animation::Matrix>> bindPalettes;
+  if(out.hasSkin){animation::evaluate(out.nodes,out.nodeOrder,animation::Clip{},0,bindNodes,bindWorld);animation::palettes(out.skins,bindWorld,bindPalettes);}
   float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
   float high[3]={-low[0],-low[1],-low[2]};
   out.low[0]=out.low[1]=out.low[2]=std::numeric_limits<float>::max();out.high[0]=out.high[1]=out.high[2]=-std::numeric_limits<float>::max();
@@ -135,7 +178,7 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
     const auto &node=data->nodes[i];if(!node.mesh)continue;
     for(cgltf_size j=0;j<node.mesh->primitives_count;j++){
       const size_t before=out.primitives.size();
-      if(!appendPrimitive(node,node.mesh->primitives[j],out,low,high)){std::fprintf(stderr,"[model] unsupported primitive in %s\n",path.c_str());cgltf_free(data);return false;}
+      if(!appendPrimitive(node,node.mesh->primitives[j],out,low,high,node.skin?int(node.skin-data->skins):-1,bindPalettes)){std::fprintf(stderr,"[model] unsupported primitive in %s\n",path.c_str());cgltf_free(data);return false;}
       if(out.primitives.size()>before)out.primitives.back().node=int(i);
     }
   }
@@ -190,14 +233,16 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
   animation::evaluate(asset.nodes,asset.nodeOrder,asset.animations[state.clip],state.time,pose.nodes,pose.world);
+  animation::palettes(asset.skins,pose.world,pose.palettes);
   pose.radius=0;
   for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::numeric_limits<float>::max();pose.geometry.high[axis]=-std::numeric_limits<float>::max();}
   for(size_t i=0;i<asset.primitives.size();i++){
     const auto &source=asset.primitives[i];auto &target=pose.geometry.primitives[i];const auto &matrix=pose.world[source.node];
     for(size_t v=0;v<source.localVertices.size();v+=5){
       const float *p=source.localVertices.data()+v;float radiusSquared=0;
+      const auto world=source.skin>=0?animation::skinPoint(p,pose.palettes[source.skin],source.influences,v/5):animation::transformPoint(matrix,p);
       for(int axis=0;axis<3;axis++){
-        const float value=(matrix[axis]*p[0]+matrix[4+axis]*p[1]+matrix[8+axis]*p[2]+matrix[12+axis]-asset.center[axis])*asset.normalization;
+        const float value=(world[axis]-asset.center[axis])*asset.normalization;
         target.vertices[v+axis]=value;radiusSquared+=value*value;
         pose.geometry.low[axis]=std::min(pose.geometry.low[axis],value);pose.geometry.high[axis]=std::max(pose.geometry.high[axis],value);
       }

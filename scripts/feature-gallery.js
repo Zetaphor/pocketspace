@@ -1,4 +1,5 @@
-// Static binding/morph defaults are shown; animation playback is not implemented.
+// This gallery does not start animation clips; it shows default skinned poses
+// and unmorphed geometry. Use skinning-test.js for skeletal playback.
 const alpha = loadModel("assets/samples/AlphaBlendModeTest/AlphaBlendModeTest.glb");
 const man = loadModel("assets/samples/CesiumMan/CesiumMan.glb");
 const morph = loadModel("assets/samples/MorphPrimitivesTest/MorphPrimitivesTest.glb");
