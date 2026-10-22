@@ -1,6 +1,6 @@
 # Steam Frame overlay engine: remaining work
 
-Status: October 21, 2026. Source of record: Sigma's `/home/zetaphor/Code/sf-overlay-mvp`, commit `b7d0895`; Deckard is the SteamVR build and headset test host.
+Status: October 22, 2026. Source of record: Sigma's `/home/zetaphor/Code/sf-overlay-mvp`; Deckard is the SteamVR build and headset test host. The verified custom-laser implementation was committed in `b7d0895`; check current `HEAD` before starting work.
 
 ## Verified baseline
 
