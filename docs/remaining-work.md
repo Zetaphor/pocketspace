@@ -10,6 +10,28 @@ Status: October 22, 2026. Source of record: Sigma's `/home/zetaphor/Code/sf-over
 
 ## Next: selection and controls
 
+Performance follow-up: [measurements and reproduction](performance.md). Release
+builds and model-space ray picking brought the single Toy Car scene to 90 FPS;
+the fixed two-hand CPU benchmark improved from 3.6288 to 2.4372 ms. Multi-model
+scaling remains open. Per user direction, the Frametop report is out of scope.
+
+Selection validation now has a dedicated seven-case scene and synthetic hollow
+frame fixture: see [model selection test](model-selection-test.md). Headset
+validation is pending; this does not complete item 1.
+
+Wearer testing reproduced false center grabs in the hollow-frame cases (1–2).
+The pending triangle-only picker fix removes the spherical hit fallback and
+passes a standalone geometry check; Deckard headset retest remains pending.
+The first retest found missed rear-box picks; follow-up fixes initialize triangle
+edges before cross products and populate normalized model bounds. Toy Car is
+temporarily excluded from the selection scene after a reported Frametop disruption;
+its log showed about 35 FPS, but the disruption's cause is unconfirmed.
+The final retest fixed the native rectangular-surface override and required
+fresh mesh hits for acquisition. The wearer confirmed the reported selection
+problem fixed; the run held 90 FPS with `gl_error=0`. See the test document for
+logs and scope. Remaining selection coverage includes explicit per-hand checks
+and the excluded high-triangle car; performance isolation is the next priority.
+
 1. **Validate model selection beyond the avocado and box.** The picker tests transformed triangles and uses a small bounds fallback for near misses. Exercise concave, thin, rotated, overlapping, and high-triangle models, including Toy Car and Lantern. Check false picks through gaps, nearest-object choice, per-hand isolation, hover stability, and the beam endpoint. Tighten or replace the fallback where it selects empty space. Done when both hands can select and release the intended model in those cases without selecting a nearer gap or an object behind it.
 2. **Optimize high-triangle picking.** The avocado/box probe held 90 FPS, but the earlier Toy Car probe ran near 31 FPS with a 108,936-triangle asset. Measure render time separately from picking time, then add a suitable acceleration structure or cheaper broad phase if picking is material to the slowdown. Done when the chosen multi-model test scene meets an agreed headset frame-time target without lag or ghosting.
 3. **Resolve laser pitch.** `laserPitchWithStickClick` is experimental: stick-click events were observed, but the user did not see pitch motion. Record smooth-scroll input while click and trigger are held, choose a nonconflicting control, implement it, and verify pitch direction and rate in the headset. Keep it out of normal demos until verified.
