@@ -7,7 +7,16 @@ change foveation centers. No wearer correction is bundled in the repository.
 
 ## Generate in the headset
 
-Choose an output path whose parent directory exists, then run on Deckard:
+Run these commands from the checkout on Deckard (`/home/steamos/Code/sf-overlay-mvp`)
+after building the engine. SteamVR must be running and the headset must have a
+valid tracked pose. Close any primary scene application: the engine deliberately
+suppresses gaze action polling while another scene process is active. Controller
+finger sensing can still work while gaze is suppressed. See [tracking API](tracking-api.md)
+for source validity, freshness, and coexistence behavior.
+
+Fit the headset comfortably before starting and keep the calibration panel in
+front of you. Choose a persistent output path whose parent directory exists,
+then run on Deckard:
 
 ```sh
 ./run-overlay-engine.sh scripts/eye-calibration.js --eye-calibration-output /home/steamos/eye-calibration.json
@@ -17,12 +26,23 @@ Look at each gold circle and tap either trigger. Keep your head and eyes steady
 while the script waits 350 ms and samples for one second. It needs at least 30
 valid, tracked samples. Captures whose 95th-percentile angular spread exceeds
 1.5 degrees are rejected and can be retried. Bumper restarts the sequence.
-There is no moving gaze dot to chase.
+There is no moving gaze dot to chase. Input is ignored for the first second of
+script startup. Taps during an active capture do not start another capture. A
+rejected capture stays on the same target; a successful one advances. Bumper
+clears the current sequence but does not delete an already saved file. Script
+reload also restarts the sequence. After success, stop with Ctrl-C and launch the
+diagnostic below; saving does not stop the engine automatically.
 
 Nine targets train an affine correction in head-relative yaw/pitch. Five different
 targets validate it without entering the fit. Saving requires validation median
 error at most 2 degrees, maximum at most 5 degrees, all validation points inside
 the fitted domain, and no median degradation greater than 0.25 degrees from raw.
+Each capture is represented by component-wise median raw and expected angles.
+The spread gate uses the larger angular distance from those two medians for each
+sample, so both gaze instability and head movement can reject a capture. The
+validation metrics compare the five representative capture directions; they are
+not per-frame error guarantees. The affine model is fitted by least squares to
+the nine representative training pairs, with separate yaw and pitch coefficients.
 These thresholds are practical gates, not hardware accuracy guarantees. Failed
 validation leaves the output file untouched; retry the sequence or investigate
 tracking quality. The runtime log reports `EYE_CALIBRATION_VALIDATION` metrics and
@@ -71,6 +91,71 @@ format; the supplied generator performs the independent accuracy gate.
 Loaded corrections persist across script reloads. Loading another file requires
 restarting the engine. Invalid or missing input files fail startup explicitly.
 
+## Startup options and lifecycle
+
+| Option | Effect |
+| --- | --- |
+| `--eye-calibration FILE` | Load one correction before evaluating the scene script. Missing or invalid input fails startup with exit code 13. |
+| `--eye-calibration-output FILE` | Allow `saveEyeTrackingCalibration()` to write this path. Does not load it, create parent directories, or check write access in advance. |
+
+Options can appear before or after the script path. With no script path, the
+engine uses `scripts/avocado.js`. The launcher forwards all options and changes
+to the repository root; relative file paths therefore resolve from that root.
+When invoking `build/sf-overlay-engine` directly, they resolve from your current
+directory. There is no automatic default file, directory scan, or file watcher.
+Keep personal files outside the repository or explicitly exclude them locally.
+
+Both options may be supplied together, including the same path. This loads the
+old correction at startup and permits replacing it after a new calibration.
+The generator always fits raw `getEyeTracking()` data, so it does not stack a
+correction on top of an existing one. A successful save activates the new
+correction immediately for corrected getters in the same engine process. A failed
+save leaves the active correction unchanged. Reset to raw-only behavior by
+restarting without `--eye-calibration`; loading a new scene alone does not clear it.
+
+## Correction status and integration
+
+All original source fields, including `status`, `tracked`, `fresh`, and
+`suppressed`, retain their raw-gaze meaning. No correction creates valid gaze
+from invalid input. The API does not automatically select, click, or grab objects.
+
+| `calibrationStatus` | Meaning and returned geometry |
+| --- | --- |
+| `notLoaded` | No correction has been loaded or saved; returns raw geometry. |
+| `gazeUnavailable` | A correction is loaded but source gaze is invalid; coordinates remain null. |
+| `headUnavailable` | Source gaze is valid but the current head basis is unavailable; returns raw geometry. |
+| `applied` | The corrected normalized direction and reconstructed target are returned. |
+| `outOfRange` | Raw angles are outside the domain, behind the head, or corrected angles exceed the runtime safety bounds; returns raw geometry. |
+
+Status is evaluated in the order above. For example, without a file an invalid
+gaze has `calibrationStatus: "notLoaded"` and `valid: false`. Use both `valid` and
+`calibrationApplied` when an interaction requires a corrected ray. If your scene
+allows raw fallback, gate on `valid` and display or record the correction status.
+
+## Troubleshooting and wearer acceptance
+
+| Symptom | Action |
+| --- | --- |
+| Startup asks for an output path | Start the generator with `--eye-calibration-output FILE`. |
+| `sceneAppActive` / gaze suppressed | Close the primary scene application and wait for valid gaze. |
+| Too few tracked samples | Wait for valid/tracked gaze, settle the headset, then retry the same target. |
+| Unstable capture | Keep head still and look at the circle through the sampling interval; tap trigger again. |
+| Degenerate fit | Bumper restarts all points. Confirm you actually look at each different target. |
+| Validation failed | No file is saved. Bumper restarts training and validation; do not bypass the gate to claim accuracy. |
+| Save failed | Check the runtime log, parent-directory existence, write access, and schema limits. After fixing the cause, bumper restarts the full sequence. |
+| File loads but dot stays raw | Inspect `calibrationStatus` and ensure the scene calls `getCalibratedEyeTracking()`. |
+| `outOfRange` near panel edges or after head turns | This sample is outside supported coverage; raw fallback is intentional. Recalibrate with an appropriate headset fit and panel position. |
+| Previously good calibration becomes inaccurate | Refit/reseat the headset and repeat calibration. Choose the file for the current wearer. |
+
+Record the engine commit, file path, `EYE_CALIBRATION_VALIDATION` metrics, runtime
+log, and wearer observations. Check all three diagnostic circles and locations
+between them with the head still; then turn the head slowly while maintaining
+fixation. Confirm whether the status stays `applied` or falls back to raw.
+Repeat after restarting with the saved file to verify persistence. A repeat test
+after reseating the headset establishes whether that particular file remains
+useful. Current automated checks do not establish accuracy over different depths,
+the full field of view, rapid motion, other wearers, or changed headset fit.
+
 ## File format
 
 ```json
@@ -93,7 +178,12 @@ margin around training coverage. Outside this domain, behind the head, or for
 corrected angles beyond 1.4 radians, the getter falls back to raw. Coefficients
 must be finite with absolute value at most 10; bounds must be ordered, finite,
 and within ±1.5 radians. Extra metadata such as `createdAt` and `validation` is
-allowed. There is no automatic identity/device matching: select the correct
+allowed. Generated `createdAt` is an ISO UTC timestamp; generated `validation`
+contains `targets` (5), `rawMedianDegrees`, `correctedMedianDegrees`, and
+`maxDegrees`. Metadata is preserved in the saved JSON but is not used by the
+runtime correction. Loading and the low-level save API enforce schema bounds,
+not the generator's accuracy gate; a manually edited file need not have passed
+wearer validation. There is no automatic identity/device matching: select the correct
 wearer's file when launching.
 
 ## Verification
@@ -103,6 +193,22 @@ node tests/eye-calibration-test.cjs
 c++ -std=c++20 -O2 -Wall -Wextra -I src tests/eye-calibration-math.cpp -o /tmp/eye-calibration-math
 /tmp/eye-calibration-math
 ```
+
+For native file checks on Deckard, use a disposable fixture path:
+
+```sh
+timeout -k 2 8 ./run-overlay-engine.sh tests/eye-calibration-smoke.js --eye-calibration-output /tmp/sf-eye-identity.json
+timeout -k 2 8 ./run-overlay-engine.sh tests/eye-calibration-smoke.js --eye-calibration /tmp/sf-eye-identity.json
+```
+
+A normal bounded run exits with timeout status 124. Look for
+`EYE_CALIBRATION_FILE_PASS`; with valid gaze and head tracking, also expect
+`EYE_CALIBRATION_IDENTITY_PASS`. No identity marker means that live ray check
+has not been established, even if the file marker appeared. The save run checks
+malformed save arguments before writing its identity fixture. A missing or
+malformed input file can be checked with `--eye-calibration /tmp/nonexistent.json`:
+expect `Invalid eye calibration` and exit 13 before VR initialization. The
+generator without an output flag should also fail script loading with exit 13.
 
 Synthetic tests cover known affine recovery, held-out validation, unstable/invalid
 capture rejection, failed validation refusing save, head rotation, domain limits,

@@ -249,8 +249,8 @@ that assumption failed and was removed. The checked reference is the native
 engine coordinate transform was changed.
 
 This supports the current panel geometry calculation but does not independently
-validate optical rendering, the eye tracker, or the API's calibration. Next
-investigate an explicit head-relative per-user calibration with quality-gated
-capture and separate validation targets. Keep raw gaze separate from any
-corrected output, and test refitting the headset and moving the head before
-claiming a reusable correction. Tests are stopped after the measurements.
+validate optical rendering, the eye tracker, or the API's calibration. The
+subsequent [head-relative calibration implementation](eye-calibration.md) provides
+quality-gated capture and separate validation targets while preserving raw gaze.
+Its next step is wearer validation, including refitting the headset and moving
+the head before claiming a reusable correction. Tests are stopped after the measurements.

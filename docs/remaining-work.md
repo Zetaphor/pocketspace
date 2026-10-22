@@ -85,9 +85,10 @@ exercises and primary-app coexistence are next. Native skeletal activation,
 bare-hand tracking, eye openness, and the experimental mmap backend remain open.
 Wearer follow-up: finger sensing worked after removing a Spigen controller
 cover. Raw gaze alignment was closest at the right target and worse at center/
-left. Next use `scripts/gaze-accuracy-test.js` to capture a nine-point error grid
-before choosing calibration or projection changes; do not treat validity as
-proof of accuracy or silently alter the raw gaze API.
+left. Two raw grids and native geometry checks have since been completed.
+The head-relative file/generator implementation is complete; next perform the
+[calibration wearer acceptance checks](eye-calibration.md#troubleshooting-and-wearer-acceptance).
+Do not treat validity as proof of accuracy or silently alter the raw gaze API.
 
 ## Later engine milestones
 
@@ -104,6 +105,8 @@ For each headset-facing change, record the exact scene, Deckard build revision, 
 Latest gaze measurement: two completed grids showed stable median angular
 errors of 20.14 and 18.71 degrees, predominantly downward. Native panel geometry
 checks passed. A panel-specific affine fit did not validate consistently enough
-to apply globally. The next gaze task is explicit head-relative calibration
-with quality gating and independent validation; raw gaze remains unchanged.
+to apply globally. Head-relative calibration with quality gating and independent
+validation is now implemented. The next task is generating a real wearer file
+and verifying its accuracy, persistence, and behavior during head turns;
+raw gaze remains unchanged.
 See [tracking API measurements](tracking-api.md) for exact logs and residuals.
