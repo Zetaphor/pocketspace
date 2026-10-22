@@ -2,6 +2,7 @@
 #include <GLES3/gl3.h>
 #include <string>
 #include <vector>
+#include "picking_bvh.h"
 
 struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
@@ -19,6 +20,8 @@ struct ModelAsset {
   std::string path;
   int eyePixels=768;
   std::vector<PrimitiveAsset> primitives;
+  std::vector<picking::Triangle> pickTriangles;
+  std::vector<picking::Node> pickNodes;
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;

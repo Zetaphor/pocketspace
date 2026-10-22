@@ -2,9 +2,11 @@
 Requires Python 3 and a C++20 compiler; no OpenVR, GL, or headset needed.
 """
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
@@ -26,9 +28,11 @@ header = r"""#include <algorithm>
 #include <vector>
 #include <cassert>
 #include <cstdio>
+#include <random>
+#include "picking_bvh.h"
 struct Object {float x=0,y=0,z=0,scale=.5,pitch=0,yaw=0,roll=0;};
 struct Part {std::vector<float> vertices;};
-struct ModelAsset {float low[3]={-.5,-.5,-.08},high[3]={.5,.5,.08};std::vector<Part> primitives;};
+struct ModelAsset {float low[3]={-.5,-.5,-.08},high[3]={.5,.5,.08};std::vector<Part> primitives;std::vector<picking::Triangle> pickTriangles;std::vector<picking::Node> pickNodes;};
 struct ControllerSnapshot {bool valid=true;float x=0,y=0,z=0;float rotation[9];};
 """
 
@@ -78,7 +82,7 @@ float aa[3]={-.08f,-.08f,0},bb[3]={.08f,-.08f,0},cc[3]={0,.08f,0};
 float origin[3]={0,0,1},direction[3]={0,0,-1},distance=0;
 assert(rayTriangle(origin,direction,aa,bb,cc,distance));assert(std::fabs(distance-1)<1e-5f);
 origin[0]=.2f;assert(!rayTriangle(origin,direction,aa,bb,cc,distance));
-ModelAsset a; a.primitives.push_back(Part{{VERTICES}}); Object o;
+ModelAsset a; a.primitives.push_back(Part{{VERTICES}}); picking::build(a); Object o;
 for(int hand=0;hand<2;hand++){ControllerSnapshot h;float t=.6981317008f,c=std::cos(t),s=std::sin(t);float r[]={1,0,0,0,c,-s,0,s,c};std::copy(r,r+9,h.rotation);h.x=hand==0?-.012694f:.012694f;h.y=-(-.02522f*c-.020687f*s);h.z=1-(-.02522f*s+.020687f*c);
 assert(meshHit(o,a,h,hand)==std::numeric_limits<float>::max());
 h.x+=.21f;assert(meshHit(o,a,h,hand)<1.f);
@@ -93,6 +97,38 @@ for(int n=0;n<2000;n++){
 }
 o.pitch=o.yaw=o.roll=0;o.scale=.5f;
 h.valid=false;assert(meshHit(o,a,h,hand)==std::numeric_limits<float>::max());}
+// Exercise tree traversal with sparse layers, overlapping surfaces, and rays
+// both outside and inside the geometry. Compare nearest hits with a full scan.
+ModelAsset grid;grid.primitives.resize(3);
+for(int layer=0;layer<3;layer++)for(int y=0;y<20;y++)for(int x=0;x<20;x++){
+  auto &v=grid.primitives[layer].vertices;
+  const float cx=(x-10)*.1f,cy=(y-10)*.1f,z=layer*.2f;
+  for(const auto &point:std::array<std::array<float,3>,3>{{{cx-.04f,cy-.04f,z},{cx+.04f,cy-.04f,z},{cx,cy+.04f,z}}})
+    v.insert(v.end(),{point[0],point[1],point[2],0,0});
+}
+picking::build(grid);
+assert(grid.pickTriangles.size()==1200);assert(grid.pickNodes.size()>1);
+std::mt19937 random(12345);std::uniform_real_distribution<float> sample(-1.2f,1.2f);
+for(int n=0;n<8000;n++){
+  float origin[3]={sample(random),sample(random),sample(random)};
+  float direction[3]={sample(random),sample(random),sample(random)};
+  if(n%4==0){direction[0]=direction[1]=0;direction[2]=n%8==0?1.f:-1.f;}
+  if(n%11==0)direction[0]=1e-9f;
+  const float actual=picking::intersect(grid,origin,direction,rayTriangle);
+  float expected=std::numeric_limits<float>::max();
+  for(const auto &part:grid.primitives)for(size_t i=0;i+14<part.vertices.size();i+=15){
+    const float *v=part.vertices.data()+i;float distance;
+    if(rayTriangle(origin,direction,v,v+5,v+10,distance))expected=std::min(expected,distance);
+  }
+  assert((actual==std::numeric_limits<float>::max())==(expected==std::numeric_limits<float>::max()));
+  if(actual!=std::numeric_limits<float>::max())assert(std::fabs(actual-expected)<1e-5f);
+}
+// Rebuilding must replace old references; empty assets have no candidates.
+grid.primitives.clear();picking::build(grid);
+assert(grid.pickTriangles.empty()&&grid.pickNodes.empty());
+origin[0]=origin[1]=0;origin[2]=1;
+assert(picking::intersect(grid,origin,direction,rayTriangle)==std::numeric_limits<float>::max());
+puts("PASS BVH: 8000 rays, nearest hits, inside origins, parallel rays, sparse layers, rebuild");
 puts("PASS both hands: hollow center miss, rail hit, rotated opening miss, invalid tracking miss");}
 """
 
@@ -106,6 +142,8 @@ with tempfile.TemporaryDirectory() as directory:
     cpp = Path(directory) / 'picking.cpp'
     executable = Path(directory) / 'picking'
     cpp.write_text(program)
-    subprocess.run(['c++', '-std=c++20', '-O2', '-Wall', '-Wextra', str(cpp), '-o', str(executable)], check=True)
+    checked = ['-D_GLIBCXX_ASSERTIONS', '-D_GLIBCXX_DEBUG'] if '--checked' in sys.argv else []
+    sanitizer = ['-O1', '-fsanitize=address,undefined', '-fno-omit-frame-pointer'] if '--sanitize' in sys.argv else []
+    subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++20', '-O2', '-I'+str(root / 'src'), '-Wall', '-Wextra', str(cpp), '-o', str(executable)] + checked + sanitizer, check=True)
     subprocess.run([str(executable)], check=True)
 print('PASS 4000 transformed-ray comparisons with world-space oracle')
