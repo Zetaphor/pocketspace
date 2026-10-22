@@ -18,7 +18,8 @@ panel, and object events; [input architecture](docs/input-architecture.md)
 explains the raw Steam Frame path; [panel integration status](docs/panel-integration-status.md)
 records headset verification; [interaction status](docs/interaction-status.md)
 tracks object controls; [remaining work](docs/remaining-work.md) lists the
-next milestones and their completion checks.
+next milestones and their completion checks. [Agent handoff](docs/agent-handoff.md)
+has access, build, test, and change-workflow details for a new maintainer.
 
 Run the default avocado or a sample gallery:
 
