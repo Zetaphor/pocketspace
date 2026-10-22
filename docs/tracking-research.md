@@ -1,8 +1,9 @@
 # Steam Frame eye and finger tracking investigation
 
-Investigated October 22, 2026, on Deckard. Engine baseline `a423205`; this
-research adds diagnostic files only and does not yet add engine JavaScript
-tracking functions. Remaining rendering optimizations are deferred in
+Investigated October 22, 2026, on Deckard. Research baseline `a423205`; the
+research commit added diagnostic files only. The subsequent initial
+[tracking API implementation](tracking-api.md) now adds combined gaze, per-eye
+foveation NDC, and raw finger channels. Remaining rendering optimizations are deferred in
 [remaining work](remaining-work.md).
 
 ## What is available
@@ -177,7 +178,9 @@ overlay coexistence requirement. Its game-time path reads shared memory instead.
 
 ## Proposed engine API and implementation order
 
-These functions are a proposal, NOT currently bound in QuickJS:
+This was the proposed API order at research time. The first three functions
+are now implemented as described in [tracking API](tracking-api.md); native
+`getHandSkeleton` remains a proposal:
 
 1. `getEyeTracking()`: combined gaze with `source`, `available`, `active`,
    `valid`, `tracked`, coordinate `space`, `origin`, `target`, normalized

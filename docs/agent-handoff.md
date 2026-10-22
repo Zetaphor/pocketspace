@@ -4,6 +4,16 @@ Prepared October 22, 2026. This guide supplements [remaining work](remaining-wor
 
 ## Current direction: tracking API research
 
+The initial implementation now provides `getEyeTracking()`,
+`getEyeFoveationCenters()`, and `getFingerTracking(hand)`. See
+[tracking API](tracking-api.md) for exact semantics, null/freshness behavior,
+the conservative scene-app gaze policy, regression commands, and logs.
+`scripts/tracking-test.js` is the wearer diagnostic; `scripts/tracking-smoke.js`
+checks the API without drawing. Live data and reload checks passed at 90 FPS
+headlessly. The diagnostic text panel reported 83 FPS. Gaze alignment, individual
+finger interpretation, and primary-app coexistence remain wearer checks.
+The historical research-only state described below is superseded by this API.
+
 The user deferred further performance work and requested eye/finger tracking
 research. See [tracking research](tracking-research.md) for primary documentation,
 actual Deckard probes, API proposal, and limitations. Combined OpenVR gaze and

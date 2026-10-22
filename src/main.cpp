@@ -43,10 +43,11 @@ struct Object {
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
   bool handPitch=false,handYaw=false,handRoll=false;
 };
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};};
+struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static Scene *currentScene=nullptr;
 struct ControllerSnapshot {bool valid=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
+static vr::HmdMatrix34_t trackingAnchor{};static bool trackingAnchorValid=false;
 static controller_input::Input controllerInput;
 static frame_input::Monitor frameInput;
 static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0},meshCurrentObject[2]={0,0};static float meshHitDistance[2]={2.f,2.f};
@@ -82,6 +83,95 @@ static int handIndex(JSContext *ctx,JSValueConst value){
   int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;
   JS_FreeCString(ctx,hand);return index;
 }
+static JSValue trackingVector(JSContext *ctx,const float *values,int count){
+  JSValue value=JS_NewObject(ctx);const char *axes[]={"x","y","z"};
+  for(int i=0;i<count;i++)JS_SetPropertyStr(ctx,value,axes[i],JS_NewFloat64(ctx,values[i]));
+  return value;
+}
+static JSValue trackingAge(JSContext *ctx,tracking::Clock::time_point time){
+  const double age=tracking::ageMs(time);return age<0?JS_NULL:JS_NewFloat64(ctx,age);
+}
+static JSValue jsGetEyeTracking(JSContext *ctx,JSValueConst,int,JSValueConst *){
+  currentScene->eyeTrackingRequested=true;
+  const auto &eye=controllerInput.eye();
+  const auto ray=trackingAnchorValid?tracking::sceneRay(eye.origin,eye.target,trackingAnchor.m):tracking::Ray{};
+  const bool fresh=tracking::fresh(eye.polledAt);
+  const bool valid=eye.active&&eye.valid&&fresh&&ray.valid&&!eye.suppressed;
+  const char *status=eye.status;
+  if(eye.active&&eye.valid){if(!fresh)status="stale";else if(!trackingAnchorValid)status="anchorUnavailable";else if(!ray.valid)status="invalidGeometry";}
+  JSValue object=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,object,"source",JS_NewString(ctx,"openvr"));
+  JS_SetPropertyStr(ctx,object,"space",JS_NewString(ctx,"scene"));
+  JS_SetPropertyStr(ctx,object,"configured",JS_NewBool(ctx,eye.configured));
+  JS_SetPropertyStr(ctx,object,"available",JS_NewBool(ctx,eye.active));
+  JS_SetPropertyStr(ctx,object,"active",JS_NewBool(ctx,eye.active));
+  JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,valid));
+  JS_SetPropertyStr(ctx,object,"reportedValid",JS_NewBool(ctx,eye.valid));
+  JS_SetPropertyStr(ctx,object,"tracked",JS_NewBool(ctx,eye.tracked));
+  JS_SetPropertyStr(ctx,object,"fresh",JS_NewBool(ctx,fresh));
+  JS_SetPropertyStr(ctx,object,"status",JS_NewString(ctx,status));
+  JS_SetPropertyStr(ctx,object,"suppressed",JS_NewBool(ctx,eye.suppressed));
+  JS_SetPropertyStr(ctx,object,"sceneAppPid",JS_NewUint32(ctx,eye.scenePid));
+  JS_SetPropertyStr(ctx,object,"error",eye.error||eye.polledAt!=tracking::Clock::time_point{}?JS_NewInt32(ctx,eye.error):JS_NULL);
+  JS_SetPropertyStr(ctx,object,"pollAgeMs",trackingAge(ctx,eye.polledAt));
+  JS_SetPropertyStr(ctx,object,"sampleAgeMs",JS_NULL);
+  JS_SetPropertyStr(ctx,object,"origin",valid?trackingVector(ctx,ray.origin,3):JS_NULL);
+  JS_SetPropertyStr(ctx,object,"target",valid?trackingVector(ctx,ray.target,3):JS_NULL);
+  JS_SetPropertyStr(ctx,object,"direction",valid?trackingVector(ctx,ray.direction,3):JS_NULL);
+  return object;
+}
+static JSValue jsGetEyeFoveationCenters(JSContext *ctx,JSValueConst,int,JSValueConst *){
+  currentScene->foveationRequested=true;
+  const auto &state=controllerInput.foveation();
+  const bool valid=state.valid&&tracking::fresh(state.polledAt);
+  JSValue object=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,object,"source",JS_NewString(ctx,"openvr"));
+  JS_SetPropertyStr(ctx,object,"space",JS_NewString(ctx,"ndc"));
+  JS_SetPropertyStr(ctx,object,"projection",JS_NewString(ctx,"IVRSystem.GetProjectionMatrix"));
+  JS_SetPropertyStr(ctx,object,"available",JS_NewBool(ctx,state.available));
+  JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,valid));
+  JS_SetPropertyStr(ctx,object,"pollAgeMs",trackingAge(ctx,state.polledAt));
+  JS_SetPropertyStr(ctx,object,"sampleAgeMs",JS_NULL);
+  JS_SetPropertyStr(ctx,object,"left",valid?trackingVector(ctx,state.left,2):JS_NULL);
+  JS_SetPropertyStr(ctx,object,"right",valid?trackingVector(ctx,state.right,2):JS_NULL);
+  return object;
+}
+static JSValue jsGetFingerTracking(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"getFingerTracking(hand): hand is left or right");
+  const int h=handIndex(ctx,argv[0]);if(h<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
+  const auto &state=frameInput.hand(h);
+  const bool connected=frameInput.started();
+  const bool fresh=connected&&state.valid&&tracking::fresh(state.updatedAt);
+  JSValue object=JS_NewObject(ctx),sensors=JS_NewObject(ctx),touches=JS_NewObject(ctx);
+  bool available=false;
+  auto field=[&](const std::string &path,bool boolean){
+    const auto it=state.raw.find(path);
+    const bool present=it!=state.raw.end()&&it->second.isBoolean==boolean&&(boolean||std::isfinite(it->second.value));
+    JSValue result=JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx,result,"available",JS_NewBool(ctx,present));
+    JS_SetPropertyStr(ctx,result,"value",present&&fresh?(boolean?JS_NewBool(ctx,it->second.boolean):JS_NewFloat64(ctx,it->second.value)):JS_NULL);
+    JS_SetPropertyStr(ctx,result,"updateAgeMs",present?trackingAge(ctx,it->second.updatedAt):JS_NULL);
+    return result;
+  };
+  for(const char *name:{"ring","pinky","grip","trigger","bumper","thumbrest","thumbstick","a","b","x","y","dpad","system","menu"}){
+    const std::string path=std::string("/input/capsense/")+name;
+    const auto it=state.raw.find(path);available|=it!=state.raw.end()&&!it->second.isBoolean&&std::isfinite(it->second.value);
+    JS_SetPropertyStr(ctx,sensors,name,field(path,false));
+  }
+  for(const char *name:{"handgrip1","handgrip2","thumbrest","grip","trigger","bumper","thumbstick","a","b","x","y","dpad_up","dpad_down","dpad_left","dpad_right","view","menu","system"})
+    JS_SetPropertyStr(ctx,touches,name,field(std::string("/input/")+name+"/touch",true));
+  JS_SetPropertyStr(ctx,object,"source",JS_NewString(ctx,"vrserver"));
+  JS_SetPropertyStr(ctx,object,"hand",JS_NewString(ctx,h?"right":"left"));
+  JS_SetPropertyStr(ctx,object,"connected",JS_NewBool(ctx,connected));
+  JS_SetPropertyStr(ctx,object,"available",JS_NewBool(ctx,available));
+  JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,fresh&&available));
+  JS_SetPropertyStr(ctx,object,"fresh",JS_NewBool(ctx,fresh));
+  JS_SetPropertyStr(ctx,object,"ageMs",trackingAge(ctx,state.updatedAt));
+  JS_SetPropertyStr(ctx,object,"staleAfterMs",JS_NewFloat64(ctx,tracking::kFreshMs));
+  JS_SetPropertyStr(ctx,object,"sensors",sensors);JS_SetPropertyStr(ctx,object,"touches",touches);
+  JS_SetPropertyStr(ctx,object,"skeleton",JS_NULL);
+  return object;
+}
 static JSValue jsGetControllerInput(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc<1)return JS_ThrowTypeError(ctx,"getControllerInput(hand): hand is left or right");
   const int h=handIndex(ctx,argv[0]);if(h<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
@@ -90,7 +180,7 @@ static JSValue jsGetControllerInput(JSContext *ctx,JSValueConst,int argc,JSValue
   auto rawValue=[&](const char *name){auto it=state.raw.find(name);return it==state.raw.end()?0.f:it->second.isBoolean?(it->second.boolean?1.f:0.f):it->second.value;};
   JSValue buttons=JS_NewObject(ctx);const char *controls[]={"trigger","grip","bumper","thumbstick","a","b","x","y","menu","system","view","dpad_up","dpad_down","dpad_left","dpad_right"};for(const char *name:controls){JSValue item=JS_NewObject(ctx);std::string base=std::string("/input/")+name;JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,rawValue((base+"/click").c_str())!=0));JS_SetPropertyStr(ctx,item,"touched",JS_NewBool(ctx,rawValue((base+"/touch").c_str())!=0));JS_SetPropertyStr(ctx,buttons,name, item);}JS_SetPropertyStr(ctx,object,"buttons",buttons);
   JSValue analog=JS_NewObject(ctx);JS_SetPropertyStr(ctx,analog,"trigger",JS_NewFloat64(ctx,rawValue("/input/trigger/value")));JS_SetPropertyStr(ctx,analog,"grip",JS_NewFloat64(ctx,rawValue("/input/grip/value")));JSValue stick=JS_NewObject(ctx);JS_SetPropertyStr(ctx,stick,"x",JS_NewFloat64(ctx,rawValue("/input/thumbstick/x")));JS_SetPropertyStr(ctx,stick,"y",JS_NewFloat64(ctx,rawValue("/input/thumbstick/y")));JS_SetPropertyStr(ctx,analog,"thumbstick",stick);JS_SetPropertyStr(ctx,object,"analog",analog);
-  JSValue capacitive=JS_NewObject(ctx);for(const char *name:controls){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}JS_SetPropertyStr(ctx,object,"capacitive",capacitive);return object;
+  JSValue capacitive=JS_NewObject(ctx);for(const char *name:controls){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}for(const char *name:{"ring","pinky","thumbrest","dpad"}){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}JS_SetPropertyStr(ctx,object,"capacitive",capacitive);return object;
 }
 static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1||!JS_IsFunction(ctx,argv[0]))return JS_ThrowTypeError(ctx,"onInputEvent(callback)");if(inputCallbackCtx&&inputCallbackCtx!=ctx)clearInputCallback(inputCallbackCtx);else clearInputCallback(ctx);inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);return JS_UNDEFINED;}
 static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
@@ -305,6 +395,9 @@ static bool loadScript(ScriptHost &active,const std::string &path){
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
   bind(candidate.ctx,"getControllerInput",jsGetControllerInput,1);
+  bind(candidate.ctx,"getEyeTracking",jsGetEyeTracking,0);
+  bind(candidate.ctx,"getEyeFoveationCenters",jsGetEyeFoveationCenters,0);
+  bind(candidate.ctx,"getFingerTracking",jsGetFingerTracking,1);
   bind(candidate.ctx,"pollInputEvents",jsPollInputEvents,0);
   bind(candidate.ctx,"onInputEvent",jsOnInputEvent,1);
   bind(candidate.ctx,"getInput",jsGetInput,1);
@@ -703,6 +796,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
   auto anchor=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
   for(int r=0;r<3;r++)anchor.m[r][3]+=anchor.m[r][1]*-.2f+anchor.m[r][2]*-1.f;
+  trackingAnchor=anchor;trackingAnchorValid=true;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
@@ -866,7 +960,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         }
       }
     }
-    controllerInput.poll();
+    controllerInput.poll(script.scene.eyeTrackingRequested,script.scene.foveationRequested);
     frameInput.poll();
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){

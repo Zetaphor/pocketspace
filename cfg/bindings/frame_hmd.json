@@ -1,0 +1,16 @@
+{
+  "action_manifest_version": 0,
+  "controller_type": "frame_hmd",
+  "name": "Overlay engine eye gaze",
+  "description": "Optional combined gaze, polled only without a scene app",
+  "bindings": {
+    "/actions/eyes": {
+      "eyetracking": [
+        {
+          "path": "/user/head/eyetracking",
+          "output": "/actions/eyes/in/gaze"
+        }
+      ]
+    }
+  }
+}

@@ -3,6 +3,10 @@
     {
       "controller_type": "frame_controller",
       "binding_url": "bindings/frame_controller.json"
+    },
+    {
+      "controller_type": "frame_hmd",
+      "binding_url": "bindings/frame_hmd.json"
     }
   ],
   "actions": [
@@ -124,12 +128,21 @@
     {
       "name": "/actions/hands/out/haptic",
       "type": "vibration"
+    },
+    {
+      "name": "/actions/eyes/in/gaze",
+      "type": "eyetracking",
+      "requirement": "optional"
     }
   ],
   "action_sets": [
     {
       "name": "/actions/hands",
       "usage": "leftright"
+    },
+    {
+      "name": "/actions/eyes",
+      "usage": "single"
     }
   ],
   "localization": [
@@ -159,7 +172,9 @@
       "/actions/hands/in/dpad_down_click": "Dpad Down Click",
       "/actions/hands/in/dpad_left_click": "Dpad Left Click",
       "/actions/hands/in/dpad_right_click": "Dpad Right Click",
-      "/actions/hands/out/haptic": "Haptic feedback"
+      "/actions/hands/out/haptic": "Haptic feedback",
+      "/actions/eyes": "Eye tracking",
+      "/actions/eyes/in/gaze": "Combined eye gaze"
     }
   ]
 }
