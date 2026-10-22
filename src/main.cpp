@@ -32,6 +32,7 @@
 #include "panel.h"
 #include "eye_calibration.h"
 #include "scope_exit.h"
+#include "physics_world.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -50,7 +51,7 @@ struct Object {
   animation::Playback animation;
   std::shared_ptr<ModelPose> animationPose;
 };
-struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static Scene *currentScene=nullptr,*liveScene=nullptr;
 struct ControllerSnapshot {bool valid=false,connected=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -482,31 +483,107 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
   return JS_NewInt32(ctx,id);
 }
+static physics::Pose physicsPose(const Object &o){return {{o.x,o.y,o.z},o.pitch,o.yaw,o.roll};}
+static physics::World &physicsWorld(Scene &scene){if(!scene.physics)scene.physics=std::make_unique<physics::World>();return *scene.physics;}
+static void configurePhysics(Scene &scene,const Object &object,const physics::Settings &settings){
+  const auto &asset=scene.assets[size_t(object.asset)-1];
+  physics::Vec3 low{asset.low[0]*object.scale,asset.low[1]*object.scale,asset.low[2]*object.scale};
+  physics::Vec3 high{asset.high[0]*object.scale,asset.high[1]*object.scale,asset.high[2]*object.scale};
+  physicsWorld(scene).set(object.id,settings,physicsPose(object),low,high);
+}
+static void teleportPhysics(Object &object){
+  if(!currentScene->physics||!currentScene->physics->contains(object.id))return;
+  auto &world=*currentScene->physics;
+  if(world.get(object.id).settings.type==physics::Type::Kinematic)world.target(object.id,physicsPose(object),0);
+  else world.pose(object.id,physicsPose(object));
+}
+static JSValue physicsVector(JSContext *ctx,physics::Vec3 v){JSValue o=JS_NewObject(ctx);JS_SetPropertyStr(ctx,o,"x",JS_NewFloat64(ctx,v.x));JS_SetPropertyStr(ctx,o,"y",JS_NewFloat64(ctx,v.y));JS_SetPropertyStr(ctx,o,"z",JS_NewFloat64(ctx,v.z));return o;}
+static JSValue physicsState(JSContext *ctx,const physics::State &s){
+  JSValue o=JS_NewObject(ctx);const auto &c=s.settings;
+  JS_SetPropertyStr(ctx,o,"type",JS_NewString(ctx,c.type==physics::Type::Static?"static":c.type==physics::Type::Kinematic?"kinematic":"dynamic"));
+  JS_SetPropertyStr(ctx,o,"shape",JS_NewString(ctx,c.shape==physics::Shape::Box?"box":"sphere"));
+  for(const auto &[name,value]:std::initializer_list<std::pair<const char*,float>>{{"mass",c.mass},{"friction",c.friction},{"restitution",c.restitution},{"linearDamping",c.linearDamping},{"angularDamping",c.angularDamping},{"gravityFactor",c.gravityFactor}})JS_SetPropertyStr(ctx,o,name,JS_NewFloat64(ctx,value));
+  JS_SetPropertyStr(ctx,o,"position",physicsVector(ctx,s.pose.position));
+  JS_SetPropertyStr(ctx,o,"rotation",physicsVector(ctx,{s.pose.pitch,s.pose.yaw,s.pose.roll}));
+  JS_SetPropertyStr(ctx,o,"velocity",physicsVector(ctx,s.velocity));JS_SetPropertyStr(ctx,o,"angularVelocity",physicsVector(ctx,s.angularVelocity));
+  JS_SetPropertyStr(ctx,o,"held",JS_NewBool(ctx,s.held));JS_SetPropertyStr(ctx,o,"sleeping",JS_NewBool(ctx,s.sleeping));return o;
+}
+static Object *physicsObject(JSContext *ctx,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0){JS_ThrowTypeError(ctx,"physics requires an object id");return nullptr;}
+  auto *o=findObject(id);if(!o)JS_ThrowRangeError(ctx,"unknown object id");return o;
+}
+static JSValue jsSetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  auto *o=physicsObject(ctx,argc,argv);if(!o)return JS_EXCEPTION;
+  if(argc>1&&(!JS_IsObject(argv[1])||JS_IsNull(argv[1])))return JS_ThrowTypeError(ctx,"physics options must be an object");
+  physics::Settings settings;
+  if(currentScene->physics&&currentScene->physics->contains(o->id))settings=currentScene->physics->get(o->id).settings;
+  if(argc>1){
+    auto text=[&](const char *name,std::string &out){JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return false;if(JS_IsUndefined(v)){JS_FreeValue(ctx,v);return true;}if(!JS_IsString(v)){JS_FreeValue(ctx,v);JS_ThrowTypeError(ctx,"physics type and shape must be strings");return false;}const char *s=JS_ToCString(ctx,v);JS_FreeValue(ctx,v);if(!s)return false;out=s;JS_FreeCString(ctx,s);return true;};
+    std::string type=settings.type==physics::Type::Static?"static":settings.type==physics::Type::Kinematic?"kinematic":"dynamic",shape=settings.shape==physics::Shape::Box?"box":"sphere";
+    if(!text("type",type)||!text("shape",shape))return JS_EXCEPTION;
+    if(type=="static")settings.type=physics::Type::Static;else if(type=="dynamic")settings.type=physics::Type::Dynamic;else if(type=="kinematic")settings.type=physics::Type::Kinematic;else return JS_ThrowRangeError(ctx,"physics type must be static, dynamic, or kinematic");
+    if(shape=="box")settings.shape=physics::Shape::Box;else if(shape=="sphere")settings.shape=physics::Shape::Sphere;else return JS_ThrowRangeError(ctx,"physics shape must be box or sphere");
+    for(auto [name,value]:std::initializer_list<std::pair<const char*,float*>>{{"mass",&settings.mass},{"friction",&settings.friction},{"restitution",&settings.restitution},{"linearDamping",&settings.linearDamping},{"angularDamping",&settings.angularDamping},{"gravityFactor",&settings.gravityFactor}}){
+      JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return JS_EXCEPTION;
+      if(!JS_IsUndefined(v)){double number;if(!JS_IsNumber(v)||JS_ToFloat64(ctx,&number,v)<0||!std::isfinite(number)){JS_FreeValue(ctx,v);return JS_ThrowTypeError(ctx,"physics parameters must be finite numbers");}*value=float(number);}JS_FreeValue(ctx,v);
+    }
+  }
+  try{configurePhysics(*currentScene,*o,settings);return physicsState(ctx,currentScene->physics->get(o->id));}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}
+}
+static JSValue jsGetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *o=physicsObject(ctx,argc,argv);if(!o)return JS_EXCEPTION;if(!currentScene->physics||!currentScene->physics->contains(o->id))return JS_NULL;return physicsState(ctx,currentScene->physics->get(o->id));}
+static JSValue jsRemoveObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *o=physicsObject(ctx,argc,argv);if(!o)return JS_EXCEPTION;if(currentScene->physics)currentScene->physics->remove(o->id);return JS_UNDEFINED;}
+static bool readPhysicsVector(JSContext *ctx,int argc,JSValueConst *argv,int offset,physics::Vec3 &v){
+  if(argc<offset+3){JS_ThrowTypeError(ctx,"physics vector requires x, y, z");return false;}
+  float *fields[]={&v.x,&v.y,&v.z};for(int i=0;i<3;i++){double n;if(!JS_IsNumber(argv[offset+i])||JS_ToFloat64(ctx,&n,argv[offset+i])<0||!std::isfinite(n)||std::fabs(n)>10000){JS_ThrowRangeError(ctx,"physics vectors require finite components within +/-10000");return false;}*fields[i]=float(n);}return true;
+}
+static JSValue jsSetPhysicsGravity(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){physics::Vec3 v;if(!readPhysicsVector(ctx,argc,argv,0,v))return JS_EXCEPTION;physicsWorld(*currentScene).gravity(v);return JS_UNDEFINED;}
+template<int Operation> static JSValue jsPhysicsVectorOperation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  auto *o=physicsObject(ctx,argc,argv);if(!o)return JS_EXCEPTION;physics::Vec3 v;if(!readPhysicsVector(ctx,argc,argv,1,v))return JS_EXCEPTION;
+  if(!currentScene->physics)return JS_ThrowRangeError(ctx,"object has no physics body");
+  try{auto &w=*currentScene->physics;if constexpr(Operation==0)w.velocity(o->id,v);else if constexpr(Operation==1)w.angularVelocity(o->id,v);else w.impulse(o->id,v);}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}return JS_UNDEFINED;
+}
+static void updateScenePhysics(Scene &scene,double elapsed){
+  if(!scene.physics)return;
+  for(const auto &o:scene.objects)if(scene.physics->contains(o.id)){
+    const auto state=scene.physics->get(o.id);
+    if(state.held||state.settings.type==physics::Type::Kinematic)scene.physics->target(o.id,physicsPose(o),elapsed);
+  }
+  scene.physics->advance(elapsed);
+  for(auto &o:scene.objects)if(scene.physics->contains(o.id)){
+    const auto s=scene.physics->get(o.id);
+    if(s.settings.type==physics::Type::Dynamic&&!s.held){o.x=s.pose.position.x;o.y=s.pose.position.y;o.z=s.pose.position.z;o.pitch=s.pose.pitch;o.yaw=s.pose.yaw;o.roll=s.pose.roll;}
+  }
+}
+
 static JSValue jsSetObjectPosition(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;float x,y,z;
   if(argc<4||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],x)||!number(ctx,argv[2],y)||!number(ctx,argv[3],z))return JS_ThrowTypeError(ctx,"setObjectPosition(id, x, y, z)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
-  object->x=x;object->y=y;object->z=z;return JS_UNDEFINED;
+  object->x=x;object->y=y;object->z=z;teleportPhysics(*object);return JS_UNDEFINED;
 }
 static JSValue jsSetObjectYaw(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;float yaw;
   if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],yaw))return JS_ThrowTypeError(ctx,"setObjectYaw(id, radians)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
-  object->yaw=yaw;return JS_UNDEFINED;
+  object->yaw=yaw;teleportPhysics(*object);return JS_UNDEFINED;
 }
 static JSValue jsSetObjectRotation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;float pitch,yaw,roll;
   if(argc<4||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],pitch)||!number(ctx,argv[2],yaw)||!number(ctx,argv[3],roll))
     return JS_ThrowTypeError(ctx,"setObjectRotation(id, pitch, yaw, roll)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
-  object->pitch=pitch;object->yaw=yaw;object->roll=roll;return JS_UNDEFINED;
+  object->pitch=pitch;object->yaw=yaw;object->roll=roll;teleportPhysics(*object);return JS_UNDEFINED;
 }
 static JSValue jsSetObjectScale(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;float scale;
   if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],scale))return JS_ThrowTypeError(ctx,"setObjectScale(id, meters)");
   if(scale<=0||scale>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
-  object->scale=scale;return JS_UNDEFINED;
+  if(currentScene->physics&&currentScene->physics->contains(id)){
+    auto &w=*currentScene->physics;const auto state=w.get(id);const float old=object->scale;object->scale=scale;
+    try{configurePhysics(*currentScene,*object,state.settings);if(state.settings.type==physics::Type::Dynamic&&!state.held){w.velocity(id,state.velocity);w.angularVelocity(id,state.angularVelocity);}}
+    catch(const std::exception &e){object->scale=old;return JS_ThrowRangeError(ctx,"%s",e.what());}
+  }else object->scale=scale;return JS_UNDEFINED;
 }
 static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"setObjectVisible(id, visible)");
@@ -524,6 +601,7 @@ static void forgetObjectInteraction(int id){
 static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  if(currentScene->physics)currentScene->physics->remove(id);
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
   if(currentScene==liveScene)forgetObjectInteraction(id);
@@ -569,6 +647,13 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
+  bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);
+  bind(candidate.ctx,"getObjectPhysics",jsGetObjectPhysics,1);
+  bind(candidate.ctx,"removeObjectPhysics",jsRemoveObjectPhysics,1);
+  bind(candidate.ctx,"setPhysicsGravity",jsSetPhysicsGravity,3);
+  bind(candidate.ctx,"setObjectVelocity",jsPhysicsVectorOperation<0>,4);
+  bind(candidate.ctx,"setObjectAngularVelocity",jsPhysicsVectorOperation<1>,4);
+  bind(candidate.ctx,"applyObjectImpulse",jsPhysicsVectorOperation<2>,4);
   bind(candidate.ctx,"getAnimations",jsGetAnimations,1);
   bind(candidate.ctx,"playAnimation",jsPlayAnimation,3);
   bind(candidate.ctx,"pauseAnimation",jsPauseAnimation,1);
@@ -785,13 +870,14 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
     const int previousGrab=grab.objectId;
     Object *object=nullptr;for(auto &candidate:scene.objects)if(candidate.id==grab.objectId){object=&candidate;break;}
-    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
+    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
     if(object){
       auto state=pointerStates.find(object->id);
       const bool buttonDown=frameGrabDown(h,object->grabButton);
       const bool nativeDown=object->grabButton!=GrabButton::Grip&&state!=pointerStates.end()&&state->second.hand==h&&state->second.down;
       if(grab.rawGrab)grab.releaseFrames=buttonDown?0:grab.releaseFrames+1;
       if((grab.rawGrab&&grab.releaseFrames>=5)||(!grab.rawGrab&&!nativeDown&&!buttonDown)){
+        if(scene.physics)scene.physics->release(previousGrab,true);
         frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;
       }
     }
@@ -813,6 +899,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
           const float reach=.10f+candidate.scale*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
           beginGrab(grab,candidate,hand,direct);
+          if(scene.physics&&scene.physics->contains(candidate.id))scene.physics->hold(candidate.id);
           grab.rawGrab=frameGrabDown(h,candidate.grabButton);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
           grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,candidate.scale*.5f)),.02f,2.f);
@@ -820,6 +907,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
         }
       }
     }
+    if(object&&!hand.valid&&scene.physics)scene.physics->cancelThrow(object->id);
     if(object&&hand.valid){
       const float oldX=object->x,oldY=object->y,oldZ=object->z,oldPitch=object->pitch,oldYaw=object->yaw,oldRoll=object->roll;
       auto pointer=pointerStates.find(object->id);
@@ -1088,7 +1176,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;
-  double pickingMs=0,renderMs=0,finishMs=0;
+  double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
   auto lastAnimationTick=std::chrono::steady_clock::now();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
@@ -1206,7 +1294,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     frameInput.poll();
     if(streamWasStarted&&!frameInput.started()){
       for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])frameInput.addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
-      for(const auto &object:script.scene.objects)forgetObjectInteraction(object.id);
+      for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}
     }
     for(int h=0;h<2;h++)if(!controllers[h].connected){
       frameInput.invalidateHand(h);
@@ -1248,6 +1336,10 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(JS_IsException(result)){JSValue exception=JS_GetException(script.ctx);const char *message=JS_ToCString(script.ctx,exception);fprintf(stderr,"[js] update error: %s\n",message?message:"unknown");if(message)JS_FreeCString(script.ctx,message);JS_FreeValue(script.ctx,exception);JS_FreeValue(script.ctx,script.update);script.update=JS_UNDEFINED;}
       JS_FreeValue(script.ctx,result);
     }
+    const auto physicsStart=std::chrono::steady_clock::now();
+    try{updateScenePhysics(script.scene,animationDt);}
+    catch(const std::exception &error){fprintf(stderr,"[physics] %s\n",error.what());running=false;break;}
+    physicsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-physicsStart).count();
     for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
     for(auto &object:script.scene.objects)if(object.animationPose)uploadModelPose(*object.animationPose);
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
@@ -1335,7 +1427,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         if(!surface->shown){overlays->ShowOverlay(surface->overlay);surface->shown=true;}
       }
       ++frame;
-      if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900);pickingMs=renderMs=finishMs=0;}
+      if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.

@@ -7,7 +7,7 @@ Each object has its own stereo surface with three DMA-BUF render buffers.
 
 ## Build and run
 
-Requires CMake, a C++20 compiler, OpenVR headers and runtime, QuickJS-ng's static
+Requires CMake 3.20 or newer, a C++20 compiler, OpenVR headers and runtime, QuickJS-ng's static
 library, FreeType, EGL, GLESv2, GBM, and libdrm development files. The default
 library paths target Steam Frame's ARM64 Linux environment. Override `SDK_INCLUDE`,
 `QJS_INCLUDE`, `QJS_LIB`, and `STEAMVR_BIN` through CMake for another installation.
@@ -18,6 +18,9 @@ cmake --build build -j2
 ./run-overlay-engine.sh
 ./run-overlay-engine.sh scripts/grabbing.js
 ```
+
+The first CMake configuration downloads a pinned Jolt Physics source archive;
+see [physics builds](docs/physics-api.md#building) for offline configuration.
 
 Start SteamVR before running an overlay. The wrapper sets the runtime library
 path and X11/EGL environment, then runs from the repository root. Its default
@@ -44,6 +47,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
+| [physics.js](scripts/physics.js) | Gravity, collisions, grabbable boxes, and throwing; bumper resets unheld boxes |
 | [tracking.js](scripts/tracking.js) | Corrected gaze display and raw finger sensor values |
 | [eye-calibration.js](scripts/eye-calibration.js) | Personal calibration generator; requires an output path as described below |
 
@@ -51,6 +55,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 - [JavaScript API](docs/javascript-api.md): runtime, models, interaction, controllers, and events.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
+- [Physics](docs/physics-api.md): rigid bodies, colliders, gravity, impulses, and grab release.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.
 - [Tracking](docs/tracking-api.md): gaze, foveation centers, and finger sensors.
 - [Eye calibration](docs/eye-calibration.md): generate, load, and interpret correction files.

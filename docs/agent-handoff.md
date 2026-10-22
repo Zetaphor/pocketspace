@@ -13,6 +13,7 @@ these guides; implementation history belongs in Git.
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
+| `src/physics_world.cpp` | Scene-owned Jolt rigid bodies, stepping, contacts, and grab release. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
 | `cfg/` | Runtime OpenVR action manifest and bindings. |
 | `scripts/` | Concise examples and the personal calibration generator. |
