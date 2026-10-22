@@ -66,8 +66,8 @@ undocumented SteamVR behavior and may change across updates.
    saw no pitch motion. Log smooth-scroll events while the stick is clicked
    and the trigger is held, then correct the event handling or choose another
    workable modifier. Do not enable this option in the normal demo yet.
-2. **Direct pickup gesture:** Near-hand pickup currently uses the native
-   trigger selection. Grip click switches or disables the SteamVR laser. A
+2. **Direct pickup gesture:** Near-hand pickup currently uses the controller
+   trigger. Grip click switches or disables the SteamVR laser. A
    dedicated grip-based grab remains to be implemented; raw trigger grabs work
    independently of native pointer ownership.
 3. **Action input:** The engine has an action manifest and Steam Frame binding
