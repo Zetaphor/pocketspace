@@ -68,7 +68,7 @@ and the excluded high-triangle car; performance isolation is the next priority.
 ## Input and reliability
 
 5. **Protect the raw-input integration against SteamVR changes.** The `vrserver` WebSocket is undocumented. Compare the native monitor with `scripts/steam-frame-input.py` after SteamVR updates; verify discovery, reconnect, resubscription, button/value normalization, and behavior during transient tracking loss. Evaluate a documented action path only if it can provide the needed controls in this overlay context.
-6. **Broaden lifecycle testing.** Exercise repeated scene reloads, object and panel removal, controller disconnect/reconnect, SteamVR restart, and shutdown while one or both models are held. Verify no stale grab state, ghost overlays, resource leaks, or retained input callbacks.
+6. **Lifecycle hardening — implemented and automated checks passed.** Reload rollback/state reset, held-object removal, panel detachment, controller/raw-input invalidation, bounded reconnect, and scoped shutdown cleanup are implemented. See [lifecycle tests](lifecycle.md) for exact coverage and logs. The user requested moving on from the impractical physical-disconnect test. Physical disconnects, visual held-object removal, and a real SteamVR quit/restart remain unverified/deferred; the test scene is stopped.
 
 ## Deferred performance improvements
 

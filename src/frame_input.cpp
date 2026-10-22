@@ -8,6 +8,8 @@
 #include <cstring>
 #include <cstdlib>
 #include <cerrno>
+#include <algorithm>
+#include <poll.h>
 
 namespace frame_input {
 namespace {
@@ -19,7 +21,16 @@ std::string jsonString(const std::string &s,const std::string &key,size_t from=0
 std::string randomKey(){std::random_device source;std::string mask(4,'\0');for(char &byte:mask)byte=static_cast<char>(source());return mask;}
 }
 Monitor::~Monitor(){if(fd_>=0)close(fd_);}
-void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};}
+void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};resetScene();}
+void Monitor::stop(){disconnect();}
+void Monitor::resetScene(){events_.clear();callbackEvents_.clear();hovered_[0]=hovered_[1]=0;}
+void Monitor::invalidateHand(int hand){
+ if(hand<0||hand>1)return;
+ hands_[hand]={};hovered_[hand]=0;
+ const std::string side=hand?"right":"left";
+ auto remove=[&](std::vector<Event> &events){std::erase_if(events,[&](const Event &e){return e.hand==side&&e.type.starts_with("controller.");});};
+ remove(events_);remove(callbackEvents_);
+}
 bool Monitor::reconnect(){disconnect();return start();}
 bool Monitor::sendFrame(unsigned char opcode,const std::string &payload){
  if(fd_<0)return false;
@@ -29,13 +40,45 @@ bool Monitor::sendFrame(unsigned char opcode,const std::string &payload){
 }
 bool Monitor::start(){
  disconnect();
- fd_=socket(AF_INET,SOCK_STREAM|SOCK_NONBLOCK,0);if(fd_<0)return false; sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(port_);inet_pton(AF_INET,"127.0.0.1",&a.sin_addr);connect(fd_,(sockaddr*)&a,sizeof(a));
- fd_=fd_; int flags=fcntl(fd_,F_GETFL);fcntl(fd_,F_SETFL,flags&~O_NONBLOCK);
+ fd_=socket(AF_INET,SOCK_STREAM|SOCK_NONBLOCK,0);if(fd_<0)return false;
+ auto fail=[&](){disconnect();return false;};
+ sockaddr_in a{};a.sin_family=AF_INET;a.sin_port=htons(port_);inet_pton(AF_INET,"127.0.0.1",&a.sin_addr);
+ if(connect(fd_,(sockaddr*)&a,sizeof(a))<0&&errno!=EINPROGRESS)return fail();
+ // Bound the entire connection/upgrade attempt so reconnect cannot freeze rendering.
+ const auto deadline=tracking::Clock::now()+std::chrono::milliseconds(200);
+ auto ready=[&](short events){
+   for(;;){const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline-tracking::Clock::now()).count();if(left<=0)return false;
+     pollfd p{fd_,events,0};const int n=::poll(&p,1,static_cast<int>(left));if(n<0&&errno==EINTR)continue;return n>0&&(p.revents&events);}
+ };
+ if(!ready(POLLOUT))return fail();
+ int error=0;socklen_t errorSize=sizeof(error);
+ if(getsockopt(fd_,SOL_SOCKET,SO_ERROR,&error,&errorSize)<0||error)return fail();
  const std::string origin="127.0.0.1:"+std::to_string(port_);
- std::string key="sf_overlay_engine";std::string req="GET / HTTP/1.1\r\nHost: "+origin+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: "+key+"\r\nSec-WebSocket-Version: 13\r\nOrigin: http://"+origin+"\r\nReferer: http://"+origin+"/dashboard/controllerbinding.html\r\n\r\n";if(send(fd_,req.data(),req.size(),MSG_NOSIGNAL)<0)return false;
- char buf[4096];std::string reply;while(reply.find("\r\n\r\n")==std::string::npos){ssize_t n=recv(fd_,buf,sizeof(buf),0);if(n<=0)return false;reply.append(buf,n);}sendFrame(1,"mailbox_open sf_overlay_engine");
- for(const char *side:{"left","right"}){std::string msg="mailbox_send input_server {\"type\":\"request_input_state_updates\",\"device_path\":\"/user/hand/"+std::string(side)+"\",\"returnAddress\":\"sf_overlay_engine\"}";sendFrame(1,msg);}
- fcntl(fd_,F_SETFL,flags);started_=true;return true;
+ const std::string req="GET / HTTP/1.1\r\nHost: "+origin+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: sf_overlay_engine\r\nSec-WebSocket-Version: 13\r\nOrigin: http://"+origin+"\r\nReferer: http://"+origin+"/dashboard/controllerbinding.html\r\n\r\n";
+ size_t sent=0;
+ while(sent<req.size()){
+   if(!ready(POLLOUT))return fail();
+   const auto n=send(fd_,req.data()+sent,req.size()-sent,MSG_NOSIGNAL);
+   if(n<0&&(errno==EAGAIN||errno==EINTR))continue;
+   if(n<=0)return fail();
+   sent+=n;
+ }
+ char buf[4096];std::string reply;size_t end=std::string::npos;
+ while((end=reply.find("\r\n\r\n"))==std::string::npos){
+   if(!ready(POLLIN))return fail();
+   const auto n=recv(fd_,buf,sizeof(buf),0);
+   if(n<0&&(errno==EAGAIN||errno==EINTR))continue;
+   if(n<=0)return fail();
+   reply.append(buf,n);if(reply.size()>65536)return fail();
+ }
+ if(!reply.starts_with("HTTP/1.1 101 "))return fail();
+ buffer_=reply.substr(end+4); // The first state frame may share the upgrade packet.
+ if(!sendFrame(1,"mailbox_open sf_overlay_engine"))return fail();
+ for(const char *side:{"left","right"}){
+   const std::string msg="mailbox_send input_server {\"type\":\"request_input_state_updates\",\"device_path\":\"/user/hand/"+std::string(side)+"\",\"returnAddress\":\"sf_overlay_engine\"}";
+   if(!sendFrame(1,msg))return fail();
+ }
+ started_=true;return true;
 }
 void Monitor::processMessage(const std::string &message){
  const auto device=jsonString(message,"device");
@@ -82,7 +125,7 @@ void Monitor::processMessage(const std::string &message){
    p=end;
  }
 }
-void Monitor::poll(){if(!started_)return;char buf[65536];for(;;){ssize_t n=recv(fd_,buf,sizeof(buf),MSG_DONTWAIT);if(n==0){disconnect();break;}if(n<0){if(errno==EAGAIN||errno==EWOULDBLOCK)break;disconnect();break;}buffer_.append(buf,n);}while(buffer_.size()>=2){unsigned char b0=buffer_[0],b1=buffer_[1];size_t n=b1&127,h=2;if(n==126){if(buffer_.size()<4)break;n=(static_cast<unsigned char>(buffer_[2])<<8)|static_cast<unsigned char>(buffer_[3]);h=4;}if(buffer_.size()<h+n)break;auto payload=buffer_.substr(h,n);buffer_.erase(0,h+n);if((b0&15)==9){sendFrame(10,payload);continue;}if((b0&15)==1){fragment_+=payload;if(b0&128){processMessage(fragment_);fragment_.clear();}}}}
+void Monitor::poll(){if(!started_)return;char buf[65536];for(;;){ssize_t n=recv(fd_,buf,sizeof(buf),MSG_DONTWAIT);if(n==0){disconnect();break;}if(n<0){if(errno==EAGAIN||errno==EWOULDBLOCK)break;disconnect();break;}buffer_.append(buf,n);}while(buffer_.size()>=2){unsigned char b0=buffer_[0],b1=buffer_[1];size_t n=b1&127,h=2;if(n==126){if(buffer_.size()<4)break;n=(static_cast<unsigned char>(buffer_[2])<<8)|static_cast<unsigned char>(buffer_[3]);h=4;}if(buffer_.size()<h+n)break;auto payload=buffer_.substr(h,n);buffer_.erase(0,h+n);if((b0&15)==8){disconnect();break;}if((b0&15)==9){if(!sendFrame(10,payload)){disconnect();break;}continue;}if((b0&15)==1){fragment_+=payload;if(b0&128){processMessage(fragment_);fragment_.clear();}}}}
 std::vector<Event> Monitor::takeEvents(){std::vector<Event> result;result.swap(events_);return result;}
 std::vector<Event> Monitor::takeCallbackEvents(){auto result=std::move(callbackEvents_);callbackEvents_.clear();return result;}
 void Monitor::setHoveredObject(int hand,int objectId){if(hand>=0&&hand<2)hovered_[hand]=objectId;}
