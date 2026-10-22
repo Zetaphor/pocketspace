@@ -152,3 +152,36 @@ final native sources. Its log records distinct simultaneous held objects,
 independent release events, 90 FPS, `gl_error=0`, and clean shutdown at 1313
 frames (`/tmp/tracking-api-two-hand-regression.log`). No wearer observations
 were collected for this regression run.
+
+## Wearer results and gaze accuracy follow-up
+
+The wearer confirmed the finger readings worked after removing a Spigen
+controller cover; they did not work properly with that cover fitted. This is
+an observation for the tested cover/controller combination, not a general
+compatibility conclusion for every cover.
+
+In `scripts/tracking-test.js`, gaze was closest to the right gold circle and
+substantially farther off at the center and left circles. Source validity and
+tracked flags therefore do not establish gaze accuracy. The runtime log is
+`/tmp/tracking-wearer-d2662c2.log`. No calibration correction has been applied.
+
+Code inspection found the scene conversion and panel intersection consistent
+with the fixed panel transform. This does not independently establish that
+the runtime's calibration/projection is correct. To measure the error, run
+`scripts/gaze-accuracy-test.js`: nine fixed targets, one visible at a time,
+with no live gaze dot. Keep the head still and tap either trigger while looking
+at each target. Sampling starts after a 350 ms settling interval and lasts one
+second. At least 30 valid/tracked samples are required; otherwise retry the
+same point. Either bumper restarts. The final three targets complete the grid.
+
+`GAZE_ACCURACY_POINT` logs each target's median observed pixel position,
+signed pixel error, median angular error, and 95th-percentile spread around the
+median. `GAZE_ACCURACY_COMPLETE` logs the full set. These are explicit wearer
+target samples, not an automatically learned correction. The measurements are
+specific to this panel and headset fit; no head-pose stability claim is made.
+Any later general-purpose correction should account for head-relative gaze,
+headset repositioning, and held-out validation targets.
+
+`node tests/gaze-accuracy-test.cjs` exercises the actual scene script with exact
+synthetic target rays, a known 100-pixel bias, invalid samples/retry, nine-point
+completion, and restart. It passes. Runtime/wearer measurements are next.
