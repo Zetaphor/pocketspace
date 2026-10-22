@@ -72,6 +72,11 @@ The initial [tracking API](tracking-api.md) now exposes combined OpenVR gaze,
 per-eye foveation NDC, and global raw finger sensors. Headset alignment/finger
 exercises and primary-app coexistence are next. Native skeletal activation,
 bare-hand tracking, eye openness, and the experimental mmap backend remain open.
+Wearer follow-up: finger sensing worked after removing a Spigen controller
+cover. Raw gaze alignment was closest at the right target and worse at center/
+left. Next use `scripts/gaze-accuracy-test.js` to capture a nine-point error grid
+before choosing calibration or projection changes; do not treat validity as
+proof of accuracy or silently alter the raw gaze API.
 
 ## Later engine milestones
 

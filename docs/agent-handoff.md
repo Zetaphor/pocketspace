@@ -14,6 +14,12 @@ headlessly. The diagnostic text panel reported 83 FPS. Gaze alignment, individua
 finger interpretation, and primary-app coexistence remain wearer checks.
 The historical research-only state described below is superseded by this API.
 
+Wearer results: fingers worked with the Spigen cover removed; gaze aligned best
+on the right and poorly at the center/left. No gaze correction was applied.
+The next diagnostic is `scripts/gaze-accuracy-test.js`, a nine-point trigger-
+captured accuracy grid without a live dot. Its synthetic script test passes;
+actual wearer error measurements remain pending. See tracking-api.md.
+
 The user deferred further performance work and requested eye/finger tracking
 research. See [tracking research](tracking-research.md) for primary documentation,
 actual Deckard probes, API proposal, and limitations. Combined OpenVR gaze and
