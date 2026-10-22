@@ -28,8 +28,9 @@ exist in the repository for those cases.
 
 ## Current support and validation
 
-Animation playback is not implemented yet: loading this fixture currently shows
-its static pose. Importing the fixture does not claim playback support.
+Node TRS playback is now implemented; see the [animation API](animation-api.md)
+for controls, limitations, and tests. Loading alone still shows the static pose;
+call `playAnimation` to start a clip. Skinning and morph playback remain deferred.
 The GLB's Git blob hash was compared with GitHub's metadata at the pinned revision;
 the local JSON chunk was inspected for clip paths, interpolation, durations,
 skins, and extensions. Deckard's existing engine `--inspect` loaded it successfully:

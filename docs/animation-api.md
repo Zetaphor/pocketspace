@@ -1,0 +1,142 @@
+# Node animation playback
+
+The engine supports per-object glTF node translation, quaternion rotation, and
+scale animation with STEP, LINEAR, and CUBICSPLINE interpolation. Playback is
+opt-in: loading an animated model still starts in its static bind/default pose.
+Skinned and morph-target assets are not yet playable; clips report support status
+and unsupported playback requests throw. There is one selected clip per object,
+with no cross-fade, blending, skeletal deformation, or animation event stream.
+
+## Example
+
+```js
+const asset = loadModel('assets/samples/InterpolationTest/InterpolationTest.glb');
+const object = createObject(asset, 0, 0, 0, .65);
+print(JSON.stringify(getAnimations(asset)));
+playAnimation(object, 'Linear Rotation', {loop: true, speed: 1});
+
+pauseAnimation(object);       // freeze the current pose
+seekAnimation(object, 1);     // seconds from the clip's timeline origin
+resumeAnimation(object);     // continue from the current time
+const state = getAnimationState(object);
+stopAnimation(object);        // clear the selected clip; restore bind pose
+```
+
+A second object created from the same asset has an independent playback clock
+and pose. Its material textures remain shared with the first object. Object
+position, rotation, scale, and grab manipulation remain outer transforms applied
+to the animated model; playing a clip does not overwrite those object settings.
+
+## API
+
+| Function | Contract |
+| --- | --- |
+| `getAnimations(assetId)` | Return an array of `{index, name, duration, supported, unsupportedReason}`. Indices are zero-based and stable for that asset. Duration is seconds; names may be empty or duplicated. Unsupported reason is null for supported clips. Static assets return an empty array. |
+| `playAnimation(objectId, clip = 0, options = {})` | Select a clip by exact name or integer index and restart playback. Options are `loop` (boolean, default true), `speed` (finite number in `(0,100]`, default 1), and `time` (finite seconds within `[0,duration]`, default 0). Returns the new state. |
+| `pauseAnimation(objectId)` | Stop advancement while preserving the selected clip, time, and pose. On an object with no selected clip, this is a no-op. Returns state. |
+| `resumeAnimation(objectId)` | Resume at the current time. Requires a selected clip. It clears the finished flag; resuming at a non-looping endpoint finishes again on the next tick. Returns state. |
+| `seekAnimation(objectId, seconds)` | Evaluate the selected clip at the exact supplied time in `[0,duration]`. Preserves playing/paused state and clears finished. Requires a selected clip. Returns state. |
+| `stopAnimation(objectId)` | Clear the clip and restore original geometry. Time resets to 0, speed to 1, loop to true, playing/finished to false. Returns state. |
+| `getAnimationState(objectId)` | Return `{clip, name, time, duration, speed, loop, playing, finished, status}`. `clip` is an index or null; `name` is the source name or null. Status is `stopped`, `playing`, `paused`, or `finished`. |
+
+For duplicate names, select by index; string lookup chooses the first matching
+name. A call to `playAnimation` always restarts with fresh default options unless
+you provide them again. To continue an existing playback, use `resumeAnimation`.
+Invalid clips, unsupported clips, invalid options, and out-of-range seek times
+throw without replacing the current playback. Missing/removed object IDs throw.
+State snapshots are ordinary JS objects; modifying them does not change playback.
+
+When non-looping playback reaches the end, it holds the final pose, sets
+`finished: true`, and stops advancement. Stopping explicitly instead restores the
+bind pose. Looping wraps at duration, including back to time 0 at exact boundaries.
+Seeking to duration shows the endpoint immediately; a playing loop wraps on its
+next tick. Zero-duration clips finish on their first advancement. Reverse speed
+and automatic playback on load are not implemented.
+
+## Time, geometry, and picking
+
+Playback advances from elapsed monotonic wall time once per native loop, including
+for invisible objects, independently of the existing fixed `update(dt)` argument.
+Paused instances do not repeatedly evaluate/upload geometry. Hidden objects keep
+their clocks running so they show the current pose when made visible again.
+Reloaded scenes get new playback state from their script; removed objects release
+their pose and GPU buffers. Failed reloads retain the original instances.
+
+The loader retains source node transforms, parent order, channels, and local
+vertices for animated assets. Animation evaluates local TRS values, propagates
+parent transforms, then applies the original asset center/normalization. It never
+recenters each frame, so translation motion and changes in scale are preserved.
+Matrix-only ancestor nodes work; a channel targeting a matrix-only node is marked
+unsupported. Unanimated channels/nodes retain their default values.
+
+LINEAR rotation uses shortest-path quaternion interpolation. CUBICSPLINE uses
+Hermite tangents scaled by the keyframe interval and normalizes quaternion results.
+Key times clamp outside each channel's key range. These rules follow the
+[Khronos glTF animation specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#animations).
+
+Each animated instance maintains CPU vertex geometry and dynamic GPU vertex
+buffers. The asset's materials/textures stay shared. Picking uses those evaluated
+vertices with the existing BVH split topology refitted to the pose. Overlay width
+expands with the pose radius, avoiding the original fixed default-pose extent.
+The basic asset path and its shared immutable BVH remain in use for static objects.
+
+This initial implementation costs vertex transformation, BVH refit, and vertex
+upload per advancing animated instance. It is intended as a correct starting point
+for the small test fixture; larger animated scenes have not been profiled. It does
+not provide GPU skinning or constant-cost animation independent of mesh size.
+
+## Tests and headset scene
+
+The selected [Khronos fixture](animation-test-assets.md) has nine two-second clips,
+one for each TRS property and interpolation combination. Run:
+
+```sh
+c++ -std=c++20 -O2 -Wall -Wextra -Werror -I src tests/animation-math.cpp -o /tmp/animation-math
+/tmp/animation-math
+python3 tests/picking-regression.py
+python3 tests/grab-buttons-regression.py
+```
+
+On Deckard:
+
+```sh
+cmake -S . -B build
+cmake --build build --target sf-overlay-engine animation-regression -j2
+LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/animation-regression
+./run-overlay-engine.sh tests/animation-api-smoke.js
+./run-overlay-engine.sh scripts/animation-test.js
+```
+
+The explicit native regression target retains assertions in Release and is excluded
+from normal builds. Math tests cover analytic interpolation results, quaternion
+signs/normalization, hierarchy order/cycles, clamp behavior, and playback time.
+Native tests compare the evaluated bind pose with the existing cgltf geometry,
+exercise nine clips at six times each, compare animated BVH and triangle hits over
+5,400 rays, and test independent instances plus the actual QuickJS API.
+The live smoke tests non-looping completion and animated-object removal.
+
+The headset scene starts `Linear Rotation`. Bumper selects the next of nine clips;
+A/X pauses/resumes; B/Y restarts. Grip or trigger can grab the model. Each fixture
+clip moves one test part while its other parts retain their default pose. Check
+translation/rotation/scale, jumps versus smooth interpolation, pause/resume/restart,
+and selection while the part moves. Then test different clips/times on independent
+instances and reload/removal. Record wearer observations separately from logs.
+
+## Recorded verification
+
+Deckard Release build and the math/native/API checks above passed. The existing
+static picking and grab-button regressions also passed, as did the native
+QuickJS lifecycle regression after the loader/binding changes.
+
+- `/tmp/animation-regression.log`: bind compatibility, all nine clips, animated
+  picking comparisons, instance isolation, input rejection, API and CPU cleanup.
+- `/tmp/animation-api-runtime.log`: `ANIMATION_API_PASS`,
+  `ANIMATION_ENDPOINT_PASS`, `ANIMATION_REMOVE_PASS`, and clean bounded shutdown;
+  no JS load/update errors in the final run.
+- `/tmp/animation-visual-startup.log`: looping rotation state and about 89.3 FPS
+  with one animated fixture and the diagnostic text panel; `gl_error=0`.
+- `/tmp/lifecycle-after-animation.log`: loader rollback/context cleanup passed.
+
+These runs are stopped. The visual scene was started as a bounded runtime check;
+wearer confirmation of motion, interpolation appearance, and animated grabbing
+is pending. This is not a performance claim for large meshes or many instances.

@@ -24,7 +24,7 @@ has access, build, test, and change-workflow details for a new maintainer.
 inside the headset, loading its JSON file, corrected/raw gaze APIs, and troubleshooting.
 [Lifecycle behavior and tests](docs/lifecycle.md) covers reloads, removal, disconnects,
 and shutdown. [Animation fixture](docs/animation-test-assets.md) describes the
-Khronos model selected for upcoming playback implementation.
+Khronos model used to test [node animation playback](docs/animation-api.md).
 
 Run the default avocado or a sample gallery:
 
@@ -37,6 +37,7 @@ Run the default avocado or a sample gallery:
 ./run-overlay-engine.sh scripts/full-sphere-gallery.js
 ./run-overlay-engine.sh scripts/dual-laser-test.js
 ./run-overlay-engine.sh scripts/native-grab-demo.js
+./run-overlay-engine.sh scripts/animation-test.js
 ```
 
 Stop with Ctrl-C or SIGTERM. The script is checked for changes about three
@@ -139,9 +140,10 @@ two-hand grabs are headset verified with the avocado and box probe; see
 The loader handles GLB triangle primitives across all mesh nodes, node
 transforms, embedded base-color textures, material factors, alpha modes,
 texture UV transforms, and a basic sheen tint. The sheen tint is an
-approximation; full PBR lighting, skinning, morph animation, and glTF animation
-playback are future milestones. The current feature gallery shows the default
-pose for animated assets. `build/sf-overlay-engine --inspect path.glb` checks
+approximation; full PBR lighting, skinning, and morph animation remain future
+milestones. Node translation/rotation/scale animation supports STEP, LINEAR, and
+CUBICSPLINE through the [animation API](docs/animation-api.md). Playback is opt-in;
+existing galleries still show default poses unless they call `playAnimation`. `build/sf-overlay-engine --inspect path.glb` checks
 an asset without opening VR.
 
 The sample models, upstream references, and licenses are listed in

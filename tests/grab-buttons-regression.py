@@ -16,6 +16,9 @@ header=r'''
 #include <string>
 #include <vector>
 #include <cstdio>
+#include <memory>
+#include "animation.h"
+struct ModelPose;
 '''
 mocks=r'''
 struct Scene {std::vector<Object> objects;bool laserVisible[2]{true,true};};
@@ -101,5 +104,5 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
  path=Path(tmp)/'grab.cpp';path.write_text(header+objects+controller+mocks+functions+tests)
  binary=Path(tmp)/'grab'
- subprocess.run(['c++','-std=c++20','-O2','-Wall','-Wextra',str(path),'-o',str(binary)],check=True)
+ subprocess.run(['c++','-std=c++20','-O2','-Wall','-Wextra','-I',str(root/'src'),str(path),'-o',str(binary)],check=True)
  subprocess.run([str(binary)],check=True)

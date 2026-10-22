@@ -47,6 +47,8 @@ struct Object {
   GrabButton grabButton=GrabButton::Trigger;
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
   bool handPitch=false,handYaw=false,handRoll=false;
+  animation::Playback animation;
+  std::shared_ptr<ModelPose> animationPose;
 };
 struct Scene {std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static Scene *currentScene=nullptr,*liveScene=nullptr;
@@ -323,6 +325,75 @@ static Object *findObject(int id){
   for(auto &object:currentScene->objects)if(object.id==id)return &object;
   return nullptr;
 }
+static JSValue animationState(JSContext *ctx,const Object &object){
+  const auto &state=object.animation;const auto &asset=currentScene->assets[size_t(object.asset)-1];
+  const auto *clip=state.clip>=0?&asset.animations[state.clip]:nullptr;
+  JSValue value=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,value,"clip",clip?JS_NewInt32(ctx,state.clip):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"name",clip?JS_NewString(ctx,clip->name.c_str()):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"time",JS_NewFloat64(ctx,state.time));
+  JS_SetPropertyStr(ctx,value,"duration",JS_NewFloat64(ctx,clip?clip->duration:0));
+  JS_SetPropertyStr(ctx,value,"speed",JS_NewFloat64(ctx,state.speed));
+  JS_SetPropertyStr(ctx,value,"loop",JS_NewBool(ctx,state.loop));
+  JS_SetPropertyStr(ctx,value,"playing",JS_NewBool(ctx,state.playing));
+  JS_SetPropertyStr(ctx,value,"finished",JS_NewBool(ctx,state.finished));
+  JS_SetPropertyStr(ctx,value,"status",JS_NewString(ctx,!clip?"stopped":state.playing?"playing":state.finished?"finished":"paused"));
+  return value;
+}
+static Object *animationObject(JSContext *ctx,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0){JS_ThrowTypeError(ctx,"animation control requires an object id");return nullptr;}
+  auto *object=findObject(id);if(!object)JS_ThrowRangeError(ctx,"unknown object id");return object;
+}
+static JSValue jsGetAnimations(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||id<1||size_t(id)>currentScene->assets.size())return JS_ThrowRangeError(ctx,"getAnimations(assetId) requires a loaded asset");
+  JSValue array=JS_NewArray(ctx);const auto &clips=currentScene->assets[size_t(id)-1].animations;
+  for(size_t i=0;i<clips.size();i++){
+    const auto &clip=clips[i];JSValue item=JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx,item,"index",JS_NewInt32(ctx,int(i)));JS_SetPropertyStr(ctx,item,"name",JS_NewString(ctx,clip.name.c_str()));
+    JS_SetPropertyStr(ctx,item,"duration",JS_NewFloat64(ctx,clip.duration));JS_SetPropertyStr(ctx,item,"supported",JS_NewBool(ctx,clip.supported()));
+    JS_SetPropertyStr(ctx,item,"unsupportedReason",clip.supported()?JS_NULL:JS_NewString(ctx,clip.unsupportedReason.c_str()));
+    JS_SetPropertyUint32(ctx,array,uint32_t(i),item);
+  }
+  return array;
+}
+static JSValue jsGetAnimationState(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *object=animationObject(ctx,argc,argv);return object?animationState(ctx,*object):JS_EXCEPTION;}
+static JSValue jsPlayAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  auto *object=animationObject(ctx,argc,argv);if(!object)return JS_EXCEPTION;
+  const auto &asset=currentScene->assets[size_t(object->asset)-1];int index=0;
+  if(argc>1&&!JS_IsUndefined(argv[1])){
+    if(JS_IsString(argv[1])){
+      const char *name=JS_ToCString(ctx,argv[1]);if(!name)return JS_EXCEPTION;index=-1;
+      for(size_t i=0;i<asset.animations.size();i++)if(asset.animations[i].name==name){index=int(i);break;}JS_FreeCString(ctx,name);
+    }else{
+      double number=0;if(!JS_IsNumber(argv[1])||JS_ToFloat64(ctx,&number,argv[1])<0||!std::isfinite(number)||number<0||number>=double(asset.animations.size())||number!=std::floor(number))return JS_ThrowRangeError(ctx,"clip must be a valid name or integer index");index=int(number);
+    }
+  }
+  if(index<0||size_t(index)>=asset.animations.size())return JS_ThrowRangeError(ctx,"unknown animation clip");
+  const auto &clip=asset.animations[index];if(!clip.supported())return JS_ThrowTypeError(ctx,"unsupported animation: %s",clip.unsupportedReason.c_str());
+  animation::Playback state;state.clip=index;state.playing=true;
+  if(argc>2&&!JS_IsUndefined(argv[2])){
+    if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"animation options must be an object");
+    JSValue loop=JS_GetPropertyStr(ctx,argv[2],"loop");if(JS_IsException(loop))return JS_EXCEPTION;
+    if(!JS_IsUndefined(loop)&&!JS_IsBool(loop)){JS_FreeValue(ctx,loop);return JS_ThrowTypeError(ctx,"loop must be boolean");}
+    if(!JS_IsUndefined(loop))state.loop=JS_ToBool(ctx,loop)>0;JS_FreeValue(ctx,loop);
+    auto read=[&](const char *name,double &target){JSValue value=JS_GetPropertyStr(ctx,argv[2],name);if(JS_IsException(value))return false;bool ok=JS_IsUndefined(value)||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&target,value)==0&&std::isfinite(target));JS_FreeValue(ctx,value);return ok;};
+    if(!read("speed",state.speed)||!read("time",state.time))return JS_ThrowTypeError(ctx,"speed and time must be finite numbers");
+  }
+  if(state.speed<=0||state.speed>100||state.time<0||state.time>clip.duration)return JS_ThrowRangeError(ctx,"speed must be in (0,100] and time within the clip");
+  auto pose=std::make_shared<ModelPose>();evaluateModelPose(asset,state,*pose);
+  object->animation=state;object->animationPose=std::move(pose);return animationState(ctx,*object);
+}
+static JSValue jsPauseAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *object=animationObject(ctx,argc,argv);if(!object)return JS_EXCEPTION;object->animation.playing=false;return animationState(ctx,*object);}
+static JSValue jsResumeAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *object=animationObject(ctx,argc,argv);if(!object)return JS_EXCEPTION;if(object->animation.clip<0)return JS_ThrowRangeError(ctx,"play an animation before resuming");object->animation.playing=true;object->animation.finished=false;return animationState(ctx,*object);}
+static JSValue jsStopAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){auto *object=animationObject(ctx,argc,argv);if(!object)return JS_EXCEPTION;object->animation={};object->animationPose.reset();return animationState(ctx,*object);}
+static JSValue jsSeekAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  auto *object=animationObject(ctx,argc,argv);if(!object)return JS_EXCEPTION;
+  double time=0;if(argc<2||!JS_IsNumber(argv[1])||JS_ToFloat64(ctx,&time,argv[1])<0||!std::isfinite(time))return JS_ThrowTypeError(ctx,"seekAnimation requires a finite time");
+  const auto &asset=currentScene->assets[size_t(object->asset)-1];auto &state=object->animation;
+  if(state.clip<0||time<0||time>asset.animations[state.clip].duration)return JS_ThrowRangeError(ctx,"select a clip and seek within its duration");
+  state.time=time;state.finished=false;evaluateModelPose(asset,state,*object->animationPose);return animationState(ctx,*object);
+}
+static float objectRadius(const Object &object){return object.animationPose?std::max(1.f,object.animationPose->radius):1.f;}
 static bool readGrabButton(JSContext *ctx,JSValueConst options,GrabButton &button){
   JSValue value=JS_GetPropertyStr(ctx,options,"grabButton");
   if(JS_IsException(value))return false;
@@ -498,6 +569,13 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
+  bind(candidate.ctx,"getAnimations",jsGetAnimations,1);
+  bind(candidate.ctx,"playAnimation",jsPlayAnimation,3);
+  bind(candidate.ctx,"pauseAnimation",jsPauseAnimation,1);
+  bind(candidate.ctx,"resumeAnimation",jsResumeAnimation,1);
+  bind(candidate.ctx,"stopAnimation",jsStopAnimation,1);
+  bind(candidate.ctx,"seekAnimation",jsSeekAnimation,2);
+  bind(candidate.ctx,"getAnimationState",jsGetAnimationState,1);
   bind(candidate.ctx,"createPanel",jsCreatePanel,1);
   bind(candidate.ctx,"panelClear",jsPanelClear,5);
   bind(candidate.ctx,"panelText",jsPanelText,9);
@@ -945,7 +1023,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
     for(int id:desired){
       const Object *object=nullptr;for(const auto &entry:script.scene.objects)if(entry.id==id){object=&entry;break;}
       if(!object)continue;
-      const float width=std::max(.55f,object->scale*2.1f);
+      const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
       const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
       const bool interactive=!object->laserPassThrough;
       auto found=surfaces.find(id);
@@ -1012,6 +1090,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   std::vector<Surface*> ready;
   double pickingMs=0,renderMs=0,finishMs=0;
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
+  auto lastAnimationTick=std::chrono::steady_clock::now();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
   while(running){
     vr::VREvent_t runtimeEvent{};
@@ -1048,10 +1127,17 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
           panelOverlays.clear();panelTextures.clear();panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
+          lastAnimationTick=std::chrono::steady_clock::now();
           fprintf(stdout,"[lifecycle] scene state reset\n");
         });
         if(!loaded)script.mtime=modified;
       }
+    }
+    const auto animationTick=std::chrono::steady_clock::now();
+    const double animationDt=std::chrono::duration<double>(animationTick-lastAnimationTick).count();lastAnimationTick=animationTick;
+    for(auto &object:script.scene.objects)if(object.animation.clip>=0){
+      const auto &asset=script.scene.assets[size_t(object.asset)-1];
+      if(animation::advance(object.animation,asset.animations[object.animation.clip],animationDt))evaluateModelPose(asset,object.animation,*object.animationPose);
     }
     if(!syncSurfaces()){running=false;break;}
     syncPanels();
@@ -1134,7 +1220,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       for(const auto &object:script.scene.objects){
         if(!object.visible)continue;
         const auto &asset=script.scene.assets[(size_t)object.asset-1];
-        const float distance=meshHit(object,asset,controllers[hand],hand);
+        const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
         if(distance<nearest){nearest=distance;hit=object.id;}
       }
       meshCurrentObject[hand]=hit;
@@ -1163,6 +1249,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       JS_FreeValue(script.ctx,result);
     }
     for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
+    for(auto &object:script.scene.objects)if(object.animationPose)uploadModelPose(*object.animationPose);
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
@@ -1186,12 +1273,14 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         const Object *target=nullptr;
         for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
         if(!target)continue;
+        const float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
+        if(std::fabs(surface->width-animatedWidth)>.0001f){surface->width=animatedWidth;overlays->SetOverlayWidthInMeters(surface->overlay,animatedWidth);}
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
         auto panel=anchor;
         for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
         float distanceSquared=0,facing=0;
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
-        if(facing<.25f*std::sqrt(distanceSquared)-target->scale*.6f){
+        if(facing<.25f*std::sqrt(distanceSquared)-target->scale*(target->animationPose?objectRadius(*target):.6f)){
           if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}
           continue;
         }
@@ -1216,11 +1305,12 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-              for(const auto &part:asset.primitives){
+              for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
+                const auto &part=asset.primitives[primitive];
                 if((part.alphaMode==2)!=bool(pass))continue;
                 glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
                 glUniform3fv(sheenLocation,1,part.sheen);
-                glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
+                glBindBuffer(GL_ARRAY_BUFFER,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:part.vbo);
                 glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)0);
                 glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
