@@ -1,0 +1,16 @@
+{
+  "action_manifest_version": 0,
+  "controller_type": "frame_hmd",
+  "name": "Overlay tracking capability probe",
+  "description": "Read-only tracking diagnostic",
+  "bindings": {
+    "/actions/eyes": {
+      "eyetracking": [
+        {
+          "path": "/user/head/eyetracking",
+          "output": "/actions/eyes/in/gaze"
+        }
+      ]
+    }
+  }
+}
