@@ -87,3 +87,12 @@ proof of accuracy or silently alter the raw gaze API.
 ## Verification rule
 
 For each headset-facing change, record the exact scene, Deckard build revision, runtime log, and what the wearer actually saw or felt. A successful build, OpenVR call, or event log alone does not establish headset behavior.
+
+## Latest gaze findings
+
+Latest gaze measurement: two completed grids showed stable median angular
+errors of 20.14 and 18.71 degrees, predominantly downward. Native panel geometry
+checks passed. A panel-specific affine fit did not validate consistently enough
+to apply globally. The next gaze task is explicit head-relative calibration
+with quality gating and independent validation; raw gaze remains unchanged.
+See [tracking API measurements](tracking-api.md) for exact logs and residuals.
