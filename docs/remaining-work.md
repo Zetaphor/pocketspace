@@ -14,6 +14,11 @@ Performance follow-up: [measurements and reproduction](performance.md). Release
 builds and model-space ray picking brought the single Toy Car scene to 90 FPS;
 the fixed two-hand CPU benchmark improved from 3.6288 to 2.4372 ms. Multi-model
 scaling remains open. Per user direction, the Frametop report is out of scope.
+The subsequent shared triangle BVH reduced Toy Car's fixed two-hand picking
+benchmark from about 2.9 ms to 0.0023–0.0052 ms, preserving all hit results.
+Four Toy Car instances at 768 pixels per eye held 89.9–90 FPS; rendering/GPU
+waits now dominate that scene. See the performance document for memory/startup
+costs and validation scope. Next performance work should measure rendering cost.
 
 Selection validation now has a dedicated seven-case scene and synthetic hollow
 frame fixture: see [model selection test](model-selection-test.md). Headset

@@ -15,6 +15,12 @@ Deckard now uses Release; model-space ray picking replaces per-triangle world
 transforms. The Toy Car runtime check held 90 FPS, and the fixed CPU benchmark
 reduced picking time by 32.8%. All bounded performance runs stopped cleanly.
 The user explicitly excluded investigation of the Frametop report from scope.
+After cleanup commit `bd44825`, a shared per-asset static triangle BVH replaces
+the runtime linear scan. Its direct benchmark compares BVH and linear hits;
+the four-car scene held 89.9–90 FPS with picking around 0.014 ms/frame.
+Rendering/GPU completion now dominates that measured workload. The index costs
+about 79 ms and 3.08 MiB for Toy Car, once per loaded asset. See performance.md
+for test commands, logs, and limitations; no new wearer confirmation was collected.
 
 Selection and initial performance changes on top of `d7db4b9` were committed as
 `4ee849f` and `f9b238d`; the subsequent cleanup is recorded in Git history.

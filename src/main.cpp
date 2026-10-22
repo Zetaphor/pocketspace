@@ -587,7 +587,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
   }
 }
 static bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];}for(int i=0;i<3;i++){p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
-static float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex){
+static float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated=true){
   if(!hand.valid)return std::numeric_limits<float>::max();
   constexpr float tilt=.6981317008f;
   const float tip[3]={handIndex==0?.012694f:-.012694f,-.02522f,.020687f};
@@ -608,24 +608,15 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
     localOrigin[axis]+=rotation[row*3+axis]*delta[row]/object.scale;
     localDirection[axis]+=rotation[row*3+axis]*reflectedDirection[row];
   }
-  // Slab bounds are rejection-only; openings still require a triangle hit.
-  float near=0,far=miss;
-  for(int axis=0;axis<3;axis++){
-    if(std::fabs(localDirection[axis])<1e-8f){
-      if(localOrigin[axis]<asset.low[axis]||localOrigin[axis]>asset.high[axis])return miss;
-    }else{
-      float a=(asset.low[axis]-localOrigin[axis])/localDirection[axis];
-      float b=(asset.high[axis]-localOrigin[axis])/localDirection[axis];
-      if(a>b)std::swap(a,b);
-      near=std::max(near,a);far=std::min(far,b);
-      if(near>far)return miss;
-    }
-  }
   float best=miss;
-  for(const auto &part:asset.primitives)for(size_t index=0;index+14<part.vertices.size();index+=15){
-    const float *triangle=part.vertices.data()+index;
-    float distance;
-    if(rayTriangle(localOrigin,localDirection,triangle,triangle+5,triangle+10,distance))best=std::min(best,distance);
+  if(accelerated)best=picking::intersect(asset,localOrigin,localDirection,rayTriangle);
+  else{
+    float near;
+    if(!picking::bounds(localOrigin,localDirection,asset.low,asset.high,miss,near))return miss;
+    for(const auto &part:asset.primitives)for(size_t index=0;index+14<part.vertices.size();index+=15){
+      const float *v=part.vertices.data()+index;float distance;
+      if(rayTriangle(localOrigin,localDirection,v,v+5,v+10,distance))best=std::min(best,distance);
+    }
   }
   return best==miss?miss:best*object.scale;
 }
@@ -641,16 +632,27 @@ int main(int argc,char **argv) {
     std::copy(rotation,rotation+9,hand.rotation);
     hand.y=-(-.02522f*c-.020687f*s);
     hand.z=1.f-(-.02522f*s+.020687f*c);
-    int hits=0;double checksum=0;
-    const auto start=std::chrono::steady_clock::now();
     constexpr int frames=200;
-    for(int frame=0;frame<frames;frame++)for(int h=0;h<2;h++){
-      hand.x=(h==0?-.012694f:.012694f)+((frame%21)-10)*.012f;
-      const float distance=meshHit(object,asset,hand,h);
-      if(distance<std::numeric_limits<float>::max()){hits++;checksum+=distance;}
+    std::array<float,frames*2> reference{};
+    for(bool accelerated:{false,true}){
+      int hits=0;double checksum=0;
+      const auto start=std::chrono::steady_clock::now();
+      for(int frame=0;frame<frames;frame++)for(int h=0;h<2;h++){
+        hand.x=(h==0?-.012694f:.012694f)+((frame%21)-10)*.012f;
+        const float distance=meshHit(object,asset,hand,h,accelerated);
+        if(!accelerated)reference[frame*2+h]=distance;
+        else{
+          const float expected=reference[frame*2+h];
+          const bool hit=distance<std::numeric_limits<float>::max(),expectedHit=expected<std::numeric_limits<float>::max();
+          if(hit!=expectedHit||(hit&&std::fabs(distance-expected)>1e-5f)){
+            fprintf(stderr,"[benchmark] BVH mismatch frame=%d hand=%d expected=%g actual=%g\n",frame,h,expected,distance);return 2;
+          }
+        }
+        if(distance<std::numeric_limits<float>::max()){hits++;checksum+=distance;}
+      }
+      const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+      fprintf(stdout,"[benchmark] mode=%s frames=%d hands=2 picking_ms=%.4f hits=%d checksum=%.6f nodes=%zu triangles=%zu\n",accelerated?"bvh":"linear",frames,ms/frames,hits,checksum,asset.pickNodes.size(),asset.pickTriangles.size());
     }
-    const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
-    fprintf(stdout,"[benchmark] frames=%d hands=2 picking_ms=%.4f hits=%d checksum=%.6f\n",frames,ms/frames,hits,checksum);
     return 0;
   }
   if(argc>2&&std::string(argv[1])=="--inspect"){

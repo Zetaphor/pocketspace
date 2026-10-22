@@ -56,8 +56,8 @@ invalid tracking, a small triangle hit/miss, and 4000 transformed-ray comparison
 against a frozen world-space oracle. It needs Python 3 and a C++20 compiler,
 but no OpenVR, GL libraries, or headset.
 
-Next scaling work: profile increasing model counts, including repeated assets,
-before adding a BVH. The current scan remains linear in candidate triangles.
+The initial model-space implementation still scanned candidate triangles
+linearly. The BVH follow-up below replaces that runtime scan.
 Headset retest of frame openings after the model-space optimization remains
 useful; the earlier wearer-confirmed fix preceded this optimization.
 
@@ -81,8 +81,54 @@ reported 90 FPS with `gl_error=0`, delivered hover events from both hands, and
 exited cleanly at 1319 frames. This is runtime/log verification, not a new wearer
 confirmation of visual or interaction behavior.
 
-Other opportunities need separate measurements: a per-asset triangle BVH for
-larger scenes; replacing quadratic object/surface lookup scans; indexed geometry
+Other opportunities need separate measurements: replacing quadratic
+object/surface lookup scans; indexed geometry
 instead of expanded triangle streams; and reducing redundant overlay submissions.
 Changing shared-texture fences or `glFinish` requires validating compositor
 ownership and texture reuse, rather than simply deleting synchronization.
+
+## Shared triangle BVH
+
+Follow-up on `bd44825`: build a median-split BVH once per loaded asset, after
+normalizing geometry. Nodes contain conservative local bounds; leaves reference
+the existing primitive vertices without duplicating geometry. All instances
+share the index. Traversal visits nearer nodes first, rejects nodes beyond the
+nearest triangle hit, and uses a bounded stack without per-ray allocations.
+Bounds remain rejection-only, preserving the hollow-frame opening.
+Geometry edits or future deformation require rebuilding/updating this static index.
+
+The CPU benchmark now runs both linear and BVH modes, comparing each ray's
+hit/miss and nearest distance, and exits nonzero on a mismatch.
+
+| Asset | Linear ms / two-hand frame | BVH ms / two-hand frame | Matching hits |
+| --- | --- | --- | --- |
+| Toy Car | 2.8994–2.9078 | 0.0023–0.0052 | 364 |
+| Lantern | 0.0727 | 0.0008 | 60 |
+| Hollow frame | 0.0007 | 0.0007 | 76 |
+
+Toy Car's distance checksum was identical between modes (335.880366).
+The BVH has 32,767 nodes for 108,936 triangles. Construction took 78.845 ms
+and reserved 3,227,336 bytes (3.08 MiB) on Deckard, once per loaded asset.
+The narrow fixed sweep is a repeatable algorithm benchmark, not a claim that
+the whole engine is hundreds of times faster.
+
+The 25-second single-car runtime check `/tmp/performance-bvh.log` held 90 FPS,
+reported picking at 0.003–0.014 ms/frame and `gl_error=0`, and exited at 2213
+frames. A separate 25-second run of `scripts/performance-multi-model-test.js`
+rendered four Toy Car instances at 768 pixels per eye, sharing one BVH:
+`/tmp/performance-bvh-four-cars.log` reported 89.9–90.0 FPS, all four surfaces
+ready, picking 0.013–0.014 ms, GL finish wait 4.563–7.776 ms, `gl_error=0`, and
+clean shutdown at 2213 frames. Runtime grab activity was present; no new wearer
+confirmation of appearance or selection accuracy was collected.
+
+`python3 tests/picking-regression.py` now includes 8000 BVH-versus-scan rays
+across sparse, layered geometry, parallel rays, inside origins, nearest hits,
+and index rebuild, plus the prior 4000 transformed hollow-frame comparisons.
+It also passed with `--checked` (libstdc++ container assertions). Optional
+`--sanitize` was attempted but unavailable locally: GCC's ASan runtime library
+is missing and the installed Clang cannot use the installed GCC 16 headers.
+
+Rendering/GPU completion is now the larger measured cost in the four-car scene.
+Measure geometry submission and pixel workload before pursuing indexed geometry
+or changing texture synchronization. Object/surface lookup scans remain a
+separate CPU scaling opportunity.

@@ -1,5 +1,6 @@
 #include "model_asset.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <limits>
@@ -94,6 +95,11 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
     out.low[axis]=(low[axis]-high[axis])*.5f*scale;
     out.high[axis]=(high[axis]-low[axis])*.5f*scale;
   }
+  const auto pickingStart=std::chrono::steady_clock::now();
+  picking::build(out);
+  const double pickingBuildMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
+  const size_t pickingBytes=out.pickNodes.capacity()*sizeof(picking::Node)+out.pickTriangles.capacity()*sizeof(picking::Triangle);
+  std::fprintf(stdout,"[picking] nodes=%zu triangles=%zu build_ms=%.3f reserved_bytes=%zu\n",out.pickNodes.size(),out.pickTriangles.size(),pickingBuildMs,pickingBytes);
   std::fprintf(stdout,"[model] loaded %s parts=%zu triangles=%zu skin=%d morph=%d animation=%d\n",path.c_str(),out.primitives.size(),[&]{size_t n=0;for(auto &p:out.primitives)n+=p.vertexCount/3;return n;}(),out.hasSkin,out.hasMorph,out.hasAnimation);
   std::fflush(stdout);
   return true;
