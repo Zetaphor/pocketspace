@@ -7,6 +7,9 @@ This document describes the QuickJS API exposed by `sf-overlay-engine`.
 `getEyeTracking()` returns raw combined gaze in scene coordinates;
 `getCalibratedEyeTracking()` optionally applies a personal correction loaded with
 `--eye-calibration FILE` (see [eye calibration](eye-calibration.md));
+`getEyeTrackingCalibration()` reports whether a correction is loaded and the
+configured save path; `saveEyeTrackingCalibration(object)` validates, writes, and
+activates a correction at the startup-selected `--eye-calibration-output FILE` path;
 `getEyeFoveationCenters()` returns separate per-eye NDC centers;
 `getFingerTracking("left"|"right")` returns raw capacitance/contact channels
 with explicit availability, null missing values, and freshness metadata.

@@ -20,6 +20,8 @@ records headset verification; [interaction status](docs/interaction-status.md)
 tracks object controls; [remaining work](docs/remaining-work.md) lists the
 next milestones and their completion checks. [Agent handoff](docs/agent-handoff.md)
 has access, build, test, and change-workflow details for a new maintainer.
+[Eye calibration](docs/eye-calibration.md) covers generating a personal correction
+inside the headset, loading its JSON file, corrected/raw gaze APIs, and troubleshooting.
 
 Run the default avocado or a sample gallery:
 

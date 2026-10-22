@@ -29,9 +29,10 @@ The historical research-only state described below is superseded by this API.
 
 Wearer results: fingers worked with the Spigen cover removed; gaze aligned best
 on the right and poorly at the center/left. No gaze correction was applied.
-The next diagnostic is `scripts/gaze-accuracy-test.js`, a nine-point trigger-
-captured accuracy grid without a live dot. Its synthetic script test passes;
-the completed wearer grids are analyzed in the latest follow-up below. See tracking-api.md.
+The raw diagnostic `scripts/gaze-accuracy-test.js` captured two nine-point grids
+without a live dot; results are analyzed in the historical follow-up below.
+The next wearer run uses `scripts/eye-calibration.js` and the corrected tracking
+diagnostic, as described in eye-calibration.md.
 
 The user deferred further performance work and requested eye/finger tracking
 research. See [tracking research](tracking-research.md) for primary documentation,
@@ -149,5 +150,6 @@ many targets. The capture script now retries unstable points (>50-pixel 95th-
 percentile spread). Offline analysis and synthetic tests are available in
 `scripts/analyze-gaze-accuracy.py` and `tests/gaze-analysis-test.py`; the native
 geometry diagnostic is `scripts/panel-ray-check.cpp`. Details and caveats are
-in tracking-api.md. Next: explicit head-relative per-user calibration and
-held-out validation, preserving raw gaze as a separate signal.
+in tracking-api.md. That follow-up is now implemented in
+[personal eye calibration](eye-calibration.md); next run its wearer acceptance
+checks. Raw gaze remains a separate signal.
