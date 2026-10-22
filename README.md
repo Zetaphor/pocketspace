@@ -23,7 +23,8 @@ has access, build, test, and change-workflow details for a new maintainer.
 [Eye calibration](docs/eye-calibration.md) covers generating a personal correction
 inside the headset, loading its JSON file, corrected/raw gaze APIs, and troubleshooting.
 [Lifecycle behavior and tests](docs/lifecycle.md) covers reloads, removal, disconnects,
-and shutdown.
+and shutdown. [Animation fixture](docs/animation-test-assets.md) describes the
+Khronos model selected for upcoming playback implementation.
 
 Run the default avocado or a sample gallery:
 

@@ -38,6 +38,14 @@ SIGTERM cleanup with a completed physical controller or SteamVR-restart test.
 The user asked to move on from the physical-disconnect test as impractical; the
 wearer scene is stopped and remaining manual checks are deferred.
 
+## Next: animation playback
+
+Khronos `InterpolationTest` is imported and passes the current engine's CPU
+inspection. See [animation test asset](animation-test-assets.md) for the pinned
+source, hash, license, clip names, and intended implementation order. It has
+nine two-second TRS clips and no skins. Playback remains unimplemented; begin
+with its LINEAR clips before skeletal/morph work.
+
 ## Current direction: tracking API research
 
 The initial implementation now provides `getEyeTracking()`,

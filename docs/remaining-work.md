@@ -106,7 +106,7 @@ Do not treat validity as proof of accuracy or silently alter the raw gaze API.
 ## Later engine milestones
 
 7. **Scale scene performance.** Measure frame time, GPU/shared memory, overlay count, and Frametop responsiveness as objects, textures, panels, and per-eye resolution increase. The current 768-pixel default is the known usable starting point; 512 pixels looked too blurry, while three 2048-pixel surfaces lagged in headset testing.
-8. **Add animation and rendering features.** Implement glTF animation playback, skinning, morph animation, and fuller materials/lighting. The current gallery loads sample assets but shows animated models in their default pose; sheen is only approximated.
+8. **Add animation and rendering features.** The selected first fixture is [Khronos InterpolationTest](animation-test-assets.md), now included locally with nine TRS/interpolation clips and no skins. Start with its LINEAR translation, rotation, and scale clips. Implement glTF animation playback, skinning, morph animation, and fuller materials/lighting. The current gallery loads sample assets but shows animated models in their default pose; sheen is only approximated.
 9. **Define game-state features.** Specify and then implement scene lifetime rules, physics, and persistence for scripted experiences. Preserve full-sphere placement and coexistence with the primary VR app.
 
 ## Verification rule
