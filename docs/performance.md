@@ -60,3 +60,29 @@ Next scaling work: profile increasing model counts, including repeated assets,
 before adding a BVH. The current scan remains linear in candidate triangles.
 Headset retest of frame openings after the model-space optimization remains
 useful; the earlier wearer-confirmed fix preceded this optimization.
+
+## Follow-up hot-loop cleanup
+
+The first implementation and measurement notes are committed in `4ee849f` and
+`f9b238d`. Follow-up changes cache shader uniform locations, compute both eye
+positions once per frame, reuse the ready-surface vector, and transfer the
+drained raw-input queue instead of copying all events and strings. The frame
+limiter drops missed deadlines, preventing uncapped catch-up bursts after a
+slow workload. Shared-texture GPU synchronization remains unchanged.
+
+The bounded Toy Car check `/tmp/performance-loop-cleanup.log` held 90 FPS,
+reported `gl_error=0`, and stopped cleanly at 2221 frames. Render-submission CPU
+time was 0.011–0.017 ms; this small sample does not establish an FPS improvement
+over the already capped 90 FPS baseline. The 4000-ray regression test passed.
+Reusing the ready-surface vector was added after that Toy Car run and is covered
+by the subsequent two-object runtime check.
+That final check (`/tmp/performance-loop-two-objects.log`) created both surfaces,
+reported 90 FPS with `gl_error=0`, delivered hover events from both hands, and
+exited cleanly at 1319 frames. This is runtime/log verification, not a new wearer
+confirmation of visual or interaction behavior.
+
+Other opportunities need separate measurements: a per-asset triangle BVH for
+larger scenes; replacing quadratic object/surface lookup scans; indexed geometry
+instead of expanded triangle streams; and reducing redundant overlay submissions.
+Changing shared-texture fences or `glFinish` requires validating compositor
+ownership and texture reuse, rather than simply deleting synchronization.

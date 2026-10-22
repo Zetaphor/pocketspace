@@ -7,14 +7,18 @@ Prepared October 22, 2026. This guide supplements [remaining work](remaining-wor
 ### Latest selection session (October 22, 2026)
 
 Performance follow-up is documented in [performance measurements](performance.md).
+The initial code and measurement notes are committed as `4ee849f` and `f9b238d`.
+The follow-up cleanup caches uniform locations, hoists per-eye pose calculations,
+reuses the render-ready vector, avoids copying drained input events, and drops
+missed frame deadlines instead of accumulating catch-up work.
 Deckard now uses Release; model-space ray picking replaces per-triangle world
 transforms. The Toy Car runtime check held 90 FPS, and the fixed CPU benchmark
 reduced picking time by 32.8%. All bounded performance runs stopped cleanly.
 The user explicitly excluded investigation of the Frametop report from scope.
 
-Uncommitted changes on top of `d7db4b9` are present in this checkout and Sigma;
-Deckard has the matching picker sources and selection scene. Do not overwrite
-them using the older clean-checkout baseline below. See
+Selection and initial performance changes on top of `d7db4b9` were committed as
+`4ee849f` and `f9b238d`; the subsequent cleanup is recorded in Git history.
+Do not overwrite these changes using the older baseline below. See
 [model selection test](model-selection-test.md) for exact logs and observations.
 The wearer confirmed the straight-on rear-cube / empty-frame regression fixed.
 Fixes remove spherical fallback hits, initialize triangle edges before cross

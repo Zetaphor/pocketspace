@@ -428,7 +428,7 @@ static GLuint compile(GLenum type,const char *source) {
   if(!ok){char log[1024];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);fprintf(stderr,"shader error: %s\n",log);}
   return shader;
 }
-static void setVec3(GLuint program,const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
+static void setVec3(GLint location,float x,float y,float z){glUniform3f(location,x,y,z);}
 static void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]){
   float length=0;
   for(int i=0;i<3;i++){forward[i]=panel.m[i][3]-head.m[i][3];length+=forward[i]*forward[i];}
@@ -762,13 +762,23 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
   syncPanels();
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
-  setVec3(program,"center",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);
-  setVec3(program,"right",anchor.m[0][0],anchor.m[1][0],anchor.m[2][0]);
-  setVec3(program,"up",anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
-  setVec3(program,"forward",-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
+  const GLint centerLocation=glGetUniformLocation(program,"center");
+  const GLint rightLocation=glGetUniformLocation(program,"right");
+  const GLint upLocation=glGetUniformLocation(program,"up");
+  const GLint forwardLocation=glGetUniformLocation(program,"forward");
+  const GLint panelRightLocation=glGetUniformLocation(program,"panelRight");
+  const GLint panelUpLocation=glGetUniformLocation(program,"panelUp");
+  const GLint panelForwardLocation=glGetUniformLocation(program,"panelForward");
+  const GLint eyeLocation=glGetUniformLocation(program,"eye");
+  const GLint panelHalfWidthLocation=glGetUniformLocation(program,"panelHalfWidth");
+  setVec3(centerLocation,anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);
+  setVec3(rightLocation,anchor.m[0][0],anchor.m[1][0],anchor.m[2][0]);
+  setVec3(upLocation,anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
+  setVec3(forwardLocation,-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
+  std::vector<Surface*> ready;
   double pickingMs=0,renderMs=0,finishMs=0;
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
   while(running){
@@ -901,7 +911,13 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         updateLaser(lasers[hand],laserShown[hand],script.scene.laserVisible[hand],hand,pose,head,meshHitDistance[hand]);
       }
       const auto renderStart=std::chrono::steady_clock::now();
-      std::vector<Surface*> ready;
+      float eyes[2][3];
+      for(int i=0;i<2;i++){
+        const auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
+        for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
+      }
+      ready.clear();
+      ready.reserve(surfaces.size());
       for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end())continue;if(!panelData.texture||!panelData.visible){overlays->HideOverlay(h->second);continue;}auto &texture=panelTextures[panelData.id];texture={reinterpret_cast<void*>(static_cast<uintptr_t>(panelData.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};auto panelError=overlays->SetOverlayTexture(h->second,&texture);if(panelError!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,(int)panelError);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="arbitrary"){for(int row=0;row<3;row++)for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panelData.rotation[axis*3+col];transform.m[row][col]=value;}}if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
       for(auto &[id,surface]:surfaces){
         const Object *target=nullptr;
@@ -919,18 +935,16 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         float panelRight[3],panelUp[3],panelForward[3];
         faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
         overlays->SetOverlayTransformAbsolute(surface->overlay,vr::TrackingUniverseStanding,&panel);
-        setVec3(program,"center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);
-        setVec3(program,"panelRight",panelRight[0],panelRight[1],panelRight[2]);
-        setVec3(program,"panelUp",panelUp[0],panelUp[1],panelUp[2]);
-        setVec3(program,"panelForward",panelForward[0],panelForward[1],panelForward[2]);
-        glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),surface->width*.5f);
+        setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);
+        setVec3(panelRightLocation,panelRight[0],panelRight[1],panelRight[2]);
+        setVec3(panelUpLocation,panelUp[0],panelUp[1],panelUp[2]);
+        setVec3(panelForwardLocation,panelForward[0],panelForward[1],panelForward[2]);
+        glUniform1f(panelHalfWidthLocation,surface->width*.5f);
         Buffer &buffer=surface->buffers[frame%3];
         glBindFramebuffer(GL_FRAMEBUFFER,buffer.fbo);glViewport(0,0,2*surface->eyePixels,surface->eyePixels);
         glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         for(int i=0;i<2;i++){
-          auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
-          float eye[3];for(int r=0;r<3;r++)eye[r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
-          setVec3(program,"eye",eye[0],eye[1],eye[2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
+          setVec3(eyeLocation,eyes[i][0],eyes[i][1],eyes[i][2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
           for(int pass=0;pass<2;pass++){
             if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
             else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
@@ -971,7 +985,9 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900);pickingMs=renderMs=finishMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
-    next+=std::chrono::microseconds(11111);std::this_thread::sleep_until(next);
+    // Drop missed deadlines rather than rendering bursts to repay old frame debt.
+    next=std::max(next+std::chrono::microseconds(11111),std::chrono::steady_clock::now());
+    std::this_thread::sleep_until(next);
   }
   fprintf(stdout,"completed frames=%d\n",frame);
   for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
