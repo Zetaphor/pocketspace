@@ -1,4 +1,4 @@
-# Interaction status (2026-10-18)
+# Interaction status (2026-10-21)
 
 This engine is an AR-in-VR SteamVR overlay. It coexists with a primary VR app
 and other overlays; it has no full scene mode. Sigma is the committed source
@@ -15,8 +15,8 @@ checkout; Deckard is the SteamVR build and runtime host. See
   and rear models remained visible; one dragged behind the starting view
   remained visible and grabbable after turning around.
 - Noninteractive surfaces let the SteamVR laser pass through to Frametop.
-  Grabbable surfaces block it; gaps remain usable. Both hands can grab when
-  SteamVR assigns that hand the active native laser.
+  Grabbable surfaces block it; gaps remain usable. Both hands can now grab
+  independently through their colored custom lasers and raw trigger input.
 - Native trigger laser grabs move objects with the controller in 6DoF. The
   thumbstick's horizontal axis rotates yaw; its vertical axis adjusts grab
   distance, with up pushing farther. The faster rates in the current build
@@ -24,8 +24,9 @@ checkout; Deckard is the SteamVR build and runtime host. See
 - With `directGrab` enabled, selecting an object near a controller holds it
   at the hand. Enabled pitch, yaw, and roll follow hand rotation. The final
   corrected hand rotation was accepted by the user.
-- Optional colored visual beams from both controllers align with their aim.
-  They are visual only. The native SteamVR laser remains the input pointer.
+- Optional colored beams from both controllers align with their aim and select
+  grabbable models. Each beam stops at the target and holds that length during
+  a grab until depth adjustment or trigger release.
 - The three-object gallery was clear and smooth at the default 768 pixels
   per eye. At 512 pixels, quality was unacceptable. Higher resolution caused
   lag and ghosting with three objects. Resolution is configurable per asset.
@@ -66,19 +67,19 @@ undocumented SteamVR behavior and may change across updates.
    and the trigger is held, then correct the event handling or choose another
    workable modifier. Do not enable this option in the normal demo yet.
 2. **Direct pickup gesture:** Near-hand pickup currently uses the native
-   trigger selection. Grip click switches or disables the SteamVR laser and
-   releases the selection. A dedicated grip-based grab needs a reliable input
-   route that coexists with the native pointer.
+   trigger selection. Grip click switches or disables the SteamVR laser. A
+   dedicated grip-based grab remains to be implemented; raw trigger grabs work
+   independently of native pointer ownership.
 3. **Action input:** The engine has an action manifest and Steam Frame binding
    map for grip, trigger, sticks, bumpers, face buttons, and haptics. Probes
    did not receive active action data while native overlay laser input was in
    use. Native overlay smooth-scroll events do provide thumbstick motion
    during laser grabs. Investigate a compatible action path only for controls
    that native overlay events cannot provide.
-4. **Object selection:** Current pointer targets are compact billboard
-   surfaces around each model, not exact mesh intersections. Add mesh-aware
-   picking when selection errors become visible. Test two independent grabs
-   at once before claiming simultaneous manipulation support.
+4. **Object selection:** Colored beams use transformed model triangle hits
+   with a small bounds fallback. The avocado and box passed a two-hand headset
+   grab test. Assess complex and concave models before claiming exact mesh
+   selection for every asset; optimize high-triangle picking separately.
 5. **Performance:** Keep the 768-pixel default and measure frame time with
    more objects, textures, and animations. Preserve smooth head movement and
    Frametop responsiveness before adding complex rendering features.

@@ -116,8 +116,12 @@ an operator to inspect the display and use the controllers.
 ## Object interaction
 
 Objects are created with `createObject` and configured with
-`setObjectInteraction`. Existing laser-grab, direct-grab, depth, yaw, and hand
-rotation options remain the compatibility layer for native manipulation.
+`setObjectInteraction`. Laser-grab, direct-grab, depth, yaw, and hand
+rotation options control native manipulation. A visible custom laser can start
+a grab from either hand's raw trigger, independent of SteamVR native laser focus.
+Its length stops at a hit and remains fixed during a grab except when depth
+adjustment moves the model. Release follows trigger release, including after
+brief tracking or native pointer focus loss.
 
 Interaction events are delivered through the input event queue and callback.
 The event model includes controller button/value events and overlay pointer and
@@ -126,8 +130,9 @@ native overlay handles are implementation details and may be exposed only in
 diagnostic event fields. Grab start/move/end, `overlay.move`, and `overlay.rotate` events are emitted by
 native manipulation. Move/grab events include `dx`, `dy`, and `dz`; rotation
 events include `dpitch`, `dyaw`, and `droll`. Mesh hover emits `overlay.meshHoverStart` and
-`overlay.meshHoverEnd` using the controller aim ray and transformed model
-triangles. Queue polling and callbacks receive independent copies of each
+`overlay.meshHoverEnd` using the controller aim ray, transformed model
+triangles, and a small bounds fallback for near misses. Queue polling and
+callbacks receive independent copies of each
 event.
 
 ## Existing object API

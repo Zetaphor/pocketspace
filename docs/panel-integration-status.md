@@ -1,4 +1,4 @@
-# Panel integration status (2026-10-20)
+# Panel integration status (2026-10-21)
 
 DeepSeek Harness handoff: `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`. Sigma's `~/Code/sf-overlay-mvp` is the committed source checkout. Deckard's copy is the SteamVR build and runtime target.
 
@@ -16,6 +16,9 @@ DeepSeek Harness handoff: `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`. Sigma'
 - A longer test-scene run held about 90 FPS with `gl_error=0`; it exited cleanly on SIGTERM. The user saw the dashboard and three smaller panels in front, could read their labels, and confirmed their transform behavior.
 - The user confirmed that the green panel click target increments, and Deckard logged pixel coordinates within it. The user also confirmed avocado hover, grab, move, and rotate behavior and a clean visual reload without ghost panels.
 - The dashboard showed live raw input from both controllers. The user confirmed trigger, grip, and thumbstick values change. The physical main trigger, upper bumper, and thumbstick click indicators worked on both hands; Deckard logged `/input/trigger/click`, `/input/bumper/click`, and `/input/thumbstick/click` events from left and right. An API probe received all eight expected trigger, bumper, stick, and grip click/value/axis paths per hand through both callback and queue.
+- The two-hand probe placed an avocado and box in the scene. Each colored custom laser selected a model through its controller's raw trigger without requiring that hand to own SteamVR's native laser. The user confirmed simultaneous independent grabs, beams stopping at the held models, and grabs persisting through quick hand motion until trigger release. The probe ran at about 90 FPS with `gl_error=0` and logged distinct held object IDs for left and right.
+
+Run `./run-overlay-engine.sh scripts/two-hand-grab-test.js` on Deckard to repeat that headset probe.
 - A reload probe loaded a valid revision, retained the previous scene through an intentionally broken edit, then loaded a corrected revision. The test scene also reloaded cleanly while the user watched in the headset.
 - The temporary panel was removed after two seconds, and the engine logged `font=true` and `image=true` on first draw. Framecorder recording `~/Videos/framecorder/2026-10-20_23-03-49.mp4` captured the earlier missing-font state and helped identify the font-path issue.
 
@@ -25,6 +28,7 @@ DeepSeek Harness handoff: `session-ccca95f8-9c7a-4acf-8a91-8a5d2b8044fb`. Sigma'
 - The test used negative panel depth even though the scene anchor already begins about one meter in front of the HMD. Standing-anchor panels now use `z=0`; the head-locked panel uses positive depth.
 - Deckard's fonts live under `/usr/share/fonts/TTF` and `/usr/share/fonts/noto`; the renderer now searches those paths, restoring all panel labels and status text.
 - The native WebSocket client wrote a sixteen-byte mask in a frame that permits four bytes. The connection opened but SteamVR could not decode subscriptions, leaving raw input at zero. Four-byte masking restored live input. Event queues are bounded for scripts that do not poll them. The test dashboard now displays per-control press event counts from callback and queue alongside current button state.
+- Custom laser selection now uses transformed model triangles with a small bounds fallback, keeps the closest hit per hand, and accepts each hand's raw trigger independently. The visible beam shortens geometrically at a hit; its length locks at grab start, changes only with depth adjustment, and unlocks at trigger release. A brief loss of tracking or native pointer focus no longer drops a raw-trigger grab.
 
 ## Maintenance note
 
@@ -32,6 +36,6 @@ SteamVR's `vrserver` input WebSocket is undocumented. If a SteamVR update change
 
 ## Remaining work
 
-- Test exact mesh-based selection and two simultaneous independent grabs before relying on either behavior.
+- Assess the bounds fallback on complex or concave models and optimize picking for high-triangle assets; the current two-object avocado/box probe is the verified case.
 - Keep `laserPitchWithStickClick` experimental until headset motion is confirmed; evaluate a dedicated grip gesture separately from SteamVR's native pointer ownership.
 - Measure larger scenes and implement animation playback, richer lighting, physics, and persistence as separate milestones. The current gallery displays animated assets in their default pose.
