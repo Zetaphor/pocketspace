@@ -33,6 +33,10 @@ function finish(){
   const result={target:target[0],targetPixels:{x:target[1],y:target[2]},samples:samples.length,
     observedPixels:{x,y},errorPixels:{x:x-target[1],y:y-target[2]},
     medianErrorDegrees:median(samples.map(s=>s.errorDegrees)),spread95Pixels:spread[Math.ceil(spread.length*.95)-1]};
+  if(result.spread95Pixels>50){
+    message=`Unstable gaze (${result.spread95Pixels.toFixed(0)}px spread). Look steadily; retry trigger.`;
+    print(`GAZE_ACCURACY_REJECTED ${JSON.stringify(result)}`);return;
+  }
   results.push(result);print(`GAZE_ACCURACY_POINT ${JSON.stringify(result)}`);index++;
   message=index<targets.length?'Saved. Look at the next gold circle; tap trigger when ready.':'Complete. Results saved in the runtime log. Bumper restarts.';
   if(index===targets.length)print(`GAZE_ACCURACY_COMPLETE ${JSON.stringify(results)}`);

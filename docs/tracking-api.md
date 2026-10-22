@@ -184,4 +184,66 @@ headset repositioning, and held-out validation targets.
 
 `node tests/gaze-accuracy-test.cjs` exercises the actual scene script with exact
 synthetic target rays, a known 100-pixel bias, invalid samples/retry, nine-point
-completion, and restart. It passes. Runtime/wearer measurements are next.
+completion, and restart. It passes. The completed wearer grids and analysis are recorded below.
+
+## Completed nine-point measurements (October 22, 2026)
+
+The wearer completed two grids in `/tmp/gaze-accuracy-c74481b.log`, using
+`c74481b` scripts with the `d2662c2` engine. Both grids had 89–90 valid/tracked
+samples per point. A 50-pixel 95th-percentile spread cutoff is used below as a
+quality heuristic, not a measured limit of physiological stability.
+
+| Grid | Stable points | Stable median angular error | Stable median horizontal / vertical pixel error |
+| --- | --- | --- | --- |
+| 1 | 6/9 | 20.14 degrees | +25.56 / +378.78 |
+| 2 | 7/9 | 18.71 degrees | +39.98 / +366.82 |
+
+Positive vertical pixel error means below the target. Across all points, errors
+were 14.05–24.22 degrees in grid 1 and 17.11–30.81 in grid 2. Grid 1 center,
+upper right, and upper center were unstable; grid 2 upper right and upper
+center were unstable. Some unstable spreads exceeded 200–500 pixels. This
+could reflect source instability, gaze changes, or movement; it does not
+establish which cause applies.
+
+An exploratory affine fit on stable grid-1 points, tested on stable grid-2
+points, left a median 28.66-pixel residual and maximum 95.56 pixels. Reversing
+the grids left a median 74.48 and maximum 90.63 pixels. These residuals exceed
+the displayed 25-pixel target radius on many points. The fit is specific to
+this panel and session and was NOT applied to the engine or saved as a user
+calibration. A constant translation alone does not describe all errors.
+
+Reproduce the analysis without NumPy:
+
+```sh
+python3 scripts/analyze-gaze-accuracy.py /tmp/gaze-accuracy-c74481b.log
+python3 tests/gaze-analysis-test.py
+```
+
+The capture script now rejects a point whose 95th-percentile spread exceeds
+50 pixels and asks for a retry without advancing. The synthetic script test
+covers this alongside exact rays, known bias, missing samples, and completion.
+
+### Independent native panel geometry check
+
+`scripts/panel-ray-check.cpp` runs as an OpenVR background client alongside the
+panel. It queries the actual overlay transform, texture dimensions, and width,
+then compares five calculated panel points with
+`IVROverlay::GetTransformForOverlayCoordinates`. It temporarily sets pixel mouse
+scale for that coordinate API, restores the original scale, and also checks
+that native `ComputeOverlayIntersection` hits each synthesized ray. It activates
+no input actions and performs no gaze calibration.
+
+The final check passed all five points; maximum position difference was
+2.98e-8 meters. Log: `/tmp/gaze-native-intersection.log`. The overlay was 1.1 by
+0.825 meters with a 1024 by 768 texture. Earlier diagnostic iterations wrongly
+assumed intersection `vUVs` could be directly treated as canvas coordinates;
+that assumption failed and was removed. The checked reference is the native
+3D coordinate transform, not that unverified UV interpretation. No normal
+engine coordinate transform was changed.
+
+This supports the current panel geometry calculation but does not independently
+validate optical rendering, the eye tracker, or the API's calibration. Next
+investigate an explicit head-relative per-user calibration with quality-gated
+capture and separate validation targets. Keep raw gaze separate from any
+corrected output, and test refitting the headset and moving the head before
+claiming a reusable correction. Tests are stopped after the measurements.

@@ -18,7 +18,7 @@ Wearer results: fingers worked with the Spigen cover removed; gaze aligned best
 on the right and poorly at the center/left. No gaze correction was applied.
 The next diagnostic is `scripts/gaze-accuracy-test.js`, a nine-point trigger-
 captured accuracy grid without a live dot. Its synthetic script test passes;
-actual wearer error measurements remain pending. See tracking-api.md.
+the completed wearer grids are analyzed in the latest follow-up below. See tracking-api.md.
 
 The user deferred further performance work and requested eye/finger tracking
 research. See [tracking research](tracking-research.md) for primary documentation,
@@ -125,3 +125,16 @@ Live calls to `SetOverlayRaw` returned `VROverlayError_RequestFailed` (`23`) in 
 2. Make and review source changes on Sigma, copy only the intended files to Deckard, then build and run a bounded headset test. Keep verified behavior distinct from code/log-only results.
 3. Commit and push from Sigma when the change is accepted. Deckard may not have GitHub credentials; the prior workflow transferred a Git bundle from Sigma, fetched it on Deckard, and aligned Deckard's checkout after confirming its only local changes were the files just copied. Never discard unknown Deckard work.
 4. Update the relevant status/API document and [remaining work](remaining-work.md) with the exact revision, test scene, outcome, and any unverified gap.
+
+## Latest gaze accuracy follow-up
+
+Two grids were completed in `/tmp/gaze-accuracy-c74481b.log`; stable median
+errors were 20.14 and 18.71 degrees with a large downward bias. Five native
+panel-coordinate comparisons passed (maximum 2.98e-8 m difference). No raw gaze
+correction was applied: affine fits across the separate grids still missed
+many targets. The capture script now retries unstable points (>50-pixel 95th-
+percentile spread). Offline analysis and synthetic tests are available in
+`scripts/analyze-gaze-accuracy.py` and `tests/gaze-analysis-test.py`; the native
+geometry diagnostic is `scripts/panel-ray-check.cpp`. Details and caveats are
+in tracking-api.md. Next: explicit head-relative per-user calibration and
+held-out validation, preserving raw gaze as a separate signal.
