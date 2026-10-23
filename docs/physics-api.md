@@ -133,6 +133,73 @@ central opening and a raised rear ramp, above a gray catch floor. Grab the yello
 ball or red cube with grip or trigger. Drop them through the opening or onto the
 ramp; either bumper resets unheld objects.
 
+## Joints
+
+`createPhysicsJoint(objectA, objectB, options = {})` returns a scene-local joint
+ID. Both objects must already have physics bodies, must differ, and at least one
+must be dynamic. Joints connect bodies; they do not create visible ropes or hinges.
+
+```js
+const hinge = createPhysicsJoint(frame, door, {
+  type: 'hinge',
+  anchor: {x: -.5, y: 0, z: 0},
+  axis: {x: 0, y: 1, z: 0},
+  minAngle: -1.2,
+  maxAngle: 1.2
+});
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `type` | `'fixed'` | `'fixed'`, `'hinge'`, or `'distance'`. |
+| `anchor` | Midpoint of object origins | Fixed/hinge attachment point in scene meters, +Z forward. |
+| `axis` | `{x:0,y:1,z:0}` | Hinge rotation axis in the same axes/signs as angular velocity; normalized internally. Must be finite and nonzero. |
+| `minAngle` | `-Math.PI` | Hinge lower limit in radians, between `-Math.PI` and `0`. |
+| `maxAngle` | `Math.PI` | Hinge upper limit in radians, between `0` and `Math.PI`. |
+| `anchorA`, `anchorB` | Respective object origins | Distance attachment points in scene meters. |
+| `minDistance` | `0` | Minimum anchor separation in meters, 0–10000. |
+| `maxDistance` | Initial anchor separation | Maximum separation in meters, at least `minDistance`, at most 10000. |
+| `collideConnected` | `false` | Allow contacts between the two connected bodies. |
+
+A fixed joint preserves the initial relative position and orientation. A hinge
+keeps its anchor points together and allows rotation only around its axis; its
+initial relative orientation defines angle zero. Its limits must include zero;
+use a fixed joint when both limits would be zero. A distance joint limits anchor
+separation while allowing free rotation. Set equal distance limits for a rigid
+link, or use zero minimum for a tether. Anchors and hinge axes are supplied in
+world/scene space at creation, then remain attached to their bodies. Options
+for the wrong joint type throw. There are at most 512 joints per scene.
+
+`getPhysicsJoint(id)` returns `null` for an absent joint, otherwise:
+
+- `id`, `objectA`, `objectB`, `type`, and `collideConnected`.
+- `anchorA` and `anchorB`: current attachment positions in scene meters.
+- `distance`: current anchor separation in meters.
+- Hinge `axis`, `angle`, `minAngle`, and `maxAngle`; these are `null` for other types.
+- Distance `minDistance` and `maxDistance`; these are `null` for other types.
+
+`removePhysicsJoint(id)` removes a joint; removing an absent ID is harmless.
+Removing either object or its physics body automatically removes its joints.
+Reloading a scene releases all joints. To replace body settings or scale a
+connected object, remove its joints first and recreate them afterward. Rejected
+body replacement or scale changes leave the body, visual scale, and joints intact.
+Transform setters still teleport bodies; reposition both ends or recreate joints
+when resetting a connected assembly.
+
+Connected bodies suppress mutual contacts by default. If multiple joints disable
+contacts on the same pair, contacts stay disabled until all those joints are
+removed. Other objects still collide normally. Jointed dynamic objects remain
+dynamic while held, with a bounded drive toward the hand target so the solver
+can enforce the connection. They can resist hand motion at a hinge or distance
+limit. `getObjectPhysics(id).jointed` reports whether any joints are attached.
+Joints use an iterative solver, so small positional/angle errors under load are
+expected. Motors, springs, breaking thresholds, and runtime limit editing are
+not exposed; remove and recreate a joint to change its configuration.
+
+Run [joints.js](../scripts/joints.js) for a blue hinged panel, a tethered yellow
+ball, and a red box welded to an avocado. Grip or trigger grabs the moving
+objects. Either bumper resets the assemblies when nothing is held.
+
 ## Controls and state
 
 | Function | Behavior |

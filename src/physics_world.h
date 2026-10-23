@@ -24,7 +24,7 @@ struct GeometrySource {int key=0;float scale=1;std::span<const Vec3> vertices;};
 struct State {
   Settings settings;Pose pose;Vec3 velocity,angularVelocity;
   bool held=false,sleeping=false;
-  Collider collider;
+  Collider collider;bool jointed=false;
 };
 enum class CollisionPhase { Start, Stay, End };
 struct CollisionEvent {
@@ -33,6 +33,16 @@ struct CollisionEvent {
   Vec3 point,normal;
   float penetration=0,relativeSpeed=0;
 };
+enum class JointType {Fixed,Hinge,Distance};
+struct JointSettings {
+  JointType type=JointType::Fixed;
+  std::optional<Vec3> anchor,anchorA,anchorB;
+  Vec3 axis{0,1,0};
+  float minAngle=-3.14159265359f,maxAngle=3.14159265359f;
+  float minDistance=0;std::optional<float> maxDistance;
+  bool collideConnected=false;
+};
+struct JointState {int id,objectA,objectB;JointSettings settings;Vec3 anchorA,anchorB;float distance=0,angle=0;};
 class World {
 public:
   World();~World();
@@ -43,6 +53,11 @@ public:
   void remove(int id);
   bool contains(int id) const;
   State get(int id) const;
+  int createJoint(int objectA,int objectB,const JointSettings&);
+  bool containsJoint(int id) const;
+  bool hasJoints(int objectId) const;
+  JointState joint(int id) const;
+  void removeJoint(int id);
   void gravity(Vec3);
   void velocity(int id,Vec3);
   void angularVelocity(int id,Vec3);

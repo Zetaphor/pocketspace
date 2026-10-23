@@ -155,7 +155,8 @@ Panel IDs and object IDs are separate numeric namespaces; distinguish them by
   `panelCanvasClear`, `panelCanvasText`.
 - [Physics](physics-api.md): `setObjectPhysics`, `getObjectPhysics`,
   `removeObjectPhysics`, `setPhysicsGravity`, `setObjectVelocity`,
-  `setObjectAngularVelocity`, `applyObjectImpulse`, `setPhysicsCollisionEvents`.
+  `setObjectAngularVelocity`, `applyObjectImpulse`, `setPhysicsCollisionEvents`,
+  `createPhysicsJoint`, `getPhysicsJoint`, `removePhysicsJoint`.
 - [Animation](animation-api.md): `getAnimations`, `playAnimation`, `pauseAnimation`,
   `resumeAnimation`, `stopAnimation`, `seekAnimation`, `getAnimationState`.
 - [Tracking](tracking-api.md): `getEyeTracking`, `getCalibratedEyeTracking`,
