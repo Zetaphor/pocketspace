@@ -148,6 +148,26 @@ int main(){
     for(int frame=0;frame<180&&demo.containsJoint(link);frame++){demo.target(2,{{0,start-.25f-.9f*float(frame)/179,0}},1./90);demo.advance(1./90);}
     CHECK(!demo.containsJoint(link)&&demo.takeJointBreaks().size()==1);
   }
+  World adjustable;body(adjustable,1,Type::Static,{{0,.5f,0}});body(adjustable,2,Type::Dynamic,{{0,.2f,0}});
+  JointSettings limits;limits.type=JointType::Distance;limits.minDistance=.3f;limits.maxDistance=.3f;
+  int adjustableId=adjustable.createJoint(1,2,limits);tick(adjustable,90);
+  limits=adjustable.joint(adjustableId).settings;limits.minDistance=.5f;limits.maxDistance=.5f;limits.spring=JointSpring{2,1};
+  adjustable.updateJoint(adjustableId,limits);tick(adjustable,360);
+  CHECK(std::abs(adjustable.joint(adjustableId).distance-(.5f+9.81f/(16*3.14159265359f*3.14159265359f)))<.015f);
+  limits.spring.reset();adjustable.updateJoint(adjustableId,limits);tick(adjustable,180);CHECK(std::abs(adjustable.joint(adjustableId).distance-.5f)<.01f);
+  limits.maxDistance=.1f;rejects([&]{adjustable.updateJoint(adjustableId,limits);});CHECK(*adjustable.joint(adjustableId).settings.maxDistance==.5f);
+  limits=adjustable.joint(adjustableId).settings;limits.breakForce=1;adjustable.updateJoint(adjustableId,limits);tick(adjustable,1);CHECK(!adjustable.containsJoint(adjustableId));
+  World narrowed;narrowed.gravity({});body(narrowed,1,Type::Static,{});body(narrowed,2,Type::Dynamic,{});
+  hinge.axis={.3f,.7f,.2f};hinge.minAngle=-1.2f;hinge.maxAngle=1.2f;int narrowId=narrowed.createJoint(1,2,hinge);
+  motor.mode=MotorMode::Position;motor.targetAngle=.9f;narrowed.jointMotor(narrowId,motor);tick(narrowed,180);
+  limits=narrowed.joint(narrowId).settings;limits.minAngle=-.4f;limits.maxAngle=.4f;narrowed.updateJoint(narrowId,limits);tick(narrowed,180);
+  CHECK(std::abs(narrowed.joint(narrowId).angle-.4f)<.02f&&narrowed.joint(narrowId).motor.targetAngle==.4f);
+  // Collision filtering updates retain the same pair reference counts.
+  World filtering;filtering.gravity({});filtering.collisionEvents(true);body(filtering,1,Type::Static,{});body(filtering,2,Type::Dynamic,{});
+  const int f1=filtering.createJoint(1,2,JointSettings{}),f2=filtering.createJoint(1,2,JointSettings{});
+  limits=filtering.joint(f1).settings;limits.collideConnected=true;filtering.updateJoint(f1,limits);tick(filtering,2);CHECK(filtering.takeCollisionEvents().empty());
+  limits=filtering.joint(f2).settings;limits.collideConnected=true;filtering.updateJoint(f2,limits);tick(filtering,2);CHECK(!filtering.takeCollisionEvents().empty());
+  puts("PASS joint updates: same-ID distance/spring changes, hard reset, invalid rollback, break threshold, motor clamp, oblique axis and collision pair counts");
   puts("PASS breakable joints: load threshold, impulse/torque fracture, held continuation, one-shot events and validation");
   puts("PASS springs: elastic extension, damped oscillation, gravity equilibrium, held release, validation and cleanup");
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");

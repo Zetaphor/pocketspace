@@ -51,6 +51,23 @@ JPH::EMotionType motion(Type t){return t==Type::Static?JPH::EMotionType::Static:
 void finite(Vec3 v){if(!std::isfinite(v.x)||!std::isfinite(v.y)||!std::isfinite(v.z))throw std::invalid_argument("physics vectors must be finite");}
 void finite(const Pose &p){finite(p.position);finite(Vec3{p.pitch,p.yaw,p.roll});}
 void bounded(float v,float lo,float hi){if(!std::isfinite(v)||v<lo||v>hi)throw std::invalid_argument("physics parameter outside supported range");}
+JointSettings validateJoint(const JointSettings &requested){
+  JointSettings s=requested;
+  if(s.breakForce)bounded(*s.breakForce,.001f,1e9f);
+  if(s.breakTorque){bounded(*s.breakTorque,.001f,1e9f);if(s.type==JointType::Distance)throw std::invalid_argument("breakTorque requires a fixed or hinge joint");}
+  if(s.spring){
+    if(s.type!=JointType::Distance)throw std::invalid_argument("springs require a distance joint");
+    bounded(s.spring->frequency,.01f,30);bounded(s.spring->damping,0,10);
+  }
+  for(auto v:{s.anchor,s.anchorA,s.anchorB})if(v)finite(*v);
+  bounded(s.minAngle,-3.14159265359f,0);bounded(s.maxAngle,0,3.14159265359f);
+  if(s.type==JointType::Hinge&&s.minAngle==s.maxAngle)throw std::invalid_argument("use a fixed joint for a locked hinge");
+  bounded(s.minDistance,0,10000);if(s.maxDistance)bounded(*s.maxDistance,0,10000);
+  finite(s.axis);auto axis=angular(s.axis);
+  if(axis.LengthSq()<1e-12f||!std::isfinite(axis.LengthSq()))throw std::invalid_argument("joint axis must be nonzero and finite");
+  axis=axis.Normalized();s.axis={axis.GetX(),axis.GetY(),axis.GetZ()};
+  return s;
+}
 struct BroadPhase final:JPH::BroadPhaseLayerInterface {
   JPH::uint GetNumBroadPhaseLayers()const override{return 2;}
   JPH::BroadPhaseLayer GetBroadPhaseLayer(JPH::ObjectLayer layer)const override{return JPH::BroadPhaseLayer(layer);}
@@ -263,20 +280,7 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   if(a==b)throw std::invalid_argument("a joint needs two different physics objects");
   auto &ra=impl->record(a);auto &rb=impl->record(b);
   if(ra.settings.type!=Type::Dynamic&&rb.settings.type!=Type::Dynamic)throw std::invalid_argument("a joint needs at least one dynamic body");
-  JointSettings s=requested;
-  if(s.breakForce)bounded(*s.breakForce,.001f,1e9f);
-  if(s.breakTorque){bounded(*s.breakTorque,.001f,1e9f);if(s.type==JointType::Distance)throw std::invalid_argument("breakTorque requires a fixed or hinge joint");}
-  if(s.spring){
-    if(s.type!=JointType::Distance)throw std::invalid_argument("springs require a distance joint");
-    bounded(s.spring->frequency,.01f,30);bounded(s.spring->damping,0,10);
-  }
-  for(auto v:{s.anchor,s.anchorA,s.anchorB})if(v)finite(*v);
-  bounded(s.minAngle,-3.14159265359f,0);bounded(s.maxAngle,0,3.14159265359f);
-  if(s.type==JointType::Hinge&&s.minAngle==s.maxAngle)throw std::invalid_argument("use a fixed joint for a locked hinge");
-  bounded(s.minDistance,0,10000);if(s.maxDistance)bounded(*s.maxDistance,0,10000);
-  finite(s.axis);auto axis=angular(s.axis);
-  if(axis.LengthSq()<1e-12f||!std::isfinite(axis.LengthSq()))throw std::invalid_argument("joint axis must be nonzero and finite");
-  axis=axis.Normalized();s.axis={axis.GetX(),axis.GetY(),axis.GetZ()};
+  JointSettings s=validateJoint(requested);const auto axis=angular(s.axis);
   if(impl->joints.size()>=512)throw std::runtime_error("physics joint capacity exhausted");
   auto &locks=impl->system.GetBodyLockInterfaceNoLock();
   auto &bodyA=*locks.TryGetBody(ra.body);auto &bodyB=*locks.TryGetBody(rb.body);
@@ -319,6 +323,28 @@ JointState World::joint(int id)const{
   state.distance=(linear(state.anchorA)-linear(state.anchorB)).Length();
   if(state.settings.type==JointType::Hinge)state.angle=static_cast<const JPH::HingeConstraint*>(j.constraint.GetPtr())->GetCurrentAngle();
   return state;
+}
+void World::updateJoint(int id,const JointSettings &requested){
+  auto it=impl->joints.find(id);if(it==impl->joints.end())throw std::invalid_argument("unknown physics joint");
+  auto &j=it->second;const auto &old=j.state.settings;
+  auto s=validateJoint(requested);
+  if(requested.type!=old.type||requested.anchor!=old.anchor||requested.anchorA!=old.anchorA||requested.anchorB!=old.anchorB||requested.axis!=old.axis)throw std::invalid_argument("joint type, anchors and axis are immutable");
+  s.axis=old.axis;
+  if(s.type==JointType::Distance&&(!s.maxDistance||*s.maxDistance<s.minDistance))throw std::invalid_argument("maxDistance must be at least minDistance");
+  if(s.type==JointType::Hinge){
+    auto *c=static_cast<JPH::HingeConstraint*>(j.constraint.GetPtr());c->SetLimits(s.minAngle,s.maxAngle);
+    j.state.motor.targetAngle=std::clamp(j.state.motor.targetAngle,s.minAngle,s.maxAngle);c->SetTargetAngle(j.state.motor.targetAngle);
+  }else if(s.type==JointType::Distance){
+    auto *c=static_cast<JPH::DistanceConstraint*>(j.constraint.GetPtr());c->SetDistance(s.minDistance,*s.maxDistance);
+    c->SetLimitsSpringSettings(s.spring?JPH::SpringSettings(JPH::ESpringMode::FrequencyAndDamping,s.spring->frequency,s.spring->damping):JPH::SpringSettings{});
+  }
+  if(s.collideConnected!=old.collideConnected){
+    const auto key=std::minmax(j.state.objectA,j.state.objectB);
+    if(s.collideConnected){auto pair=impl->jointFilter->blocked.find(key);if(--pair->second==0)impl->jointFilter->blocked.erase(pair);}
+    else ++impl->jointFilter->blocked[key];
+  }
+  j.state.settings=s;j.constraint->ResetWarmStart();
+  auto &bi=impl->system.GetBodyInterface();for(int object:{j.state.objectA,j.state.objectB}){const auto body=impl->record(object).body;bi.InvalidateContactCache(body);bi.ActivateBody(body);}
 }
 void World::jointMotor(int id,const JointMotor &motor){
   auto it=impl->joints.find(id);if(it==impl->joints.end())throw std::invalid_argument("unknown physics joint");
