@@ -14,6 +14,18 @@ function add(count) {
   }
 }
 function clear() { while (objects.length) removeObject(objects.pop()); }
+function prune() {
+  let removed = false;
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const p = getObjectPhysics(objects[i]).position;
+    if (p.y < -1.2 || p.x * p.x + p.y * p.y + p.z * p.z > 9) {
+      removeObject(objects[i]);
+      objects.splice(i, 1);
+      removed = true;
+    }
+  }
+  return removed;
+}
 const panel = createPanel({widthPixels: 1024, heightPixels: 480, widthMeters: .9});
 panelSetTransform(panel, 'world', 0, .55, .25);
 const mib = bytes => bytes === null ? 'warming up' : `${(bytes / 1048576).toFixed(1)} MiB`;
@@ -31,8 +43,12 @@ function draw() {
   lines.forEach((line, i) => c.text(24, 20 + i * 72, line, 230, 240, 255, 255, 31));
   panel.present();
 }
-let nextDraw = 0;
-function update() { const now = Date.now(); if (now >= nextDraw) { draw(); nextDraw = now + 500; } }
+let nextDraw = 0, nextPrune = 0;
+function update() {
+  const now = Date.now();
+  if (now >= nextPrune) { if (prune()) nextDraw = 0; nextPrune = now + 100; }
+  if (now >= nextDraw) { draw(); nextDraw = now + 500; }
+}
 onInputEvent(event => {
   if (event.type !== 'controller.button' || !event.down) return;
   if (event.control === '/input/bumper/click') add(1);

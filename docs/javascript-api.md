@@ -35,6 +35,9 @@ Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
 statistics panel. Either bumper adds one object; A or X adds five; B or Y clears
 the spawned objects. The scene starts with four boxes and caps at 48 spawned
 objects to leave room for the floor, HUD, lasers, and other overlay surfaces.
+Boxes below scene Y = −1.2 meters or more than 3 meters from the scene origin
+are removed every 100 ms, reclaiming their physics body, overlay buffers, and
+spawn capacity. Shared model assets remain cached for subsequent spawns.
 It uses the normal 768-pixel-per-eye object surfaces. The HUD refreshes twice per
 second; the underlying statistics sample once per second. When measured GPU
 memory is unavailable it explicitly displays the allocation estimate instead.
