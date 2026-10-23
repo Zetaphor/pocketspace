@@ -1,5 +1,6 @@
 #include "physics_world.h"
 #include <cstdlib>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 using namespace physics;
@@ -91,6 +92,24 @@ int main(){
       CHECK(std::abs(cp)<.0001f);
     }
   }
+  World elastic;body(elastic,1,Type::Static,{{0,.5f,0}});body(elastic,2,Type::Dynamic,{{0,-.1f,0}});
+  JointSettings spring;spring.type=JointType::Distance;spring.minDistance=.3f;spring.maxDistance=.3f;spring.spring=JointSpring{2,.15f};
+  const int bounce=elastic.createJoint(1,2,spring);
+  const float equilibrium=.5f-.3f-9.81f/(4*3.14159265359f*3.14159265359f*4);
+  int crossings=0;float previous=elastic.get(2).pose.position.y-equilibrium,early=0,late=0;
+  for(int i=0;i<360;i++){
+    elastic.advance(1./90);const float error=elastic.get(2).pose.position.y-equilibrium;
+    if(error*previous<0)crossings++;previous=error;
+    if(i<90)early=std::max(early,std::abs(error));if(i>=270)late=std::max(late,std::abs(error));
+  }
+  CHECK(crossings>=2&&early>.06f&&late<.015f);
+  CHECK(elastic.joint(bounce).distance>.34f); // Gravity stretches beyond the rest length.
+  spring.spring->frequency=0;rejects([&]{elastic.createJoint(1,2,spring);});
+  spring.type=JointType::Fixed;spring.spring->frequency=2;rejects([&]{elastic.createJoint(1,2,spring);});
+  elastic.hold(2);for(int i=0;i<60;i++){elastic.target(2,{{0,-.1f,0}},1./90);elastic.advance(1./90);}
+  elastic.release(2,false);tick(elastic,360);CHECK(std::abs(elastic.get(2).pose.position.y-equilibrium)<.015f);
+  elastic.remove(1);CHECK(!elastic.containsJoint(bounce));
+  puts("PASS springs: elastic extension, damped oscillation, gravity equilibrium, held release, validation and cleanup");
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");
   puts("PASS joints: fixed transforms, hinge limits and held pivot, distance range, cleanup, rebuild rejection, collision filtering and held removal");
 }

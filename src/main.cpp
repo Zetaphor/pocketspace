@@ -611,6 +611,9 @@ static JSValue jointState(JSContext *ctx,const physics::JointState &s){
     for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"targetAngle",s.motor.targetAngle},{"targetVelocity",s.motor.targetVelocity},{"maxTorque",s.motor.maxTorque},{"frequency",s.motor.frequency},{"damping",s.motor.damping}})JS_SetPropertyStr(ctx,motor,name,JS_NewFloat64(ctx,number));
   }
   JS_SetPropertyStr(ctx,value,"motor",motor);
+  JSValue spring=JS_NULL;
+  if(s.settings.spring){spring=JS_NewObject(ctx);JS_SetPropertyStr(ctx,spring,"frequency",JS_NewFloat64(ctx,s.settings.spring->frequency));JS_SetPropertyStr(ctx,spring,"damping",JS_NewFloat64(ctx,s.settings.spring->damping));}
+  JS_SetPropertyStr(ctx,value,"spring",spring);
   JS_SetPropertyStr(ctx,value,"collideConnected",JS_NewBool(ctx,s.settings.collideConnected));
   for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"minAngle",s.settings.minAngle},{"maxAngle",s.settings.maxAngle},{"minDistance",s.settings.minDistance},{"maxDistance",s.settings.maxDistance.value_or(0)}})
     JS_SetPropertyStr(ctx,value,name,((s.settings.type==physics::JointType::Hinge&&std::strstr(name,"Angle"))||(s.settings.type==physics::JointType::Distance&&std::strstr(name,"Distance")))?JS_NewFloat64(ctx,number):JS_NULL);
@@ -666,6 +669,20 @@ static JSValue jsCreatePhysicsJoint(JSContext *ctx,JSValueConst,int argc,JSValue
         if(std::strcmp(name,"minAngle")==0)settings.minAngle=float(n);else if(std::strcmp(name,"maxAngle")==0)settings.maxAngle=float(n);else if(std::strcmp(name,"minDistance")==0)settings.minDistance=float(n);else settings.maxDistance=float(n);
       }else JS_FreeValue(ctx,field);
     }
+    JSValue spring=JS_GetPropertyStr(ctx,argv[2],"spring");if(JS_IsException(spring))return JS_EXCEPTION;
+    if(!JS_IsUndefined(spring)&&!JS_IsNull(spring)){
+      if(!JS_IsObject(spring)){JS_FreeValue(ctx,spring);return JS_ThrowTypeError(ctx,"spring must be null or an object");}
+      physics::JointSpring config;
+      for(auto [name,field]:std::initializer_list<std::pair<const char*,float*>>{{"frequency",&config.frequency},{"damping",&config.damping}}){
+        JSValue value=JS_GetPropertyStr(ctx,spring,name);if(JS_IsException(value)){JS_FreeValue(ctx,spring);return JS_EXCEPTION;}
+        if(!JS_IsUndefined(value)){
+          double n=0;const bool ok=JS_IsNumber(value)&&JS_ToFloat64(ctx,&n,value)==0&&std::isfinite(n);JS_FreeValue(ctx,value);
+          if(!ok){JS_FreeValue(ctx,spring);return JS_ThrowTypeError(ctx,"spring settings must be finite numbers");}*field=float(n);
+        }else JS_FreeValue(ctx,value);
+      }
+      settings.spring=config;
+    }
+    JS_FreeValue(ctx,spring);
     JSValue collide=JS_GetPropertyStr(ctx,argv[2],"collideConnected");if(JS_IsException(collide))return JS_EXCEPTION;
     if(!JS_IsUndefined(collide)&&!JS_IsBool(collide)){JS_FreeValue(ctx,collide);return JS_ThrowTypeError(ctx,"collideConnected must be a boolean");}
     if(!JS_IsUndefined(collide))settings.collideConnected=JS_ToBool(ctx,collide)>0;JS_FreeValue(ctx,collide);
