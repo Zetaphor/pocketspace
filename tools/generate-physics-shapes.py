@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the slab derivatives and procedural sphere used by colliders.js."""
+"""Generate slab derivatives, a sphere, and a concave ramp platform."""
 import copy
 import json
 import math
@@ -77,3 +77,38 @@ document = {
     'nodes': [{'mesh': 0}], 'scenes': [{'nodes': [0]}], 'scene': 0,
 }
 write_glb(OUTPUT / 'YellowSphere.glb', document, binary)
+
+# A concave platform with a central opening and a raised rear ramp.
+# Closed sections give the mesh outward-facing triangles on every exposed side.
+positions, normals = [], []
+for x0, x1, z0, z1, back_height in [
+    (-.5, -.15, -.5, .5, 0), (.15, .5, -.5, .5, 0),
+    (-.15, .15, -.5, -.15, 0), (-.15, .15, .15, .5, .2)
+]:
+    points = [(x0, -.04, z0), (x1, -.04, z0), (x1, -.04, z1), (x0, -.04, z1),
+              (x0, 0, z0), (x1, 0, z0), (x1, back_height, z1), (x0, back_height, z1)]
+    for face in [(0, 1, 2, 3), (4, 7, 6, 5), (0, 4, 5, 1),
+                 (3, 2, 6, 7), (0, 3, 7, 4), (1, 5, 6, 2)]:
+        for a, b, c in [(face[0], face[1], face[2]), (face[0], face[2], face[3])]:
+            u = [points[b][i] - points[a][i] for i in range(3)]
+            v = [points[c][i] - points[a][i] for i in range(3)]
+            normal = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]]
+            length = math.sqrt(sum(n*n for n in normal))
+            for index in (a, b, c):
+                positions.extend(points[index])
+                normals.extend(n/length for n in normal)
+positions_bytes = struct.pack('<' + 'f' * len(positions), *positions)
+normals_bytes = struct.pack('<' + 'f' * len(normals), *normals)
+document = {
+    'asset': {'version': '2.0', 'generator': 'sf-overlay-engine physics shapes'},
+    'buffers': [{'byteLength': len(positions_bytes) + len(normals_bytes)}],
+    'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(positions_bytes)},
+                    {'buffer': 0, 'byteOffset': len(positions_bytes), 'byteLength': len(normals_bytes)}],
+    'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': len(positions)//3,
+                   'type': 'VEC3', 'min': [-.5, -.04, -.5], 'max': [.5, .2, .5]},
+                  {'bufferView': 1, 'componentType': 5126, 'count': len(normals)//3, 'type': 'VEC3'}],
+    'materials': [{'pbrMetallicRoughness': {'baseColorFactor': [.12, .48, 1, 1], 'metallicFactor': 0}}],
+    'meshes': [{'primitives': [{'attributes': {'POSITION': 0, 'NORMAL': 1}, 'material': 0}]}],
+    'nodes': [{'mesh': 0}], 'scenes': [{'nodes': [0]}], 'scene': 0,
+}
+write_glb(OUTPUT / 'RingRamp.glb', document, positions_bytes + normals_bytes)

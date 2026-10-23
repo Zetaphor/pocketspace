@@ -9,6 +9,7 @@
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/ScaledShape.h>
+#include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <tuple>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -122,6 +123,8 @@ struct World::Impl : JPH::ContactListener {
   BroadPhase broad;BroadFilter broadFilter;PairFilter pairs;
   JPH::TempAllocatorImpl temporary{8*1024*1024};JPH::JobSystemSingleThreaded jobs{2048};
   std::map<int,JPH::RefConst<JPH::ConvexHullShape>> hulls;
+  struct Mesh {JPH::RefConst<JPH::Shape> shape;unsigned triangles;};
+  std::map<int,Mesh> meshes;
   JPH::PhysicsSystem system;std::map<int,Record> bodies;double accumulator=0;
   Impl(){system.Init(512,0,2048,2048,broad,broadFilter,pairs);}
   Record &record(int id){auto it=bodies.find(id);if(it==bodies.end())throw std::invalid_argument("object has no physics body");return it->second;}
@@ -130,7 +133,9 @@ World::World(){initialize();impl=std::make_unique<Impl>();}
 World::~World(){while(!impl->bodies.empty())remove(impl->bodies.begin()->first);}
 bool World::contains(int id)const{return impl->bodies.contains(id);}
 bool World::hasConvexHull(int key)const{return impl->hulls.contains(key);}
-void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,ConvexSource source){
+bool World::hasMesh(int key)const{return impl->meshes.contains(key);}
+void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,GeometrySource source){
+  if(s.shape==Shape::Mesh&&s.type!=Type::Static)throw std::invalid_argument("mesh collider requires type static");
   finite(p);finite(low);finite(high);bounded(s.mass,.001f,10000);bounded(s.friction,0,1);bounded(s.restitution,0,1);
   bounded(s.linearDamping,0,1);bounded(s.angularDamping,0,1);bounded(s.gravityFactor,0,10);
   if(s.halfExtents&&s.shape!=Shape::Box)throw std::invalid_argument("halfExtents requires shape box");
@@ -146,7 +151,7 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Convex
   JPH::RefConst<JPH::Shape> shape;
   const JPH::Vec3 boundsCenter((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
   const JPH::Vec3 center=s.offset?linear(*s.offset):boundsCenter;
-  unsigned vertexCount=0;
+  unsigned vertexCount=0,triangleCount=0;
   if(s.shape==Shape::Convex){
     bounded(source.scale,1e-6f,100);
     auto cached=impl->hulls.find(source.key);
@@ -172,12 +177,34 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Convex
     shape=scaled.Get();
     half=shape->GetLocalBounds().GetExtent();
     shape=new JPH::RotatedTranslatedShape(center-boundsCenter,JPH::Quat::sIdentity(),shape);
+  }else if(s.shape==Shape::Mesh){
+    bounded(source.scale,1e-6f,100);
+    auto cached=impl->meshes.find(source.key);
+    if(cached==impl->meshes.end()){
+      if(source.vertices.empty()||source.vertices.size()%3)throw std::invalid_argument("mesh collider requires a triangle stream");
+      JPH::TriangleList triangles;triangles.reserve(source.vertices.size()/3);
+      for(size_t i=0;i<source.vertices.size();i+=3){
+        JPH::Vec3 points[3];
+        for(int j=0;j<3;j++){const auto v=source.vertices[i+j];finite(v);points[j]=JPH::Vec3(v.x,v.y,v.z);}
+        triangles.emplace_back(points[0],points[1],points[2]);
+      }
+      JPH::MeshShapeSettings meshSettings(triangles); // Welds vertices and removes duplicate/degenerate triangles.
+      if(meshSettings.mIndexedTriangles.empty())throw std::invalid_argument("mesh collider has no valid triangles");
+      auto result=meshSettings.Create();
+      if(result.HasError())throw std::invalid_argument("invalid mesh collider: "+std::string(result.GetError()));
+      cached=impl->meshes.emplace(source.key,Impl::Mesh{result.Get(),unsigned(meshSettings.mIndexedTriangles.size())}).first;
+    }
+    triangleCount=cached->second.triangles;
+    auto scaled=JPH::ScaledShapeSettings(cached->second.shape,JPH::Vec3::sReplicate(source.scale)).Create();
+    if(scaled.HasError())throw std::invalid_argument("invalid mesh scale: "+std::string(scaled.GetError()));
+    shape=scaled.Get();half=shape->GetLocalBounds().GetExtent();
+    shape=new JPH::RotatedTranslatedShape(center-boundsCenter,JPH::Quat::sIdentity(),shape);
   }else{
     if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(radius);
     else shape=new JPH::BoxShape(half,std::min(.01f,half.ReduceMin()*.1f));
     shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);
   }
-  const Collider collider{{half.GetX(),half.GetY(),half.GetZ()},scene(center),radius,scene(shape->GetCenterOfMass()),vertexCount};
+  const Collider collider{{half.GetX(),half.GetY(),half.GetZ()},scene(center),radius,scene(shape->GetCenterOfMass()),vertexCount,triangleCount};
   JPH::BodyCreationSettings settings(shape,linear(p.position),rotation(p),motion(s.type),s.type==Type::Static?0:1);
   settings.mUserData=static_cast<JPH::uint64>(id);
   settings.mAllowDynamicOrKinematic=s.type!=Type::Static;
