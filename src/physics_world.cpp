@@ -39,8 +39,11 @@ JPH::Quat rotation(const Pose &p){return JPH::Quat::sRotation(JPH::Vec3::sAxisY(
 Pose poseOf(JPH::RVec3 p,JPH::Quat q){
   const auto m=JPH::Mat44::sRotation(q);
   Pose pose;pose.position=scene(p);
-  pose.pitch=std::asin(std::clamp(-m(1,2),-1.f,1.f));
-  if(std::fabs(std::cos(pose.pitch))>1e-5f){pose.yaw=std::atan2(m(0,2),m(2,2));pose.roll=std::atan2(m(1,0),m(1,1));}
+  // asin loses the tiny cosine near +/-90 degrees, selecting an unstable
+  // yaw/roll branch. Measure that cosine from the matrix itself instead.
+  const float cosine=std::hypot(m(0,2),m(2,2));
+  pose.pitch=std::atan2(-m(1,2),cosine);
+  if(cosine>1e-5f){pose.yaw=std::atan2(m(0,2),m(2,2));pose.roll=std::atan2(m(1,0),m(1,1));}
   else {pose.yaw=std::atan2(-m(2,0),m(0,0));pose.roll=0;}
   return pose;
 }
