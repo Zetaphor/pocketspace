@@ -60,5 +60,20 @@ int main(){
   for(int i=0;i<90;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("check(getObjectPhysics(sphere).position.y < -1)"));
   puts("PASS mesh API: imported concave geometry, shared scaling, offset, type restriction, state and empty gap");
+  assert(loadScript(host,"tests/joint-api-smoke.js"));
+  for(int i=0;i<180;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("verifyJoint()"));
+  auto *jointWorld=host.scene.physics.get();jointWorld->hold(2);
+  auto *heldObject=findObject(2);assert(heldObject);
+  for(int i=0;i<90;i++){
+    heldObject->x=2;heldObject->y=2;heldObject->z=1;updateScenePhysics(host.scene,1./90);
+    const auto physical=jointWorld->get(2);
+    assert(std::abs(heldObject->x-physical.pose.position.x)<1e-6&&std::abs(heldObject->y-physical.pose.position.y)<1e-6);
+  }
+  assert(eval("check(getPhysicsJoint(tether).distance < .33)"));jointWorld->release(2,false);
+  std::ofstream(path)<<"const a=loadModel('assets/samples/Box/Box.glb');const b=createObject(a,0,1,0,.1);const c=createObject(a,.2,1,0,.1);setObjectPhysics(b);setObjectPhysics(c);createPhysicsJoint(b,c);throw Error('EXPECTED_JOINT_ROLLBACK');";
+  assert(!loadScript(host,path.string()));assert(host.scene.physics.get()==jointWorld);
+  assert(eval("check(getPhysicsJoint(tether)!==null)"));
+  puts("PASS joint API: creation, state, limits, invalid options, scale rollback, removal and tether simulation");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

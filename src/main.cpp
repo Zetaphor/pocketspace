@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <thread>
 #include <vector>
 #include <array>
@@ -531,6 +532,7 @@ static JSValue physicsState(JSContext *ctx,const physics::State &s){
   JS_SetPropertyStr(ctx,o,"position",physicsVector(ctx,s.pose.position));
   JS_SetPropertyStr(ctx,o,"rotation",physicsVector(ctx,{s.pose.pitch,s.pose.yaw,s.pose.roll}));
   JS_SetPropertyStr(ctx,o,"velocity",physicsVector(ctx,s.velocity));JS_SetPropertyStr(ctx,o,"angularVelocity",physicsVector(ctx,s.angularVelocity));
+  JS_SetPropertyStr(ctx,o,"jointed",JS_NewBool(ctx,s.jointed));
   JS_SetPropertyStr(ctx,o,"held",JS_NewBool(ctx,s.held));JS_SetPropertyStr(ctx,o,"sleeping",JS_NewBool(ctx,s.sleeping));return o;
 }
 static Object *physicsObject(JSContext *ctx,int argc,JSValueConst *argv){
@@ -595,6 +597,59 @@ template<int Operation> static JSValue jsPhysicsVectorOperation(JSContext *ctx,J
   if(!currentScene->physics)return JS_ThrowRangeError(ctx,"object has no physics body");
   try{auto &w=*currentScene->physics;if constexpr(Operation==0)w.velocity(o->id,v);else if constexpr(Operation==1)w.angularVelocity(o->id,v);else w.impulse(o->id,v);}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}return JS_UNDEFINED;
 }
+static JSValue jointState(JSContext *ctx,const physics::JointState &s){
+  JSValue value=JS_NewObject(ctx);
+  for(auto [name,id]:std::initializer_list<std::pair<const char*,int>>{{"id",s.id},{"objectA",s.objectA},{"objectB",s.objectB}})JS_SetPropertyStr(ctx,value,name,JS_NewInt32(ctx,id));
+  JS_SetPropertyStr(ctx,value,"type",JS_NewString(ctx,s.settings.type==physics::JointType::Fixed?"fixed":s.settings.type==physics::JointType::Hinge?"hinge":"distance"));
+  JS_SetPropertyStr(ctx,value,"anchorA",physicsVector(ctx,s.anchorA));JS_SetPropertyStr(ctx,value,"anchorB",physicsVector(ctx,s.anchorB));
+  JS_SetPropertyStr(ctx,value,"axis",s.settings.type==physics::JointType::Hinge?physicsVector(ctx,s.settings.axis):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"angle",s.settings.type==physics::JointType::Hinge?JS_NewFloat64(ctx,s.angle):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"distance",JS_NewFloat64(ctx,s.distance));
+  JS_SetPropertyStr(ctx,value,"collideConnected",JS_NewBool(ctx,s.settings.collideConnected));
+  for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"minAngle",s.settings.minAngle},{"maxAngle",s.settings.maxAngle},{"minDistance",s.settings.minDistance},{"maxDistance",s.settings.maxDistance.value_or(0)}})
+    JS_SetPropertyStr(ctx,value,name,((s.settings.type==physics::JointType::Hinge&&std::strstr(name,"Angle"))||(s.settings.type==physics::JointType::Distance&&std::strstr(name,"Distance")))?JS_NewFloat64(ctx,number):JS_NULL);
+  return value;
+}
+static JSValue jsCreatePhysicsJoint(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int a=0,b=0;
+  if(argc<2||!JS_IsNumber(argv[0])||!JS_IsNumber(argv[1])||JS_ToInt32(ctx,&a,argv[0])<0||JS_ToInt32(ctx,&b,argv[1])<0)return JS_ThrowTypeError(ctx,"createPhysicsJoint(objectA, objectB, options)");
+  physics::JointSettings settings;
+  if(argc>2){
+    if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"joint options must be an object");
+    JSValue type=JS_GetPropertyStr(ctx,argv[2],"type");if(JS_IsException(type))return JS_EXCEPTION;
+    if(!JS_IsUndefined(type)){
+      if(!JS_IsString(type)){JS_FreeValue(ctx,type);return JS_ThrowTypeError(ctx,"joint type must be a string");}
+      const char *text=JS_ToCString(ctx,type);JS_FreeValue(ctx,type);if(!text)return JS_EXCEPTION;
+      std::string name=text;JS_FreeCString(ctx,text);
+      if(name=="fixed")settings.type=physics::JointType::Fixed;else if(name=="hinge")settings.type=physics::JointType::Hinge;else if(name=="distance")settings.type=physics::JointType::Distance;else return JS_ThrowRangeError(ctx,"joint type must be fixed, hinge, or distance");
+    }else JS_FreeValue(ctx,type);
+    if(!readColliderVector(ctx,argv[2],"anchor",settings.anchor)||!readColliderVector(ctx,argv[2],"anchorA",settings.anchorA)||!readColliderVector(ctx,argv[2],"anchorB",settings.anchorB))return JS_EXCEPTION;
+    std::optional<physics::Vec3> axis;
+    if(!readColliderVector(ctx,argv[2],"axis",axis))return JS_EXCEPTION;
+    if(axis)settings.axis=*axis;
+    if((settings.type==physics::JointType::Distance&&(settings.anchor||axis))||(settings.type!=physics::JointType::Distance&&(settings.anchorA||settings.anchorB))||(settings.type==physics::JointType::Fixed&&axis))return JS_ThrowRangeError(ctx,"joint anchors or axis do not apply to this type");
+    for(const char *name:{"minAngle","maxAngle","minDistance","maxDistance"}){
+      JSValue field=JS_GetPropertyStr(ctx,argv[2],name);if(JS_IsException(field))return JS_EXCEPTION;
+      if(!JS_IsUndefined(field)){
+        double n=0;const bool ok=JS_IsNumber(field)&&JS_ToFloat64(ctx,&n,field)==0&&std::isfinite(n);JS_FreeValue(ctx,field);
+        if(!ok)return JS_ThrowTypeError(ctx,"joint limits must be finite numbers");
+        const bool angle=std::strstr(name,"Angle");
+        if((angle&&settings.type!=physics::JointType::Hinge)||(!angle&&settings.type!=physics::JointType::Distance))return JS_ThrowRangeError(ctx,"joint limit does not apply to this type");
+        if(std::strcmp(name,"minAngle")==0)settings.minAngle=float(n);else if(std::strcmp(name,"maxAngle")==0)settings.maxAngle=float(n);else if(std::strcmp(name,"minDistance")==0)settings.minDistance=float(n);else settings.maxDistance=float(n);
+      }else JS_FreeValue(ctx,field);
+    }
+    JSValue collide=JS_GetPropertyStr(ctx,argv[2],"collideConnected");if(JS_IsException(collide))return JS_EXCEPTION;
+    if(!JS_IsUndefined(collide)&&!JS_IsBool(collide)){JS_FreeValue(ctx,collide);return JS_ThrowTypeError(ctx,"collideConnected must be a boolean");}
+    if(!JS_IsUndefined(collide))settings.collideConnected=JS_ToBool(ctx,collide)>0;JS_FreeValue(ctx,collide);
+  }
+  try{return JS_NewInt32(ctx,physicsWorld(*currentScene).createJoint(a,b,settings));}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}
+}
+template<bool Remove> static JSValue jsPhysicsJoint(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||!JS_IsNumber(argv[0])||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"joint id must be numeric");
+  auto *world=currentScene->physics.get();
+  if constexpr(Remove){if(world)world->removeJoint(id);return JS_UNDEFINED;}
+  else {if(!world||!world->containsJoint(id))return JS_NULL;return jointState(ctx,world->joint(id));}
+}
 static JSValue jsSetPhysicsCollisionEvents(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc<1||!JS_IsBool(argv[0]))return JS_ThrowTypeError(ctx,"setPhysicsCollisionEvents(enabled, options) requires a boolean");
   bool stay=false;
@@ -629,7 +684,7 @@ static void updateScenePhysics(Scene &scene,double elapsed){
 
   for(auto &o:scene.objects)if(scene.physics->contains(o.id)){
     const auto s=scene.physics->get(o.id);
-    if(s.settings.type==physics::Type::Dynamic&&!s.held){o.x=s.pose.position.x;o.y=s.pose.position.y;o.z=s.pose.position.z;o.pitch=s.pose.pitch;o.yaw=s.pose.yaw;o.roll=s.pose.roll;}
+    if(s.settings.type==physics::Type::Dynamic&&(!s.held||s.jointed)){o.x=s.pose.position.x;o.y=s.pose.position.y;o.z=s.pose.position.z;o.pitch=s.pose.pitch;o.yaw=s.pose.yaw;o.roll=s.pose.roll;}
   }
 }
 
@@ -726,6 +781,9 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);
+  bind(candidate.ctx,"createPhysicsJoint",jsCreatePhysicsJoint,3);
+  bind(candidate.ctx,"getPhysicsJoint",jsPhysicsJoint<false>,1);
+  bind(candidate.ctx,"removePhysicsJoint",jsPhysicsJoint<true>,1);
   bind(candidate.ctx,"getObjectPhysics",jsGetObjectPhysics,1);
   bind(candidate.ctx,"removeObjectPhysics",jsRemoveObjectPhysics,1);
   bind(candidate.ctx,"setPhysicsGravity",jsSetPhysicsGravity,3);
