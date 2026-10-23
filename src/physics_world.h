@@ -42,7 +42,12 @@ struct JointSettings {
   float minDistance=0;std::optional<float> maxDistance;
   bool collideConnected=false;
 };
-struct JointState {int id,objectA,objectB;JointSettings settings;Vec3 anchorA,anchorB;float distance=0,angle=0;};
+enum class MotorMode {Off,Position,Velocity};
+struct JointMotor {
+  MotorMode mode=MotorMode::Off;
+  float targetAngle=0,targetVelocity=0,maxTorque=1,frequency=2,damping=1;
+};
+struct JointState {int id,objectA,objectB;JointSettings settings;Vec3 anchorA,anchorB;float distance=0,angle=0;JointMotor motor;};
 class World {
 public:
   World();~World();
@@ -58,6 +63,7 @@ public:
   bool hasJoints(int objectId) const;
   JointState joint(int id) const;
   void removeJoint(int id);
+  void jointMotor(int id,const JointMotor&);
   void gravity(Vec3);
   void velocity(int id,Vec3);
   void angularVelocity(int id,Vec3);

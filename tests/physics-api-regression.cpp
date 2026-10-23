@@ -75,5 +75,11 @@ int main(){
   assert(!loadScript(host,path.string()));assert(host.scene.physics.get()==jointWorld);
   assert(eval("check(getPhysicsJoint(tether)!==null)"));
   puts("PASS joint API: creation, state, limits, invalid options, scale rollback, removal and tether simulation");
+  assert(loadScript(host,"tests/motor-api-smoke.js"));
+  for(int i=0;i<270;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("verifyMotor();reverseMotor()"));
+  for(int i=0;i<270;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("verifyReverse()"));
+  puts("PASS motor API: state, partial updates, position/velocity drive and invalid-update rollback");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

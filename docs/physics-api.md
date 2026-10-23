@@ -193,12 +193,58 @@ dynamic while held, with a bounded drive toward the hand target so the solver
 can enforce the connection. They can resist hand motion at a hinge or distance
 limit. `getObjectPhysics(id).jointed` reports whether any joints are attached.
 Joints use an iterative solver, so small positional/angle errors under load are
-expected. Motors, springs, breaking thresholds, and runtime limit editing are
-not exposed; remove and recreate a joint to change its configuration.
+expected. Hinge motors are configurable as described below. Standalone springs, breaking
+thresholds, and runtime joint-limit editing are not exposed; remove and recreate
+a joint to change its anchors or limits.
 
 Run [joints.js](../scripts/joints.js) for a blue hinged panel, a tethered yellow
 ball, and a red box welded to an avocado. Grip or trigger grabs the moving
 objects. Either bumper resets the assemblies when nothing is held.
+
+## Hinge motors
+
+`setPhysicsJointMotor(id, options)` configures an existing hinge motor and returns
+the updated joint state. Omitted fields preserve their previous values. Other
+joint types and invalid settings throw without changing the motor.
+
+```js
+setPhysicsJointMotor(hinge, {
+  mode: 'position', targetAngle: .9,
+  maxTorque: .15, frequency: 3, damping: 1
+});
+// A partial update retains torque and response settings.
+setPhysicsJointMotor(hinge, {targetAngle: 0});
+setPhysicsJointMotor(hinge, {mode: 'velocity', targetVelocity: .8});
+setPhysicsJointMotor(hinge, {mode: 'off'});
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `mode` | `'off'` | `'off'`, `'position'`, or `'velocity'`. |
+| `targetAngle` | `0` | Position target in radians, within the hinge's angle limits. |
+| `targetVelocity` | `0` | Velocity target in radians/second, −30 to 30; positive increases the reported hinge angle before it wraps. |
+| `maxTorque` | `1` | Maximum motor torque in either direction, 0–10000 newton-meters. Zero supplies no motor torque. |
+| `frequency` | `2` | Position response frequency, 0.01–30 hertz. Higher values produce a stiffer response. |
+| `damping` | `1` | Position damping ratio, 0–10. One is critical damping for the motor's angular response; body geometry and coupled joints affect the full assembly. |
+
+Position mode drives toward the target angle using a damped spring. Velocity
+mode drives toward the target speed. Both obey the torque cap and hinge limits;
+loads, collisions, and hand motion can prevent reaching the target. Frequency
+and damping are retained in velocity/off mode but only affect position mode.
+Switching off removes motor drive; it does not brake or reset current velocity.
+The normal body damping still applies.
+
+`getPhysicsJoint(id).motor` reports the resolved configuration above for hinges,
+including when off. It is `null` for fixed/distance joints. Enabled motors with
+nonzero torque keep their connected moving bodies awake. Changing settings wakes
+the assembly; switching off, setting zero torque, or removing the last powered
+joint restores normal sleeping. Motor settings follow the joint's lifetime and
+are discarded on removal/reload. Motors remain active during grabbing.
+
+Run [motors.js](../scripts/motors.js) for a blue panel driven to an angle and a
+green panel driven at a constant speed. Either bumper toggles the blue panel
+between closed and open; A or X toggles power for both motors. Grip or trigger
+can grab either panel to oppose the motor, then release it to resume motion.
 
 ## Controls and state
 
