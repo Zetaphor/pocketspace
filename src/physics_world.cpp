@@ -142,6 +142,12 @@ struct World::Impl : JPH::ContactListener {
   JPH::PhysicsSystem system;std::map<int,Record> bodies;double accumulator=0;
   Impl(){system.Init(512,0,2048,2048,broad,broadFilter,pairs);}
   Record &record(int id){auto it=bodies.find(id);if(it==bodies.end())throw std::invalid_argument("object has no physics body");return it->second;}
+  void refreshMotorSleep(int id){
+    auto &r=record(id);if(r.settings.type==Type::Static)return;
+    bool powered=false;
+    for(const auto &[key,j]:joints)if((j.state.objectA==id||j.state.objectB==id)&&j.state.motor.mode!=MotorMode::Off&&j.state.motor.maxTorque>0){powered=true;break;}
+    system.GetBodyLockInterfaceNoLock().TryGetBody(r.body)->SetAllowSleeping(!powered);
+  }
 };
 World::World(){initialize();impl=std::make_unique<Impl>();}
 World::~World(){while(!impl->bodies.empty())remove(impl->bodies.begin()->first);}
@@ -302,12 +308,28 @@ JointState World::joint(int id)const{
   if(state.settings.type==JointType::Hinge)state.angle=static_cast<const JPH::HingeConstraint*>(j.constraint.GetPtr())->GetCurrentAngle();
   return state;
 }
+void World::jointMotor(int id,const JointMotor &motor){
+  auto it=impl->joints.find(id);if(it==impl->joints.end())throw std::invalid_argument("unknown physics joint");
+  auto &joint=it->second;
+  if(joint.state.settings.type!=JointType::Hinge)throw std::invalid_argument("motors require a hinge joint");
+  bounded(motor.targetAngle,joint.state.settings.minAngle,joint.state.settings.maxAngle);
+  bounded(motor.targetVelocity,-30,30);bounded(motor.maxTorque,0,10000);
+  bounded(motor.frequency,.01f,30);bounded(motor.damping,0,10);
+  auto *hinge=static_cast<JPH::HingeConstraint*>(joint.constraint.GetPtr());
+  auto &settings=hinge->GetMotorSettings();
+  settings.mSpringSettings=JPH::SpringSettings(JPH::ESpringMode::FrequencyAndDamping,motor.frequency,motor.damping);
+  settings.SetTorqueLimit(motor.maxTorque);
+  hinge->SetTargetAngle(motor.targetAngle);hinge->SetTargetAngularVelocity(motor.targetVelocity);
+  hinge->SetMotorState(motor.mode==MotorMode::Off?JPH::EMotorState::Off:motor.mode==MotorMode::Position?JPH::EMotorState::Position:JPH::EMotorState::Velocity);
+  joint.state.motor=motor;
+  auto &bi=impl->system.GetBodyInterface();for(int object:{joint.state.objectA,joint.state.objectB}){impl->refreshMotorSleep(object);bi.ActivateBody(impl->record(object).body);}
+}
 void World::removeJoint(int id){
   auto it=impl->joints.find(id);if(it==impl->joints.end())return;
   const auto state=it->second.state;impl->system.RemoveConstraint(it->second.constraint);
   if(!state.settings.collideConnected){auto pair=impl->jointFilter->blocked.find(std::minmax(state.objectA,state.objectB));if(--pair->second==0)impl->jointFilter->blocked.erase(pair);}
   impl->joints.erase(it);
-  auto &bi=impl->system.GetBodyInterface();for(int object:{state.objectA,state.objectB})if(contains(object)){const auto &r=impl->record(object);const auto body=r.body;if(r.held&&r.settings.type==Type::Dynamic&&!hasJoints(object))bi.SetMotionType(body,JPH::EMotionType::Kinematic,JPH::EActivation::Activate);bi.InvalidateContactCache(body);bi.ActivateBody(body);}
+  auto &bi=impl->system.GetBodyInterface();for(int object:{state.objectA,state.objectB})if(contains(object)){impl->refreshMotorSleep(object);const auto &r=impl->record(object);const auto body=r.body;if(r.held&&r.settings.type==Type::Dynamic&&!hasJoints(object))bi.SetMotionType(body,JPH::EMotionType::Kinematic,JPH::EActivation::Activate);bi.InvalidateContactCache(body);bi.ActivateBody(body);}
 }
 void World::gravity(Vec3 v){finite(v);impl->system.SetGravity(linear(v));}
 void World::velocity(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.settings.type!=Type::Dynamic||r.held)throw std::invalid_argument("velocity requires an unheld dynamic body");impl->system.GetBodyInterface().SetLinearVelocity(r.body,linear(v));}

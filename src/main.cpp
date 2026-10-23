@@ -605,10 +605,38 @@ static JSValue jointState(JSContext *ctx,const physics::JointState &s){
   JS_SetPropertyStr(ctx,value,"axis",s.settings.type==physics::JointType::Hinge?physicsVector(ctx,s.settings.axis):JS_NULL);
   JS_SetPropertyStr(ctx,value,"angle",s.settings.type==physics::JointType::Hinge?JS_NewFloat64(ctx,s.angle):JS_NULL);
   JS_SetPropertyStr(ctx,value,"distance",JS_NewFloat64(ctx,s.distance));
+  JSValue motor=JS_NULL;
+  if(s.settings.type==physics::JointType::Hinge){
+    motor=JS_NewObject(ctx);JS_SetPropertyStr(ctx,motor,"mode",JS_NewString(ctx,s.motor.mode==physics::MotorMode::Off?"off":s.motor.mode==physics::MotorMode::Position?"position":"velocity"));
+    for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"targetAngle",s.motor.targetAngle},{"targetVelocity",s.motor.targetVelocity},{"maxTorque",s.motor.maxTorque},{"frequency",s.motor.frequency},{"damping",s.motor.damping}})JS_SetPropertyStr(ctx,motor,name,JS_NewFloat64(ctx,number));
+  }
+  JS_SetPropertyStr(ctx,value,"motor",motor);
   JS_SetPropertyStr(ctx,value,"collideConnected",JS_NewBool(ctx,s.settings.collideConnected));
   for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"minAngle",s.settings.minAngle},{"maxAngle",s.settings.maxAngle},{"minDistance",s.settings.minDistance},{"maxDistance",s.settings.maxDistance.value_or(0)}})
     JS_SetPropertyStr(ctx,value,name,((s.settings.type==physics::JointType::Hinge&&std::strstr(name,"Angle"))||(s.settings.type==physics::JointType::Distance&&std::strstr(name,"Distance")))?JS_NewFloat64(ctx,number):JS_NULL);
   return value;
+}
+static JSValue jsSetPhysicsJointMotor(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;
+  if(argc<2||!JS_IsNumber(argv[0])||JS_ToInt32(ctx,&id,argv[0])<0||!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"setPhysicsJointMotor(id, options)");
+  auto *world=currentScene->physics.get();
+  if(!world||!world->containsJoint(id))return JS_ThrowRangeError(ctx,"unknown physics joint");
+  auto motor=world->joint(id).motor;
+  JSValue mode=JS_GetPropertyStr(ctx,argv[1],"mode");if(JS_IsException(mode))return JS_EXCEPTION;
+  if(!JS_IsUndefined(mode)){
+    if(!JS_IsString(mode)){JS_FreeValue(ctx,mode);return JS_ThrowTypeError(ctx,"motor mode must be a string");}
+    const char *text=JS_ToCString(ctx,mode);JS_FreeValue(ctx,mode);if(!text)return JS_EXCEPTION;
+    std::string name=text;JS_FreeCString(ctx,text);
+    if(name=="off")motor.mode=physics::MotorMode::Off;else if(name=="position")motor.mode=physics::MotorMode::Position;else if(name=="velocity")motor.mode=physics::MotorMode::Velocity;else return JS_ThrowRangeError(ctx,"motor mode must be off, position, or velocity");
+  }else JS_FreeValue(ctx,mode);
+  for(auto [name,field]:std::initializer_list<std::pair<const char*,float*>>{{"targetAngle",&motor.targetAngle},{"targetVelocity",&motor.targetVelocity},{"maxTorque",&motor.maxTorque},{"frequency",&motor.frequency},{"damping",&motor.damping}}){
+    JSValue value=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(value))return JS_EXCEPTION;
+    if(!JS_IsUndefined(value)){
+      double n=0;const bool ok=JS_IsNumber(value)&&JS_ToFloat64(ctx,&n,value)==0&&std::isfinite(n);JS_FreeValue(ctx,value);
+      if(!ok)return JS_ThrowTypeError(ctx,"motor settings must be finite numbers");*field=float(n);
+    }else JS_FreeValue(ctx,value);
+  }
+  try{world->jointMotor(id,motor);return jointState(ctx,world->joint(id));}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}
 }
 static JSValue jsCreatePhysicsJoint(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int a=0,b=0;
@@ -781,6 +809,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);
+  bind(candidate.ctx,"setPhysicsJointMotor",jsSetPhysicsJointMotor,2);
   bind(candidate.ctx,"createPhysicsJoint",jsCreatePhysicsJoint,3);
   bind(candidate.ctx,"getPhysicsJoint",jsPhysicsJoint<false>,1);
   bind(candidate.ctx,"removePhysicsJoint",jsPhysicsJoint<true>,1);
