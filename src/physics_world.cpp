@@ -77,6 +77,7 @@ struct World::Impl : JPH::ContactListener {
   JPH::Ref<JointFilter> jointFilter=new JointFilter;
   struct Joint {JointState state;JPH::Ref<JPH::TwoBodyConstraint> constraint;JPH::Vec3 localA,localB;};
   std::map<int,Joint> joints;int nextJoint=1;
+  std::vector<JointBreak> breaks;
   struct Sample {double duration;JPH::Vec3 velocity,angular;};
   struct Record {JPH::BodyID body;Settings settings;Pose target;Collider collider;bool held=false,canThrow=true;std::deque<Sample> samples;};
   using Pair=std::pair<JPH::uint32,JPH::uint32>;
@@ -263,6 +264,8 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   auto &ra=impl->record(a);auto &rb=impl->record(b);
   if(ra.settings.type!=Type::Dynamic&&rb.settings.type!=Type::Dynamic)throw std::invalid_argument("a joint needs at least one dynamic body");
   JointSettings s=requested;
+  if(s.breakForce)bounded(*s.breakForce,.001f,1e9f);
+  if(s.breakTorque){bounded(*s.breakTorque,.001f,1e9f);if(s.type==JointType::Distance)throw std::invalid_argument("breakTorque requires a fixed or hinge joint");}
   if(s.spring){
     if(s.type!=JointType::Distance)throw std::invalid_argument("springs require a distance joint");
     bounded(s.spring->frequency,.01f,30);bounded(s.spring->damping,0,10);
@@ -333,6 +336,7 @@ void World::jointMotor(int id,const JointMotor &motor){
   joint.state.motor=motor;
   auto &bi=impl->system.GetBodyInterface();for(int object:{joint.state.objectA,joint.state.objectB}){impl->refreshMotorSleep(object);bi.ActivateBody(impl->record(object).body);}
 }
+std::vector<JointBreak> World::takeJointBreaks(){auto result=std::move(impl->breaks);impl->breaks.clear();return result;}
 void World::removeJoint(int id){
   auto it=impl->joints.find(id);if(it==impl->joints.end())return;
   const auto state=it->second.state;impl->system.RemoveConstraint(it->second.constraint);
@@ -402,6 +406,23 @@ void World::advance(double elapsed){
     impl->seen.clear();
     if(impl->system.Update(float(step),1,&impl->temporary,&impl->jobs)!=JPH::EPhysicsUpdateError::None)throw std::runtime_error("physics simulation capacity exceeded");
     if(impl->eventsEnabled)impl->finishContacts();
+    std::vector<JointBreak> broken;
+    for(const auto &[id,joint]:impl->joints){
+      const auto &s=joint.state.settings;
+      if((!s.breakForce&&!s.breakTorque)||!joint.constraint->IsActive())continue;
+      float force=0,torque=0;
+      if(s.type==JointType::Fixed){
+        const auto *c=static_cast<const JPH::FixedConstraint*>(joint.constraint.GetPtr());
+        force=c->GetTotalLambdaPosition().Length()/float(step);torque=c->GetTotalLambdaRotation().Length()/float(step);
+      }else if(s.type==JointType::Hinge){
+        const auto *c=static_cast<const JPH::HingeConstraint*>(joint.constraint.GetPtr());
+        force=c->GetTotalLambdaPosition().Length()/float(step);
+        const auto perpendicular=c->GetTotalLambdaRotation();const float axial=c->GetTotalLambdaRotationLimits()+c->GetTotalLambdaMotor();
+        torque=std::sqrt(perpendicular.LengthSq()+axial*axial)/float(step);
+      }else force=std::abs(static_cast<const JPH::DistanceConstraint*>(joint.constraint.GetPtr())->GetTotalLambdaPosition())/float(step);
+      if((s.breakForce&&force>*s.breakForce)||(s.breakTorque&&torque>*s.breakTorque))broken.push_back({id,joint.state.objectA,joint.state.objectB,force,torque});
+    }
+    for(const auto &event:broken){removeJoint(event.jointId);impl->breaks.push_back(event);if(impl->breaks.size()>4096)impl->breaks.erase(impl->breaks.begin(),impl->breaks.begin()+1024);}
     impl->accumulator-=step;
   }
 }

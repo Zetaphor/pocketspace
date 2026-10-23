@@ -161,6 +161,8 @@ const hinge = createPhysicsJoint(frame, door, {
 | `maxDistance` | Initial anchor separation | Maximum separation in meters, at least `minDistance`, at most 10000. |
 | `collideConnected` | `false` | Allow contacts between the two connected bodies. |
 | `spring` | `null` | Distance-only `{frequency, damping}`; softens the distance limits. See below. |
+| `breakForce` | `null` | Break above this resultant force, 0.001–1000000000 newtons; all joint types. |
+| `breakTorque` | `null` | Break above this resultant torque, 0.001–1000000000 newton-meters; fixed/hinge only. |
 
 A fixed joint preserves the initial relative position and orientation. A hinge
 keeps its anchor points together and allows rotation only around its axis; its
@@ -177,6 +179,7 @@ for the wrong joint type throw. There are at most 512 joints per scene.
 - `anchorA` and `anchorB`: current attachment positions in scene meters.
 - `distance`: current anchor separation in meters.
 - `spring`: resolved `{frequency,damping}` for a spring distance joint, otherwise `null`.
+- `breakForce` and `breakTorque`: configured thresholds, or `null` when disabled.
 - Hinge `axis`, `angle`, `minAngle`, and `maxAngle`; these are `null` for other types.
 - Distance `minDistance` and `maxDistance`; these are `null` for other types.
 
@@ -196,12 +199,58 @@ can enforce the connection. They can resist hand motion at a hinge or distance
 limit. `getObjectPhysics(id).jointed` reports whether any joints are attached.
 Joints use an iterative solver, so small positional/angle errors under load are
 expected. Hinge motors and distance springs are configurable as described below.
-Breaking thresholds and runtime joint-limit/spring editing are not exposed; remove and recreate
+Runtime joint-limit/spring/threshold editing is not exposed; remove and recreate
 a joint to change its anchors or limits.
 
 Run [joints.js](../scripts/joints.js) for a blue hinged panel, a tethered yellow
 ball, and a red box welded to an avocado. Grip or trigger grabs the moving
 objects. Either bumper resets the assemblies when nothing is held.
+
+## Breakable joints
+
+Add `breakForce` or `breakTorque` when creating a joint. Omitted/null thresholds
+leave that failure mode disabled; exceeding either configured threshold breaks
+the connection. A distance joint supports force breaking only, including when
+configured as a spring. Fixed and hinge joints also support torque breaking.
+
+```js
+const link = createPhysicsJoint(anchor, weight, {
+  type: 'distance', minDistance: .3, maxDistance: .3, breakForce: 10
+});
+onInputEvent(event => {
+  if (event.type === 'physics.jointBreak' && event.jointId === link) {
+    print('Connection released');
+  }
+});
+```
+
+Loads are estimated from the solver's accumulated velocity impulses divided by
+the fixed 1/90-second step. Force is the resultant linear load; torque is the
+resultant angular load, including a hinge's motor and angle-limit contributions.
+These are solver estimates, not geometric strain or material-strength simulation.
+Breaking tests run after each completed step, using a strict greater-than check;
+there is no fatigue accumulation. A joint can oppose motion during its final step
+before it is removed. Existing collision filtering and motor sleeping rules are
+restored through the normal joint-removal path. Held objects remain held and can
+move freely once their last joint breaks.
+
+`physics.jointBreak` is delivered once per automatically broken joint through
+both `onInputEvent` and `pollInputEvents`. It carries `jointId`, `objectId`
+(the creation-time object A), `otherObjectId` (object B), `force` in newtons, and
+`torque` in newton-meters. It has no collision `point`/`normal` fields. Delivery is
+independent of `setPhysicsCollisionEvents`; controller input loss does not clear
+pending break events. Each delivery queue retains at most 4096 events, dropping
+older events in batches when full.
+
+The joint is already absent when the event is delivered, so `getPhysicsJoint`
+returns `null`. Explicit removal, body/object deletion, and scene reload do not
+emit break events. Reload discards pending events. Create a new joint to reconnect
+objects or change a threshold; IDs are not reused within a scene.
+
+Run [breakable-joints.js](../scripts/breakable-joints.js) for a suspended blue box
+with a breakable fixed connection and a yellow ball with a breakable tether.
+Grab and pull to release their connections, then drop them onto the floor. Either
+bumper reconnects and resets both when nothing is held.
 
 ## Distance springs
 

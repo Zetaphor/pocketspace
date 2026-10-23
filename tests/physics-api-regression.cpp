@@ -85,5 +85,11 @@ int main(){
   for(int i=0;i<360;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifySpring()"));
   puts("PASS spring API: optional spring, defaults, validation, resolved state and elastic equilibrium");
+  assert(loadScript(host,"tests/breakable-joint-api-smoke.js"));
+  for(int i=0;i<30;i++){updateScenePhysics(host.scene,1./90);dispatch();}
+  assert(eval("check(getPhysicsJoint(joint)!==null);pull()"));
+  for(int i=0;i<10;i++){updateScenePhysics(host.scene,1./90);dispatch();}
+  assert(eval("verifyBreak()"));
+  puts("PASS breakable API: threshold validation, automatic removal, one-shot callback/poll equality and collision-toggle isolation");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }
