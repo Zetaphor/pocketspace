@@ -10,6 +10,7 @@ these guides; implementation history belongs in Git.
 | File | Responsibility |
 | --- | --- |
 | `src/main.cpp` | QuickJS bindings, scene lifecycle, interaction, rendering, and OpenVR host loop. |
+| `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |

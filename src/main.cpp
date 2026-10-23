@@ -27,6 +27,7 @@
 #include <functional>
 #include <quickjs.h>
 #include "model_asset.h"
+#include "model_shaders.h"
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
@@ -1017,6 +1018,40 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     }
   }
 }
+struct ProjectedBounds {float x0=INFINITY,x1=-INFINITY,y0=INFINITY,y1=-INFINITY,near=INFINITY,far=-INFINITY;bool valid=true;};
+static ProjectedBounds projectedBounds(const Object &object,const ModelAsset &geometry,const vr::HmdMatrix34_t &anchor,const float eye[3],const float right[3],const float up[3],const float forward[3]){
+  ProjectedBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
+  for(int corner=0;corner<8;corner++){
+    float local[3],rotated[3]{},position[3]={object.x,object.y,object.z};
+    for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?geometry.high[axis]:geometry.low[axis];
+    for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
+    for(int axis=0;axis<3;axis++)position[axis]+=object.scale*rotated[axis]*(axis==2?-1.f:1.f);
+    float ray[3];for(int row=0;row<3;row++)ray[row]=anchor.m[row][3]+anchor.m[row][0]*position[0]+anchor.m[row][1]*position[1]-anchor.m[row][2]*position[2]-eye[row];
+    float x=0,y=0,d=0;for(int axis=0;axis<3;axis++){x+=ray[axis]*right[axis];y+=ray[axis]*up[axis];d+=ray[axis]*forward[axis];}
+    if(d<=.05f){result.valid=false;return result;}
+    result.x0=std::min(result.x0,x/d);result.x1=std::max(result.x1,x/d);result.y0=std::min(result.y0,y/d);result.y1=std::max(result.y1,y/d);
+    result.near=std::min(result.near,d);result.far=std::max(result.far,d);
+  }
+  return result;
+}
+static bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &target){
+  if(!occluder.valid||!target.valid)return true;
+  constexpr float margin=1e-4f;
+  return occluder.near<=target.far+margin&&occluder.x1+margin>=target.x0&&occluder.x0-margin<=target.x1&&occluder.y1+margin>=target.y0&&occluder.y0-margin<=target.y1;
+}
+// Occluders write depth only; masked holes keep their alpha-test behavior.
+// Blended surfaces must not become opaque occluders.
+template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw){
+  glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+  draw(targetId,-1);
+  glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+  for(int pass=0;pass<2;pass++){
+    if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
+    else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
+    draw(targetId,pass);
+  }
+  glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+}
 static bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];}for(int i=0;i<3;i++){p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
 static float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated=true){
   if(!hand.valid)return std::numeric_limits<float>::max();
@@ -1124,32 +1159,7 @@ int main(int argc,char **argv) {
   destroyImage=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   imageRenderbuffer=(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
-  const char *vs=R"(#version 300 es
-layout(location=0) in vec3 p;layout(location=1) in vec2 uv;
-uniform vec3 center,right,up,forward,panelRight,panelUp,panelForward,eye;
-uniform vec3 offset;
-uniform float yaw,pitch,roll,modelScale,panelHalfWidth;
-out vec2 t;
-void main(){
-  float cr=cos(roll),sr=sin(roll),cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);
-  vec3 rolled=vec3(cr*p.x-sr*p.y,sr*p.x+cr*p.y,p.z);
-  vec3 pitched=vec3(rolled.x,cp*rolled.y-sp*rolled.z,sp*rolled.y+cp*rolled.z);
-  vec3 rotated=vec3(cy*pitched.x+sy*pitched.z,pitched.y,-sy*pitched.x+cy*pitched.z);
-  vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+modelScale*(right*rotated.x+up*rotated.y-forward*rotated.z);
-  vec3 ray=world-eye;
-  float distanceAlong=dot(ray,panelForward);
-  float hitScale=dot(center-eye,panelForward)/distanceAlong;
-  vec3 hit=eye+hitScale*ray;
-  float x=dot(hit-center,panelRight)/panelHalfWidth;
-  float y=dot(hit-center,panelUp)/panelHalfWidth;
-  float z=(distanceAlong-0.05)/4.95*2.0-1.0;
-  gl_Position=vec4(x*distanceAlong,y*distanceAlong,z*distanceAlong,distanceAlong);
-  t=uv;
-})";
-  const char *fs=R"(#version 300 es
-precision mediump float;in vec2 t;uniform sampler2D material;uniform vec4 factor;uniform vec3 sheen;uniform int alphaMode;uniform float alphaCutoff;out vec4 color;
-void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(color.rgb+texel.rgb*sheen*0.8,0.0,1.0);if(alphaMode==1&&color.a<alphaCutoff)discard;if(alphaMode==0)color.a=1.0;})";
-  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vs),f=compile(GL_FRAGMENT_SHADER,fs);
+  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
   ScopeExit shaderCleanup{[&]{glDeleteProgram(program);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
@@ -1457,17 +1467,19 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
         glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         for(int i=0;i<2;i++){
           setVec3(eyeLocation,eyes[i][0],eyes[i][1],eyes[i][2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
-          for(int pass=0;pass<2;pass++){
-            if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
-            else {glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
+          const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
+          const auto targetBounds=projectedBounds(*target,targetGeometry,anchor,eyes[i],panelRight,panelUp,panelForward);
+          renderObjectLayers(id,[&](int targetId,int pass){
             for(const auto &object:script.scene.objects){
-              if(!object.visible||id!=object.id)continue;
+              if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
+              const auto &geometry=object.animationPose?object.animationPose->geometry:script.scene.assets[size_t(object.asset)-1];
+              if(pass<0&&!mayOcclude(projectedBounds(object,geometry,anchor,eyes[i],panelRight,panelUp,panelForward),targetBounds))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
-                if((part.alphaMode==2)!=bool(pass))continue;
+                if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
                 glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
                 glUniform3fv(sheenLocation,1,part.sheen);
                 glBindBuffer(GL_ARRAY_BUFFER,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:part.vbo);
@@ -1477,8 +1489,7 @@ void main(){vec4 texel=texture(material,t);color=texel*factor;color.rgb=clamp(co
                 glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
               }
             }
-          }
-          glDepthMask(GL_TRUE);glDisable(GL_BLEND);
+          });
         }
         ready.push_back(surface.get());
       }

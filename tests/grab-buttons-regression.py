@@ -6,7 +6,7 @@ root=Path(__file__).resolve().parents[1]
 source=(root/'src/main.cpp').read_text()
 objects=source[source.index('enum class GrabButton'):source.index('struct Scene {')]
 controller=source[source.index('struct ControllerSnapshot'):source.index('static vr::HmdMatrix34_t trackingAnchor')]
-functions=source[source.index('static bool grabNeedsRelease'):source.index('static bool rayTriangle(')]
+functions=source[source.index('static bool grabNeedsRelease'):source.index('struct ProjectedBounds')]
 header=r'''
 #include <algorithm>
 #include <array>
