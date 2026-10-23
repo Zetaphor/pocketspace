@@ -43,6 +43,11 @@ int main() {
         JSValue value=inputEventValue(host.ctx,event);checkedCall(inputCallback,1,&value);JS_FreeValue(host.ctx,value);
       }
     }
+    if(entry.path().filename()=="stress.js"){
+      const char *source="add(1000);if(getEngineStats().objectCount!==49)throw Error('stress cap');clear();if(getEngineStats().objectCount!==1)throw Error('stress clear');";
+      JSValue result=JS_Eval(host.ctx,source,strlen(source),"stress-controls",JS_EVAL_TYPE_GLOBAL);
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+    }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
     currentScene = liveScene = nullptr;

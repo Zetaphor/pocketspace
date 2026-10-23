@@ -95,5 +95,7 @@ int main(){
   for(int i=0;i<180;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifyLength();configureBreak()"));updateScenePhysics(host.scene,1./90);assert(eval("verifyUpdatedBreak()"));
   puts("PASS joint update API: partial options, same ID, nested spring merge/null reset, rollback, new limits and threshold breaking");
+  assert(loadScript(host,"tests/engine-stats-api-smoke.js"));
+  puts("PASS engine statistics API: field schema and unavailable sample values");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

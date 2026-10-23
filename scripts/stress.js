@@ -1,0 +1,45 @@
+const LIMIT = 48;
+const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2);
+setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
+const assets = ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb', 'assets/physics/GreenBox.glb', 'assets/samples/Box/Box.glb'].map(path => loadModel(path));
+const objects = [];
+let sequence = 0;
+function add(count) {
+  while (count-- > 0 && objects.length < LIMIT) {
+    const n = sequence++;
+    const id = createObject(assets[n % assets.length], ((n % 5) - 2) * .15, .05 + Math.floor(objects.length / 25) * .16, (Math.floor(n / 5) % 5 - 2) * .15, .1);
+    setObjectPhysics(id, {mass: .2, restitution: .1});
+    enableObjectInteraction(id, {grabButton: 'both'});
+    objects.push(id);
+  }
+}
+function clear() { while (objects.length) removeObject(objects.pop()); }
+const panel = createPanel({widthPixels: 1024, heightPixels: 480, widthMeters: .9});
+panelSetTransform(panel, 'world', 0, .55, .25);
+const mib = bytes => bytes === null ? 'warming up' : `${(bytes / 1048576).toFixed(1)} MiB`;
+function draw() {
+  const s = getEngineStats(), c = panel.canvas;
+  c.clear(12, 18, 29, 255);
+  const lines = [
+    `Objects: ${objects.length}/${LIMIT}   FPS: ${s.fps === null ? '--' : s.fps.toFixed(1)}`,
+    `CPU: ${s.cpuPercent === null ? '--' : s.cpuPercent.toFixed(1) + '%'} (100% = one core)`,
+    `RAM (process RSS): ${mib(s.ramBytes)}`,
+    s.vramBytes !== null ? `GPU driver memory: ${mib(s.vramBytes)}` : `GPU allocations (estimate): ${mib(s.gpuAllocatedEstimateBytes)}`,
+    'Bumper: +1    A/X: +5    B/Y: clear',
+    'Grip/trigger: grab. GPU shares system RAM.'
+  ];
+  lines.forEach((line, i) => c.text(24, 20 + i * 72, line, 230, 240, 255, 255, 31));
+  panel.present();
+}
+let nextDraw = 0;
+function update() { const now = Date.now(); if (now >= nextDraw) { draw(); nextDraw = now + 500; } }
+onInputEvent(event => {
+  if (event.type !== 'controller.button' || !event.down) return;
+  if (event.control === '/input/bumper/click') add(1);
+  else if (event.control === '/input/a/click' || event.control === '/input/x/click') add(5);
+  else if (event.control === '/input/b/click' || event.control === '/input/y/click') clear();
+});
+setLaserVisible('left', true);
+setLaserVisible('right', true);
+add(4);
+draw();

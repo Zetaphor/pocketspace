@@ -35,6 +35,7 @@
 #include "eye_calibration.h"
 #include "scope_exit.h"
 #include "physics_world.h"
+#include "runtime_stats.h"
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
@@ -55,6 +56,7 @@ struct Object {
 };
 struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static Scene *currentScene=nullptr,*liveScene=nullptr;
+static diagnostics::Sampler engineStats;
 struct ControllerSnapshot {bool valid=false,connected=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
 static vr::HmdMatrix34_t trackingAnchor{};static bool trackingAnchorValid=false;
@@ -76,6 +78,15 @@ static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){J
   JS_SetPropertyStr(ctx,item,"point",vector(event.point));JS_SetPropertyStr(ctx,item,"normal",vector(event.normal));
   JS_SetPropertyStr(ctx,item,"penetration",JS_NewFloat64(ctx,event.penetration));JS_SetPropertyStr(ctx,item,"relativeSpeed",JS_NewFloat64(ctx,event.relativeSpeed));
 }return item;}
+static JSValue jsGetEngineStats(JSContext *ctx,JSValueConst,int,JSValueConst*){
+  JSValue value=JS_NewObject(ctx);
+  auto number=[&](const char *name,auto n){JS_SetPropertyStr(ctx,value,name,n?JS_NewFloat64(ctx,double(*n)):JS_NULL);};
+  number("fps",engineStats.fps);number("cpuPercent",engineStats.cpuPercent);number("ramBytes",engineStats.ramBytes);number("vramBytes",engineStats.vramBytes);
+  JS_SetPropertyStr(ctx,value,"gpuAllocatedEstimateBytes",engineStats.sampleId?JS_NewFloat64(ctx,double(engineStats.gpuAllocatedEstimateBytes)):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"sampleSeconds",JS_NewFloat64(ctx,engineStats.sampleSeconds));JS_SetPropertyStr(ctx,value,"sampleId",JS_NewFloat64(ctx,double(engineStats.sampleId)));
+  JS_SetPropertyStr(ctx,value,"objectCount",JS_NewInt32(ctx,int(currentScene->objects.size())));JS_SetPropertyStr(ctx,value,"panelCount",JS_NewInt32(ctx,int(currentScene->panels.size())));
+  return value;
+}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){fprintf(stdout,"[js] %s\n",s);JS_FreeCString(ctx,s);}}
   return JS_UNDEFINED;
@@ -856,6 +867,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
+  bind(candidate.ctx,"getEngineStats",jsGetEngineStats,0);
   bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);
   bind(candidate.ctx,"setPhysicsJointMotor",jsSetPhysicsJointMotor,2);
   bind(candidate.ctx,"setPhysicsJoint",jsSetPhysicsJoint,2);
@@ -1401,7 +1413,7 @@ int main(int argc,char **argv) {
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
-  auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;
+  auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto lastAnimationTick=std::chrono::steady_clock::now();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
   while(running){
@@ -1654,6 +1666,19 @@ int main(int argc,char **argv) {
       ++frame;
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
+    }
+    if(engineStats.update(++diagnosticFrames)){
+      uint64_t bytes=0;
+      for(const auto &[id,surface]:surfaces)for(const auto &buffer:surface->buffers){
+        const uint64_t height=surface->eyePixels,width=2*height;
+        if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
+        if(buffer.depth)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
+      }
+      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=part.vertices.size()*sizeof(float);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
+      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=part.vertices.size()*sizeof(float);
+      for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
+      for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
+      engineStats.gpuAllocatedEstimateBytes=bytes;
     }
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.
     next=std::max(next+std::chrono::microseconds(11111),std::chrono::steady_clock::now());
