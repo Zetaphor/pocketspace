@@ -35,3 +35,7 @@ Opt-in [physics contact events](physics-api.md#collision-events) join the same
 callback/polling queues after the simulation step. Solver callbacks only cache
 contact data; they never call JavaScript. Collision delivery does not depend on
 the vrserver connection, and controller reconnect preserves queued collisions.
+
+[Joint-break events](physics-api.md#breakable-joints) use the same callback and
+poll queues, independently of collision-event opt-in. Their object IDs retain
+the joint creation order; the joint is already removed when delivery occurs.

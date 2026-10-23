@@ -2,7 +2,8 @@
 
 A Linux/OpenVR engine for scripted stereo overlays alongside a VR application.
 QuickJS scripts place GLB models, play node and skeletal animations, grab objects
-with either controller, draw interactive panels, and read controller and eye data.
+with either controller, simulate rigid-body physics and connected mechanisms,
+draw interactive panels, and read controller and eye data.
 Each object has its own stereo surface with three DMA-BUF render buffers.
 
 ## Build and run
@@ -47,7 +48,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
-| [stress.js](scripts/stress.js) | Add physics boxes with controllers; FPS, CPU, RAM, and GPU memory HUD |
+| [stress.js](scripts/stress.js) | Add physics boxes with controllers; FPS, CPU, RAM, and measured/estimated GPU memory HUD |
 | [joint-controls.js](scripts/joint-controls.js) | Live spring length/response and hinge-limit changes with controller buttons |
 | [breakable-joints.js](scripts/breakable-joints.js) | Pull suspended objects free of breakable connections; bumper reconnects |
 | [springs.js](scripts/springs.js) | Elastic hanging weights with different damping; grip or trigger grabs, bumper resets |
@@ -62,9 +63,9 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 ## Documentation
 
-- [JavaScript API](docs/javascript-api.md): runtime, models, interaction, controllers, and events.
+- [JavaScript API](docs/javascript-api.md): runtime, engine statistics, models, interaction, controllers, and events.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
-- [Physics](docs/physics-api.md): rigid bodies, colliders, gravity, impulses, and grab release.
+- [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.
 - [Tracking](docs/tracking-api.md): gaze, foveation centers, and finger sensors.
 - [Eye calibration](docs/eye-calibration.md): generate, load, and interpret correction files.

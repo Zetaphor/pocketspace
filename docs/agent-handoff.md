@@ -29,3 +29,14 @@ After changing an API, update its reference guide and the smallest relevant
 example. Run `python3 tools/lint-docs.py` to check local documentation links,
 example inventory, and global binding coverage. Preserve upstream attribution
 and license files when changing bundled assets.
+
+## Physics and performance entry points
+
+The [physics API coverage table](physics-api.md#api-coverage) maps the implemented
+native capabilities to JavaScript. Joint settings can be changed in place;
+type, anchors, and axis remain creation-only. The
+[statistics reference](javascript-api.md#engine-statistics) defines measured CPU,
+RAM, and FPS, optional GPU driver totals, and the separate GPU allocation estimate.
+The [stress scene](../scripts/stress.js) includes controller spawning, a HUD,
+and automatic removal of fallen/distant objects. Its shared model assets remain
+cached until scene replacement, while instance resources are released on removal.
