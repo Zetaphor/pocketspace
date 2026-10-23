@@ -1,12 +1,13 @@
 #pragma once
 #include "tracking_state.h"
 #include <map>
+#include <array>
 #include <string>
 #include <vector>
 
 namespace frame_input {
 struct Component { bool boolean=false; float value=0; bool isBoolean=false; tracking::Clock::time_point updatedAt{}; };
-struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; };
+struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; int otherObjectId=0; std::array<float,3> point{},normal{}; float penetration=0,relativeSpeed=0; };
 struct HandState { bool valid=false; std::map<std::string,Component> raw; tracking::Clock::time_point updatedAt{}; };
 class Monitor {
 public:
@@ -19,6 +20,8 @@ public:
   std::vector<Event> takeEvents();
   std::vector<Event> takeCallbackEvents();
   const std::vector<Event> &events() const { return events_; }
+  void addEvent(Event event);
+  void clearPhysicsEvents();
   void addOverlayEvent(const std::string &type,int objectId,int hand=-1,float dx=0,float dy=0,float dz=0,float dpitch=0,float dyaw=0,float droll=0);
   void addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button="",bool down=false);
   void setHoveredObject(int hand,int objectId);

@@ -65,7 +65,12 @@ static std::map<int,PointerSnapshot> pointerStates;
 static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;
 static void clearInputCallback(JSContext *ctx){if(inputCallbackCtx==ctx){JS_FreeValue(ctx,inputCallback);inputCallback=JS_UNDEFINED;inputCallbackCtx=nullptr;}}
 static void stop(int){running=false;}
-static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));return item;}
+static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));if(event.type.starts_with("physics.")){
+  JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
+  auto vector=[&](const std::array<float,3> &v){JSValue o=JS_NewObject(ctx);for(int i=0;i<3;i++)JS_SetPropertyStr(ctx,o,i==0?"x":i==1?"y":"z",JS_NewFloat64(ctx,v[i]));return o;};
+  JS_SetPropertyStr(ctx,item,"point",vector(event.point));JS_SetPropertyStr(ctx,item,"normal",vector(event.normal));
+  JS_SetPropertyStr(ctx,item,"penetration",JS_NewFloat64(ctx,event.penetration));JS_SetPropertyStr(ctx,item,"relativeSpeed",JS_NewFloat64(ctx,event.relativeSpeed));
+}return item;}
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){fprintf(stdout,"[js] %s\n",s);JS_FreeCString(ctx,s);}}
   return JS_UNDEFINED;
@@ -243,7 +248,10 @@ static JSValue jsGetControllerInput(JSContext *ctx,JSValueConst,int argc,JSValue
 }
 static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1||!JS_IsFunction(ctx,argv[0]))return JS_ThrowTypeError(ctx,"onInputEvent(callback)");if(inputCallbackCtx&&inputCallbackCtx!=ctx)clearInputCallback(inputCallbackCtx);else clearInputCallback(ctx);inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);return JS_UNDEFINED;}
 static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
-  JSValue array=JS_NewArray(ctx);if(currentScene!=liveScene)return array;auto events=frameInput.takeEvents();uint32_t i=0;for(const auto &event:events){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));JS_SetPropertyUint32(ctx,array,i++,item);}return array;
+  JSValue array=JS_NewArray(ctx);if(currentScene!=liveScene)return array;
+  auto events=frameInput.takeEvents();uint32_t i=0;
+  for(const auto &event:events)JS_SetPropertyUint32(ctx,array,i++,inputEventValue(ctx,event));
+  return array;
 }
 static JSValue jsGetInput(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc<1)return JS_ThrowTypeError(ctx,"getInput(hand): hand is left or right");
@@ -542,6 +550,20 @@ template<int Operation> static JSValue jsPhysicsVectorOperation(JSContext *ctx,J
   if(!currentScene->physics)return JS_ThrowRangeError(ctx,"object has no physics body");
   try{auto &w=*currentScene->physics;if constexpr(Operation==0)w.velocity(o->id,v);else if constexpr(Operation==1)w.angularVelocity(o->id,v);else w.impulse(o->id,v);}catch(const std::exception &e){return JS_ThrowRangeError(ctx,"%s",e.what());}return JS_UNDEFINED;
 }
+static JSValue jsSetPhysicsCollisionEvents(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1||!JS_IsBool(argv[0]))return JS_ThrowTypeError(ctx,"setPhysicsCollisionEvents(enabled, options) requires a boolean");
+  bool stay=false;
+  if(argc>1){
+    if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"collision event options must be an object");
+    JSValue value=JS_GetPropertyStr(ctx,argv[1],"stay");if(JS_IsException(value))return JS_EXCEPTION;
+    if(!JS_IsUndefined(value)&&!JS_IsBool(value)){JS_FreeValue(ctx,value);return JS_ThrowTypeError(ctx,"stay must be a boolean");}
+    stay=JS_ToBool(ctx,value)>0;JS_FreeValue(ctx,value);
+  }
+  const bool enabled=JS_ToBool(ctx,argv[0])>0;
+  if(enabled||currentScene->physics)physicsWorld(*currentScene).collisionEvents(enabled,stay);
+  if(!enabled&&currentScene==liveScene)frameInput.clearPhysicsEvents();
+  return JS_UNDEFINED;
+}
 static void updateScenePhysics(Scene &scene,double elapsed){
   if(!scene.physics)return;
   for(const auto &o:scene.objects)if(scene.physics->contains(o.id)){
@@ -549,6 +571,17 @@ static void updateScenePhysics(Scene &scene,double elapsed){
     if(state.held||state.settings.type==physics::Type::Kinematic)scene.physics->target(o.id,physicsPose(o),elapsed);
   }
   scene.physics->advance(elapsed);
+  auto collisions=scene.physics->takeCollisionEvents();
+  if(&scene==liveScene)for(const auto &collision:collisions){
+    frame_input::Event event;
+    event.type=collision.phase==physics::CollisionPhase::Start?"physics.collisionStart":collision.phase==physics::CollisionPhase::Stay?"physics.collisionStay":"physics.collisionEnd";
+    event.objectId=collision.objectId;event.otherObjectId=collision.otherObjectId;
+    event.point={collision.point.x,collision.point.y,collision.point.z};
+    event.normal={collision.normal.x,collision.normal.y,collision.normal.z};
+    event.penetration=collision.penetration;event.relativeSpeed=collision.relativeSpeed;
+    frameInput.addEvent(std::move(event));
+  }
+
   for(auto &o:scene.objects)if(scene.physics->contains(o.id)){
     const auto s=scene.physics->get(o.id);
     if(s.settings.type==physics::Type::Dynamic&&!s.held){o.x=s.pose.position.x;o.y=s.pose.position.y;o.z=s.pose.position.z;o.pitch=s.pose.pitch;o.yaw=s.pose.yaw;o.roll=s.pose.roll;}
@@ -651,6 +684,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"getObjectPhysics",jsGetObjectPhysics,1);
   bind(candidate.ctx,"removeObjectPhysics",jsRemoveObjectPhysics,1);
   bind(candidate.ctx,"setPhysicsGravity",jsSetPhysicsGravity,3);
+  bind(candidate.ctx,"setPhysicsCollisionEvents",jsSetPhysicsCollisionEvents,2);
   bind(candidate.ctx,"setObjectVelocity",jsPhysicsVectorOperation<0>,4);
   bind(candidate.ctx,"setObjectAngularVelocity",jsPhysicsVectorOperation<1>,4);
   bind(candidate.ctx,"applyObjectImpulse",jsPhysicsVectorOperation<2>,4);

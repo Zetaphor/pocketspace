@@ -130,6 +130,7 @@ Events include `type`, `hand`, `control`, `objectId`, `x`, `y`, `down`, `value`,
 | --- | --- |
 | `controller.button` | Raw boolean path in `control`, state in `down`. |
 | `controller.value` | Raw numeric path in `control`, number in `value`. |
+| `physics.collisionStart`, `physics.collisionStay`, `physics.collisionEnd` | Opt-in pair contacts with object IDs, point/normal, penetration, and closing speed; see [physics events](physics-api.md#collision-events). |
 | `overlay.pointer` | Native surface pointer update. |
 | `overlay.surfaceHoverStart`, `overlay.surfaceHover`, `overlay.surfaceHoverEnd` | Native rectangular surface hover. |
 | `overlay.meshHoverStart`, `overlay.meshHoverEnd` | Actual model hit transitions. |
@@ -151,7 +152,7 @@ Panel IDs and object IDs are separate numeric namespaces; distinguish them by
   `panelCanvasClear`, `panelCanvasText`.
 - [Physics](physics-api.md): `setObjectPhysics`, `getObjectPhysics`,
   `removeObjectPhysics`, `setPhysicsGravity`, `setObjectVelocity`,
-  `setObjectAngularVelocity`, `applyObjectImpulse`.
+  `setObjectAngularVelocity`, `applyObjectImpulse`, `setPhysicsCollisionEvents`.
 - [Animation](animation-api.md): `getAnimations`, `playAnimation`, `pauseAnimation`,
   `resumeAnimation`, `stopAnimation`, `seekAnimation`, `getAnimationState`.
 - [Tracking](tracking-api.md): `getEyeTracking`, `getCalibratedEyeTracking`,

@@ -30,3 +30,8 @@ nonzero primary scene-process PID suppresses gaze action polling. Foveation
 centers come from a separate read-only system call. See [tracking](tracking-api.md)
 for exact validity and coexistence contracts, [JavaScript API](javascript-api.md)
 for input/event fields, and [lifecycle](lifecycle.md) for reconnect behavior.
+
+Opt-in [physics contact events](physics-api.md#collision-events) join the same
+callback/polling queues after the simulation step. Solver callbacks only cache
+contact data; they never call JavaScript. Collision delivery does not depend on
+the vrserver connection, and controller reconnect preserves queued collisions.

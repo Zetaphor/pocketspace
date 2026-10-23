@@ -47,7 +47,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
-| [physics.js](scripts/physics.js) | Gravity, collisions, grabbable boxes, and throwing; bumper resets unheld boxes |
+| [physics.js](scripts/physics.js) | Gravity, grabbable boxes, throwing, and a collision event display; bumper resets unheld boxes |
 | [tracking.js](scripts/tracking.js) | Corrected gaze display and raw finger sensor values |
 | [eye-calibration.js](scripts/eye-calibration.js) | Personal calibration generator; requires an output path as described below |
 

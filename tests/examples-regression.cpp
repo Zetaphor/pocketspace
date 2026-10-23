@@ -37,6 +37,12 @@ int main() {
         JS_FreeValue(host.ctx, value);
       }
     }
+    if (entry.path().filename()=="physics.js") {
+      for (const char *type : {"physics.collisionStart", "physics.collisionEnd"}) {
+        frame_input::Event event;event.type=type;event.objectId=1;event.otherObjectId=2;event.relativeSpeed=2;
+        JSValue value=inputEventValue(host.ctx,event);checkedCall(inputCallback,1,&value);JS_FreeValue(host.ctx,value);
+      }
+    }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
     currentScene = liveScene = nullptr;
