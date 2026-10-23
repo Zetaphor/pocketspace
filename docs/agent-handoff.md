@@ -15,6 +15,7 @@ these guides; implementation history belongs in Git.
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
+| `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
 | `cfg/` | Runtime OpenVR action manifest and bindings. |
 | `scripts/` | Concise examples and the personal calibration generator. |

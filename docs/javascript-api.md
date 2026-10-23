@@ -7,6 +7,38 @@ when actual elapsed time matters. Native animation uses elapsed wall time.
 `print(...values)` writes to the engine log. Relative asset paths resolve from
 the process working directory; the launcher uses the repository root.
 
+## Engine statistics
+
+`getEngineStats()` returns the latest cached, process-wide sample. Counters are
+sampled roughly once per second; querying does not read `/proc` or synchronize
+the GPU. Scene counts are current at the time of the query.
+
+| Field | Meaning |
+| --- | --- |
+| `fps` | Measured engine-loop frames per elapsed second, including rendering and pacing; not the HMD/compositor presentation rate. |
+| `cpuPercent` | Process user+system CPU time divided by elapsed time. 100% means one fully occupied core; multithreaded usage can exceed 100%. |
+| `ramBytes` | Process resident RAM (`VmRSS`), in bytes. |
+| `vramBytes` | Driver-reported process GPU memory total from DRM fdinfo, in bytes, or `null` when unavailable. Duplicate DRM clients are counted once. |
+| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures/VBOs, deformed VBOs, and panel textures. |
+| `sampleId` | Increasing sample number; zero before the first sample. |
+| `sampleSeconds` | Elapsed seconds covered by the latest sample; zero before sampling. |
+| `objectCount`, `panelCount` | Current scene counts, including hidden instances. |
+
+FPS, CPU, RAM, and memory estimates are `null` until sampled. Unavailable measured
+counters remain `null`. The GPU estimate excludes driver/compositor overhead,
+allocator padding except measured color-buffer stride, and small utility textures.
+It assumes four bytes per depth pixel and is not measured GPU residency. RAM and
+GPU values can overlap on systems with shared memory; do not add them together.
+Steam Frame GPU memory uses shared system RAM rather than a separate VRAM pool.
+
+Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
+statistics panel. Either bumper adds one object; A or X adds five; B or Y clears
+the spawned objects. The scene starts with four boxes and caps at 48 spawned
+objects to leave room for the floor, HUD, lasers, and other overlay surfaces.
+It uses the normal 768-pixel-per-eye object surfaces. The HUD refreshes twice per
+second; the underlying statistics sample once per second. When measured GPU
+memory is unavailable it explicitly displays the allocation estimate instead.
+
 ## Coordinates and models
 
 Scene coordinates are meters: +X right, +Y up, +Z forward. The fixed standing-space
