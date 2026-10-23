@@ -29,7 +29,7 @@ configuration throws while preserving the previous body.
 | Option | Default | Supported values |
 | --- | --- | --- |
 | `type` | `'dynamic'` | `'static'`, `'dynamic'`, `'kinematic'`. |
-| `shape` | `'box'` | `'box'` or `'sphere'`. |
+| `shape` | `'box'` | `'box'`, `'sphere'`, or `'convex'`. |
 | `halfExtents` | `null` | Box half-sizes `{x,y,z}` in meters; each 0.001–100. `null` uses model bounds. |
 | `radius` | `null` | Sphere radius in meters, 0.001–100. `null` uses model bounds. |
 | `offset` | `null` | Collider center `{x,y,z}` in object-local meters; each component within ±100. `null` uses the model-bounds center. |
@@ -77,6 +77,32 @@ gravity, contacts, and impulses. Kinematic bodies follow script or hand targets
 and can push dynamic bodies; gravity and contact forces do not move them.
 Static/kinematic pairs do not provide a movable physical response.
 
+## Convex model colliders
+
+```js
+const avocado = createObject(loadModel('assets/Avocado.glb'), 0, .3, 0, .2);
+setObjectPhysics(avocado, {shape: 'convex', mass: .25});
+```
+
+Convex colliders wrap all of a model's default-pose geometry in one solid hull.
+They fit irregular objects more closely than a box, but bridge holes and concave
+regions. This is not triangle-mesh collision or convex decomposition. A hull has
+at most 256 vertices; complex models are approximated. Empty, flat, or otherwise
+invalid hulls throw while preserving the previous body.
+
+The engine builds and caches one normalized hull per model asset in each scene.
+Instances and scale changes reuse it. Hull size follows object scale (at least
+0.000001 meters); explicit
+`halfExtents` and `radius` are unavailable. `offset` relocates the hull's bounds
+center in local meters, using the same convention as primitive colliders.
+Animation and skinning do not deform the hull: it remains a rigid default-pose
+shape. Static, dynamic, and kinematic bodies all support convex shapes.
+
+The hull's computed center of mass controls inertia, rotation, and release
+velocity. It can differ from its bounds center. Run
+[convex.js](../scripts/convex.js) to grab, drop, and throw a green avocado and a
+pale toy car on a gray platform. Either bumper resets unheld objects.
+
 ## Controls and state
 
 | Function | Behavior |
@@ -102,12 +128,14 @@ bodies. Euler angles may wrap while representing the same orientation.
 
 Top-level `halfExtents`, `radius`, and `offset` report the requested values, or
 `null` for automatic sizing/centering. `collider` contains the actual physical
-`halfExtents` (box only), `radius` (sphere only), and `offset`. The inactive size
-field is `null`. Resolved values are in meters after automatic model scaling and
+`halfExtents` (box or convex bounds), `radius` (sphere only), and `offset`.
+It also reports object-local `centerOfMass` and convex `vertexCount` (null for
+primitives). The inactive size field is `null`. Resolved values are in meters after automatic model scaling and
 minimum thickness are applied.
 
 `position` remains the object origin. Linear velocity and impulses refer to the
-body's center of mass, which can differ from that origin when offset. Throwing
+body's center of mass, which can differ from that origin due to an offset or
+an asymmetric convex hull. Throwing
 accounts for center-of-mass motion caused by rotation as well as translation.
 
 The existing position/rotation setters teleport static and dynamic bodies while
@@ -148,7 +176,7 @@ Both `onInputEvent` and `pollInputEvents` receive the same collision schema:
 Multiple manifolds for a pair are combined: the deepest observed manifold
 supplies the point/normal, and the maximum observed closing speed is reported.
 Contacts include the solver's speculative near contacts, so a start does not
-require exact visual mesh overlap. Collision shapes remain box/sphere proxies.
+require exact visual mesh overlap. Collision shapes remain rigid box, sphere, or convex proxies.
 
 A start is emitted on the first observed contact. If requested, stay is emitted
 once per subsequent fixed physics step, including sleeping pairs. Sleeping

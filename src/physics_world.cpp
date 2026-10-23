@@ -7,6 +7,9 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
+#include <Jolt/Physics/Collision/Shape/ScaledShape.h>
+#include <tuple>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <algorithm>
@@ -118,6 +121,7 @@ struct World::Impl : JPH::ContactListener {
   }
   BroadPhase broad;BroadFilter broadFilter;PairFilter pairs;
   JPH::TempAllocatorImpl temporary{8*1024*1024};JPH::JobSystemSingleThreaded jobs{2048};
+  std::map<int,JPH::RefConst<JPH::ConvexHullShape>> hulls;
   JPH::PhysicsSystem system;std::map<int,Record> bodies;double accumulator=0;
   Impl(){system.Init(512,0,2048,2048,broad,broadFilter,pairs);}
   Record &record(int id){auto it=bodies.find(id);if(it==bodies.end())throw std::invalid_argument("object has no physics body");return it->second;}
@@ -125,7 +129,8 @@ struct World::Impl : JPH::ContactListener {
 World::World(){initialize();impl=std::make_unique<Impl>();}
 World::~World(){while(!impl->bodies.empty())remove(impl->bodies.begin()->first);}
 bool World::contains(int id)const{return impl->bodies.contains(id);}
-void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
+bool World::hasConvexHull(int key)const{return impl->hulls.contains(key);}
+void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,ConvexSource source){
   finite(p);finite(low);finite(high);bounded(s.mass,.001f,10000);bounded(s.friction,0,1);bounded(s.restitution,0,1);
   bounded(s.linearDamping,0,1);bounded(s.angularDamping,0,1);bounded(s.gravityFactor,0,10);
   if(s.halfExtents&&s.shape!=Shape::Box)throw std::invalid_argument("halfExtents requires shape box");
@@ -139,11 +144,40 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
   half=s.halfExtents?JPH::Vec3(s.halfExtents->x,s.halfExtents->y,s.halfExtents->z):JPH::Vec3::sMax(half,JPH::Vec3(.001f,.001f,.001f));
   const float radius=s.radius.value_or(half.ReduceMax());
   JPH::RefConst<JPH::Shape> shape;
-  if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(radius);
-  else shape=new JPH::BoxShape(half,std::min(.01f,half.ReduceMin()*.1f));
-  const JPH::Vec3 center=s.offset?linear(*s.offset):JPH::Vec3((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
-  const Collider collider{{half.GetX(),half.GetY(),half.GetZ()},scene(center),radius};
-  shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);
+  const JPH::Vec3 boundsCenter((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
+  const JPH::Vec3 center=s.offset?linear(*s.offset):boundsCenter;
+  unsigned vertexCount=0;
+  if(s.shape==Shape::Convex){
+    bounded(source.scale,1e-6f,100);
+    auto cached=impl->hulls.find(source.key);
+    if(cached==impl->hulls.end()){
+      std::vector<Vec3> points(source.vertices.begin(),source.vertices.end());
+      for(auto point:points)finite(point);
+      auto key=[](Vec3 v){return std::tuple(v.x,v.y,v.z);};
+      std::sort(points.begin(),points.end(),[&](Vec3 a,Vec3 b){return key(a)<key(b);});
+      points.erase(std::unique(points.begin(),points.end(),[&](Vec3 a,Vec3 b){return key(a)==key(b);}),points.end());
+      if(points.size()<4)throw std::invalid_argument("convex collider needs at least four noncoplanar points");
+      JPH::Array<JPH::Vec3> vertices;vertices.reserve(points.size());
+      for(auto point:points)vertices.emplace_back(point.x,point.y,point.z);
+      JPH::ConvexHullShapeSettings hullSettings(vertices,.01f);
+      auto result=hullSettings.Create();
+      if(result.HasError())throw std::invalid_argument("invalid convex hull: "+std::string(result.GetError()));
+      auto *hull=static_cast<const JPH::ConvexHullShape*>(result.Get().GetPtr());
+      if(!std::isfinite(hull->GetVolume())||hull->GetVolume()<=0)throw std::invalid_argument("convex collider needs nonzero volume");
+      cached=impl->hulls.emplace(source.key,hull).first;
+    }
+    vertexCount=cached->second->GetNumPoints();
+    auto scaled=JPH::ScaledShapeSettings(cached->second,JPH::Vec3::sReplicate(source.scale)).Create();
+    if(scaled.HasError())throw std::invalid_argument("invalid convex scale: "+std::string(scaled.GetError()));
+    shape=scaled.Get();
+    half=shape->GetLocalBounds().GetExtent();
+    shape=new JPH::RotatedTranslatedShape(center-boundsCenter,JPH::Quat::sIdentity(),shape);
+  }else{
+    if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(radius);
+    else shape=new JPH::BoxShape(half,std::min(.01f,half.ReduceMin()*.1f));
+    shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);
+  }
+  const Collider collider{{half.GetX(),half.GetY(),half.GetZ()},scene(center),radius,scene(shape->GetCenterOfMass()),vertexCount};
   JPH::BodyCreationSettings settings(shape,linear(p.position),rotation(p),motion(s.type),s.type==Type::Static?0:1);
   settings.mUserData=static_cast<JPH::uint64>(id);
   settings.mAllowDynamicOrKinematic=s.type!=Type::Static;
@@ -191,7 +225,7 @@ void World::target(int id,const Pose &p,double elapsed){
   if(r.held&&r.settings.type==Type::Static){pose(id,p);return;}
   if(r.held&&elapsed>0&&elapsed<=.1){
     JPH::Vec3 axis;float angle;auto delta=rotation(p)*rotation(r.target).Conjugated();if(delta.GetW()<0)delta=-delta;delta.GetAxisAngle(axis,angle);
-    const auto offset=linear(r.collider.offset);
+    const auto offset=linear(r.collider.centerOfMass);
     const auto previousCenter=linear(r.target.position)+rotation(r.target)*offset;
     const auto nextCenter=linear(p.position)+rotation(p)*offset;
     r.samples.push_back({elapsed,(nextCenter-previousCenter)/float(elapsed),axis*(angle/float(elapsed))});

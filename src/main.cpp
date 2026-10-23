@@ -498,7 +498,12 @@ static void configurePhysics(Scene &scene,const Object &object,const physics::Se
   const auto &asset=scene.assets[size_t(object.asset)-1];
   physics::Vec3 low{asset.low[0]*object.scale,asset.low[1]*object.scale,asset.low[2]*object.scale};
   physics::Vec3 high{asset.high[0]*object.scale,asset.high[1]*object.scale,asset.high[2]*object.scale};
-  physicsWorld(scene).set(object.id,settings,physicsPose(object),low,high);
+  auto &world=physicsWorld(scene);
+  std::vector<physics::Vec3> vertices;
+  if(settings.shape==physics::Shape::Convex&&!world.hasConvexHull(object.asset))
+    for(const auto &part:asset.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)
+      vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
+  world.set(object.id,settings,physicsPose(object),low,high,{object.asset,object.scale,vertices});
 }
 static void teleportPhysics(Object &object){
   if(!currentScene->physics||!currentScene->physics->contains(object.id))return;
@@ -510,14 +515,16 @@ static JSValue physicsVector(JSContext *ctx,physics::Vec3 v){JSValue o=JS_NewObj
 static JSValue physicsState(JSContext *ctx,const physics::State &s){
   JSValue o=JS_NewObject(ctx);const auto &c=s.settings;
   JS_SetPropertyStr(ctx,o,"type",JS_NewString(ctx,c.type==physics::Type::Static?"static":c.type==physics::Type::Kinematic?"kinematic":"dynamic"));
-  JS_SetPropertyStr(ctx,o,"shape",JS_NewString(ctx,c.shape==physics::Shape::Box?"box":"sphere"));
+  JS_SetPropertyStr(ctx,o,"shape",JS_NewString(ctx,c.shape==physics::Shape::Box?"box":c.shape==physics::Shape::Sphere?"sphere":"convex"));
   for(const auto &[name,value]:std::initializer_list<std::pair<const char*,float>>{{"mass",c.mass},{"friction",c.friction},{"restitution",c.restitution},{"linearDamping",c.linearDamping},{"angularDamping",c.angularDamping},{"gravityFactor",c.gravityFactor}})JS_SetPropertyStr(ctx,o,name,JS_NewFloat64(ctx,value));
   JS_SetPropertyStr(ctx,o,"halfExtents",c.halfExtents?physicsVector(ctx,*c.halfExtents):JS_NULL);
   JS_SetPropertyStr(ctx,o,"radius",c.radius?JS_NewFloat64(ctx,*c.radius):JS_NULL);
   JS_SetPropertyStr(ctx,o,"offset",c.offset?physicsVector(ctx,*c.offset):JS_NULL);
   JSValue collider=JS_NewObject(ctx);
-  JS_SetPropertyStr(ctx,collider,"halfExtents",c.shape==physics::Shape::Box?physicsVector(ctx,s.collider.halfExtents):JS_NULL);
+  JS_SetPropertyStr(ctx,collider,"halfExtents",c.shape!=physics::Shape::Sphere?physicsVector(ctx,s.collider.halfExtents):JS_NULL);
   JS_SetPropertyStr(ctx,collider,"radius",c.shape==physics::Shape::Sphere?JS_NewFloat64(ctx,s.collider.radius):JS_NULL);
+  JS_SetPropertyStr(ctx,collider,"centerOfMass",physicsVector(ctx,s.collider.centerOfMass));
+  JS_SetPropertyStr(ctx,collider,"vertexCount",c.shape==physics::Shape::Convex?JS_NewUint32(ctx,s.collider.vertexCount):JS_NULL);
   JS_SetPropertyStr(ctx,collider,"offset",physicsVector(ctx,s.collider.offset));JS_SetPropertyStr(ctx,o,"collider",collider);
   JS_SetPropertyStr(ctx,o,"position",physicsVector(ctx,s.pose.position));
   JS_SetPropertyStr(ctx,o,"rotation",physicsVector(ctx,{s.pose.pitch,s.pose.yaw,s.pose.roll}));
@@ -551,11 +558,12 @@ static JSValue jsSetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueCo
   if(currentScene->physics&&currentScene->physics->contains(o->id))settings=currentScene->physics->get(o->id).settings;
   if(argc>1){
     auto text=[&](const char *name,std::string &out){JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return false;if(JS_IsUndefined(v)){JS_FreeValue(ctx,v);return true;}if(!JS_IsString(v)){JS_FreeValue(ctx,v);JS_ThrowTypeError(ctx,"physics type and shape must be strings");return false;}const char *s=JS_ToCString(ctx,v);JS_FreeValue(ctx,v);if(!s)return false;out=s;JS_FreeCString(ctx,s);return true;};
-    std::string type=settings.type==physics::Type::Static?"static":settings.type==physics::Type::Kinematic?"kinematic":"dynamic",shape=settings.shape==physics::Shape::Box?"box":"sphere";
+    std::string type=settings.type==physics::Type::Static?"static":settings.type==physics::Type::Kinematic?"kinematic":"dynamic",shape=settings.shape==physics::Shape::Box?"box":settings.shape==physics::Shape::Sphere?"sphere":"convex";
     if(!text("type",type)||!text("shape",shape))return JS_EXCEPTION;
     if(type=="static")settings.type=physics::Type::Static;else if(type=="dynamic")settings.type=physics::Type::Dynamic;else if(type=="kinematic")settings.type=physics::Type::Kinematic;else return JS_ThrowRangeError(ctx,"physics type must be static, dynamic, or kinematic");
-    if(shape=="box")settings.shape=physics::Shape::Box;else if(shape=="sphere")settings.shape=physics::Shape::Sphere;else return JS_ThrowRangeError(ctx,"physics shape must be box or sphere");
-    if(shape=="box")settings.radius.reset();else settings.halfExtents.reset();
+    if(shape=="box")settings.shape=physics::Shape::Box;else if(shape=="sphere")settings.shape=physics::Shape::Sphere;else if(shape=="convex")settings.shape=physics::Shape::Convex;else return JS_ThrowRangeError(ctx,"physics shape must be box, sphere, or convex");
+    if(shape!="sphere")settings.radius.reset();
+    if(shape!="box")settings.halfExtents.reset();
     if(!readColliderVector(ctx,argv[1],"halfExtents",settings.halfExtents)||!readColliderVector(ctx,argv[1],"offset",settings.offset))return JS_EXCEPTION;
     JSValue radius=JS_GetPropertyStr(ctx,argv[1],"radius");if(JS_IsException(radius))return JS_EXCEPTION;
     if(JS_IsNull(radius))settings.radius.reset();
