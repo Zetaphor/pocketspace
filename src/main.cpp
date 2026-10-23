@@ -67,7 +67,10 @@ static std::map<int,PointerSnapshot> pointerStates;
 static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;
 static void clearInputCallback(JSContext *ctx){if(inputCallbackCtx==ctx){JS_FreeValue(ctx,inputCallback);inputCallback=JS_UNDEFINED;inputCallbackCtx=nullptr;}}
 static void stop(int){running=false;}
-static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));if(event.type.starts_with("physics.")){
+static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));if(event.type=="physics.jointBreak"){
+  JS_SetPropertyStr(ctx,item,"jointId",JS_NewInt32(ctx,event.jointId));JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
+  JS_SetPropertyStr(ctx,item,"force",JS_NewFloat64(ctx,event.force));JS_SetPropertyStr(ctx,item,"torque",JS_NewFloat64(ctx,event.torque));
+}else if(event.type.starts_with("physics.collision")){
   JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
   auto vector=[&](const std::array<float,3> &v){JSValue o=JS_NewObject(ctx);for(int i=0;i<3;i++)JS_SetPropertyStr(ctx,o,i==0?"x":i==1?"y":"z",JS_NewFloat64(ctx,v[i]));return o;};
   JS_SetPropertyStr(ctx,item,"point",vector(event.point));JS_SetPropertyStr(ctx,item,"normal",vector(event.normal));
@@ -614,6 +617,8 @@ static JSValue jointState(JSContext *ctx,const physics::JointState &s){
   JSValue spring=JS_NULL;
   if(s.settings.spring){spring=JS_NewObject(ctx);JS_SetPropertyStr(ctx,spring,"frequency",JS_NewFloat64(ctx,s.settings.spring->frequency));JS_SetPropertyStr(ctx,spring,"damping",JS_NewFloat64(ctx,s.settings.spring->damping));}
   JS_SetPropertyStr(ctx,value,"spring",spring);
+  JS_SetPropertyStr(ctx,value,"breakForce",s.settings.breakForce?JS_NewFloat64(ctx,*s.settings.breakForce):JS_NULL);
+  JS_SetPropertyStr(ctx,value,"breakTorque",s.settings.breakTorque?JS_NewFloat64(ctx,*s.settings.breakTorque):JS_NULL);
   JS_SetPropertyStr(ctx,value,"collideConnected",JS_NewBool(ctx,s.settings.collideConnected));
   for(auto [name,number]:std::initializer_list<std::pair<const char*,float>>{{"minAngle",s.settings.minAngle},{"maxAngle",s.settings.maxAngle},{"minDistance",s.settings.minDistance},{"maxDistance",s.settings.maxDistance.value_or(0)}})
     JS_SetPropertyStr(ctx,value,name,((s.settings.type==physics::JointType::Hinge&&std::strstr(name,"Angle"))||(s.settings.type==physics::JointType::Distance&&std::strstr(name,"Distance")))?JS_NewFloat64(ctx,number):JS_NULL);
@@ -683,6 +688,13 @@ static JSValue jsCreatePhysicsJoint(JSContext *ctx,JSValueConst,int argc,JSValue
       settings.spring=config;
     }
     JS_FreeValue(ctx,spring);
+    for(auto [name,field]:std::initializer_list<std::pair<const char*,std::optional<float>*>>{{"breakForce",&settings.breakForce},{"breakTorque",&settings.breakTorque}}){
+      JSValue value=JS_GetPropertyStr(ctx,argv[2],name);if(JS_IsException(value))return JS_EXCEPTION;
+      if(!JS_IsUndefined(value)&&!JS_IsNull(value)){
+        double n=0;const bool ok=JS_IsNumber(value)&&JS_ToFloat64(ctx,&n,value)==0&&std::isfinite(n);JS_FreeValue(ctx,value);
+        if(!ok)return JS_ThrowTypeError(ctx,"break thresholds must be null or finite numbers");*field=float(n);
+      }else JS_FreeValue(ctx,value);
+    }
     JSValue collide=JS_GetPropertyStr(ctx,argv[2],"collideConnected");if(JS_IsException(collide))return JS_EXCEPTION;
     if(!JS_IsUndefined(collide)&&!JS_IsBool(collide)){JS_FreeValue(ctx,collide);return JS_ThrowTypeError(ctx,"collideConnected must be a boolean");}
     if(!JS_IsUndefined(collide))settings.collideConnected=JS_ToBool(ctx,collide)>0;JS_FreeValue(ctx,collide);
@@ -716,6 +728,10 @@ static void updateScenePhysics(Scene &scene,double elapsed){
     if(state.held||state.settings.type==physics::Type::Kinematic)scene.physics->target(o.id,physicsPose(o),elapsed);
   }
   scene.physics->advance(elapsed);
+  auto breaks=scene.physics->takeJointBreaks();
+  if(&scene==liveScene)for(const auto &broken:breaks){
+    frame_input::Event event;event.type="physics.jointBreak";event.jointId=broken.jointId;event.objectId=broken.objectA;event.otherObjectId=broken.objectB;event.force=broken.force;event.torque=broken.torque;frameInput.addEvent(std::move(event));
+  }
   auto collisions=scene.physics->takeCollisionEvents();
   if(&scene==liveScene)for(const auto &collision:collisions){
     frame_input::Event event;

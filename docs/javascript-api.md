@@ -133,6 +133,7 @@ Events include `type`, `hand`, `control`, `objectId`, `x`, `y`, `down`, `value`,
 | --- | --- |
 | `controller.button` | Raw boolean path in `control`, state in `down`. |
 | `controller.value` | Raw numeric path in `control`, number in `value`. |
+| `physics.jointBreak` | Automatic joint release with joint/object IDs and estimated force/torque; see [breakable joints](physics-api.md#breakable-joints). |
 | `physics.collisionStart`, `physics.collisionStay`, `physics.collisionEnd` | Opt-in pair contacts with object IDs, point/normal, penetration, and closing speed; see [physics events](physics-api.md#collision-events). |
 | `overlay.pointer` | Native surface pointer update. |
 | `overlay.surfaceHoverStart`, `overlay.surfaceHover`, `overlay.surfaceHoverEnd` | Native rectangular surface hover. |

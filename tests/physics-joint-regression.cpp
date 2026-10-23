@@ -109,6 +109,21 @@ int main(){
   elastic.hold(2);for(int i=0;i<60;i++){elastic.target(2,{{0,-.1f,0}},1./90);elastic.advance(1./90);}
   elastic.release(2,false);tick(elastic,360);CHECK(std::abs(elastic.get(2).pose.position.y-equilibrium)<.015f);
   elastic.remove(1);CHECK(!elastic.containsJoint(bounce));
+  World fracture;body(fracture,1,Type::Static,{{0,.5f,0}});body(fracture,2,Type::Dynamic,{{0,.2f,0}});
+  JointSettings fuse;fuse.type=JointType::Distance;fuse.minDistance=.3f;fuse.maxDistance=.3f;fuse.breakForce=20;
+  int link=fracture.createJoint(1,2,fuse);tick(fracture,30);CHECK(fracture.containsJoint(link)&&fracture.takeJointBreaks().empty());
+  fracture.impulse(2,{0,-1,0});tick(fracture,1);CHECK(!fracture.containsJoint(link));
+  auto broken=fracture.takeJointBreaks();CHECK(broken.size()==1&&broken[0].jointId==link&&broken[0].force>20&&broken[0].torque==0);
+  CHECK(fracture.takeJointBreaks().empty()&&!fracture.get(2).jointed);
+  fuse.breakTorque=1;rejects([&]{fracture.createJoint(1,2,fuse);});
+  World twist;twist.gravity({});body(twist,1,Type::Static,{});body(twist,2,Type::Dynamic,{});
+  fuse=JointSettings{};fuse.breakTorque=.1f;link=twist.createJoint(1,2,fuse);twist.angularVelocity(2,{0,0,10});tick(twist,1);
+  CHECK(!twist.containsJoint(link)&&twist.takeJointBreaks().front().torque>.1f);
+  World pull;pull.gravity({});body(pull,1,Type::Static,{});body(pull,2,Type::Dynamic,{});
+  fuse=JointSettings{};fuse.breakForce=20;link=pull.createJoint(1,2,fuse);pull.hold(2);pull.target(2,{{1,0,0}},1./90);tick(pull,1);
+  CHECK(!pull.containsJoint(link)&&pull.get(2).held);tick(pull,1);CHECK(std::abs(pull.get(2).pose.position.x-1)<.001f);
+  CHECK(pull.takeJointBreaks().size()==1);pull.release(2,false);tick(pull,5);CHECK(pull.takeJointBreaks().empty());
+  puts("PASS breakable joints: load threshold, impulse/torque fracture, held continuation, one-shot events and validation");
   puts("PASS springs: elastic extension, damped oscillation, gravity equilibrium, held release, validation and cleanup");
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");
   puts("PASS joints: fixed transforms, hinge limits and held pivot, distance range, cleanup, rebuild rejection, collision filtering and held removal");

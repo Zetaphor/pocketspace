@@ -7,7 +7,7 @@
 
 namespace frame_input {
 struct Component { bool boolean=false; float value=0; bool isBoolean=false; tracking::Clock::time_point updatedAt{}; };
-struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; int otherObjectId=0; std::array<float,3> point{},normal{}; float penetration=0,relativeSpeed=0; };
+struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; int otherObjectId=0; std::array<float,3> point{},normal{}; float penetration=0,relativeSpeed=0;int jointId=0;float force=0,torque=0; };
 struct HandState { bool valid=false; std::map<std::string,Component> raw; tracking::Clock::time_point updatedAt{}; };
 class Monitor {
 public:
