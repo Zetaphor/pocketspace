@@ -13,7 +13,8 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Scripted experiences
 
-- Extend [rigid-body physics](physics-api.md) with deforming collider policies as scripted experiences require them.
+- Extend [rigid-body physics](physics-api.md) with deforming collider policies
+  as scripted experiences require them.
 - Define persistence and save/restore APIs for scene state.
 - Define richer scene ownership/lifetime APIs for larger scripted experiences.
 
