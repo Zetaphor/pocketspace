@@ -52,5 +52,7 @@ int main(){
   frameInput.addEvent(queued);assert(eval("setPhysicsCollisionEvents(false);check(pollInputEvents().length===0)"));
   assert(frameInput.takeCallbackEvents().empty());
   puts("PASS collision API: callback/poll schema equality, contact continuity, end on removal, candidate isolation, option validation and disable clearing");
+  assert(loadScript(host,"tests/custom-collider-api-smoke.js"));
+  puts("PASS custom collider API: dimensions, radius, offset, scale independence, resolved state, shape switching, null defaults, malformed options, rollback and imported slab bounds");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

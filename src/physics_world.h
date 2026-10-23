@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <optional>
 #include <vector>
 
 // Public positions/linear vectors use scene coordinates (+Z forward). Angular
@@ -12,10 +13,14 @@ enum class Shape { Box, Sphere };
 struct Settings {
   Type type=Type::Dynamic;Shape shape=Shape::Box;
   float mass=1,friction=.5f,restitution=0,linearDamping=.05f,angularDamping=.05f,gravityFactor=1;
+  std::optional<Vec3> halfExtents,offset;
+  std::optional<float> radius;
 };
+struct Collider {Vec3 halfExtents,offset;float radius=0;};
 struct State {
   Settings settings;Pose pose;Vec3 velocity,angularVelocity;
   bool held=false,sleeping=false;
+  Collider collider;
 };
 enum class CollisionPhase { Start, Stay, End };
 struct CollisionEvent {

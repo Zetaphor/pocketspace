@@ -57,7 +57,7 @@ struct PairFilter final:JPH::ObjectLayerPairFilter {
 // Update has released body locks. The job system is explicitly single-threaded.
 struct World::Impl : JPH::ContactListener {
   struct Sample {double duration;JPH::Vec3 velocity,angular;};
-  struct Record {JPH::BodyID body;Settings settings;Pose target;bool held=false,canThrow=true;std::deque<Sample> samples;};
+  struct Record {JPH::BodyID body;Settings settings;Pose target;Collider collider;bool held=false,canThrow=true;std::deque<Sample> samples;};
   using Pair=std::pair<JPH::uint32,JPH::uint32>;
   struct Contact {CollisionEvent event;JPH::BodyID a,b;};
   bool eventsEnabled=false,stayEvents=false;
@@ -128,14 +128,21 @@ bool World::contains(int id)const{return impl->bodies.contains(id);}
 void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
   finite(p);finite(low);finite(high);bounded(s.mass,.001f,10000);bounded(s.friction,0,1);bounded(s.restitution,0,1);
   bounded(s.linearDamping,0,1);bounded(s.angularDamping,0,1);bounded(s.gravityFactor,0,10);
+  if(s.halfExtents&&s.shape!=Shape::Box)throw std::invalid_argument("halfExtents requires shape box");
+  if(s.radius&&s.shape!=Shape::Sphere)throw std::invalid_argument("radius requires shape sphere");
+  if(s.halfExtents){finite(*s.halfExtents);bounded(s.halfExtents->x,.001f,100);bounded(s.halfExtents->y,.001f,100);bounded(s.halfExtents->z,.001f,100);}
+  if(s.radius)bounded(*s.radius,.001f,100);
+  if(s.offset){finite(*s.offset);bounded(s.offset->x,-100,100);bounded(s.offset->y,-100,100);bounded(s.offset->z,-100,100);}
   JPH::Vec3 half((high.x-low.x)*.5f,(high.y-low.y)*.5f,(high.z-low.z)*.5f);
-  if(half.GetX()<0||half.GetY()<0||half.GetZ()<0||half.LengthSq()==0)throw std::invalid_argument("collider bounds must have positive volume");
-  // Small triangle/plane dimensions receive a millimeter minimum thickness.
-  half=JPH::Vec3::sMax(half,JPH::Vec3(.001f,.001f,.001f));
+  if(half.GetX()<0||half.GetY()<0||half.GetZ()<0||(!s.halfExtents&&!s.radius&&half.LengthSq()==0))throw std::invalid_argument("invalid collider bounds");
+  // Only automatic dimensions are clamped; authored dimensions are validated.
+  half=s.halfExtents?JPH::Vec3(s.halfExtents->x,s.halfExtents->y,s.halfExtents->z):JPH::Vec3::sMax(half,JPH::Vec3(.001f,.001f,.001f));
+  const float radius=s.radius.value_or(half.ReduceMax());
   JPH::RefConst<JPH::Shape> shape;
-  if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(half.ReduceMax());
+  if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(radius);
   else shape=new JPH::BoxShape(half,std::min(.01f,half.ReduceMin()*.1f));
-  const JPH::Vec3 center((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
+  const JPH::Vec3 center=s.offset?linear(*s.offset):JPH::Vec3((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
+  const Collider collider{{half.GetX(),half.GetY(),half.GetZ()},scene(center),radius};
   shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);
   JPH::BodyCreationSettings settings(shape,linear(p.position),rotation(p),motion(s.type),s.type==Type::Static?0:1);
   settings.mUserData=static_cast<JPH::uint64>(id);
@@ -151,13 +158,13 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
   // Create first: rejected configuration must not destroy a working body.
   const bool wasHeld=contains(id)&&impl->record(id).held;
   remove(id);b.AddBody(body,s.type==Type::Static?JPH::EActivation::DontActivate:JPH::EActivation::Activate);
-  impl->bodies.emplace(id,Impl::Record{body,s,p});
+  impl->bodies.emplace(id,Impl::Record{body,s,p,collider});
   if(wasHeld)hold(id);
 }
 void World::remove(int id){auto it=impl->bodies.find(id);if(it==impl->bodies.end())return;impl->forgetContacts(id);auto &b=impl->system.GetBodyInterface();b.RemoveBody(it->second.body);b.DestroyBody(it->second.body);impl->bodies.erase(it);}
 State World::get(int id)const{
   const auto &r=impl->record(id);auto &b=impl->system.GetBodyInterface();JPH::RVec3 p;JPH::Quat q;b.GetPositionAndRotation(r.body,p,q);
-  auto a=b.GetAngularVelocity(r.body);return {r.settings,poseOf(p,q),scene(b.GetLinearVelocity(r.body)),{a.GetX(),a.GetY(),a.GetZ()},r.held,!b.IsActive(r.body)};
+  auto a=b.GetAngularVelocity(r.body);return {r.settings,poseOf(p,q),scene(b.GetLinearVelocity(r.body)),{a.GetX(),a.GetY(),a.GetZ()},r.held,!b.IsActive(r.body),r.collider};
 }
 void World::gravity(Vec3 v){finite(v);impl->system.SetGravity(linear(v));}
 void World::velocity(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.settings.type!=Type::Dynamic||r.held)throw std::invalid_argument("velocity requires an unheld dynamic body");impl->system.GetBodyInterface().SetLinearVelocity(r.body,linear(v));}
@@ -184,7 +191,10 @@ void World::target(int id,const Pose &p,double elapsed){
   if(r.held&&r.settings.type==Type::Static){pose(id,p);return;}
   if(r.held&&elapsed>0&&elapsed<=.1){
     JPH::Vec3 axis;float angle;auto delta=rotation(p)*rotation(r.target).Conjugated();if(delta.GetW()<0)delta=-delta;delta.GetAxisAngle(axis,angle);
-    r.samples.push_back({elapsed,(linear(p.position)-linear(r.target.position))/float(elapsed),axis*(angle/float(elapsed))});
+    const auto offset=linear(r.collider.offset);
+    const auto previousCenter=linear(r.target.position)+rotation(r.target)*offset;
+    const auto nextCenter=linear(p.position)+rotation(p)*offset;
+    r.samples.push_back({elapsed,(nextCenter-previousCenter)/float(elapsed),axis*(angle/float(elapsed))});
     double duration=0;for(auto it=r.samples.rbegin();it!=r.samples.rend();++it){duration+=it->duration;if(duration>=.10){r.samples.erase(r.samples.begin(),it.base()-1);break;}}
   }else if(r.held)r.samples.clear();
   r.target=p;

@@ -511,6 +511,13 @@ static JSValue physicsState(JSContext *ctx,const physics::State &s){
   JS_SetPropertyStr(ctx,o,"type",JS_NewString(ctx,c.type==physics::Type::Static?"static":c.type==physics::Type::Kinematic?"kinematic":"dynamic"));
   JS_SetPropertyStr(ctx,o,"shape",JS_NewString(ctx,c.shape==physics::Shape::Box?"box":"sphere"));
   for(const auto &[name,value]:std::initializer_list<std::pair<const char*,float>>{{"mass",c.mass},{"friction",c.friction},{"restitution",c.restitution},{"linearDamping",c.linearDamping},{"angularDamping",c.angularDamping},{"gravityFactor",c.gravityFactor}})JS_SetPropertyStr(ctx,o,name,JS_NewFloat64(ctx,value));
+  JS_SetPropertyStr(ctx,o,"halfExtents",c.halfExtents?physicsVector(ctx,*c.halfExtents):JS_NULL);
+  JS_SetPropertyStr(ctx,o,"radius",c.radius?JS_NewFloat64(ctx,*c.radius):JS_NULL);
+  JS_SetPropertyStr(ctx,o,"offset",c.offset?physicsVector(ctx,*c.offset):JS_NULL);
+  JSValue collider=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,collider,"halfExtents",c.shape==physics::Shape::Box?physicsVector(ctx,s.collider.halfExtents):JS_NULL);
+  JS_SetPropertyStr(ctx,collider,"radius",c.shape==physics::Shape::Sphere?JS_NewFloat64(ctx,s.collider.radius):JS_NULL);
+  JS_SetPropertyStr(ctx,collider,"offset",physicsVector(ctx,s.collider.offset));JS_SetPropertyStr(ctx,o,"collider",collider);
   JS_SetPropertyStr(ctx,o,"position",physicsVector(ctx,s.pose.position));
   JS_SetPropertyStr(ctx,o,"rotation",physicsVector(ctx,{s.pose.pitch,s.pose.yaw,s.pose.roll}));
   JS_SetPropertyStr(ctx,o,"velocity",physicsVector(ctx,s.velocity));JS_SetPropertyStr(ctx,o,"angularVelocity",physicsVector(ctx,s.angularVelocity));
@@ -519,6 +526,22 @@ static JSValue physicsState(JSContext *ctx,const physics::State &s){
 static Object *physicsObject(JSContext *ctx,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0){JS_ThrowTypeError(ctx,"physics requires an object id");return nullptr;}
   auto *o=findObject(id);if(!o)JS_ThrowRangeError(ctx,"unknown object id");return o;
+}
+static bool readColliderVector(JSContext *ctx,JSValueConst options,const char *name,std::optional<physics::Vec3> &result){
+  JSValue value=JS_GetPropertyStr(ctx,options,name);if(JS_IsException(value))return false;
+  if(JS_IsUndefined(value)){JS_FreeValue(ctx,value);return true;}
+  if(JS_IsNull(value)){result.reset();JS_FreeValue(ctx,value);return true;}
+  if(!JS_IsObject(value)){JS_FreeValue(ctx,value);JS_ThrowTypeError(ctx,"%s must be null or {x,y,z}",name);return false;}
+  physics::Vec3 vector;float *components[]={&vector.x,&vector.y,&vector.z};
+  for(int i=0;i<3;i++){
+    JSValue field=JS_GetPropertyStr(ctx,value,i==0?"x":i==1?"y":"z");
+    if(JS_IsException(field)){JS_FreeValue(ctx,value);return false;}
+    double number=0;const bool ok=JS_IsNumber(field)&&JS_ToFloat64(ctx,&number,field)==0&&std::isfinite(number);
+    JS_FreeValue(ctx,field);
+    if(!ok){JS_FreeValue(ctx,value);JS_ThrowTypeError(ctx,"%s requires finite numeric x, y, z",name);return false;}
+    *components[i]=float(number);
+  }
+  JS_FreeValue(ctx,value);result=vector;return true;
 }
 static JSValue jsSetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   auto *o=physicsObject(ctx,argc,argv);if(!o)return JS_EXCEPTION;
@@ -531,6 +554,17 @@ static JSValue jsSetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueCo
     if(!text("type",type)||!text("shape",shape))return JS_EXCEPTION;
     if(type=="static")settings.type=physics::Type::Static;else if(type=="dynamic")settings.type=physics::Type::Dynamic;else if(type=="kinematic")settings.type=physics::Type::Kinematic;else return JS_ThrowRangeError(ctx,"physics type must be static, dynamic, or kinematic");
     if(shape=="box")settings.shape=physics::Shape::Box;else if(shape=="sphere")settings.shape=physics::Shape::Sphere;else return JS_ThrowRangeError(ctx,"physics shape must be box or sphere");
+    if(shape=="box")settings.radius.reset();else settings.halfExtents.reset();
+    if(!readColliderVector(ctx,argv[1],"halfExtents",settings.halfExtents)||!readColliderVector(ctx,argv[1],"offset",settings.offset))return JS_EXCEPTION;
+    JSValue radius=JS_GetPropertyStr(ctx,argv[1],"radius");if(JS_IsException(radius))return JS_EXCEPTION;
+    if(JS_IsNull(radius))settings.radius.reset();
+    else if(!JS_IsUndefined(radius)){
+      double number=0;
+      if(!JS_IsNumber(radius)||JS_ToFloat64(ctx,&number,radius)<0||!std::isfinite(number)){JS_FreeValue(ctx,radius);return JS_ThrowTypeError(ctx,"radius must be null or a finite number");}
+      settings.radius=float(number);
+    }
+    JS_FreeValue(ctx,radius);
+
     for(auto [name,value]:std::initializer_list<std::pair<const char*,float*>>{{"mass",&settings.mass},{"friction",&settings.friction},{"restitution",&settings.restitution},{"linearDamping",&settings.linearDamping},{"angularDamping",&settings.angularDamping},{"gravityFactor",&settings.gravityFactor}}){
       JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return JS_EXCEPTION;
       if(!JS_IsUndefined(v)){double number;if(!JS_IsNumber(v)||JS_ToFloat64(ctx,&number,v)<0||!std::isfinite(number)){JS_FreeValue(ctx,v);return JS_ThrowTypeError(ctx,"physics parameters must be finite numbers");}*value=float(number);}JS_FreeValue(ctx,v);

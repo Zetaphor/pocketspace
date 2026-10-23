@@ -30,6 +30,9 @@ configuration throws while preserving the previous body.
 | --- | --- | --- |
 | `type` | `'dynamic'` | `'static'`, `'dynamic'`, `'kinematic'`. |
 | `shape` | `'box'` | `'box'` or `'sphere'`. |
+| `halfExtents` | `null` | Box half-sizes `{x,y,z}` in meters; each 0.001–100. `null` uses model bounds. |
+| `radius` | `null` | Sphere radius in meters, 0.001–100. `null` uses model bounds. |
+| `offset` | `null` | Collider center `{x,y,z}` in object-local meters; each component within ±100. `null` uses the model-bounds center. |
 | `mass` | `1` | Kilograms, 0.001–10000; used by dynamic bodies. |
 | `friction` | `0.5` | 0–1. |
 | `restitution` | `0` | Bounciness, 0–1. |
@@ -37,12 +40,37 @@ configuration throws while preserving the previous body.
 | `angularDamping` | `0.05` | 0–1. |
 | `gravityFactor` | `1` | 0–10. |
 
-Box colliders follow the model's normalized default-pose bounds, including their
-local center, multiplied by object scale. Thin dimensions have a one-millimeter
-minimum half-extent. A sphere uses the largest bounds half-extent as its radius;
-it is a spherical approximation of the model. Colliders follow object rotation.
-They do not deform with node or skeletal animation. Physics collision shapes
-are separate from the exact triangles used for pointer selection.
+Without custom dimensions, box colliders follow the model's normalized
+default-pose bounds multiplied by object scale; thin dimensions have a
+one-millimeter minimum half-extent. Automatic spheres use the largest bounds
+half-extent as their radius. A box's full size is twice its half-extents.
+
+Explicit dimensions use physical meters and are independent of visual model
+scale. `halfExtents` applies only to boxes, and `radius` only to spheres; supplying
+a non-null size for the wrong shape throws. Changing `shape` clears the previous
+shape's custom size. Omitted options preserve existing settings; set a size or
+`offset` to `null` to return that field to automatic model bounds.
+
+An explicit `offset` places the collider center relative to the object origin;
+it replaces the automatic center rather than adding to it. It uses local +X
+right, +Y up, and +Z forward at zero rotation, and rotates with the object using
+the existing model rotation convention. Offsets stay fixed in meters when the
+visible model is scaled. For example:
+
+```js
+setObjectPhysics(box, {
+  halfExtents: {x: .15, y: .05, z: .15},
+  offset: {x: 0, y: -.1, z: 0}
+});
+```
+
+Run [colliders.js](../scripts/colliders.js) for a thin gray floor, blue/green
+rotated walls, a red box, and a yellow sphere with explicit collider dimensions.
+Grip or trigger grabs the box and ball; either bumper resets unheld bodies.
+
+Colliders follow object rotation but do not deform with node or skeletal
+animation. Physics collision shapes are separate from the exact visible mesh
+triangles used for pointer selection.
 
 Static bodies remain fixed unless explicitly moved. Dynamic bodies respond to
 gravity, contacts, and impulses. Kinematic bodies follow script or hand targets
@@ -68,13 +96,24 @@ are angular rates, not Euler angle derivatives.
 
 Body state includes all configuration fields, `position: {x,y,z}`,
 `rotation: {x,y,z}` (pitch/yaw/roll radians), `velocity: {x,y,z}`,
-`angularVelocity: {x,y,z}`, `held`, and `sleeping`. It is the current simulation
+`angularVelocity: {x,y,z}`, `held`, `sleeping`, and resolved `collider` data. It is the current simulation
 snapshot. `sleeping` means the body is inactive, including stationary static
 bodies. Euler angles may wrap while representing the same orientation.
 
+Top-level `halfExtents`, `radius`, and `offset` report the requested values, or
+`null` for automatic sizing/centering. `collider` contains the actual physical
+`halfExtents` (box only), `radius` (sphere only), and `offset`. The inactive size
+field is `null`. Resolved values are in meters after automatic model scaling and
+minimum thickness are applied.
+
+`position` remains the object origin. Linear velocity and impulses refer to the
+body's center of mass, which can differ from that origin when offset. Throwing
+accounts for center-of-mass motion caused by rotation as well as translation.
+
 The existing position/rotation setters teleport static and dynamic bodies while
 retaining velocity. On kinematic bodies they set the next simulation target.
-`setObjectScale` rebuilds the collider and preserves dynamic velocity.
+`setObjectScale` rebuilds the collider and preserves dynamic velocity. Automatic
+sizes/centers follow the new model scale; explicit sizes/offsets stay unchanged.
 Visibility affects drawing/selection; a hidden body remains in the simulation.
 Collision event delivery is opt-in as described below.
 
