@@ -1,7 +1,9 @@
-const asset = loadModel('assets/samples/Box/Box.glb');
-const platform = createObject(asset, 0, -1, 0, 1.2);
+const platformAsset = loadModel('assets/physics/Platform.glb');
+const platform = createObject(platformAsset, 0, -1, 0, 1.2);
 setObjectPhysics(platform, {type: 'static'});
-const boxes = [-.22, 0, .22].map((x, index) => {
+const boxes = ['BlueBox', 'YellowBox', 'GreenBox'].map((name, index) => {
+  const asset = loadModel(`assets/physics/${name}.glb`);
+  const x = (index - 1) * .22;
   const id = createObject(asset, x, .15 + index * .15, 0, .16);
   setObjectPhysics(id, {mass: .25, restitution: .15});
   enableObjectInteraction(id, {grabButton: 'both'});
