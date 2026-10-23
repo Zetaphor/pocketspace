@@ -56,5 +56,9 @@ int main(){
   puts("PASS custom collider API: dimensions, radius, offset, scale independence, resolved state, shape switching, null defaults, malformed options, rollback and imported slab bounds");
   assert(loadScript(host,"tests/convex-api-smoke.js"));
   puts("PASS convex API: imported hulls, shared scaled instances, offsets, shape changes and invalid-size rollback");
+  assert(loadScript(host,"tests/mesh-collider-api-smoke.js"));
+  for(int i=0;i<90;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("check(getObjectPhysics(sphere).position.y < -1)"));
+  puts("PASS mesh API: imported concave geometry, shared scaling, offset, type restriction, state and empty gap");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

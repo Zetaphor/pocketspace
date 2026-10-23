@@ -95,11 +95,44 @@ static void convexColliders(){
   assert(!contacts.takeCollisionEvents().empty());
   puts("PASS convex: deduplication, shared hull scaling, asymmetric center of mass, offsets, angular throwing and degenerate replacement rollback");
 }
+static void meshColliders(){
+  World w;Settings mesh;mesh.type=Type::Static;mesh.shape=Shape::Mesh;
+  // Two disconnected horizontal strips: the gap must remain empty.
+  std::vector<Vec3> triangles;
+  for(float x:{-.5f,.2f}){
+    Vec3 a{x,0,-.5f},b{x,0,.5f},c{x+.3f,0,.5f},d{x+.3f,0,-.5f};
+    triangles.insert(triangles.end(),{a,b,c,a,c,d});
+  }
+  w.set(1,mesh,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,triangles});
+  assert(w.hasMesh(22)&&w.get(1).collider.triangleCount==4);
+  Settings ball;ball.shape=Shape::Sphere;ball.radius=.05f;
+  w.set(2,ball,{{-.35f,.3f,0}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
+  w.set(3,ball,{{0,.3f,0}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
+  tick(w,90);assert(std::abs(w.get(2).pose.position.y-.05f)<.01f);
+  assert(w.get(3).pose.position.y<-1); // A convex hull would fill this gap.
+  w.set(4,mesh,{{2,0,0}},{-1,0,-1},{1,0,1},{22,2,{}});
+  assert(std::abs(w.get(4).collider.halfExtents.x-1)<1e-5);
+  auto bad=mesh;bad.type=Type::Dynamic;
+  try{w.set(1,bad,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,{}});assert(false);}catch(const std::exception&){}
+  assert(w.get(1).settings.type==Type::Static);
+  const std::vector<Vec3> degenerate{{0,0,0},{1,0,0},{2,0,0}};
+  try{w.set(1,mesh,{}, {0,0,0},{2,0,0},{23,1,degenerate});assert(false);}catch(const std::exception&){}
+  assert(!w.hasMesh(23)&&w.get(1).collider.triangleCount==4);
+  World transformed;mesh.offset=Vec3{.2f,.3f,.4f};
+  transformed.set(1,mesh,{{0,0,0},0,1.57079632679f,0}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,triangles});
+  transformed.set(2,ball,{{-.4f,1,-.15f}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
+  transformed.collisionEvents(true);tick(transformed,90);
+  assert(std::abs(transformed.get(2).pose.position.y-.35f)<.01f);
+  const auto events=transformed.takeCollisionEvents();
+  assert(!events.empty()&&events.front().objectId==1&&events.front().otherObjectId==2);
+  puts("PASS mesh: concave gap, planar contacts, shared scaled tree, static restriction and invalid replacement rollback");
+}
 int main(int argc,char **argv){
   if(argc>1&&std::string(argv[1])=="--benchmark"){for(int count:{16,64,128})benchmark(count);return 0;}
 
   customColliders();
   convexColliders();
+  meshColliders();
   World world;Settings fixed;fixed.type=Type::Static;
   world.set(1,fixed,{{0,-.5f,0}}, {-2,-.1f,-2},{2,.1f,2});
   Settings dynamic;dynamic.linearDamping=0;dynamic.angularDamping=0;

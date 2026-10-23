@@ -29,7 +29,7 @@ configuration throws while preserving the previous body.
 | Option | Default | Supported values |
 | --- | --- | --- |
 | `type` | `'dynamic'` | `'static'`, `'dynamic'`, `'kinematic'`. |
-| `shape` | `'box'` | `'box'`, `'sphere'`, or `'convex'`. |
+| `shape` | `'box'` | `'box'`, `'sphere'`, `'convex'`, or `'mesh'` (static only). |
 | `halfExtents` | `null` | Box half-sizes `{x,y,z}` in meters; each 0.001–100. `null` uses model bounds. |
 | `radius` | `null` | Sphere radius in meters, 0.001–100. `null` uses model bounds. |
 | `offset` | `null` | Collider center `{x,y,z}` in object-local meters; each component within ±100. `null` uses the model-bounds center. |
@@ -103,6 +103,36 @@ velocity. It can differ from its bounds center. Run
 [convex.js](../scripts/convex.js) to grab, drop, and throw a green avocado and a
 pale toy car on a gray platform. Either bumper resets unheld objects.
 
+## Static mesh colliders
+
+```js
+const platform = createObject(loadModel('assets/physics/RingRamp.glb'), 0, -.2, 0, 1);
+setObjectPhysics(platform, {type: 'static', shape: 'mesh'});
+```
+
+Mesh colliders use the model's default-pose triangles, preserving concave regions,
+openings, and slopes. Set `type: 'static'` explicitly when creating a new mesh
+body; dynamic and kinematic mesh bodies are rejected. Use box, sphere, or convex
+colliders for moving bodies. Static mesh pairs do not collide with one another.
+
+The engine welds shared vertices, removes duplicate/degenerate triangles, and
+caches a collision tree per model asset in each scene. A mesh with no valid
+triangles throws while preserving the previous body. Instances and scale changes
+reuse the tree. Scale must be at least 0.000001 meters. `halfExtents` and `radius`
+are unavailable; `offset` relocates the bounds center in local meters.
+
+Triangles collide on their front side, determined by counterclockwise winding.
+Material `doubleSided` affects rendering, not physics. Give walls and platforms
+closed geometry when both sides should collide. Meshes remain rigid: animation,
+skinning, alpha masking, and blended transparency do not change the collider.
+`setObjectPosition` and rotation setters can reposition static meshes, but physics
+forces do not move them.
+
+Run [mesh-colliders.js](../scripts/mesh-colliders.js) for a blue platform with a
+central opening and a raised rear ramp, above a gray catch floor. Grab the yellow
+ball or red cube with grip or trigger. Drop them through the opening or onto the
+ramp; either bumper resets unheld objects.
+
 ## Controls and state
 
 | Function | Behavior |
@@ -128,9 +158,10 @@ bodies. Euler angles may wrap while representing the same orientation.
 
 Top-level `halfExtents`, `radius`, and `offset` report the requested values, or
 `null` for automatic sizing/centering. `collider` contains the actual physical
-`halfExtents` (box or convex bounds), `radius` (sphere only), and `offset`.
-It also reports object-local `centerOfMass` and convex `vertexCount` (null for
-primitives). The inactive size field is `null`. Resolved values are in meters after automatic model scaling and
+`halfExtents` (box, convex, or mesh bounds), `radius` (sphere only), and `offset`.
+It also reports object-local `centerOfMass`, convex `vertexCount`, and mesh
+`triangleCount`; counts are `null` for other shapes. Meshes have no physical mass
+center; their `centerOfMass` is the shape coordinate origin after scaling/offset. The inactive size field is `null`. Resolved values are in meters after automatic model scaling and
 minimum thickness are applied.
 
 `position` remains the object origin. Linear velocity and impulses refer to the
@@ -176,7 +207,7 @@ Both `onInputEvent` and `pollInputEvents` receive the same collision schema:
 Multiple manifolds for a pair are combined: the deepest observed manifold
 supplies the point/normal, and the maximum observed closing speed is reported.
 Contacts include the solver's speculative near contacts, so a start does not
-require exact visual mesh overlap. Collision shapes remain rigid box, sphere, or convex proxies.
+require exact visual mesh overlap. Collision shapes remain rigid box, sphere, convex, or static mesh shapes.
 
 A start is emitted on the first observed contact. If requested, stay is emitted
 once per subsequent fixed physics step, including sleeping pairs. Sleeping
