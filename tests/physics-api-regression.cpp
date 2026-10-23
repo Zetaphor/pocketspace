@@ -81,5 +81,9 @@ int main(){
   for(int i=0;i<270;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifyReverse()"));
   puts("PASS motor API: state, partial updates, position/velocity drive and invalid-update rollback");
+  assert(loadScript(host,"tests/spring-api-smoke.js"));
+  for(int i=0;i<360;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("verifySpring()"));
+  puts("PASS spring API: optional spring, defaults, validation, resolved state and elastic equilibrium");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

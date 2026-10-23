@@ -34,6 +34,7 @@ struct CollisionEvent {
   float penetration=0,relativeSpeed=0;
 };
 enum class JointType {Fixed,Hinge,Distance};
+struct JointSpring {float frequency=2,damping=.5f;};
 struct JointSettings {
   JointType type=JointType::Fixed;
   std::optional<Vec3> anchor,anchorA,anchorB;
@@ -41,6 +42,7 @@ struct JointSettings {
   float minAngle=-3.14159265359f,maxAngle=3.14159265359f;
   float minDistance=0;std::optional<float> maxDistance;
   bool collideConnected=false;
+  std::optional<JointSpring> spring;
 };
 enum class MotorMode {Off,Position,Velocity};
 struct JointMotor {

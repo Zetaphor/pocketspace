@@ -263,6 +263,10 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   auto &ra=impl->record(a);auto &rb=impl->record(b);
   if(ra.settings.type!=Type::Dynamic&&rb.settings.type!=Type::Dynamic)throw std::invalid_argument("a joint needs at least one dynamic body");
   JointSettings s=requested;
+  if(s.spring){
+    if(s.type!=JointType::Distance)throw std::invalid_argument("springs require a distance joint");
+    bounded(s.spring->frequency,.01f,30);bounded(s.spring->damping,0,10);
+  }
   for(auto v:{s.anchor,s.anchorA,s.anchorB})if(v)finite(*v);
   bounded(s.minAngle,-3.14159265359f,0);bounded(s.maxAngle,0,3.14159265359f);
   if(s.type==JointType::Hinge&&s.minAngle==s.maxAngle)throw std::invalid_argument("use a fixed joint for a locked hinge");
@@ -288,7 +292,9 @@ int World::createJoint(int a,int b,const JointSettings &requested){
     c.mLimitsMin=s.minAngle;c.mLimitsMax=s.maxAngle;constraint=c.Create(bodyA,bodyB);
   }else{
     JPH::DistanceConstraintSettings c;c.mNumPositionStepsOverride=8;c.mNumVelocityStepsOverride=20;c.mPoint1=linear(pointA);c.mPoint2=linear(pointB);
-    c.mMinDistance=s.minDistance;c.mMaxDistance=*s.maxDistance;constraint=c.Create(bodyA,bodyB);
+    c.mMinDistance=s.minDistance;c.mMaxDistance=*s.maxDistance;
+    if(s.spring)c.mLimitsSpringSettings=JPH::SpringSettings(JPH::ESpringMode::FrequencyAndDamping,s.spring->frequency,s.spring->damping);
+    constraint=c.Create(bodyA,bodyB);
   }
   const int id=impl->nextJoint++;
   impl->joints.emplace(id,Impl::Joint{{id,a,b,s,pointA,pointB,initialDistance,0},constraint,

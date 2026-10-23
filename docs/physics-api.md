@@ -160,6 +160,7 @@ const hinge = createPhysicsJoint(frame, door, {
 | `minDistance` | `0` | Minimum anchor separation in meters, 0–10000. |
 | `maxDistance` | Initial anchor separation | Maximum separation in meters, at least `minDistance`, at most 10000. |
 | `collideConnected` | `false` | Allow contacts between the two connected bodies. |
+| `spring` | `null` | Distance-only `{frequency, damping}`; softens the distance limits. See below. |
 
 A fixed joint preserves the initial relative position and orientation. A hinge
 keeps its anchor points together and allows rotation only around its axis; its
@@ -175,6 +176,7 @@ for the wrong joint type throw. There are at most 512 joints per scene.
 - `id`, `objectA`, `objectB`, `type`, and `collideConnected`.
 - `anchorA` and `anchorB`: current attachment positions in scene meters.
 - `distance`: current anchor separation in meters.
+- `spring`: resolved `{frequency,damping}` for a spring distance joint, otherwise `null`.
 - Hinge `axis`, `angle`, `minAngle`, and `maxAngle`; these are `null` for other types.
 - Distance `minDistance` and `maxDistance`; these are `null` for other types.
 
@@ -193,13 +195,50 @@ dynamic while held, with a bounded drive toward the hand target so the solver
 can enforce the connection. They can resist hand motion at a hinge or distance
 limit. `getObjectPhysics(id).jointed` reports whether any joints are attached.
 Joints use an iterative solver, so small positional/angle errors under load are
-expected. Hinge motors are configurable as described below. Standalone springs, breaking
-thresholds, and runtime joint-limit editing are not exposed; remove and recreate
+expected. Hinge motors and distance springs are configurable as described below.
+Breaking thresholds and runtime joint-limit/spring editing are not exposed; remove and recreate
 a joint to change its anchors or limits.
 
 Run [joints.js](../scripts/joints.js) for a blue hinged panel, a tethered yellow
 ball, and a red box welded to an avocado. Grip or trigger grabs the moving
 objects. Either bumper resets the assemblies when nothing is held.
+
+## Distance springs
+
+Add `spring` when creating a distance joint to make its limits elastic:
+
+```js
+const suspension = createPhysicsJoint(anchor, weight, {
+  type: 'distance', minDistance: .3, maxDistance: .3,
+  spring: {frequency: 2, damping: .15}
+});
+```
+
+Equal minimum/maximum distances define the unloaded resting length. The spring
+pushes apart compressed anchors and pulls together stretched anchors, while
+allowing free rotation. With different limits, the region between them is slack;
+restoring force acts only outside the range. A spring softens those limits, so
+anchors can move beyond them under load. Gravity stretches a hanging spring's
+equilibrium distance beyond its resting length.
+
+`spring: null` or omission retains the existing hard distance behavior. A spring
+object defaults to `frequency: 2` hertz and `damping: 0.5`. Frequency must be
+0.01–30 hertz and damping ratio 0–10; both must be finite numbers. Higher
+frequency means a stiffer response. Damping below one allows more bouncing;
+one critically damps the spring's axial response. Coupled bodies and swinging
+motion can affect the overall settling behavior. Non-null spring settings on
+fixed/hinge joints throw.
+
+`getPhysicsJoint(id).spring` reports the resolved settings. Springs use normal
+body sleeping, collision, grabbing, cleanup, and reload behavior. Their anchors
+are invisible, as with other joints. Remove and recreate the joint to change its
+resting length or spring settings. Spring forces are not capped by hinge motor
+`maxTorque`; a spring distance joint has no motor.
+
+Run [springs.js](../scripts/springs.js) for a bouncy yellow ball and a more heavily
+damped blue box suspended from separate anchors. Grip or trigger grabs either
+weight. Pull down, release, and compare how they settle. Either bumper resets
+both weights when nothing is held.
 
 ## Hinge motors
 
