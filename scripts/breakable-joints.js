@@ -1,16 +1,16 @@
-const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.53, 0, 1.2);
+const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.93, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const links = [
-  {x: -.22, top: 'assets/physics/GreenBox.glb', path: 'assets/physics/BlueBox.glb', shape: 'box', type: 'fixed', breakForce: 40},
-  {x: .22, top: 'assets/samples/Box/Box.glb', path: 'assets/physics/YellowSphere.glb', shape: 'sphere', type: 'distance', breakForce: 10}
-].map(({x, top, path, shape, type, breakForce}) => {
+  {x: -.22, top: 'assets/physics/GreenBox.glb', path: 'assets/physics/BlueBox.glb', shape: 'box', minDistance: .3, breakForce: 25},
+  {x: .22, top: 'assets/samples/Box/Box.glb', path: 'assets/physics/YellowSphere.glb', shape: 'sphere', minDistance: 0, breakForce: 18}
+].map(({x, top, path, shape, minDistance, breakForce}) => {
   const anchor = createObject(loadModel(top), x, .3, 0, .06);
   setObjectPhysics(anchor, {type: 'static'});
   const id = createObject(loadModel(path), x, 0, 0, .12);
   setObjectPhysics(id, {shape, mass: .25});
   enableObjectInteraction(id, {grabButton: 'both'});
   setObjectInteraction(id, {handRotationAxes: {pitch: true, yaw: true, roll: true}});
-  return {id, anchor, x, options: type === 'distance' ? {type, breakForce, minDistance: .3, maxDistance: .3} : {type, breakForce, anchor: {x, y: 0, z: 0}}};
+  return {id, anchor, x, options: {type: 'distance', minDistance, maxDistance: .3, spring: {frequency: 2, damping: .35}, breakForce}};
 });
 function connect() { for (const link of links) link.joint = createPhysicsJoint(link.anchor, link.id, link.options); }
 connect();

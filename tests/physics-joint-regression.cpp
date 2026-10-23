@@ -134,6 +134,20 @@ int main(){
   CHECK(pickup.containsJoint(link));
   auto deliberate=resting;deliberate.position.x+=.3f;pickup.target(2,deliberate,1./90);tick(pickup,10);
   CHECK(!pickup.containsJoint(link)&&pickup.takeJointBreaks().size()==1);
+  // The demonstration must permit pickup, lifting toward the anchor, and
+  // moderate extension before a deliberate long pull breaks the connection.
+  for(float minimum:{0.f,.3f}){
+    World demo;body(demo,1,Type::Static,{{0,.3f,0}});demo.set(2,weight,{}, {-.06f,-.06f,-.06f},{.06f,.06f,.06f});
+    fuse=JointSettings{};fuse.type=JointType::Distance;fuse.minDistance=minimum;fuse.maxDistance=.3f;fuse.spring=JointSpring{2,.35f};fuse.breakForce=minimum==0?18:25;
+    link=demo.createJoint(1,2,fuse);tick(demo,90);demo.hold(2);
+    const float start=demo.get(2).pose.position.y;
+    for(int frame=0;frame<90;frame++){demo.target(2,{{0,start+.25f*float(frame)/89,0}},1./90);demo.advance(1./90);}
+    CHECK(demo.containsJoint(link));
+    for(int frame=0;frame<90;frame++){demo.target(2,{{0,start+.25f-.5f*float(frame)/89,0}},1./90);demo.advance(1./90);}
+    CHECK(demo.containsJoint(link));
+    for(int frame=0;frame<180&&demo.containsJoint(link);frame++){demo.target(2,{{0,start-.25f-.9f*float(frame)/179,0}},1./90);demo.advance(1./90);}
+    CHECK(!demo.containsJoint(link)&&demo.takeJointBreaks().size()==1);
+  }
   puts("PASS breakable joints: load threshold, impulse/torque fracture, held continuation, one-shot events and validation");
   puts("PASS springs: elastic extension, damped oscillation, gravity equilibrium, held release, validation and cleanup");
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");
