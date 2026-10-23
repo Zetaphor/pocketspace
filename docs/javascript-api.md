@@ -29,7 +29,10 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 Invalid IDs and invalid arguments throw. Assets remain loaded until the scene
 is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
-GPU time and memory; there is no shared scene-wide surface.
+GPU time and memory; there is no shared scene-wide surface. Opaque and
+alpha-masked models occlude one another using per-eye geometry depth before
+surface submission. Masked holes remain transparent. Blended materials are not
+opaque occluders; ordering between blended surfaces remains compositor-dependent.
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen
