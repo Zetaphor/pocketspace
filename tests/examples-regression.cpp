@@ -44,9 +44,17 @@ int main() {
       }
     }
     if(entry.path().filename()=="stress.js"){
-      const char *source="add(1000);if(getEngineStats().objectCount!==49)throw Error('stress cap');clear();if(getEngineStats().objectCount!==1)throw Error('stress clear');";
+      const char *source=R"(
+        add(1000);if(getEngineStats().objectCount!==49)throw Error('stress cap');
+        const fallen=objects[0], distant=objects[1], kept=objects[2];
+        setObjectPosition(fallen,0,-1.3,0);setObjectPosition(distant,3.1,0,0);
+        if(!prune()||getEngineStats().objectCount!==47||objects.includes(fallen)||objects.includes(distant)||!objects.includes(kept))throw Error('stress cleanup');
+        add(2);if(getEngineStats().objectCount!==49)throw Error('stress reclaimed capacity');
+        clear();if(getEngineStats().objectCount!==1)throw Error('stress clear');
+      )";
       JSValue result=JS_Eval(host.ctx,source,strlen(source),"stress-controls",JS_EVAL_TYPE_GLOBAL);
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      assert(host.scene.physics->contains(1)&&!host.scene.physics->contains(2)&&!host.scene.physics->contains(3));
     }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
