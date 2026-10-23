@@ -16,3 +16,8 @@ All seven GLBs were checked against the upstream Git blob hashes before inclusio
 
 `InterpolationTest/InterpolationTest.glb` is 7,952 bytes; verified upstream Git
 blob `4200fccc95261f36bf8af58e99f3180968333714`, SHA-256 `a86eb331b4a083715e75fe19a1f747eac5692d5b9ff120f1eaa457c23ba72bca`.
+
+The four models in `../physics/` are recolored derivatives of Cesium's Box
+(CC BY 4.0): Platform, BlueBox, YellowBox, and GreenBox. Only material base colors
+were changed. Source, credits, and license are retained in
+[Box's upstream README](Box/README.upstream.md).
