@@ -21,7 +21,9 @@ std::string jsonString(const std::string &s,const std::string &key,size_t from=0
 std::string randomKey(){std::random_device source;std::string mask(4,'\0');for(char &byte:mask)byte=static_cast<char>(source());return mask;}
 }
 Monitor::~Monitor(){if(fd_>=0)close(fd_);}
-void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};resetScene();}
+void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};hovered_[0]=hovered_[1]=0;
+  auto input=[](const Event &e){return !e.type.starts_with("physics.");};
+  std::erase_if(events_,input);std::erase_if(callbackEvents_,input);}
 void Monitor::stop(){disconnect();}
 void Monitor::resetScene(){events_.clear();callbackEvents_.clear();hovered_[0]=hovered_[1]=0;}
 void Monitor::invalidateHand(int hand){
@@ -129,6 +131,8 @@ void Monitor::poll(){if(!started_)return;char buf[65536];for(;;){ssize_t n=recv(
 std::vector<Event> Monitor::takeEvents(){std::vector<Event> result;result.swap(events_);return result;}
 std::vector<Event> Monitor::takeCallbackEvents(){auto result=std::move(callbackEvents_);callbackEvents_.clear();return result;}
 void Monitor::setHoveredObject(int hand,int objectId){if(hand>=0&&hand<2)hovered_[hand]=objectId;}
+void Monitor::addEvent(Event event){events_.push_back(event);callbackEvents_.push_back(std::move(event));if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);}
+void Monitor::clearPhysicsEvents(){auto physics=[](const Event &e){return e.type.starts_with("physics.");};std::erase_if(events_,physics);std::erase_if(callbackEvents_,physics);}
 void Monitor::addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button,bool down){Event event;event.type=type;event.objectId=panelId;event.x=x;event.y=y;event.control=button;event.component.isBoolean=!button.empty();event.component.boolean=down;if(hand>=0)event.hand=hand?"right":"left";events_.push_back(event);callbackEvents_.push_back(std::move(event));if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);}
 void Monitor::addOverlayEvent(const std::string &type,int objectId,int hand,float dx,float dy,float dz,float dpitch,float dyaw,float droll){Event event;event.type=type;event.objectId=objectId;event.dx=dx;event.dy=dy;event.dz=dz;event.dpitch=dpitch;event.dyaw=dyaw;event.droll=droll;if(hand>=0)event.hand=hand?"right":"left";events_.push_back(event);callbackEvents_.push_back(std::move(event));if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);}
 }

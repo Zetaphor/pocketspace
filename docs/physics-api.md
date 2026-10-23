@@ -15,7 +15,8 @@ enableObjectInteraction(box, {grabButton: 'both'});
 
 Run [physics.js](../scripts/physics.js) for three grabbable boxes above a static
 platform. Pick up, stack, or throw them with grip or trigger. Either bumper
-returns unheld boxes to their starting area. There is no implicit floor or
+returns unheld boxes to their starting area. The retained panel shows the number
+of touching object pairs and the latest contact's closing speed. There is no implicit floor or
 collision with the physical room; create static bodies for scene boundaries.
 
 ## Body configuration
@@ -75,7 +76,62 @@ The existing position/rotation setters teleport static and dynamic bodies while
 retaining velocity. On kinematic bodies they set the next simulation target.
 `setObjectScale` rebuilds the collider and preserves dynamic velocity.
 Visibility affects drawing/selection; a hidden body remains in the simulation.
-There are no collision callbacks in this release.
+Collision event delivery is opt-in as described below.
+
+## Collision events
+
+`setPhysicsCollisionEvents(enabled, options = {})` controls contact events for
+the current scene. `enabled` must be a boolean; optional `stay` must also be a
+boolean and defaults to `false`. Events are disabled by default. Enabling wakes
+existing nonstatic bodies so their contacts can be observed on the next step.
+Calling it again while enabled changes the stay setting without restarting pairs.
+
+```js
+setPhysicsCollisionEvents(true); // start/end; add {stay: true} for continued contact
+onInputEvent(event => {
+  if (event.type === 'physics.collisionStart') {
+    print(`${event.objectId} hit ${event.otherObjectId} at ${event.relativeSpeed} m/s`);
+  }
+});
+```
+
+Both `onInputEvent` and `pollInputEvents` receive the same collision schema:
+
+| Field | Meaning |
+| --- | --- |
+| `type` | `physics.collisionStart`, `physics.collisionStay`, or `physics.collisionEnd`. |
+| `objectId`, `otherObjectId` | Object IDs in ascending order; one event per pair, not one for each object or contact point. |
+| `point` | Representative contact midpoint `{x,y,z}` in scene meters. |
+| `normal` | Unit `{x,y,z}` pointing from `objectId` toward `otherObjectId`, in scene axes. |
+| `penetration` | Nonnegative contact penetration in meters. |
+| `relativeSpeed` | Nonnegative pre-solve closing speed at the representative point, in m/s; includes angular motion. It is not an impulse or damage value. |
+
+Multiple manifolds for a pair are combined: the deepest observed manifold
+supplies the point/normal, and the maximum observed closing speed is reported.
+Contacts include the solver's speculative near contacts, so a start does not
+require exact visual mesh overlap. Collision shapes remain box/sphere proxies.
+
+A start is emitted on the first observed contact. If requested, stay is emitted
+once per subsequent fixed physics step, including sleeping pairs. Sleeping
+stays retain the last geometry and report zero closing speed. Catch-up can
+produce multiple events per rendered frame. An end reports the last known
+contact data when a pair separates, either collider is removed/replaced, or a
+changed pose is explicitly teleported. An end can reference an object already
+removed from the scene; do not assume both IDs still exist when handling it.
+
+The native solver only records data. Events enter the ordinary independent
+callback/polling queues after physics advances and are delivered through the
+host loop, never from inside the solver. Treat them as snapshots: a preceding
+callback can change/remove the referenced objects. Raw controller disconnection
+and reconnect do not discard pending collision events.
+
+Disabling clears tracked contacts and pending collision events without emitting
+ends. A callback batch already being delivered remains a snapshot of that batch.
+Enabling again establishes new starts on the next observed contacts. Successful
+scene reload clears event state; a failed candidate cannot change the active
+scene's subscription or queues. Module and delivery queues are bounded at 4096,
+evicting the oldest 1024 entries on overflow. Enable stay only when needed and
+drain polling regularly if your script uses it.
 
 ## Grabbing, timing, and lifecycle
 

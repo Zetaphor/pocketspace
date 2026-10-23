@@ -35,5 +35,22 @@ int main(){
   auto *active=host.scene.physics.get();assert(!loadScript(host,path.string()));assert(host.scene.physics.get()==active);
   // Reload releases the old world and every body.
   assert(loadScript(host,"scripts/avocado.js"));assert(!host.scene.physics);
+  frameInput.resetScene();
+  assert(loadScript(host,"tests/collision-api-smoke.js"));
+  auto dispatch=[&]{for(const auto &event:frameInput.takeCallbackEvents()){
+    JSValue value=inputEventValue(host.ctx,event);JSValue result=JS_Call(host.ctx,inputCallback,JS_UNDEFINED,1,&value);
+    assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);JS_FreeValue(host.ctx,value);
+  }};
+  for(int i=0;i<360;i++){updateScenePhysics(host.scene,1./90);dispatch();}
+  assert(eval("verifyContacts()"));
+  assert(eval("removeObject(box)"));updateScenePhysics(host.scene,0);dispatch();assert(eval("verifyEnd()"));
+  // Failed candidate event configuration cannot flush the live scene's queues.
+  frame_input::Event queued;queued.type="physics.collisionStart";queued.objectId=1;queued.otherObjectId=2;
+  frameInput.addEvent(queued);
+  std::ofstream(path)<<"setPhysicsCollisionEvents(false);throw Error('EXPECTED_COLLISION_ROLLBACK');";
+  assert(!loadScript(host,path.string()));assert(frameInput.takeEvents().size()==1&&frameInput.takeCallbackEvents().size()==1);
+  frameInput.addEvent(queued);assert(eval("setPhysicsCollisionEvents(false);check(pollInputEvents().length===0)"));
+  assert(frameInput.takeCallbackEvents().empty());
+  puts("PASS collision API: callback/poll schema equality, contact continuity, end on removal, candidate isolation, option validation and disable clearing");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

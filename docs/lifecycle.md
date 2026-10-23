@@ -19,7 +19,8 @@ replacement or shutdown, even if their last object is removed.
 
 Controller disconnection invalidates raw hand/pointer state and cancels held
 objects. Temporary pose loss preserves a hold while an allowed button remains
-down. Loss of the raw vrserver connection clears cached values and queued input;
+down. Loss of the raw vrserver connection clears cached values and queued input
+while preserving pending physics collision events;
 reconnect attempts use a one-second interval with a bounded 200 ms handshake.
 
 Ctrl-C, SIGTERM, and native shutdown unwind overlay, GPU/EGL, input, and OpenVR

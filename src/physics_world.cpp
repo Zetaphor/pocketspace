@@ -53,9 +53,69 @@ struct PairFilter final:JPH::ObjectLayerPairFilter {
   bool ShouldCollide(JPH::ObjectLayer a,JPH::ObjectLayer b)const override{return a!=0||b!=0;}
 };
 }
-struct World::Impl {
+// The listener only records immutable solver data. JavaScript runs later, after
+// Update has released body locks. The job system is explicitly single-threaded.
+struct World::Impl : JPH::ContactListener {
   struct Sample {double duration;JPH::Vec3 velocity,angular;};
   struct Record {JPH::BodyID body;Settings settings;Pose target;bool held=false,canThrow=true;std::deque<Sample> samples;};
+  using Pair=std::pair<JPH::uint32,JPH::uint32>;
+  struct Contact {CollisionEvent event;JPH::BodyID a,b;};
+  bool eventsEnabled=false,stayEvents=false;
+  std::map<Pair,Contact> contacts,seen;
+  std::vector<CollisionEvent> pending;
+  void emit(Contact contact,CollisionPhase phase){
+    contact.event.phase=phase;pending.push_back(contact.event);
+    if(pending.size()>4096)pending.erase(pending.begin(),pending.begin()+1024);
+  }
+  void forgetContacts(int id){
+    for(auto it=contacts.begin();it!=contacts.end();) {
+      if(it->second.event.objectId==id||it->second.event.otherObjectId==id){emit(it->second,CollisionPhase::End);it=contacts.erase(it);}
+      else ++it;
+    }
+  }
+  void observe(const JPH::Body &a,const JPH::Body &b,const JPH::ContactManifold &m){
+    if(m.mRelativeContactPointsOn1.size()==0||m.mRelativeContactPointsOn2.size()==0)return;
+    const Pair key{a.GetID().GetIndexAndSequenceNumber(),b.GetID().GetIndexAndSequenceNumber()};
+    const bool reversed=a.GetUserData()>b.GetUserData();
+    Contact contact;contact.a=a.GetID();contact.b=b.GetID();
+    auto &event=contact.event;
+    event.objectId=int(reversed?b.GetUserData():a.GetUserData());
+    event.otherObjectId=int(reversed?a.GetUserData():b.GetUserData());
+    auto normal=m.mWorldSpaceNormal;
+    // One representative point per object pair, rather than a stream of every
+    // manifold point. The deepest observed manifold supplies the geometry.
+    const auto point=(m.GetWorldSpaceContactPointOn1(0)+m.GetWorldSpaceContactPointOn2(0))*.5f;
+    event.point=scene(point);event.normal=scene(reversed?-normal:normal);
+    event.penetration=std::max(0.f,m.mPenetrationDepth);
+    event.relativeSpeed=std::max(0.f,(a.GetPointVelocity(point)-b.GetPointVelocity(point)).Dot(normal));
+    auto [it,inserted]=seen.emplace(key,contact);
+    if(!inserted){
+      const float speed=std::max(event.relativeSpeed,it->second.event.relativeSpeed);
+      if(event.penetration>it->second.event.penetration)it->second=contact;
+      it->second.event.relativeSpeed=speed;
+    }
+  }
+  void OnContactAdded(const JPH::Body &a,const JPH::Body &b,const JPH::ContactManifold &m,JPH::ContactSettings&)override{observe(a,b,m);}
+  void OnContactPersisted(const JPH::Body &a,const JPH::Body &b,const JPH::ContactManifold &m,JPH::ContactSettings&)override{observe(a,b,m);}
+  // Removal also fires for sleeping bodies. Reconcile after Update, when it is
+  // safe to read activity; explicit teleports/removal invalidate cached pairs.
+  void finishContacts(){
+    auto &b=system.GetBodyInterface();
+    for(auto it=contacts.begin();it!=contacts.end();) {
+      auto current=seen.find(it->first);
+      if(current!=seen.end()){
+        it->second=current->second;seen.erase(current);
+        if(stayEvents)emit(it->second,CollisionPhase::Stay);
+        ++it;
+      }else if(!b.IsActive(it->second.a)&&!b.IsActive(it->second.b)){
+        it->second.event.relativeSpeed=0;
+        if(stayEvents)emit(it->second,CollisionPhase::Stay);
+        ++it;
+      }else {emit(it->second,CollisionPhase::End);it=contacts.erase(it);}
+    }
+    for(const auto &[key,contact]:seen){contacts.emplace(key,contact);emit(contact,CollisionPhase::Start);}
+    seen.clear();
+  }
   BroadPhase broad;BroadFilter broadFilter;PairFilter pairs;
   JPH::TempAllocatorImpl temporary{8*1024*1024};JPH::JobSystemSingleThreaded jobs{2048};
   JPH::PhysicsSystem system;std::map<int,Record> bodies;double accumulator=0;
@@ -78,6 +138,7 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
   const JPH::Vec3 center((low.x+high.x)*.5f,(low.y+high.y)*.5f,(low.z+high.z)*.5f);
   shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);
   JPH::BodyCreationSettings settings(shape,linear(p.position),rotation(p),motion(s.type),s.type==Type::Static?0:1);
+  settings.mUserData=static_cast<JPH::uint64>(id);
   settings.mAllowDynamicOrKinematic=s.type!=Type::Static;
   settings.mOverrideMassProperties=JPH::EOverrideMassProperties::CalculateInertia;
   settings.mMassPropertiesOverride.mMass=s.mass;
@@ -93,7 +154,7 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high){
   impl->bodies.emplace(id,Impl::Record{body,s,p});
   if(wasHeld)hold(id);
 }
-void World::remove(int id){auto it=impl->bodies.find(id);if(it==impl->bodies.end())return;auto &b=impl->system.GetBodyInterface();b.RemoveBody(it->second.body);b.DestroyBody(it->second.body);impl->bodies.erase(it);}
+void World::remove(int id){auto it=impl->bodies.find(id);if(it==impl->bodies.end())return;impl->forgetContacts(id);auto &b=impl->system.GetBodyInterface();b.RemoveBody(it->second.body);b.DestroyBody(it->second.body);impl->bodies.erase(it);}
 State World::get(int id)const{
   const auto &r=impl->record(id);auto &b=impl->system.GetBodyInterface();JPH::RVec3 p;JPH::Quat q;b.GetPositionAndRotation(r.body,p,q);
   auto a=b.GetAngularVelocity(r.body);return {r.settings,poseOf(p,q),scene(b.GetLinearVelocity(r.body)),{a.GetX(),a.GetY(),a.GetZ()},r.held,!b.IsActive(r.body)};
@@ -102,7 +163,10 @@ void World::gravity(Vec3 v){finite(v);impl->system.SetGravity(linear(v));}
 void World::velocity(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.settings.type!=Type::Dynamic||r.held)throw std::invalid_argument("velocity requires an unheld dynamic body");impl->system.GetBodyInterface().SetLinearVelocity(r.body,linear(v));}
 void World::angularVelocity(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.settings.type!=Type::Dynamic||r.held)throw std::invalid_argument("angular velocity requires an unheld dynamic body");impl->system.GetBodyInterface().SetAngularVelocity(r.body,angular(v));}
 void World::impulse(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.settings.type!=Type::Dynamic||r.held)throw std::invalid_argument("impulse requires an unheld dynamic body");impl->system.GetBodyInterface().AddImpulse(r.body,linear(v));}
-void World::pose(int id,const Pose &p){finite(p);auto &r=impl->record(id);r.target=p;impl->system.GetBodyInterface().SetPositionAndRotation(r.body,linear(p.position),rotation(p),r.settings.type==Type::Static?JPH::EActivation::DontActivate:JPH::EActivation::Activate);r.samples.clear();}
+void World::pose(int id,const Pose &p){finite(p);auto &r=impl->record(id);
+  auto &b=impl->system.GetBodyInterface();
+  if((b.GetPosition(r.body)-linear(p.position)).LengthSq()>1e-12f||std::fabs(b.GetRotation(r.body).Dot(rotation(p)))<.999999f)impl->forgetContacts(id);
+  r.target=p;impl->system.GetBodyInterface().SetPositionAndRotation(r.body,linear(p.position),rotation(p),r.settings.type==Type::Static?JPH::EActivation::DontActivate:JPH::EActivation::Activate);r.samples.clear();}
 void World::hold(int id){auto &r=impl->record(id);if(r.held)return;r.target=get(id).pose;r.held=true;r.canThrow=true;r.samples.clear();if(r.settings.type==Type::Dynamic)impl->system.GetBodyInterface().SetMotionType(r.body,JPH::EMotionType::Kinematic,JPH::EActivation::Activate);}
 void World::cancelThrow(int id){if(contains(id)){auto &r=impl->record(id);r.canThrow=false;r.samples.clear();}}
 void World::release(int id,bool allowThrow){
@@ -117,6 +181,7 @@ void World::release(int id,bool allowThrow){
 }
 void World::target(int id,const Pose &p,double elapsed){
   finite(p);auto &r=impl->record(id);
+  if(r.held&&r.settings.type==Type::Static){pose(id,p);return;}
   if(r.held&&elapsed>0&&elapsed<=.1){
     JPH::Vec3 axis;float angle;auto delta=rotation(p)*rotation(r.target).Conjugated();if(delta.GetW()<0)delta=-delta;delta.GetAxisAngle(axis,angle);
     r.samples.push_back({elapsed,(linear(p.position)-linear(r.target.position))/float(elapsed),axis*(angle/float(elapsed))});
@@ -124,6 +189,14 @@ void World::target(int id,const Pose &p,double elapsed){
   }else if(r.held)r.samples.clear();
   r.target=p;
 }
+void World::collisionEvents(bool enabled,bool stay){
+  impl->stayEvents=stay;
+  if(enabled==impl->eventsEnabled)return;
+  impl->eventsEnabled=enabled;impl->contacts.clear();impl->seen.clear();impl->pending.clear();
+  impl->system.SetContactListener(enabled?impl.get():nullptr);
+  if(enabled)for(const auto &[id,r]:impl->bodies)if(r.settings.type!=Type::Static)impl->system.GetBodyInterface().ActivateBody(r.body);
+}
+std::vector<CollisionEvent> World::takeCollisionEvents(){auto events=std::move(impl->pending);impl->pending.clear();return events;}
 void World::advance(double elapsed){
   if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("physics time must be finite and nonnegative");
   impl->accumulator=std::min(impl->accumulator+elapsed,8*step);
@@ -133,7 +206,9 @@ void World::advance(double elapsed){
       if(r.settings.type==Type::Static)b.SetPositionAndRotation(r.body,linear(r.target.position),rotation(r.target),JPH::EActivation::DontActivate);
       else b.MoveKinematic(r.body,linear(r.target.position),rotation(r.target),float(step));
     }
+    impl->seen.clear();
     if(impl->system.Update(float(step),1,&impl->temporary,&impl->jobs)!=JPH::EPhysicsUpdateError::None)throw std::runtime_error("physics simulation capacity exceeded");
+    if(impl->eventsEnabled)impl->finishContacts();
     impl->accumulator-=step;
   }
 }
