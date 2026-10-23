@@ -123,6 +123,17 @@ int main(){
   fuse=JointSettings{};fuse.breakForce=20;link=pull.createJoint(1,2,fuse);pull.hold(2);pull.target(2,{{1,0,0}},1./90);tick(pull,1);
   CHECK(!pull.containsJoint(link)&&pull.get(2).held);tick(pull,1);CHECK(std::abs(pull.get(2).pose.position.x-1)<.001f);
   CHECK(pull.takeJointBreaks().size()==1);pull.release(2,false);tick(pull,5);CHECK(pull.takeJointBreaks().empty());
+  World pickup;body(pickup,1,Type::Static,{{0,.3f,0}});
+  Settings weight;weight.mass=.25f;pickup.set(2,weight,{}, {-.06f,-.06f,-.06f},{.06f,.06f,.06f});
+  fuse=JointSettings{};fuse.breakForce=40;fuse.anchor=Vec3{0,0,0};link=pickup.createJoint(1,2,fuse);tick(pickup,90);
+  pickup.hold(2);const auto resting=pickup.get(2).pose;
+  for(int frame=0;frame<45;frame++){
+    auto target=resting;target.position.x+=.015f*std::sin(float(frame)*.3f);target.roll+=.05f*std::sin(float(frame)*.2f);
+    pickup.target(2,target,1./90);pickup.advance(1./90);
+  }
+  CHECK(pickup.containsJoint(link));
+  auto deliberate=resting;deliberate.position.x+=.3f;pickup.target(2,deliberate,1./90);tick(pickup,10);
+  CHECK(!pickup.containsJoint(link)&&pickup.takeJointBreaks().size()==1);
   puts("PASS breakable joints: load threshold, impulse/torque fracture, held continuation, one-shot events and validation");
   puts("PASS springs: elastic extension, damped oscillation, gravity equilibrium, held release, validation and cleanup");
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");

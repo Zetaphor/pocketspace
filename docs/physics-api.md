@@ -248,7 +248,8 @@ emit break events. Reload discards pending events. Create a new joint to reconne
 objects or change a threshold; IDs are not reused within a scene.
 
 Run [breakable-joints.js](../scripts/breakable-joints.js) for a suspended blue box
-with a breakable fixed connection and a yellow ball with a breakable tether.
+with a 40 N breakable fixed connection at its center and a yellow ball with a
+10 N breakable tether.
 Grab and pull to release their connections, then drop them onto the floor. Either
 bumper reconnects and resets both when nothing is held.
 
