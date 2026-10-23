@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <optional>
+#include <span>
 #include <vector>
 
 // Public positions/linear vectors use scene coordinates (+Z forward). Angular
@@ -9,14 +10,17 @@ namespace physics {
 struct Vec3 {float x=0,y=0,z=0;};
 struct Pose {Vec3 position;float pitch=0,yaw=0,roll=0;};
 enum class Type { Static, Dynamic, Kinematic };
-enum class Shape { Box, Sphere };
+enum class Shape { Box, Sphere, Convex };
 struct Settings {
   Type type=Type::Dynamic;Shape shape=Shape::Box;
   float mass=1,friction=.5f,restitution=0,linearDamping=.05f,angularDamping=.05f,gravityFactor=1;
   std::optional<Vec3> halfExtents,offset;
   std::optional<float> radius;
 };
-struct Collider {Vec3 halfExtents,offset;float radius=0;};
+struct Collider {Vec3 halfExtents,offset;float radius=0;Vec3 centerOfMass;unsigned vertexCount=0;};
+// Vertices use normalized model coordinates (local +Z backward), before scale.
+// A key identifies immutable geometry within this World; cached calls may omit vertices.
+struct ConvexSource {int key=0;float scale=1;std::span<const Vec3> vertices;};
 struct State {
   Settings settings;Pose pose;Vec3 velocity,angularVelocity;
   bool held=false,sleeping=false;
@@ -33,7 +37,8 @@ class World {
 public:
   World();~World();
   World(const World&)=delete;World& operator=(const World&)=delete;
-  void set(int id,const Settings&,const Pose&,Vec3 low,Vec3 high);
+  void set(int id,const Settings&,const Pose&,Vec3 low,Vec3 high,ConvexSource source={});
+  bool hasConvexHull(int key) const;
   void remove(int id);
   bool contains(int id) const;
   State get(int id) const;
