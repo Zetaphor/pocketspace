@@ -19,6 +19,31 @@ returns unheld boxes to their starting area. The retained panel shows the number
 of touching object pairs and the latest contact's closing speed. There is no implicit floor or
 collision with the physical room; create static bodies for scene boundaries.
 
+## API coverage
+
+The engine's implemented physics capabilities are available to scripts through
+the following entry points:
+
+| Capability | JavaScript API |
+| --- | --- |
+| Body type, mass, friction, restitution, damping, gravity factor | `setObjectPhysics`, `getObjectPhysics` |
+| Box/sphere dimensions, model convex/mesh colliders, local offset and center of mass | `setObjectPhysics`, `getObjectPhysics`, `setObjectScale` |
+| Gravity | `setPhysicsGravity` |
+| Position and rotation; kinematic targets | `setObjectPosition`, `setObjectRotation`, `setObjectYaw` |
+| Linear/angular velocity and center-of-mass impulses | `setObjectVelocity`, `setObjectAngularVelocity`, `applyObjectImpulse` |
+| Fixed, hinge, and distance joints; spring and break settings | `createPhysicsJoint`, `getPhysicsJoint`, `setPhysicsJoint`, `removePhysicsJoint` |
+| Hinge position/velocity motors | `setPhysicsJointMotor`, `getPhysicsJoint` |
+| Contact and break notifications | `setPhysicsCollisionEvents`, `onInputEvent`, `pollInputEvents` |
+| Hand acquisition, joint-aware holding, release throwing and cancellation on input loss | `enableObjectInteraction`, `setObjectInteraction`; controller handling is automatic |
+| Held/sleeping/jointed body state | `getObjectPhysics` |
+| Body/joint cleanup and scene isolation | `removeObjectPhysics`, `removeObject`, `removePhysicsJoint`; scene reload cleans up automatically |
+
+Fixed stepping, collision-tree/hull caching, and event dispatch are managed by
+the host. Internal acquire/release and simulation-step methods are used by that
+host flow, rather than exposing a second script-controlled simulation clock.
+This covers our implemented physics layer; it is not a binding for the entire
+upstream Jolt library.
+
 ## Body configuration
 
 `setObjectPhysics(objectId, options = {})` creates or replaces a body and returns
@@ -199,12 +224,49 @@ can enforce the connection. They can resist hand motion at a hinge or distance
 limit. `getObjectPhysics(id).jointed` reports whether any joints are attached.
 Joints use an iterative solver, so small positional/angle errors under load are
 expected. Hinge motors and distance springs are configurable as described below.
-Runtime joint-limit/spring/threshold editing is not exposed; remove and recreate
-a joint to change its anchors or limits.
+Use `setPhysicsJoint` to update limits, springs, break thresholds, and connected
+collision policy. Remove and recreate a joint to change its type, anchors, or axis.
 
 Run [joints.js](../scripts/joints.js) for a blue hinged panel, a tethered yellow
 ball, and a red box welded to an avocado. Grip or trigger grabs the moving
 objects. Either bumper resets the assemblies when nothing is held.
+
+## Updating joints
+
+`setPhysicsJoint(id, options)` updates an existing joint in place and returns its
+state with the same ID, anchors, initial reference orientation, and motor mode.
+It accepts `minAngle`, `maxAngle`, `minDistance`, `maxDistance`, `spring`,
+`breakForce`, `breakTorque`, and `collideConnected`, with the same type-specific
+rules and ranges as creation. The options object is required. Omitted fields
+preserve their values. Type, anchors, and axis are creation-only; supplying them
+to this setter throws. Invalid updates leave the joint unchanged.
+
+```js
+setPhysicsJoint(tether, {minDistance: .5, maxDistance: .5});
+setPhysicsJoint(tether, {spring: {frequency: 3}});
+setPhysicsJoint(tether, {breakForce: 25});
+setPhysicsJoint(tether, {spring: null, breakForce: null});
+setPhysicsJoint(hinge, {minAngle: -.4, maxAngle: .4});
+```
+
+A partial `spring` object preserves existing nested values; when enabling a new
+spring, omitted values use the spring defaults. `spring: null` restores hard
+distance limits. Null break thresholds disable those failure modes. Distance
+limits require finite numbers; set both to the same value when changing a
+spring's resting length. A shortened length or tighter hinge limit is enforced
+by the solver on subsequent steps, without teleporting the bodies.
+
+Tightening hinge limits clamps a retained motor target angle into the new range,
+while retaining motor mode, speed, and tuning. Connected-body collision changes
+preserve pair suppression from other joints. Updates clear old solver impulses
+and wake the connected bodies. New break thresholds are evaluated after the next
+completed simulation step, so lowering a threshold under load can break a joint.
+Absent/broken IDs throw; use `getPhysicsJoint` to check first.
+
+Run [joint-controls.js](../scripts/joint-controls.js) to adjust a yellow weight's
+resting length and a blue panel's hinge limits with either bumper. A or X changes
+the spring between bouncy and firmer, more damped behavior. Grip/trigger grabs
+remain available while settings change.
 
 ## Breakable joints
 
@@ -245,7 +307,7 @@ older events in batches when full.
 The joint is already absent when the event is delivered, so `getPhysicsJoint`
 returns `null`. Explicit removal, body/object deletion, and scene reload do not
 emit break events. Reload discards pending events. Create a new joint to reconnect
-objects or change a threshold; IDs are not reused within a scene.
+objects; use `setPhysicsJoint` to change a live threshold; IDs are not reused within a scene.
 
 Run [breakable-joints.js](../scripts/breakable-joints.js) for a suspended blue box
 with a 25 N elastic connection and a yellow ball with an 18 N elastic tether.
@@ -282,8 +344,8 @@ fixed/hinge joints throw.
 
 `getPhysicsJoint(id).spring` reports the resolved settings. Springs use normal
 body sleeping, collision, grabbing, cleanup, and reload behavior. Their anchors
-are invisible, as with other joints. Remove and recreate the joint to change its
-resting length or spring settings. Spring forces are not capped by hinge motor
+are invisible, as with other joints. Use `setPhysicsJoint` to change its resting
+length or spring settings. Spring forces are not capped by hinge motor
 `maxTorque`; a spring distance joint has no motor.
 
 Run [springs.js](../scripts/springs.js) for a bouncy yellow ball and a more heavily
