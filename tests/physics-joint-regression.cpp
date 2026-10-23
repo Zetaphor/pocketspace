@@ -74,6 +74,23 @@ int main(){
   panel.hold(2);for(int i=0;i<90;i++){panel.target(2,{{.15f,0,0},1.57079632679f,-.5f,0},1./90);panel.advance(1./90);}
   CHECK(panel.joint(panelJoint).distance<.03f);panel.release(2,false);tick(panel,450);
   CHECK(std::abs(panel.joint(panelJoint).angle-.9f)<.04f);
+  // Reconstruct the rendered basis while a panel rotates through many turns
+  // at the Euler pitch singularity. Angle wrapping must not change its pose.
+  for(float pitch:{1.57079632679f,-1.57079632679f}){
+    World spinning;spinning.gravity({});body(spinning,1,Type::Static,{});
+    body(spinning,2,Type::Dynamic,{{0,0,0},pitch,0,0});
+    hinge.minAngle=-3.14159265359f;hinge.maxAngle=3.14159265359f;
+    const int joint=spinning.createJoint(1,2,hinge);
+    motor.mode=MotorMode::Velocity;motor.targetVelocity=pitch>0?.8f:-.8f;spinning.jointMotor(joint,motor);
+    for(int frame=0;frame<3000;frame++){
+      spinning.advance(1./90);const auto pose=spinning.get(2).pose;const float angle=spinning.joint(joint).angle;
+      const float cp=std::cos(pose.pitch),sp=std::sin(pose.pitch),cy=std::cos(pose.yaw),sy=std::sin(pose.yaw),cr=std::cos(pose.roll),sr=std::sin(pose.roll);
+      CHECK(std::abs(cy*cr+sy*sp*sr-std::cos(angle))<.0001f);
+      CHECK(std::abs(-sy*cr+cy*sp*sr+std::sin(angle))<.0001f);
+      CHECK(std::abs(-sp+std::sin(pitch))<.0001f);
+      CHECK(std::abs(cp)<.0001f);
+    }
+  }
   puts("PASS motors: position targets, wake/reversal, torque limit, signed velocity, hinge limits, off/coasting and atomic rejection");
   puts("PASS joints: fixed transforms, hinge limits and held pivot, distance range, cleanup, rebuild rejection, collision filtering and held removal");
 }
