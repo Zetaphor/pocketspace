@@ -9,7 +9,10 @@
 
 int main() {
   calibrationOutput = "/unused-example-calibration.json";
-  for (const auto &entry : std::filesystem::directory_iterator("scripts")) {
+  std::vector<std::filesystem::directory_entry> scenes;
+  for(const auto &entry:std::filesystem::directory_iterator("scripts"))scenes.push_back(entry);
+  scenes.emplace_back("tests/scenes/overlay-comparison.js");
+  for (const auto &entry : scenes) {
     if (entry.path().extension() != ".js") continue;
     ScriptHost host;
     assert(loadScript(host, entry.path().string()));
@@ -87,6 +90,22 @@ int main() {
       if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"grouped example: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);assert(handles.size()==initialHandles&&handles.count(-1)&&released==int(groupCount));
       reserveObjectOverlay={};releaseObjectOverlay={};
+    }
+    if(entry.path().filename()=="overlay-comparison.js"){
+      const char *source=R"(
+        for(const mode of ['single','grouped'])for(const kind of ['boxes','models']){
+          renderer=mode;geometry=kind;targetCount=96;resetScene();
+          if(objects.length!==96||getEngineStats().objectCount!==97||status)throw Error('comparison reset');
+          const expected=kind==='models'?'convex':'box';
+          if(getObjectPhysics(objects[0]).shape!==expected)throw Error('comparison collider');
+          setObjectPosition(objects[0],0,-1.3,0);nextPrune=0;update();
+          if(objects.length!==95||getEngineStats().objectCount!==96)throw Error('comparison cleanup');
+        }
+      )";
+      JSValue result=JS_Eval(host.ctx,source,strlen(source),"overlay-comparison-controls",JS_EVAL_TYPE_GLOBAL);
+      if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"comparison: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      std::set<int> groups;for(const auto &object:host.scene.objects)groups.insert(objectSurfaceKey(object));assert(groups.size()==5);
     }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
