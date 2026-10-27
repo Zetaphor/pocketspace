@@ -244,3 +244,27 @@ scheduling effects. These sampled sums are attribution evidence, not a replaceme
 for whole-render timing or a guarantee of the savings from removing a pass.
 Compare matching-storage pairs to assess instrumentation overhead before drawing
 throughput conclusions; differing dynamic allocations invalidate that comparison.
+
+## Opaque shader specialization experiment
+
+`opaque-shader-pixels` compares the general shader with specialized opaque color
+and texture-free opaque depth shaders. It checks 216 byte-identical views across
+stereo, rotations, group membership, Box/Avocado/ToyCar, material factors, sheen,
+masked holes, and blended materials. Masked/blended parts retain the general shader.
+
+```sh
+cmake --build build --target opaque-shader-pixels gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/opaque-shader-pixels
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-opaque-shaders.py --output /tmp/opaque-shader-comparison
+```
+
+The excluded `gpu-sync-experiment` accepts `SF_GPU_OPAQUE_SHADER=1` for native
+opaque-only benchmarks; it rejects scenes containing any masked/blended asset
+with exit status 13. The runner alternates baseline and specialized modes over
+two rounds, reverses case order, enables mesh cache optimization, retains logs,
+checks GPU timings/errors and object counts, and rejects pairs with differing
+buffer estimates. Both use the unchanged vertex shader, geometry, sampling,
+alpha convention, and producer completion wait. No production setting or API
+enables these shaders. See the [results and adoption decision](results/opaque-shaders.md).

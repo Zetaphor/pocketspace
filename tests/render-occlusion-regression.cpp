@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdlib>
 #include "../src/mesh_index.h"
+#include "opaque-shader-experiment.h"
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
@@ -14,7 +15,10 @@ struct Renderer {
   Scene scene;
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
-  Renderer(){
+  bool specialize=false;
+  std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
+  Renderer(bool specialization=false):specialize(specialization){
+    if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
     for(int i=0;i<3;i++)anchor.m[i][i]=1;
     auto v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);
@@ -64,7 +68,13 @@ struct Renderer {
         for(const auto &part:asset.primitives){
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
-          glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);drawModelPrimitive(part);
+          glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
+          const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
+          if(special){
+            special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
+            special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
+          }
+          drawModelPrimitive(part);if(special)glUseProgram(program);
         }
       }
     };

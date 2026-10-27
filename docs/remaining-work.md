@@ -28,16 +28,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Compare specialized opaque/depth-only shader paths with the current shared
-  material shader, preserving masked holes and blended-material behavior. The
-  [completed pass profile](../tests/results/render-passes.md) identifies opaque
-  drawing as the fixed dense scene's main GPU cost and additional occluder work
-  in adaptive grouping. It does not separate vertex, raster, and fragment costs;
-  require matched pixel and throughput evidence before adopting a shader change.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. Compare geometry
-  visibility, repeated occluder draws, batching/instancing and model LOD before
+  conservative primitive visibility, repeated occluder draws, batching/instancing and model LOD before
   choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
@@ -53,6 +47,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 These are deferred investigations, not unimplemented fixes ready to enable.
 
+- Revisit opaque/depth shader specialization only with evidence of a larger,
+  consistent benefit. The [completed comparison](../tests/results/opaque-shaders.md)
+  preserved pixels but produced small dense-scene gains and higher GPU times
+  in the lighter scene; production retains the general material shader.
 - Revisit scene-depth reuse only if profiling shows repeated occluder work remains
   costly after bounds culling. The [prototype investigation](../tests/results/shared-depth-prototype.md)
   is complete and did not justify adoption. A new design must establish compatible

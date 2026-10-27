@@ -63,6 +63,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-auto-split.py](compare-auto-split.py) | Bounded comparison of subdivision disabled/enabled on the same two-island scene. |
 | [compare-gpu-sync.py](compare-gpu-sync.py) | Bounded glFinish versus CPU-waited fence comparison using the instrumented engine. |
 | [compare-overlays.py](compare-overlays.py) | Single versus grouped rendering with matched box/model layouts and telemetry. |
+| [compare-opaque-shaders.py](compare-opaque-shaders.py) | Matched general versus specialized opaque/depth shader timing on moving models. |
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
 | [compare-vertex-cache.py](compare-vertex-cache.py) | Alternating mesh cache optimization off/on with matched instrumentation and allocation checks. |
 | [fast-motion.py](fast-motion.py) | Bounded continuously moving box/model workloads with throughput and error checks. |
@@ -73,6 +74,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [physics-benchmark.cpp](physics-benchmark.cpp) | Physics throughput across body counts, worker settings, and continuous collision modes. |
 | [render-stress-benchmark.cpp](render-stress-benchmark.cpp) | Fixed-view rendering workload for GPU/CPU cost measurement. |
 | [gpu-sync-pixels.cpp](gpu-sync-pixels.cpp) | Exact finished-pixel comparison between glFinish and CPU-waited fences. |
+| [opaque-shader-pixels.cpp](opaque-shader-pixels.cpp) | Exact pixel comparisons for opaque color/depth specialization, including masked and blended fallback. |
+| [opaque-shader-experiment.h](opaque-shader-experiment.h) | Test-only specialized shader programs and uniform setup; excluded from production builds. |
 | [gpu-sync-experiment.h](gpu-sync-experiment.h) | Test-only GPU timing and completion-wait instrumentation used by the excluded gpu-sync-experiment target. |
 | [shared-depth-prototype.cpp](shared-depth-prototype.cpp) | Offscreen feasibility and timing experiment for sharing a scene depth prepass; not an adopted renderer. |
 | [memory-sampler.c](memory-sampler.c) | Test-only glibc heap and process RSS sampler preloaded into a native run. |
@@ -124,6 +127,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [results/memory-reload.md](results/memory-reload.md) | Reload RSS growth attributed mainly to reusable free allocator space. |
 | [results/motion-soak.md](results/motion-soak.md) | Five-minute motion/reload stability check. |
 | [results/overlay-comparison.md](results/overlay-comparison.md) | Single/grouped rendering measurements and resolution caveats. |
+| [results/opaque-shaders.md](results/opaque-shaders.md) | Pixel validation and native timing of shader specialization; not adopted as the default. |
 | [results/regroup.md](results/regroup.md) | Tile merging/rebalancing measurements and lifecycle validation. |
 | [results/render-passes.md](results/render-passes.md) | GPU draw-pass attribution for dense moving models and instrumentation comparisons. |
 | [results/shared-depth-prototype.md](results/shared-depth-prototype.md) | Shared-depth prototype findings and requirements for any future adoption. |

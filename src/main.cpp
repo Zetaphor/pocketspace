@@ -1213,6 +1213,9 @@ static GLuint compile(GLenum type,const char *source) {
   if(!ok){char log[1024];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);fprintf(stderr,"shader error: %s\n",log);}
   return shader;
 }
+#ifdef SF_GPU_SYNC_EXPERIMENT
+#include "../tests/opaque-shader-experiment.h"
+#endif
 static void setVec3(GLint location,float x,float y,float z){glUniform3f(location,x,y,z);}
 static void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]){
   float length=0;
@@ -1899,6 +1902,10 @@ int main(int argc,char **argv) {
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
 #ifdef SF_GPU_SYNC_EXPERIMENT
   GpuSyncExperiment gpuSync;
+  const char *opaqueMode=std::getenv("SF_GPU_OPAQUE_SHADER");
+  const bool specializeOpaque=opaqueMode&&std::strcmp(opaqueMode,"1")==0;
+  std::unique_ptr<OpaqueExperimentProgram> opaqueExperiment,depthExperiment;
+  if(specializeOpaque){opaqueExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
 #endif
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto lastAnimationTick=std::chrono::steady_clock::now();
@@ -2158,6 +2165,7 @@ int main(int argc,char **argv) {
       int shrinkBudget=2;std::set<int> culledSurfaces;
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.begin();
+      if(specializeOpaque)for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives)if(part.alphaMode!=0){fprintf(stderr,"opaque shader experiment requires opaque-only assets\n");return 13;}
 #endif
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
@@ -2244,18 +2252,27 @@ int main(int argc,char **argv) {
           renderObjectLayers(id,[&](int targetId,int pass){
 #ifdef SF_GPU_SYNC_EXPERIMENT
             gpuSync.beginPass(pass);ScopeExit finishPass{[&]{gpuSync.endPass();}};
+            auto *special=specializeOpaque?(pass<0?depthExperiment.get():opaqueExperiment.get()):nullptr;
+            ScopeExit restoreProgram{[&]{if(special)glUseProgram(program);}};
+            if(special)special->view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
 #endif
             for(const auto &object:script.scene.objects){
               if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))continue;
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
-              glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
-              glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+              if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
+#endif
+              {glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+              glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);}
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
-                glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
-                glUniform3fv(sheenLocation,1,part.sheen);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                if(special)special->material(part);else
+#endif
+                {glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
+                glUniform3fv(sheenLocation,1,part.sheen);}
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 gpuSync.draw(part.vertexCount);
