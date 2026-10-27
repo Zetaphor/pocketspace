@@ -92,6 +92,16 @@ CPU/API, GLES, presentation mocks, examples, script-lifecycle, grab-button, and
 documentation checks passed. The final engine matched the benchmarked executable
 byte for byte. No persistent demo remains running.
 
+Headset validation failed: the interactive dynamic-body fixture became laggy,
+and pressing the wide/compact bumper was followed by a reported headset crash.
+The engine log shows multiple tiles growing to 4096 pixels per eye, repeated
+buffer allocation failures, and then SteamVR quitting. This supports memory
+pressure as a suspect, without establishing the compositor crash cause.
+The automated fixture used kinematic bodies and did not cover this falling-body
+path. The interactive fixture now also uses kinematic bodies so idle objects do
+not fall off the platform; aggregate allocation protection and resize-failure
+backoff still need work before another headset run. The demo remains stopped.
+
 Headset visual acceptance of these new policies is pending. Automatic grouping
 retains existing scene-order and coplanar-depth limitations; fixed groups remain
 available where scripts need direct control over compositor surfaces.

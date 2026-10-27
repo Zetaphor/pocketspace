@@ -28,6 +28,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
+- Harden grouped buffer allocation against excessive aggregate memory use and
+  repeated resize failures before repeating headset validation. The interactive
+  test exhausted buffer allocations as moving bodies inflated tile bounds.
 - Complete headset visual validation of the implemented tile merging and
   rebalancing policies with boxes and models. Automated validation and bounded
   native comparisons are complete; see the [validation record](../tests/results/regroup.md).
