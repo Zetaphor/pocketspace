@@ -138,3 +138,16 @@ own retained-canvas alpha convention.
 Group sampling density uses axial depth relative to the common plane, including
 its oblique angular magnification. Using radial object range instead inflates
 allocations for objects beside or below the view.
+
+`FrameBoundsCache` refreshes after script callbacks, manipulation, animation, and
+physics complete, before surface rendering. It transforms each visible object's
+current geometry bounds once per frame. Shared-plane groups reuse one angular
+projection per object/eye for layout and occluder tests; independent surfaces
+reuse world corners with their own projection axes. The shared cache basis must
+match `groupPlane`'s anchor-centered plane exactly.
+
+Cache entries follow the current object-vector order. Resolve entries only for
+visible objects belonging to that snapshot, and never use them across script
+mutations or a reload without calling `update` again. Animation poses use their
+current geometry bounds. Retain conservative near-plane fallback and viewport
+padding; projection reuse does not change buffers, sampling density, or shaders.

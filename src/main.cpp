@@ -1330,14 +1330,22 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
   }
 }
 struct ProjectedBounds {float x0=INFINITY,x1=-INFINITY,y0=INFINITY,y1=-INFINITY,near=INFINITY,far=-INFINITY;bool valid=true;};
-static ProjectedBounds projectedBounds(const Object &object,const ModelAsset &geometry,const vr::HmdMatrix34_t &anchor,const float eye[3],const float right[3],const float up[3],const float forward[3]){
-  ProjectedBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
+using WorldBounds=std::array<std::array<float,3>,8>;
+static WorldBounds worldBounds(const Object &object,const ModelAsset &geometry,const vr::HmdMatrix34_t &anchor){
+  WorldBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
   for(int corner=0;corner<8;corner++){
     float local[3],rotated[3]{},position[3]={object.x,object.y,object.z};
     for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?geometry.high[axis]:geometry.low[axis];
     for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
     for(int axis=0;axis<3;axis++)position[axis]+=object.scale*rotated[axis]*(axis==2?-1.f:1.f);
-    float ray[3];for(int row=0;row<3;row++)ray[row]=anchor.m[row][3]+anchor.m[row][0]*position[0]+anchor.m[row][1]*position[1]-anchor.m[row][2]*position[2]-eye[row];
+    for(int row=0;row<3;row++)result[corner][row]=anchor.m[row][3]+anchor.m[row][0]*position[0]+anchor.m[row][1]*position[1]-anchor.m[row][2]*position[2];
+  }
+  return result;
+}
+static ProjectedBounds projectWorldBounds(const WorldBounds &world,const float eye[3],const float right[3],const float up[3],const float forward[3]){
+  ProjectedBounds result;
+  for(const auto &corner:world){
+    float ray[3];for(int row=0;row<3;row++)ray[row]=corner[row]-eye[row];
     float x=0,y=0,d=0;for(int axis=0;axis<3;axis++){x+=ray[axis]*right[axis];y+=ray[axis]*up[axis];d+=ray[axis]*forward[axis];}
     if(d<=.05f){result.valid=false;return result;}
     result.x0=std::min(result.x0,x/d);result.x1=std::max(result.x1,x/d);result.y0=std::min(result.y0,y/d);result.y1=std::max(result.y1,y/d);
@@ -1345,6 +1353,31 @@ static ProjectedBounds projectedBounds(const Object &object,const ModelAsset &ge
   }
   return result;
 }
+static ProjectedBounds projectedBounds(const Object &object,const ModelAsset &geometry,const vr::HmdMatrix34_t &anchor,const float eye[3],const float right[3],const float up[3],const float forward[3]){
+  return projectWorldBounds(worldBounds(object,geometry,anchor),eye,right,up,forward);
+}
+struct FrameBoundsCache {
+  struct Entry {WorldBounds world;ProjectedBounds common[2];};
+  const Scene *scene=nullptr;std::vector<Entry> entries;
+  // Refresh only after callbacks, manipulation, animation and the physics barrier.
+  // Object references and entries remain stable for the following render phase.
+  void update(const Scene &source,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3]){
+    scene=&source;entries.resize(source.objects.size());
+    const bool grouped=std::any_of(source.objects.begin(),source.objects.end(),[](const Object &object){return object.visible&&object.renderGroup;});
+    auto plane=anchor;float right[3],up[3],forward[3];if(grouped)faceViewer(plane,anchor,head,right,up,forward);
+    for(size_t i=0;i<source.objects.size();i++){
+      const auto &object=source.objects[i];if(!object.visible)continue;
+      const auto &geometry=object.animationPose?object.animationPose->geometry:source.assets[size_t(object.asset)-1];
+      auto &entry=entries[i];entry.world=worldBounds(object,geometry,anchor);
+      if(grouped)for(int eye=0;eye<2;eye++)entry.common[eye]=projectWorldBounds(entry.world,eyes[eye],right,up,forward);
+    }
+  }
+  const Entry &entry(const Object &object)const{return entries[size_t(&object-scene->objects.data())];}
+  const ProjectedBounds &common(const Object &object,int eye)const{return entry(object).common[eye];}
+  ProjectedBounds project(const Object &object,const float eye[3],const float right[3],const float up[3],const float forward[3])const{
+    return projectWorldBounds(entry(object).world,eye,right,up,forward);
+  }
+};
 static bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &target){
   if(!occluder.valid||!target.valid)return true;
   constexpr float margin=1e-4f;
@@ -1385,13 +1418,13 @@ static int objectCropPixels(const ProjectedBounds bounds[2],const float center[3
 struct GroupLayout {float width=.55f;int pixels=128;ProjectedBounds bounds[2];bool limited=false;};
 // Project all members onto one plane for both eyes. Match the most demanding
 // member's reference angular density, rather than stretching a 768px texture.
-static GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels=4096){
+static GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels=4096,const FrameBoundsCache *cache=nullptr){
   GroupLayout result;float extent=0,density=0;
   for(int eye=0;eye<2;eye++){
     float plane=0,cx=0,cy=0;for(int axis=0;axis<3;axis++){const float delta=center[axis]-eyes[eye][axis];plane+=delta*forward[axis];cx+=delta*right[axis];cy+=delta*up[axis];}
     for(const auto *object:members){
       const auto &asset=scene.assets[size_t(object->asset)-1];const auto &geometry=object->animationPose?object->animationPose->geometry:asset;
-      const auto bounds=projectedBounds(*object,geometry,anchor,eyes[eye],right,up,forward);
+      const auto bounds=cache?cache->common(*object,eye):projectedBounds(*object,geometry,anchor,eyes[eye],right,up,forward);
       auto &combined=result.bounds[eye];combined.valid=combined.valid&&bounds.valid;
       combined.x0=std::min(combined.x0,bounds.x0);combined.x1=std::max(combined.x1,bounds.x1);combined.y0=std::min(combined.y0,bounds.y0);combined.y1=std::max(combined.y1,bounds.y1);combined.near=std::min(combined.near,bounds.near);combined.far=std::max(combined.far,bounds.far);
       if(bounds.valid&&plane>.05f)extent=std::max({extent,std::abs(plane*bounds.x0-cx),std::abs(plane*bounds.x1-cx),std::abs(plane*bounds.y0-cy),std::abs(plane*bounds.y1-cy)});
@@ -1416,7 +1449,7 @@ struct GroupPlane {
 };
 // All grouped tiles lie on one plane. Otherwise late head-pose reprojection
 // moves an occluder's color and its cutout in another tile by different amounts.
-static GroupPlane groupPlane(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3]){
+static GroupPlane groupPlane(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache *cache=nullptr){
   GroupPlane result;result.transform=anchor;
   faceViewer(result.transform,anchor,head,result.right,result.up,result.forward);
   float lowX=INFINITY,highX=-INFINITY,lowY=INFINITY,highY=-INFINITY;bool valid=true;
@@ -1426,7 +1459,7 @@ static GroupPlane groupPlane(const std::vector<const Object*> &members,const Sce
     if(distance<=.05f){valid=false;break;}
     for(const auto *object:members){
       const auto &asset=scene.assets[size_t(object->asset)-1];const auto &geometry=object->animationPose?object->animationPose->geometry:asset;
-      const auto bounds=projectedBounds(*object,geometry,anchor,eyes[eye],result.right,result.up,result.forward);
+      const auto bounds=cache?cache->common(*object,eye):projectedBounds(*object,geometry,anchor,eyes[eye],result.right,result.up,result.forward);
       if(!bounds.valid){valid=false;break;}
       lowX=std::min(lowX,eyeX+distance*bounds.x0);highX=std::max(highX,eyeX+distance*bounds.x1);
       lowY=std::min(lowY,eyeY+distance*bounds.y0);highY=std::max(highY,eyeY+distance*bounds.y1);
@@ -1672,7 +1705,7 @@ int main(int argc,char **argv) {
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  std::vector<Surface*> ready;
+  std::vector<Surface*> ready;FrameBoundsCache frameBounds;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto lastAnimationTick=std::chrono::steady_clock::now();
@@ -1856,6 +1889,7 @@ int main(int argc,char **argv) {
         const auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
         for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
       }
+      frameBounds.update(script.scene,anchor,head,eyes);
       ready.clear();
       ready.reserve(surfaces.size());
       for(const auto &panelData:script.scene.panels){
@@ -1875,7 +1909,7 @@ int main(int argc,char **argv) {
         auto panel=anchor;
         float panelRight[3],panelUp[3],panelForward[3];
         if(id<0){
-          const auto projection=groupPlane(members,script.scene,anchor,head,eyes);
+          const auto projection=groupPlane(members,script.scene,anchor,head,eyes,&frameBounds);
           panel=projection.transform;surfaceX=projection.sceneOrigin[0];surfaceY=projection.sceneOrigin[1];surfaceZ=projection.sceneOrigin[2];
           std::copy_n(projection.right,3,panelRight);std::copy_n(projection.up,3,panelUp);std::copy_n(projection.forward,3,panelForward);
           for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+member->scale*objectRadius(*member)));}
@@ -1890,12 +1924,11 @@ int main(int argc,char **argv) {
           if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] hide id=%d error=%d\n",id,int(error));
           continue;
         }
-        const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
-        ProjectedBounds targetBounds[2];for(int eye=0;eye<2;eye++)targetBounds[eye]=projectedBounds(*target,targetGeometry,anchor,eyes[eye],panelRight,panelUp,panelForward);
-        int crop=objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels);
+        ProjectedBounds targetBounds[2];if(id>0)for(int eye=0;eye<2;eye++)targetBounds[eye]=frameBounds.project(*target,eyes[eye],panelRight,panelUp,panelForward);
+        int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels):surface->referenceEyePixels;
         if(id<0){
-          const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels);
+          const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels,&frameBounds);
           if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",-id,maxGroupPixels);
           surface->resolutionLimited=layout.limited;
           animatedWidth=layout.width;crop=layout.pixels;
@@ -1929,8 +1962,7 @@ int main(int argc,char **argv) {
           renderObjectLayers(id,[&](int targetId,int pass){
             for(const auto &object:script.scene.objects){
               if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))continue;
-              const auto &geometry=object.animationPose?object.animationPose->geometry:script.scene.assets[size_t(object.asset)-1];
-              if(pass<0&&!mayOcclude(projectedBounds(object,geometry,anchor,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
+              if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);

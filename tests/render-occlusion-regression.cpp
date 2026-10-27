@@ -61,7 +61,7 @@ struct Renderer {
   }
   ~Renderer(){for(auto [part,buffer]:expandedBuffers)glDeleteBuffers(1,&buffer);for(auto &asset:scene.assets)deleteModel(asset);glDeleteRenderbuffers(1,&depth);glDeleteTextures(1,&color);glDeleteFramebuffers(1,&fbo);glDeleteProgram(program);}
   void vector(const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
-  std::vector<unsigned char> render(int id,physics::Vec3 headScene,int eyeIndex,bool occlusion,bool bounds,int &sample,bool scissor=false,bool crop=false,bool expanded=false){
+  std::vector<unsigned char> render(int id,physics::Vec3 headScene,int eyeIndex,bool occlusion,bool bounds,int &sample,bool scissor=false,bool crop=false,bool expanded=false,bool cached=false){
     auto &target=scene.objects[size_t(id)-1];
     auto panel=anchor,head=anchor;
     panel.m[0][3]=target.x;panel.m[1][3]=target.y;panel.m[2][3]=-target.z;
@@ -73,17 +73,18 @@ struct Renderer {
     const float referenceWidth=std::max(.55f,target.scale*2.1f);
     const float center[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
     float eyes[2][3]={{head.m[0][3]-.032f,head.m[1][3],head.m[2][3]},{head.m[0][3]+.032f,head.m[1][3],head.m[2][3]}};
-    ProjectedBounds both[2];for(int i=0;i<2;i++)both[i]=projectedBounds(target,scene.assets[target.asset-1],anchor,eyes[i],r,u,f);
+    FrameBoundsCache frameBounds;if(cached)frameBounds.update(scene,anchor,head,eyes);
+    ProjectedBounds both[2];for(int i=0;i<2;i++)both[i]=cached?frameBounds.project(target,eyes[i],r,u,f):projectedBounds(target,scene.assets[target.asset-1],anchor,eyes[i],r,u,f);
     const int size=crop?objectCropPixels(both,center,eyes,r,u,f,referenceWidth,pixels):pixels;
     const float width=referenceWidth*size/pixels;glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),width*.5f);
     glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(eyeIndex*pixels,0,size,size);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    const auto targetBounds=projectedBounds(target,scene.assets[size_t(target.asset)-1],anchor,eye,r,u,f);
+    const auto targetBounds=cached?frameBounds.project(target,eye,r,u,f):projectedBounds(target,scene.assets[size_t(target.asset)-1],anchor,eye,r,u,f);
     auto draw=[&](int targetId,int pass){
       if(pass<0&&!occlusion)return;
       for(const auto &object:scene.objects){
         if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
         const auto &asset=scene.assets[size_t(object.asset)-1];
-        if(pass<0&&bounds&&!mayOcclude(projectedBounds(object,asset,anchor,eye,r,u,f),targetBounds))continue;
+        if(pass<0&&bounds&&!mayOcclude(cached?frameBounds.project(object,eye,r,u,f):projectedBounds(object,asset,anchor,eye,r,u,f),targetBounds))continue;
         glUniform1f(glGetUniformLocation(program,"yaw"),object.yaw);glUniform1f(glGetUniformLocation(program,"pitch"),object.pitch);glUniform1f(glGetUniformLocation(program,"roll"),object.roll);
         glUniform1f(glGetUniformLocation(program,"modelScale"),object.scale);vector("offset",object.x-target.x,object.y-target.y,object.z-target.z);
         for(const auto &part:asset.primitives){
@@ -184,7 +185,7 @@ int main(){
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{0,.1f,-1.2f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto old=renderer.render(1,head,eye,false,false,sample);assert(old[sample+3]>250);
       auto fixed=renderer.render(1,head,eye,true,true,sample);assert(fixed[sample+3]==0);
-      auto reference=renderer.render(1,head,eye,true,false,ignored);assert(fixed==reference);
+      auto reference=renderer.render(1,head,eye,true,false,ignored);assert(fixed==reference);assert(fixed==renderer.render(1,head,eye,true,true,ignored,true,false,false,true));
       assert(fixed==renderer.render(1,head,eye,true,true,ignored,true,true));
       assert(fixed==renderer.render(1,head,eye,true,true,ignored,true));
       auto box=renderer.render(3,head,eye,true,true,sample);assert(box[sample+3]>250);assert(box==renderer.render(3,head,eye,true,true,ignored,true));cases++;
@@ -268,7 +269,9 @@ int main(){
     for(int id:{3,4,5})for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{0,-.32f,-.08f}})for(int eye=0;eye<2;eye++){
       auto full=renderer.render(id,head,eye,true,true,ignored,true,false,true);
       assert(full==renderer.render(id,head,eye,true,true,ignored,true));
+      assert(full==renderer.render(id,head,eye,true,true,ignored,true,false,false,true));
       auto cropped=renderer.render(id,head,eye,true,true,ignored,true,true);
+      assert(cropped==renderer.render(id,head,eye,true,true,ignored,true,true,false,true));
       int differences=0,maxError=0;for(size_t i=0;i<full.size();i++){int error=std::abs(int(full[i])-int(cropped[i]));maxError=std::max(maxError,error);if(error>1)++differences;}
       if(differences)fprintf(stderr,"crop id=%d eye=%d differences=%d max_error=%d\n",id,eye,differences,maxError);
       assert(differences==0);

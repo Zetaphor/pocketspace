@@ -111,7 +111,8 @@ detailed models, animated instances, and static scenery together.
 For example, these are alternative ways to create the same content:
 
 ```js
-// Independent surfaces: each object retains native rectangular pointer input.
+// Independent surfaces: native rectangular input can be enabled per object.
+createObject(floorAsset, 0, -.55, 0, 1.2);
 createObject(boxAsset, -.2, 0, 0, .14);
 createObject(carAsset,  .2, 0, 0, .14, {renderGroup: 0});
 ```
@@ -130,7 +131,9 @@ createObject(boxAsset, -.2, 0, 0, .14, {renderGroup: 1});
 createObject(carAsset,  .2, 0, 0, .14, {renderGroup: 2});
 ```
 
-Group IDs are scene-local integer labels from 1 through 256, not object IDs.
+Configure physics and grabbing per instance with `setObjectPhysics` and
+`enableObjectInteraction` as usual. Group IDs are scene-local integer labels
+from 1 through 256, not object IDs.
 Membership is fixed at creation. Changing an object's group requires removing
 and recreating it; the new object has a new ID, and physics, interaction, and
 animation settings must be applied again. Existing objects are never migrated
