@@ -1,5 +1,7 @@
 # Rendering comparison experiment
 
+See the [test index](index.md) for a brief description of every test and helper.
+
 This experiment leaves the published examples and engine defaults unchanged.
 Run from the repository root on the VR runtime host:
 
