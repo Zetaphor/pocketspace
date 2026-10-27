@@ -28,7 +28,7 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Deferred performance work
 
-- Reuse scene depth across overlapping object surfaces as counts grow, preserving
+- Reuse scene depth across different object surfaces as counts grow, preserving
   per-eye opaque/masked occlusion.
 - Preserve shared vertices and use indexed rendering rather than expanded
   triangle streams.

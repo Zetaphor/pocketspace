@@ -4,7 +4,8 @@ A Linux/OpenVR engine for scripted stereo overlays alongside a VR application.
 QuickJS scripts place GLB models, play node and skeletal animations, grab objects
 with either controller, simulate rigid-body physics and connected mechanisms,
 draw interactive panels, and read controller and eye data.
-Each object has its own stereo surface with three DMA-BUF render buffers.
+Each object has its own stereo surface with three DMA-BUF color buffers
+and one shared depth attachment.
 
 ## Build and run
 

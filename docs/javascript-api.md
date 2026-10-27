@@ -27,7 +27,8 @@ the GPU. Scene counts are current at the time of the query.
 FPS, CPU, RAM, and memory estimates are `null` until sampled. Unavailable measured
 counters remain `null`. The GPU estimate excludes driver/compositor overhead,
 allocator padding except measured color-buffer stride, and small utility textures.
-It assumes four bytes per depth pixel and is not measured GPU residency. RAM and
+It assumes four bytes per depth pixel, counts shared depth attachments once,
+and is not measured GPU residency. RAM and
 GPU values can overlap on systems with shared memory; do not add them together.
 Steam Frame GPU memory uses shared system RAM rather than a separate VRAM pool.
 
@@ -66,7 +67,9 @@ is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
 GPU time and memory; there is no shared scene-wide surface. Opaque and
 alpha-masked models occlude one another using per-eye geometry depth before
-surface submission. Masked holes remain transparent. Blended materials are not
+surface submission. Occluder drawing is limited to conservative target bounds;
+near-plane cases retain the full viewport. Each object keeps three independent
+color buffers and reuses one depth attachment while rendering them. Masked holes remain transparent. Blended materials are not
 opaque occluders; ordering between blended surfaces remains compositor-dependent.
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color

@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <set>
 #include <string>
 #include <utility>
 #include <functional>
@@ -38,7 +39,7 @@
 #include "runtime_stats.h"
 
 constexpr int kDefaultEyePixels=768;
-struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;};
+struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
 struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
@@ -932,7 +933,11 @@ static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface)
   surface=eglCreatePbufferSurface(display,config,surfAttrs);
   return eglMakeCurrent(display,surface,surface,context)==EGL_TRUE;
 }
-static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixels) {
+static void makeDepthStorage(Buffer &buffer,int width,int height,GLuint sharedDepth=0){
+  buffer.depth=sharedDepth;
+  if(!buffer.depth){glGenRenderbuffers(1,&buffer.depth);buffer.ownsDepth=true;glBindRenderbuffer(GL_RENDERBUFFER,buffer.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,width,height);}
+}
+static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixels,GLuint sharedDepth=0) {
   const int width=2*eyePixels,height=eyePixels;
   b.bo=gbm_bo_create(gbm,width,height,GBM_FORMAT_ABGR8888,GBM_BO_USE_RENDERING|GBM_BO_USE_LINEAR);
   if(!b.bo||(b.fd=gbm_bo_get_fd(b.bo))<0)return false;
@@ -945,7 +950,7 @@ static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixel
   b.image=createImage(display,EGL_NO_CONTEXT,EGL_LINUX_DMA_BUF_EXT,nullptr,attrs);
   if(b.image==EGL_NO_IMAGE_KHR){fprintf(stderr,"eglCreateImage error=%x\n",(unsigned)eglGetError());return false;}
   glGenRenderbuffers(1,&b.color);glBindRenderbuffer(GL_RENDERBUFFER,b.color);imageRenderbuffer(GL_RENDERBUFFER,b.image);
-  glGenRenderbuffers(1,&b.depth);glBindRenderbuffer(GL_RENDERBUFFER,b.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,width,height);
+  makeDepthStorage(b,width,height,sharedDepth);
   glGenFramebuffers(1,&b.fbo);glBindFramebuffer(GL_FRAMEBUFFER,b.fbo);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,b.color);
   glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,b.depth);
@@ -953,7 +958,7 @@ static bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixel
 }
 static void destroyBuffer(Buffer &buffer,EGLDisplay display){
   if(buffer.fbo)glDeleteFramebuffers(1,&buffer.fbo);
-  if(buffer.depth)glDeleteRenderbuffers(1,&buffer.depth);
+  if(buffer.depth&&buffer.ownsDepth)glDeleteRenderbuffers(1,&buffer.depth);
   if(buffer.color)glDeleteRenderbuffers(1,&buffer.color);
   if(buffer.image!=EGL_NO_IMAGE_KHR)destroyImage(display,buffer.image);
   if(buffer.handle)vr::VRIPCResourceManager()->UnrefResource(buffer.handle);
@@ -993,7 +998,13 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
     overlays->SetOverlayIntersectionMask(surface.overlay,&mask,1);
     vr::HmdVector2_t scale{{1,1}};overlays->SetOverlayMouseScale(surface.overlay,&scale);
   }
-  for(auto &buffer:surface.buffers)if(!makeBuffer(buffer,gbm,display,eyePixels)){fprintf(stderr,"[surface] buffer id=%d failed\n",id);return false;}
+  // The compositor imports color only. Rendering is ordered on one GL context,
+  // so the three color FBOs can reuse one depth attachment without extra fences.
+  GLuint sharedDepth=0;
+  for(auto &buffer:surface.buffers){
+    if(!makeBuffer(buffer,gbm,display,eyePixels,sharedDepth)){fprintf(stderr,"[surface] buffer id=%d failed\n",id);return false;}
+    sharedDepth=buffer.depth;
+  }
   fprintf(stdout,"[surface] created id=%d width=%.3f eye_px=%d\n",id,width,eyePixels);fflush(stdout);
   return true;
 }
@@ -1197,11 +1208,31 @@ static bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &ta
   constexpr float margin=1e-4f;
   return occluder.near<=target.far+margin&&occluder.x1+margin>=target.x0&&occluder.x0-margin<=target.x1&&occluder.y1+margin>=target.y0&&occluder.y0-margin<=target.y1;
 }
+struct ScissorRegion {int x=0,y=0,width=0,height=0;};
+// Convert the target's conservative angular bounds to its overlay pixels.
+// Invalid/near-plane bounds retain the full viewport. Padding covers raster edges.
+static ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float center[3],const float eye[3],const float right[3],const float up[3],const float forward[3],float halfWidth,int pixels){
+  const ScissorRegion full{0,0,pixels,pixels};
+  if(!bounds.valid||halfWidth<=0)return full;
+  float plane=0,centerX=0,centerY=0;
+  for(int axis=0;axis<3;axis++){const float delta=center[axis]-eye[axis];plane+=delta*forward[axis];centerX+=delta*right[axis];centerY+=delta*up[axis];}
+  if(plane<=0)return full;
+  const float x0=((plane*bounds.x0-centerX)/halfWidth*.5f+.5f)*pixels;
+  const float x1=((plane*bounds.x1-centerX)/halfWidth*.5f+.5f)*pixels;
+  const float y0=((plane*bounds.y0-centerY)/halfWidth*.5f+.5f)*pixels;
+  const float y1=((plane*bounds.y1-centerY)/halfWidth*.5f+.5f)*pixels;
+  if(!std::isfinite(x0)||!std::isfinite(x1)||!std::isfinite(y0)||!std::isfinite(y1))return full;
+  const int lowX=int(std::floor(std::clamp(x0-2,0.f,float(pixels)))),lowY=int(std::floor(std::clamp(y0-2,0.f,float(pixels))));
+  const int highX=int(std::ceil(std::clamp(x1+2,0.f,float(pixels)))),highY=int(std::ceil(std::clamp(y1+2,0.f,float(pixels))));
+  return {lowX,lowY,std::max(0,highX-lowX),std::max(0,highY-lowY)};
+}
 // Occluders write depth only; masked holes keep their alpha-test behavior.
 // Blended surfaces must not become opaque occluders.
-template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw){
+template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw,const ScissorRegion *region=nullptr){
+  if(region){glEnable(GL_SCISSOR_TEST);glScissor(region->x,region->y,region->width,region->height);}
   glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glDepthMask(GL_TRUE);glDisable(GL_BLEND);
   draw(targetId,-1);
+  if(region)glDisable(GL_SCISSOR_TEST);
   glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
   for(int pass=0;pass<2;pass++){
     if(pass){glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}
@@ -1627,6 +1658,9 @@ int main(int argc,char **argv) {
           setVec3(eyeLocation,eyes[i][0],eyes[i][1],eyes[i][2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
           const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
           const auto targetBounds=projectedBounds(*target,targetGeometry,anchor,eyes[i],panelRight,panelUp,panelForward);
+          const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
+          auto region=projectedScissor(targetBounds,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
+          region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
             for(const auto &object:script.scene.objects){
               if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
@@ -1647,7 +1681,7 @@ int main(int argc,char **argv) {
                 glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
               }
             }
-          });
+          },&region);
         }
         ready.push_back(surface.get());
       }
@@ -1668,11 +1702,11 @@ int main(int argc,char **argv) {
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
     if(engineStats.update(++diagnosticFrames)){
-      uint64_t bytes=0;
+      uint64_t bytes=0;std::set<GLuint> countedDepth;
       for(const auto &[id,surface]:surfaces)for(const auto &buffer:surface->buffers){
         const uint64_t height=surface->eyePixels,width=2*height;
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
-        if(buffer.depth)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
+        if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=part.vertices.size()*sizeof(float);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=part.vertices.size()*sizeof(float);

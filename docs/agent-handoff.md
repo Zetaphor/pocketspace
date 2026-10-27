@@ -40,3 +40,9 @@ RAM, and FPS, optional GPU driver totals, and the separate GPU allocation estima
 The [stress scene](../scripts/stress.js) includes controller spawning, a HUD,
 and automatic removal of fallen/distant objects. Its shared model assets remain
 cached until scene replacement, while instance resources are released on removal.
+
+Object surfaces retain three compositor-facing color buffers and one owned depth
+attachment shared by their FBOs. Only color is imported by the compositor; keep
+`glFinish` and color ownership rules intact. GPU allocation estimates deduplicate
+the shared depth IDs. Depth occluders are scissored to padded, conservative target
+bounds per eye, with full-viewport fallback for near-plane/invalid bounds.

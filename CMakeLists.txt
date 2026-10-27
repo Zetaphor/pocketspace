@@ -26,7 +26,8 @@ add_executable(animation-regression EXCLUDE_FROM_ALL tests/animation-regression.
 add_executable(examples-regression EXCLUDE_FROM_ALL tests/examples-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 add_executable(physics-api-regression EXCLUDE_FROM_ALL tests/physics-api-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 add_executable(render-occlusion-regression EXCLUDE_FROM_ALL tests/render-occlusion-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
-foreach(engine_target render-occlusion-regression sf-overlay-engine lifecycle-script-regression animation-regression examples-regression physics-api-regression)
+add_executable(render-stress-benchmark EXCLUDE_FROM_ALL tests/render-stress-benchmark.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
+foreach(engine_target render-stress-benchmark render-occlusion-regression sf-overlay-engine lifecycle-script-regression animation-regression examples-regression physics-api-regression)
   target_include_directories(${engine_target} PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${DRM_INCLUDE})
   target_link_directories(${engine_target} PRIVATE ${STEAMVR_BIN})
   target_link_libraries(${engine_target} PRIVATE sf-physics openvr_api ${QJS_LIB} Freetype::Freetype pthread EGL GLESv2 gbm drm m)
@@ -41,3 +42,5 @@ target_compile_options(examples-regression PRIVATE -UNDEBUG)
 target_compile_options(physics-api-regression PRIVATE -UNDEBUG)
 
 target_compile_options(render-occlusion-regression PRIVATE -UNDEBUG)
+
+target_compile_options(render-stress-benchmark PRIVATE -UNDEBUG)
