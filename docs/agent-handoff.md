@@ -182,3 +182,13 @@ hide the child and retry. Before writing a pending child's buffers, retry hiding
 it; skip writes if hiding fails. Keep only one pending split, reset it on reload,
 and include every retained generation in resource estimates. Removal/visibility
 changes may eliminate either pending tile; resolve keys again before submission.
+
+
+GPU completion profiling is isolated behind `SF_GPU_SYNC_EXPERIMENT` in the
+excluded `gpu-sync-experiment` target. Normal builds keep `glFinish` and compile
+out its environment options, GPU queries, and alternate fence wait. See the
+[contract review and comparison](../tests/results/gpu-sync.md) before revisiting
+synchronization: a producer-complete fence does not acknowledge compositor
+consumption, and `WaitFrameSync` is pacing rather than ownership. Preserve the
+existing buffer lifetime behavior; do not treat three buffers or successful
+visual tests as proof of consumer completion.

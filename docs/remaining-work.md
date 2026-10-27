@@ -37,7 +37,8 @@ This roadmap contains future work, without prescribing an implementation order.
 - Revisit scene-depth reuse only when profiling shows repeated occluder work
   remains costly after bounds culling; require compatible pixel grids and correct
   equal-depth ownership while preserving per-eye opaque/masked occlusion.
-- Investigate GPU/shared-texture synchronization with explicit compositor
-  ownership and buffer-reuse guarantees before replacing `glFinish`.
+- Establish explicit producer/compositor ownership, buffer-reuse, and latency
+  guarantees before attempting asynchronous shared-texture submission. Retain
+  `glFinish` unless a replacement demonstrates a repeatable measured benefit.
 - Profile rendering time, GPU/shared memory, overlay count, and per-eye resolution
   as scenes grow; use measurements to choose the next optimization.
