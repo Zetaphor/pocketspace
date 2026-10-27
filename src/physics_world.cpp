@@ -4,6 +4,7 @@
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
+#include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
@@ -22,6 +23,10 @@
 #include <cmath>
 #include <deque>
 #include <map>
+#include <set>
+#include <mutex>
+#include <thread>
+#include <chrono>
 #include <stdexcept>
 
 namespace physics {
@@ -83,7 +88,7 @@ struct PairFilter final:JPH::ObjectLayerPairFilter {
 };
 }
 // The listener only records immutable solver data. JavaScript runs later, after
-// Update has released body locks. The job system is explicitly single-threaded.
+// Update has released body locks. Contact aggregation is protected for workers.
 struct World::Impl : JPH::ContactListener {
   struct JointFilter final : JPH::GroupFilter {
     std::map<std::pair<int,int>,unsigned> blocked;
@@ -93,12 +98,13 @@ struct World::Impl : JPH::ContactListener {
   };
   JPH::Ref<JointFilter> jointFilter=new JointFilter;
   struct Joint {JointState state;JPH::Ref<JPH::TwoBodyConstraint> constraint;JPH::Vec3 localA,localB;};
-  std::map<int,Joint> joints;int nextJoint=1;
+  std::map<int,Joint> joints;std::map<int,std::set<int>> connections;int nextJoint=1;
   std::vector<JointBreak> breaks;
   struct Sample {double duration;JPH::Vec3 velocity,angular;};
-  struct Record {JPH::BodyID body;Settings settings;Pose target;Collider collider;bool held=false,canThrow=true;std::deque<Sample> samples;};
+  struct Record {JPH::BodyID body;Settings settings;Pose target;Collider collider;bool held=false,canThrow=true,syncDirty=true;std::deque<Sample> samples;};
   using Pair=std::pair<JPH::uint32,JPH::uint32>;
   struct Contact {CollisionEvent event;JPH::BodyID a,b;};
+  std::mutex contactMutex;
   bool eventsEnabled=false,stayEvents=false;
   std::map<Pair,Contact> contacts,seen;
   std::vector<CollisionEvent> pending;
@@ -127,6 +133,7 @@ struct World::Impl : JPH::ContactListener {
     event.point=scene(point);event.normal=scene(reversed?-normal:normal);
     event.penetration=std::max(0.f,m.mPenetrationDepth);
     event.relativeSpeed=std::max(0.f,(a.GetPointVelocity(point)-b.GetPointVelocity(point)).Dot(normal));
+    std::lock_guard lock(contactMutex);
     auto [it,inserted]=seen.emplace(key,contact);
     if(!inserted){
       const float speed=std::max(event.relativeSpeed,it->second.event.relativeSpeed);
@@ -157,6 +164,7 @@ struct World::Impl : JPH::ContactListener {
   }
   BroadPhase broad;BroadFilter broadFilter;PairFilter pairs;
   JPH::TempAllocatorImpl temporary{8*1024*1024};JPH::JobSystemSingleThreaded jobs{2048};
+  std::unique_ptr<JPH::JobSystemThreadPool> pool;int workerSetting=-1;Performance perf;
   std::map<int,JPH::RefConst<JPH::ConvexHullShape>> hulls;
   struct Mesh {JPH::RefConst<JPH::Shape> shape;unsigned triangles;};
   std::map<int,Mesh> meshes;
@@ -166,7 +174,7 @@ struct World::Impl : JPH::ContactListener {
   void refreshMotorSleep(int id){
     auto &r=record(id);if(r.settings.type==Type::Static)return;
     bool powered=false;
-    for(const auto &[key,j]:joints)if((j.state.objectA==id||j.state.objectB==id)&&j.state.motor.mode!=MotorMode::Off&&j.state.motor.maxTorque>0){powered=true;break;}
+    for(int key:connections[id]){const auto &j=joints.at(key);if(j.state.motor.mode!=MotorMode::Off&&j.state.motor.maxTorque>0){powered=true;break;}}
     system.GetBodyLockInterfaceNoLock().TryGetBody(r.body)->SetAllowSleeping(!powered);
   }
 };
@@ -176,8 +184,7 @@ bool World::contains(int id)const{return impl->bodies.contains(id);}
 bool World::hasConvexHull(int key)const{return impl->hulls.contains(key);}
 bool World::hasMesh(int key)const{return impl->meshes.contains(key);}
 void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,GeometrySource source){
-  for(const auto &[jointId,joint]:impl->joints)if(joint.state.objectA==id||joint.state.objectB==id)
-    throw std::invalid_argument("remove attached joints before replacing or scaling a physics body");
+  if(hasJoints(id))throw std::invalid_argument("remove attached joints before replacing or scaling a physics body");
   if(s.shape==Shape::Mesh&&s.type!=Type::Static)throw std::invalid_argument("mesh collider requires type static");
   finite(p);finite(low);finite(high);bounded(s.mass,.001f,10000);bounded(s.friction,0,1);bounded(s.restitution,0,1);
   bounded(s.linearDamping,0,1);bounded(s.angularDamping,0,1);bounded(s.gravityFactor,0,10);
@@ -256,7 +263,7 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Geomet
   settings.mMassPropertiesOverride.mMass=s.mass;
   settings.mFriction=s.friction;settings.mRestitution=s.restitution;
   settings.mLinearDamping=s.linearDamping;settings.mAngularDamping=s.angularDamping;settings.mGravityFactor=s.gravityFactor;
-  settings.mMotionQuality=JPH::EMotionQuality::LinearCast;
+  settings.mMotionQuality=s.continuous?JPH::EMotionQuality::LinearCast:JPH::EMotionQuality::Discrete;
   auto &b=impl->system.GetBodyInterface();auto *created=b.CreateBody(settings);
   if(!created)throw std::runtime_error("physics body capacity exhausted");
   const auto body=created->GetID();
@@ -267,10 +274,8 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Geomet
   if(wasHeld)hold(id);
 }
 void World::remove(int id){
-  for(auto joint=impl->joints.begin();joint!=impl->joints.end();){
-    const int jointId=joint->first;const auto &state=joint->second.state;++joint;
-    if(state.objectA==id||state.objectB==id)removeJoint(jointId);
-  }
+  while(hasJoints(id))removeJoint(*impl->connections.at(id).begin());
+  impl->connections.erase(id);
   auto it=impl->bodies.find(id);if(it==impl->bodies.end())return;impl->forgetContacts(id);auto &b=impl->system.GetBodyInterface();b.RemoveBody(it->second.body);b.DestroyBody(it->second.body);impl->bodies.erase(it);}
 State World::get(int id)const{
   const auto &r=impl->record(id);auto &b=impl->system.GetBodyInterface();JPH::RVec3 p;JPH::Quat q;b.GetPositionAndRotation(r.body,p,q);
@@ -306,6 +311,7 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   const int id=impl->nextJoint++;
   impl->joints.emplace(id,Impl::Joint{{id,a,b,s,pointA,pointB,initialDistance,0},constraint,
     bodyA.GetInverseCenterOfMassTransform()*linear(pointA),bodyB.GetInverseCenterOfMassTransform()*linear(pointB)});
+  impl->connections[a].insert(id);impl->connections[b].insert(id);
   if(!s.collideConnected)++impl->jointFilter->blocked[std::minmax(a,b)];
   impl->system.AddConstraint(constraint);
   for(auto *record:{&ra,&rb})if(record->held&&record->settings.type==Type::Dynamic)
@@ -313,7 +319,7 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   auto &bi=impl->system.GetBodyInterface();for(auto body:{ra.body,rb.body}){bi.InvalidateContactCache(body);bi.ActivateBody(body);}
   return id;
 }
-bool World::hasJoints(int id)const{for(const auto &[key,j]:impl->joints)if(j.state.objectA==id||j.state.objectB==id)return true;return false;}
+bool World::hasJoints(int id)const{auto it=impl->connections.find(id);return it!=impl->connections.end()&&!it->second.empty();}
 bool World::containsJoint(int id)const{return impl->joints.contains(id);}
 JointState World::joint(int id)const{
   const auto it=impl->joints.find(id);if(it==impl->joints.end())throw std::invalid_argument("unknown physics joint");
@@ -367,6 +373,7 @@ void World::removeJoint(int id){
   auto it=impl->joints.find(id);if(it==impl->joints.end())return;
   const auto state=it->second.state;impl->system.RemoveConstraint(it->second.constraint);
   if(!state.settings.collideConnected){auto pair=impl->jointFilter->blocked.find(std::minmax(state.objectA,state.objectB));if(--pair->second==0)impl->jointFilter->blocked.erase(pair);}
+  impl->connections[state.objectA].erase(id);impl->connections[state.objectB].erase(id);
   impl->joints.erase(it);
   auto &bi=impl->system.GetBodyInterface();for(int object:{state.objectA,state.objectB})if(contains(object)){impl->refreshMotorSleep(object);const auto &r=impl->record(object);const auto body=r.body;if(r.held&&r.settings.type==Type::Dynamic&&!hasJoints(object))bi.SetMotionType(body,JPH::EMotionType::Kinematic,JPH::EActivation::Activate);bi.InvalidateContactCache(body);bi.ActivateBody(body);}
 }
@@ -377,7 +384,7 @@ void World::impulse(int id,Vec3 v){finite(v);auto &r=impl->record(id);if(r.setti
 void World::pose(int id,const Pose &p){finite(p);auto &r=impl->record(id);
   auto &b=impl->system.GetBodyInterface();
   if((b.GetPosition(r.body)-linear(p.position)).LengthSq()>1e-12f||std::fabs(b.GetRotation(r.body).Dot(rotation(p)))<.999999f)impl->forgetContacts(id);
-  r.target=p;impl->system.GetBodyInterface().SetPositionAndRotation(r.body,linear(p.position),rotation(p),r.settings.type==Type::Static?JPH::EActivation::DontActivate:JPH::EActivation::Activate);r.samples.clear();}
+  r.syncDirty=true;r.target=p;impl->system.GetBodyInterface().SetPositionAndRotation(r.body,linear(p.position),rotation(p),r.settings.type==Type::Static?JPH::EActivation::DontActivate:JPH::EActivation::Activate);r.samples.clear();}
 void World::hold(int id){auto &r=impl->record(id);if(r.held)return;r.target=get(id).pose;r.held=true;r.canThrow=true;r.samples.clear();if(r.settings.type==Type::Dynamic&&!hasJoints(id))impl->system.GetBodyInterface().SetMotionType(r.body,JPH::EMotionType::Kinematic,JPH::EActivation::Activate);}
 void World::cancelThrow(int id){if(contains(id)){auto &r=impl->record(id);r.canThrow=false;r.samples.clear();}}
 void World::release(int id,bool allowThrow){
@@ -411,11 +418,31 @@ void World::collisionEvents(bool enabled,bool stay){
   if(enabled)for(const auto &[id,r]:impl->bodies)if(r.settings.type!=Type::Static)impl->system.GetBodyInterface().ActivateBody(r.body);
 }
 std::vector<CollisionEvent> World::takeCollisionEvents(){auto events=std::move(impl->pending);impl->pending.clear();return events;}
+bool World::needsTarget(int id)const{
+  auto it=impl->bodies.find(id);return it!=impl->bodies.end()&&(it->second.held||it->second.settings.type==Type::Kinematic);
+}
+std::vector<PoseUpdate> World::takePoseUpdates(){
+  std::vector<PoseUpdate> updates;auto &b=impl->system.GetBodyInterface();
+  for(auto &[id,r]:impl->bodies){
+    if(r.settings.type!=Type::Dynamic||(r.held&&!hasJoints(id)))continue;
+    if(!r.syncDirty&&!b.IsActive(r.body))continue;
+    JPH::RVec3 p;JPH::Quat q;b.GetPositionAndRotation(r.body,p,q);
+    updates.push_back({id,poseOf(p,q)});r.syncDirty=false;
+  }
+  return updates;
+}
+void World::workers(int count){
+  if(count < -1 || count > 4)throw std::invalid_argument("physics workers must be an integer from -1 to 4");
+  if(count!=impl->workerSetting){impl->pool.reset();impl->workerSetting=count;}
+}
+Performance World::performance()const{return impl->perf;}
 void World::advance(double elapsed){
   if(!std::isfinite(elapsed)||elapsed<0)throw std::invalid_argument("physics time must be finite and nonnegative");
+  const auto start=std::chrono::steady_clock::now();impl->perf={};
   impl->accumulator=std::min(impl->accumulator+elapsed,8*step);
   auto &b=impl->system.GetBodyInterface();
   while(impl->accumulator+1e-10>=step){
+    for(auto &[id,r]:impl->bodies)if(r.settings.type==Type::Dynamic&&b.IsActive(r.body))r.syncDirty=true;
     for(const auto &[id,r]:impl->bodies)if(r.held||r.settings.type==Type::Kinematic){
       if(r.settings.type==Type::Static)b.SetPositionAndRotation(r.body,linear(r.target.position),rotation(r.target),JPH::EActivation::DontActivate);
       else if(r.held&&r.settings.type==Type::Dynamic&&hasJoints(id)){
@@ -430,7 +457,16 @@ void World::advance(double elapsed){
       }else b.MoveKinematic(r.body,linear(r.target.position),rotation(r.target),float(step));
     }
     impl->seen.clear();
-    if(impl->system.Update(float(step),1,&impl->temporary,&impl->jobs)!=JPH::EPhysicsUpdateError::None)throw std::runtime_error("physics simulation capacity exceeded");
+    const unsigned active=impl->system.GetNumActiveBodies(JPH::EBodyType::RigidBody);
+    const int automatic=std::min(2,int(std::max(1u,std::thread::hardware_concurrency())-1));
+    const int workers=impl->workerSetting<0?(active>=64?automatic:0):impl->workerSetting;
+    if(workers&&!impl->pool){impl->pool=std::make_unique<JPH::JobSystemThreadPool>(2048,8,workers);}
+    auto *jobs=workers?static_cast<JPH::JobSystem*>(impl->pool.get()):static_cast<JPH::JobSystem*>(&impl->jobs);
+    const auto solveStart=std::chrono::steady_clock::now();
+    const auto result=impl->system.Update(float(step),1,&impl->temporary,jobs);
+    impl->perf.solverMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-solveStart).count();
+    impl->perf.workers=workers;++impl->perf.steps;
+    if(result!=JPH::EPhysicsUpdateError::None)throw std::runtime_error("physics simulation capacity exceeded");
     if(impl->eventsEnabled)impl->finishContacts();
     std::vector<JointBreak> broken;
     for(const auto &[id,joint]:impl->joints){
@@ -451,5 +487,7 @@ void World::advance(double elapsed){
     for(const auto &event:broken){removeJoint(event.jointId);impl->breaks.push_back(event);if(impl->breaks.size()>4096)impl->breaks.erase(impl->breaks.begin(),impl->breaks.begin()+1024);}
     impl->accumulator-=step;
   }
+  impl->perf.activeBodies=impl->system.GetNumActiveBodies(JPH::EBodyType::RigidBody);
+  impl->perf.advanceMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
 }
 }

@@ -46,3 +46,10 @@ attachment shared by their FBOs. Only color is imported by the compositor; keep
 `glFinish` and color ownership rules intact. GPU allocation estimates deduplicate
 the shared depth IDs. Depth occluders are scissored to padded, conservative target
 bounds per eye, with full-viewport fallback for near-plane/invalid bounds.
+
+Physics uses single-threaded stepping for small scenes and a bounded worker pool
+for larger active scenes; scripts can override with `setPhysicsWorkers`.
+Contact aggregation must remain synchronized when workers run, with all script
+callbacks after the solver barrier. Keep the joint adjacency cache consistent on
+creation/removal and retain the final pose when a body goes to sleep. Physics
+timings in `getEngineStats` describe the latest advance, not the process sample.

@@ -26,7 +26,7 @@ function prune() {
   }
   return removed;
 }
-const panel = createPanel({widthPixels: 1024, heightPixels: 480, widthMeters: .9});
+const panel = createPanel({widthPixels: 1024, heightPixels: 552, widthMeters: .9});
 panelSetTransform(panel, 'world', 0, .55, .25);
 const mib = bytes => bytes === null ? 'warming up' : `${(bytes / 1048576).toFixed(1)} MiB`;
 function draw() {
@@ -37,6 +37,7 @@ function draw() {
     `CPU: ${s.cpuPercent === null ? '--' : s.cpuPercent.toFixed(1) + '%'} (100% = one core)`,
     `RAM (process RSS): ${mib(s.ramBytes)}`,
     s.vramBytes !== null ? `GPU driver memory: ${mib(s.vramBytes)}` : `GPU allocations (estimate): ${mib(s.gpuAllocatedEstimateBytes)}`,
+    `Physics: ${s.physicsSolverMs.toFixed(2)} ms   Active: ${s.physicsActiveBodies}   Workers: ${s.physicsWorkers}`,
     'Bumper: +1    A/X: +5    B/Y: clear',
     'Grip/trigger: grab. GPU shares system RAM.'
   ];

@@ -9,7 +9,7 @@ the process working directory; the launcher uses the repository root.
 
 ## Engine statistics
 
-`getEngineStats()` returns the latest cached, process-wide sample. Counters are
+`getEngineStats()` returns the latest cached, process-wide sample and current-scene physics timings. Process counters are
 sampled roughly once per second; querying does not read `/proc` or synchronize
 the GPU. Scene counts are current at the time of the query.
 
@@ -21,6 +21,11 @@ the GPU. Scene counts are current at the time of the query.
 | `vramBytes` | Driver-reported process GPU memory total from DRM fdinfo, in bytes, or `null` when unavailable. Duplicate DRM clients are counted once. |
 | `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures/VBOs, deformed VBOs, and panel textures. |
 | `sampleId` | Increasing sample number; zero before the first sample. |
+| `physicsAdvanceMs` | Wall time of the latest physics-world advance in milliseconds, including solver, contact handling, and joint breaking; excludes host pose synchronization. |
+| `physicsSolverMs` | Solver wall time summed over the latest advance's fixed steps, including worker waits. |
+| `physicsSteps` | Fixed steps in the latest advance (0–8). |
+| `physicsActiveBodies` | Active rigid bodies after the latest advance. |
+| `physicsWorkers` | Additional worker threads used by the latest advance; zero when no step ran. |
 | `sampleSeconds` | Elapsed seconds covered by the latest sample; zero before sampling. |
 | `objectCount`, `panelCount` | Current scene counts, including hidden instances. |
 
@@ -33,7 +38,7 @@ GPU values can overlap on systems with shared memory; do not add them together.
 Steam Frame GPU memory uses shared system RAM rather than a separate VRAM pool.
 
 Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
-statistics panel. Either bumper adds one object; A or X adds five; B or Y clears
+statistics panel including solver time, active bodies, and worker count. Either bumper adds one object; A or X adds five; B or Y clears
 the spawned objects. The scene starts with four boxes and caps at 48 spawned
 objects to leave room for the floor, HUD, lasers, and other overlay surfaces.
 Boxes below scene Y = −1.2 meters or more than 3 meters from the scene origin
