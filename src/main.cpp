@@ -41,13 +41,18 @@
 #include "scene_lookup.h"
 #include "physics_world.h"
 #include "runtime_stats.h"
+#include "group_buffer_budget.h"
 #ifdef SF_GPU_SYNC_EXPERIMENT
 #include "../tests/gpu-sync-experiment.h"
 #endif
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;uint64_t groupBufferBytes=0;std::chrono::steady_clock::time_point resizeAfter{};};
+static GroupBufferBudget groupBufferBudget;
+static float surfaceCoverageWidth(float width,int allocated,int requested,bool grouped){
+  return width*(grouped?std::max(1.f,float(allocated)/requested):float(allocated)/requested);
+}
 // Transfer retained snapshots before an in-flight output tile is removed.
 // The surviving output must keep the complete old cohort until presentation.
 static void preserveSurfaceFallback(Surface &removed,Surface &survivor){
@@ -1051,9 +1056,15 @@ static void destroySurface(Surface &surface,EGLDisplay display){
     vr::VROverlay()->DestroyOverlay(surface.overlay);
   }
   for(auto &buffer:surface.buffers)destroyBuffer(buffer,display);
+  groupBufferBudget.release(surface.groupBufferBytes);surface.groupBufferBytes=0;
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
 static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={}){
+  if(id<0&&!surface.groupBufferBytes){
+    const auto bytes=GroupBufferBudget::bytes(eyePixels);
+    if(!groupBufferBudget.reserve(bytes))return false;
+    surface.groupBufferBytes=bytes;
+  }
   surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
   const std::string key="sf_overlay_engine."+std::to_string(id)+suffix;
   auto *overlays=vr::VROverlay();
@@ -1762,6 +1773,7 @@ int main(int argc,char **argv) {
   ScopeExit overlayCleanup{[&]{
     for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
     for(auto &[id,item]:surfaces)destroySurface(*item,display);
+    fprintf(stdout,"[surface] grouped_buffer_bytes=%llu peak=%llu limit=%llu\n",(unsigned long long)groupBufferBudget.used,(unsigned long long)groupBufferBudget.peak,(unsigned long long)GroupBufferBudget::limit);
     for(auto &[id,handle]:panelOverlays){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);}
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
@@ -1772,6 +1784,7 @@ int main(int argc,char **argv) {
   StableGroupAdjustment stableAdjustment;size_t adjustmentCursor=0;
   std::map<int,std::chrono::steady_clock::time_point> regroupAfter;
   auto nextAdaptationCheck=std::chrono::steady_clock::now();
+  auto nextGroupResize=std::chrono::steady_clock::now();
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
   auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto eraseSurface=[&](int key){
@@ -2066,6 +2079,11 @@ int main(int argc,char **argv) {
         bool allocationFailed=false;
         auto startChange=[&](int key,int childKey,const GroupSplitPlan &plan,bool merge,bool rebalance,size_t tileCount){
           const int group=surfaceRenderGroup(key);auto child=std::make_unique<Surface>();Surface parent;
+          const auto extra=GroupBufferBudget::bytes(plan.pixels[0])+(merge?0:GroupBufferBudget::bytes(plan.pixels[1]));
+          if(!groupBufferBudget.fits(extra)){
+            allocationFailed=true;nextAdaptationCheck=now+std::chrono::seconds(5);
+            fprintf(stderr,"[surface] group=%d adaptation budget deferred; retaining existing tiles\n",group);return;
+          }
           static uint64_t generation=0;const auto suffix=".adapt."+std::to_string(++generation);
           if(!createSurface(parent,key,plan.widths[0],plan.pixels[0],false,gbm,display,anchor,suffix)||
              (!merge&&!createSurface(*child,childKey,plan.widths[1],plan.pixels[1],false,gbm,display,anchor,suffix))){
@@ -2176,11 +2194,27 @@ int main(int argc,char **argv) {
         if(crop>surface->eyePixels||(surface->shrinkFrames>=45&&shrinkBudget>0)){
           if(crop<surface->eyePixels)--shrinkBudget;
           if(id<0){
-            if(!replaceGroupedSurface(*surface,groupBufferPixels(crop,maxGroupPixels),gbm,display,panel))fprintf(stderr,"[surface] replacement id=%d unavailable; retaining previous buffers\n",id);
+            const auto now=std::chrono::steady_clock::now();
+            if(!surface->previous&&!pendingTileChange&&now>=surface->resizeAfter&&now>=nextGroupResize){
+              // At most one group resize per 100 ms, including allocation failure.
+              // Preflight the complete generation before creating any buffers.
+              const int requested=groupBufferPixels(crop,maxGroupPixels);
+              const int pixels=groupBufferBudget.fittingPixels(requested);
+              nextGroupResize=now+std::chrono::milliseconds(100);
+              if(!pixels||(crop>surface->eyePixels&&pixels<=surface->eyePixels)||!replaceGroupedSurface(*surface,pixels,gbm,display,panel)){
+                surface->resizeAfter=now+std::chrono::seconds(5);
+                fprintf(stderr,"[surface] replacement id=%d deferred; retaining buffers, retry in 5s\n",id);
+              }else if(pixels<requested){
+                surface->resizeAfter=now+std::chrono::seconds(5);
+                fprintf(stderr,"[surface] replacement id=%d budget limited eye_px=%d requested=%d; retry in 5s\n",id,pixels,requested);
+              }
+            }
           }else if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
           surface->shrinkFrames=0;
         }
-        const float width=animatedWidth*float(surface->eyePixels)/surface->referenceEyePixels;
+        // Moving bounds still fit when growth is throttled or cannot be admitted.
+        // Render the complete group at temporarily reduced density, never crop it.
+        const float width=surfaceCoverageWidth(animatedWidth,surface->eyePixels,surface->referenceEyePixels,id<0);
         const auto placementError=prepareSurface(*overlays,*surface,width,panel);
         if(placementError!=vr::VROverlayError_None){fprintf(stderr,"[surface] placement id=%d error=%d\n",id,int(placementError));continue;}
         setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);

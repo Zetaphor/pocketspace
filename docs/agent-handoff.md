@@ -20,6 +20,7 @@ these guides; implementation history belongs in Git.
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
 | `src/scene_lookup.h` | Object/panel ID lookup over sorted scene storage. |
 | `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |
+| `src/group_buffer_budget.h` | Admission and peak accounting for grouped surface buffers and retained generations. |
 | `cfg/` | Runtime OpenVR action manifest and bindings. |
 | `scripts/` | Concise examples and the personal calibration generator. |
 | `assets/samples/ATTRIBUTION.md` | Bundled model provenance and licenses. |
@@ -173,6 +174,17 @@ uncapped children and at least 20% allocated-texel savings. Policies cap logical
 tile memberships including hidden members. Default split-only membership remains stable. Optional merging/rebalancing uses
 steady requested allocations, three matching observations over a second, and a
 two-second regroup cooldown; it never changes script IDs or logical groups.
+
+`GroupBufferBudget` charges grouped color/depth generations, including retained
+snapshots, against 512 MiB before allocation. `Surface::groupBufferBytes` releases
+its charge in `destroySurface`, including partial creation failure. Preflight
+both outputs before structural allocation. Ordinary grouped resize attempts are
+globally spaced by 100 ms, excluded during structural handoff, and delayed five
+seconds per tile after failure or budget refusal. `surfaceCoverageWidth` keeps
+full grouped bounds visible when the current allocation is below requested
+density; never scale its physical width down below the current layout width.
+This budget excludes independent surfaces, assets, panels and driver/compositor
+memory. Do not describe it as a total GPU-memory limit.
 
 A split allocates a new parent generation and child before publishing tile
 membership. Keep the complete old parent in `Surface::previous`. A pending pair

@@ -99,8 +99,9 @@ buffer allocation failures, and then SteamVR quitting. This supports memory
 pressure as a suspect, without establishing the compositor crash cause.
 The automated fixture used kinematic bodies and did not cover this falling-body
 path. The interactive fixture now also uses kinematic bodies so idle objects do
-not fall off the platform; aggregate allocation protection and resize-failure
-backoff still need work before another headset run. The demo remains stopped.
+not fall off the platform. Subsequent allocation protection and continuous-motion
+validation are tracked in [fast-motion validation](fast-motion.md). Headset
+acceptance still requires a separate visual run; no persistent demo is running.
 
 Headset visual acceptance of these new policies is pending. Automatic grouping
 retains existing scene-order and coplanar-depth limitations; fixed groups remain
