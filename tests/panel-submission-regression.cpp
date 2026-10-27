@@ -5,9 +5,9 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);std::exit(1);}}while(0)
 struct Backend {
   enum Operation{None,Texture,Transform,Show,Hide} failure=None;
-  int textures=0,transforms=0,shows=0,hides=0;
+  int textures=0,transforms=0,shows=0,hides=0;bool shared=false;
   vr::EVROverlayError result(Operation op){if(failure==op){failure=None;return vr::VROverlayError_InvalidHandle;}return vr::VROverlayError_None;}
-  vr::EVROverlayError SetOverlayTexture(vr::VROverlayHandle_t,const vr::Texture_t *texture){++textures;CHECK(texture->eType==vr::TextureType_OpenGL);return result(Texture);}
+  vr::EVROverlayError SetOverlayTexture(vr::VROverlayHandle_t,const vr::Texture_t *texture){++textures;CHECK(texture->eType==(shared?vr::TextureType_SharedTextureHandle:vr::TextureType_OpenGL));return result(Texture);}
   vr::EVROverlayError SetOverlayTransformAbsolute(vr::VROverlayHandle_t,vr::ETrackingUniverseOrigin origin,const vr::HmdMatrix34_t*){++transforms;CHECK(origin==vr::TrackingUniverseStanding);return result(Transform);}
   vr::EVROverlayError ShowOverlay(vr::VROverlayHandle_t){++shows;return result(Show);}
   vr::EVROverlayError HideOverlay(vr::VROverlayHandle_t){++hides;return result(Hide);}
@@ -50,6 +50,19 @@ static void retries(){
     CHECK(submitPanel(backend,1,panel,transform,cache)==vr::VROverlayError_None&&!cache.shown);CHECK(backend.hides==2);
   }
 }
+static void surfaceReplacement(){
+  Backend backend;backend.shared=true;Surface surface;surface.overlay=2;
+  surface.previous=std::make_unique<Surface>();surface.previous->overlay=1;surface.previous->shown=true;
+  int retired=0;auto retire=[&](Surface &old){CHECK(surface.shown&&backend.shows==2&&old.overlay==1&&old.shown);retired++;};
+  backend.failure=Backend::Texture;
+  CHECK(submitSurface(backend,surface,0,retire)!=vr::VROverlayError_None&&surface.previous&&retired==0&&backend.shows==0);
+  backend.failure=Backend::Show;
+  CHECK(submitSurface(backend,surface,1,retire)!=vr::VROverlayError_None&&surface.previous&&retired==0&&!surface.shown);
+  CHECK(submitSurface(backend,surface,2,retire)==vr::VROverlayError_None&&!surface.previous&&retired==1);
+  CHECK(submitSurface(backend,surface,3,retire)==vr::VROverlayError_None&&retired==1&&backend.shows==2);
+  CHECK(groupBufferPixels(768,4096)==1024&&groupBufferPixels(1000,4096)==1280&&groupBufferPixels(4000,4096)==4096);
+  puts("PASS shared surface replacement: old overlay retained on texture/show failures, retired only after successful show, bounded allocation headroom");
+}
 static void pixels(){
   EGLDisplay display;EGLContext context;EGLSurface surface;CHECK(initEgl(display,context,surface));
   Panel panel;CHECK(panelInit(panel,1,8,8,.1f,.1f,""));panelClear(panel,25,50,75,255);panelUpload(panel);CHECK(panel.textureRevision==1&&!panel.dirty);auto texture=panel.texture;
@@ -60,4 +73,4 @@ static void pixels(){
   glBindFramebuffer(GL_FRAMEBUFFER,0);glDeleteFramebuffers(1,&fbo);panelDestroy(panel);
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
-int main(){placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}
+int main(){surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}

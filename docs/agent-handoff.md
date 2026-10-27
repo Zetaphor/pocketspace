@@ -100,7 +100,15 @@ so object-vector mutations cannot leave stale pointers.
 `groupLayout` unions both eyes' projected bounds and requests the maximum member
 reference angular density. Group extents can grow sharply near the headset;
 resolution is capped by 4096 pixels per eye and half the renderbuffer width, with
-a warning when limited. Group buffers retain immediate growth and delayed
-shrinking. Keep grouped rendering opt-in and retain the independent stress scene
-as a comparison. Shared depth must exclude members from their own occluder pass
+a warning when limited. Group buffers grow with 25% headroom in 256-pixel
+buckets and shrink only after demand stays below 60% for 45 frames. Keep grouped
+rendering opt-in and retain the independent stress scene as a comparison. Shared depth must exclude members from their own occluder pass
 and include visible opaque/masked nonmembers.
+
+Grouped resizing uses `Surface::previous` to retain the old visible overlay and
+buffers until `submitSurface` succeeds at texture submission and showing the
+replacement. Never clear the old texture before that handoff. Keep only one
+pending generation; retain it on submission failure, include its allocations in
+statistics, and destroy both generations on removal/reload/shutdown. Group
+handles may change on resize; object IDs and mesh interaction remain stable.
+Independent interactive surfaces retain their existing handle-preserving path.
