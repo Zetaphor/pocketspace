@@ -28,8 +28,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Complete longer-duration stress checks and headset validation of the detailed
-  model mix. Fixed and adaptive 128-Avocado continuous-motion visual checks passed;
+- Complete longer-duration stress checks and larger detailed-model headset
+  validation. Fixed and adaptive 128-Avocado and adaptive 32-object ToyCar/Avocado
+  continuous-motion visual checks passed;
   those short checks do not establish long-term memory stability or suitability
   for arbitrary geometry. See
   [continuous-motion validation](../tests/results/fast-motion.md) for the workload

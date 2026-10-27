@@ -64,8 +64,9 @@ under `/tmp/sf-fast-motion-final`; the live lifecycle log is
 
 The user accepted subsequent fixed and adaptive 128-Avocado continuous-motion
 headset runs with mesh optimization on 2026-10-27; see the
-[acceptance record](vertex-cache.md). The detailed-model mix still needs headset
-acceptance. These short runs do not establish long-duration memory
+[acceptance record](vertex-cache.md). A 32-object ToyCar/Avocado adaptive scene
+also passed visual acceptance; the 128-object detailed mix remains unvalidated
+in the headset. These short runs do not establish long-duration memory
 stability or a guaranteed FPS at arbitrary object counts. Fixed and
 adaptive cases can use different allocation sizes and pixel densities. Throughput
 comparisons therefore describe these policies as exercised, not equal-quality

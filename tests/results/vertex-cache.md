@@ -93,5 +93,13 @@ with median 71.98 FPS and 416.87 MiB estimated GPU allocation, retaining all 128
 objects. Grouped buffer peak was 504 MiB, below the 512 MiB budget; shutdown
 released all grouped charges. Budget deferrals occurred and retained existing
 tiles/buffers. The raw log is `/tmp/sf-fast-adaptive-headset.log` on Frame, and
-the demo is stopped. These fixed/adaptive visual checks do not cover the detailed
-ToyCar mix or long-duration memory stability, which remain pending.
+the demo is stopped.
+
+The user subsequently accepted an adaptive continuous-motion scene with 16
+ToyCars and 16 Avocados and mesh optimization enabled. Approximately 59 seconds
+produced 54 late samples, median 58.34 FPS and 449.88 MiB estimated GPU allocation,
+retaining all 32 objects. Grouped buffer peak was 498 MiB, and shutdown released
+all grouped charges. The raw log is `/tmp/sf-detailed-motion-headset.log` on Frame;
+the demo is stopped. This is visual acceptance at 32 detailed models, not a
+headset-rate performance claim. The 128-object detailed mix and long-duration
+memory stability remain unvalidated in the headset.
