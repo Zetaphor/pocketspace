@@ -18,6 +18,7 @@ these guides; implementation history belongs in Git.
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
+| `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |
 | `cfg/` | Runtime OpenVR action manifest and bindings. |
 | `scripts/` | Concise examples and the personal calibration generator. |
 | `assets/samples/ATTRIBUTION.md` | Bundled model provenance and licenses. |
@@ -74,3 +75,10 @@ reservation failures throw to JavaScript. Surface initialization reuses those
 handles, and removal releases them immediately. Candidate script evaluation
 must not call the live reserve/release hooks. The stress scene caps spawned boxes at 51 and catches creation failures, cleaning up partial bodies and showing
 the error on its HUD.
+
+Panel uploads increment `textureRevision`, including updates that reuse a GL
+texture name. Submission caches belong to individual overlay handles and retain
+only successful calls so failures retry. Compare the computed world transform
+for head-locked/viewer-facing panels each frame. Clear caches on panel removal
+and scene replacement before IDs can be reused. Preserve deferred texture
+destruction and compositor synchronization.
