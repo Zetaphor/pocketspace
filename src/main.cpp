@@ -36,6 +36,7 @@
 #include "panel_submission.h"
 #include "eye_calibration.h"
 #include "scope_exit.h"
+#include "scene_lookup.h"
 #include "physics_world.h"
 #include "runtime_stats.h"
 
@@ -335,7 +336,7 @@ static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *a
   return object;
 }
 static JSValue jsPanelClear(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelText(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelPresent(JSContext *,JSValueConst,int,JSValueConst*);
-static Panel *findPanel(int id){if(!currentScene)return nullptr;for(auto &panel:currentScene->panels)if(panel.id==id)return &panel;return nullptr;}
+static Panel *findPanel(int id){return currentScene?findSceneItem(currentScene->panels,id):nullptr;}
 static JSValue panelObject(JSContext *ctx,int id){JSValue object=JS_NewObject(ctx);JS_SetPropertyStr(ctx,object,"id",JS_NewInt32(ctx,id));return object;}
 static JSValue jsPanelMethodClear(JSContext *ctx,JSValueConst thisVal,int argc,JSValueConst *argv){int32_t id=0;JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JS_ToInt32(ctx,&id,idv);JS_FreeValue(ctx,idv);JSValue args[5]={JS_NewInt32(ctx,id),argc>0?argv[0]:JS_NewInt32(ctx,0),argc>1?argv[1]:JS_NewInt32(ctx,0),argc>2?argv[2]:JS_NewInt32(ctx,0),argc>3?argv[3]:JS_NewInt32(ctx,255)};auto result=jsPanelClear(ctx,JS_UNDEFINED,5,args);for(int i=0;i<5;i++)if(i==0||i>argc)JS_FreeValue(ctx,args[i]);return result;}
 static JSValue jsPanelMethodText(JSContext *ctx,JSValueConst thisVal,int argc,JSValueConst *argv){int32_t id=0;JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JS_ToInt32(ctx,&id,idv);JS_FreeValue(ctx,idv);if(argc<3)return JS_ThrowTypeError(ctx,"panel.canvas.text(x,y,text,...)");JSValue args[9]={JS_NewInt32(ctx,id),argv[0],argv[1],argv[2],argc>3?argv[3]:JS_NewInt32(ctx,255),argc>4?argv[4]:JS_NewInt32(ctx,255),argc>5?argv[5]:JS_NewInt32(ctx,255),argc>6?argv[6]:JS_NewInt32(ctx,255),argc>7?argv[7]:JS_NewInt32(ctx,32)};auto result=jsPanelText(ctx,JS_UNDEFINED,9,args);for(int i=4;i<9;i++)if(i>argc)JS_FreeValue(ctx,args[i]);JS_FreeValue(ctx,args[0]);return result;}
@@ -357,9 +358,7 @@ static JSValue jsPanelRemove(JSContext *ctx,JSValueConst,int argc,JSValueConst *
 static JSValue jsPanelVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelSetVisible(panel,visible)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(p)p->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;}
 static JSValue jsPanelPresent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<1)return JS_EXCEPTION;auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");p->dirty=true;return JS_UNDEFINED;}
 static Object *findObject(int id){
-  if(!currentScene)return nullptr;
-  for(auto &object:currentScene->objects)if(object.id==id)return &object;
-  return nullptr;
+  return currentScene?findSceneItem(currentScene->objects,id):nullptr;
 }
 static JSValue animationState(JSContext *ctx,const Object &object){
   const auto &state=object.animation;const auto &asset=currentScene->assets[size_t(object.asset)-1];
@@ -1159,7 +1158,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     auto &grab=grabs[h];
     auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
     const int previousGrab=grab.objectId;
-    Object *object=nullptr;for(auto &candidate:scene.objects)if(candidate.id==grab.objectId){object=&candidate;break;}
+    Object *object=findSceneItem(scene.objects,grab.objectId);
     if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
     if(object){
       auto state=pointerStates.find(object->id);
@@ -1434,16 +1433,15 @@ int main(int argc,char **argv) {
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
   std::array<GrabState,2> grabs{};
   auto syncSurfaces=[&]()->bool{
-    std::vector<int> desired;
-    for(const auto &object:script.scene.objects)if(object.visible)desired.push_back(object.id);
     for(auto it=surfaces.begin();it!=surfaces.end();){
-      if(std::find(desired.begin(),desired.end(),it->first)==desired.end()){
+      const auto *object=findSceneItem(script.scene.objects,it->first);
+      if(!object||!object->visible){
         forgetObjectInteraction(it->first);destroySurface(*it->second,display);it=surfaces.erase(it);
       }else ++it;
     }
-    for(int id:desired){
-      const Object *object=nullptr;for(const auto &entry:script.scene.objects)if(entry.id==id){object=&entry;break;}
-      if(!object)continue;
+    for(const auto &entry:script.scene.objects){
+      if(!entry.visible)continue;
+      const auto *object=&entry;const int id=entry.id;
       const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
       const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
       const bool interactive=!object->laserPassThrough;
@@ -1476,7 +1474,7 @@ int main(int argc,char **argv) {
   auto syncPanels=[&](){
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
       const int id=it->first;
-      const bool exists=std::any_of(script.scene.panels.begin(),script.scene.panels.end(),[id](const Panel &p){return p.id==id;});
+      const bool exists=findSceneItem(script.scene.panels,id)!=nullptr;
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
       panelSubmissions.erase(id);
@@ -1655,8 +1653,9 @@ int main(int argc,char **argv) {
       }
       meshCurrentObject[hand]=hit;
       const auto now=std::chrono::steady_clock::now();
+      const auto *previousHit=findSceneItem(script.scene.objects,meshHoveredObject[hand]);
       if(hit)meshLastHit[hand]=now;
-      else if(controllers[hand].connected&&meshHoveredObject[hand]&&std::any_of(script.scene.objects.begin(),script.scene.objects.end(),[&](const Object &o){return o.id==meshHoveredObject[hand]&&o.visible;})&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
+      else if(controllers[hand].connected&&previousHit&&previousHit->visible&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
         hit=meshHoveredObject[hand];nearest=meshHitDistance[hand];
       }
       if(hit!=meshHoveredObject[hand]){
@@ -1711,8 +1710,7 @@ int main(int argc,char **argv) {
       int shrinkBudget=2;
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
-        const Object *target=nullptr;
-        for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
+        const auto *target=findSceneItem(script.scene.objects,id);
         if(!target)continue;
         const float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
