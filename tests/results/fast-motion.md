@@ -66,7 +66,8 @@ The user accepted subsequent fixed and adaptive 128-Avocado continuous-motion
 headset runs with mesh optimization on 2026-10-27; see the
 [acceptance record](vertex-cache.md). A 32-object ToyCar/Avocado adaptive scene
 also passed visual acceptance; the 128-object detailed mix remains unvalidated
-in the headset. These short runs do not establish long-duration memory
+in the headset. A subsequent [five-minute motion/reload check](motion-soak.md)
+passed its native lifecycle checks. These runs do not establish multi-hour memory
 stability or a guaranteed FPS at arbitrary object counts. Fixed and
 adaptive cases can use different allocation sizes and pixel densities. Throughput
 comparisons therefore describe these policies as exercised, not equal-quality
