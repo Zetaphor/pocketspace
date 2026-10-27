@@ -24,7 +24,9 @@ function rebuild() {
   for (let n = 0; n < 16; n++) {
     const p = bodyPosition(n);
     const id = createObject(assets[(models ? 2 : 0) + n % 2], p.x, p.y, p.z, .08, {renderGroup: 1});
-    setObjectPhysics(id, {type: globalThis.splitKinematic ? 'kinematic' : 'dynamic', mass: .2});
+    // Keep both interactive and automated fixtures stationary between moves.
+    // Falling bodies can leave the platform and inflate projected tile bounds.
+    setObjectPhysics(id, {type: 'kinematic', mass: .2});
     if (!globalThis.splitKinematic) {
       enableObjectInteraction(id, {grabButton: 'both'});
       setObjectInteraction(id, {handRotationAxes: {pitch: true, yaw: true, roll: true}});
