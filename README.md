@@ -50,7 +50,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
-| [grouped-stress.js](scripts/grouped-stress.js) | Opt-in shared stereo surface for up to 240 individually grabbable physics boxes |
+| [grouped-stress.js](scripts/grouped-stress.js) | Shared stereo groups with opt-in automatic subdivision; up to 240 grabbable physics boxes |
 | [stress.js](scripts/stress.js) | Add physics boxes with controllers; FPS, CPU, RAM, GPU memory, and physics timing HUD |
 | [joint-controls.js](scripts/joint-controls.js) | Live spring length/response and hinge-limit changes with controller buttons |
 | [breakable-joints.js](scripts/breakable-joints.js) | Pull suspended objects free of breakable connections; bumper reconnects |
@@ -67,6 +67,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 ## Documentation
 
 - [JavaScript API](docs/javascript-api.md): runtime, engine statistics, models, interaction, controllers, and events.
+- [Automatic group subdivision](docs/javascript-api.md#automatic-render-group-subdivision): reduce oversized group allocations without lowering sampling density.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
 - [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.

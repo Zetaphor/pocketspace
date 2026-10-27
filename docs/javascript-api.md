@@ -197,6 +197,20 @@ adds 40, and B/Y clears. Fallen/distant bodies are removed. The original
 
 ### Automatic render group subdivision
 
+A render group draws its objects into one stereo image that SteamVR displays as
+an overlay. If two clusters move far apart, that image must also cover the empty
+space between them. Maintaining the requested detail then needs a larger texture,
+which consumes more GPU memory and can reach the resolution ceiling.
+
+Automatic subdivision lets the engine replace that image with smaller tiles
+around subsets of the objects. It reduces allocated empty space while preserving
+the requested sampling density; it does not lower model detail or texture quality.
+It is useful for sparse or spreading groups. Extra tiles also mean more overlays,
+scene traversal, and depth passes, so lower allocation does not guarantee higher
+FPS. Keep tightly packed scenes on one surface when measurements favor it.
+`getEngineStats().gpuAllocatedEstimateBytes`, `fps`, and `cpuPercent` can help
+compare the intended layout after its allocations settle.
+
 ```js
 setRenderGroupAutoSplit(1, {maxSurfaces: 4, targetEyePixels: 2048});
 createObject(boxAsset, -.6, 0, 0, .1, {renderGroup: 1});
@@ -205,6 +219,8 @@ createObject(carAsset,  .6, 0, 0, .1, {renderGroup: 1});
 // setRenderGroupAutoSplit(1, false);
 ```
 
+The function returns `undefined`. Invalid group IDs or numeric options throw
+`RangeError`; options must be an object, `undefined`, or `false`.
 The policy is scene-local and can be configured before or after creating members.
 Groups without a policy retain the requested single surface. The engine checks
 at most every 500 milliseconds and starts at most one split at a time. A tile
@@ -241,6 +257,8 @@ leave a group unsplit. Moving an isolated object close to the headset can still
 reach the resolution ceiling. Use several explicit compact groups for layouts
 that need direct control over surface count.
 
+
+### Shared model geometry
 
 Shared GPU meshes reuse identical position/UV vertices within each material
 primitive when vertex and index buffers together use less storage. Triangle
