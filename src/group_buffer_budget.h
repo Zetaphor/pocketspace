@@ -13,6 +13,12 @@ struct GroupBufferBudget {
     for(int pixels=requested;pixels>=256;pixels-=256)if(fits(bytes(pixels)))return pixels;
     return 0;
   }
+  int resizePixels(int requested,int current)const{
+    // Never trade away extra density just to fit a shrink replacement beside
+    // its retained full-quality snapshot. Keep the existing allocation instead.
+    if(requested<=current)return fits(bytes(requested))?requested:0;
+    const int pixels=fittingPixels(requested);return pixels>current?pixels:0;
+  }
   bool reserve(uint64_t extra){if(!fits(extra))return false;used+=extra;if(used>peak)peak=used;return true;}
   void release(uint64_t bytes){used-=bytes;}
 };

@@ -3,7 +3,7 @@ for (let group = 1; group <= 4; group++) setRenderGroupAutoSplit(group, {maxSurf
 const LIMIT = 240;
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2, {renderGroup: 5});
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
-const assets = ['BlueBox', 'YellowBox', 'GreenBox'].map(name => loadModel(`assets/physics/${name}.glb`));
+const assets = ['BlueBox', 'YellowBox', 'GreenBox'].map(name => loadModel(`assets/physics/${name}.glb`, 768, {optimizeVertexCache: true}));
 const objects = [];
 let sequence = 0, status = '', nextDraw = 0, nextPrune = 0;
 function add(count) {

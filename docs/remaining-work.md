@@ -43,7 +43,9 @@ This roadmap contains future work, without prescribing an implementation order.
   merging, and rebalancing are implemented; consider wider regrouping searches or
   different cost thresholds only if these measurements justify them. Preserve
   the common projection plane and coherent depth-cutout reprojection.
-- Reduce the cost of dense high-triangle model scenes. Compare geometry
+- Further reduce the cost of dense high-triangle model scenes; the
+  [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
+  fall below headset frame rates. Compare geometry
   visibility, repeated occluder draws, batching/instancing and model LOD before
   choosing an implementation; object count alone is not a sufficient workload
   budget.

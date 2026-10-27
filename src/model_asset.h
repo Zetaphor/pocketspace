@@ -35,6 +35,7 @@ struct ModelAsset {
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
+  bool optimizeVertexCache=false;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);

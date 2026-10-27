@@ -1,0 +1,7 @@
+CACHE_REUSE model=assets/samples/Box/Box.glb triangles=12 misses_before=8 misses_after=8
+CACHE_REUSE model=assets/Avocado.glb triangles=682 misses_before=603 misses_after=465
+CACHE_REUSE model=assets/samples/ToyCar/ToyCar.glb triangles=88837 misses_before=219952 misses_after=67025
+CACHE_REUSE model=assets/samples/ToyCar/ToyCar.glb triangles=17605 misses_before=41677 misses_after=10999
+CACHE_REUSE model=assets/samples/ToyCar/ToyCar.glb triangles=2494 misses_before=5912 misses_after=1723
+PASS vertex cache: 162 exact stereo model/material/rotation views, oriented triangle preservation, blend/deformation order and CPU geometry
+PASS GLES occlusion: 16 stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup

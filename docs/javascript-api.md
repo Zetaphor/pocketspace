@@ -61,7 +61,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. `options.optimizeVertexCache` is an opt-in boolean, default `false`; see shared model geometry below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or cache option throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -256,6 +256,8 @@ not run during a structural handoff. Allocation failure or budget refusal retain
 the current buffers and delays that tile's next attempt for five seconds. Growth
 can use a smaller 256-pixel allocation bucket when the full request cannot fit;
 the engine keeps the current allocation if no larger bucket can be admitted.
+A shrink must admit its full requested allocation; otherwise it keeps the
+existing sharper buffers rather than allocating a lower-density replacement.
 While growth is delayed, denied, or awaiting presentation, the current buffer
 renders the entire moving group at reduced pixel density instead of clipping its
 bounds. Fast-moving objects therefore need not wait for regrouping to remain
@@ -329,11 +331,38 @@ their defaults, including `merge: false` and `rebalance: false`.
 ### Shared model geometry
 
 Shared GPU meshes reuse identical position/UV vertices within each material
-primitive when vertex and index buffers together use less storage. Triangle
-order, UV seams, and material boundaries are preserved. Indices use 16 bits when
+primitive when vertex and index buffers together use less storage. By default,
+triangle order, UV seams, and material boundaries are preserved. Indices use 16 bits when
 possible, otherwise 32 bits. Picking, collision construction, and per-instance
 CPU animation retain their expanded geometry; deformed instances draw from their
 own dynamic vertex buffers.
+
+For static opaque or masked models, opt into GPU vertex-cache optimization at
+load time:
+
+```js
+const car = loadModel('assets/samples/ToyCar/ToyCar.glb', 768, {
+  optimizeVertexCache: true
+});
+```
+
+This reorders whole triangles inside each indexed material primitive so nearby
+draws can reuse transformed vertices, then packs GPU vertices in first-use order
+for vertex fetch locality. It runs once during GPU upload and keeps
+every triangle, its winding, exact vertex/UV data, textures, and reference
+resolution. It does not simplify geometry or alter picking/collision meshes.
+Objects can still move, rotate, be grabbed, and use physics; the static-geometry
+restriction concerns vertex deformation, not object motion.
+Blended primitives and assets with animation or skinning retain their original
+GPU triangle order, even when the option is enabled. Non-indexed primitives also
+retain their original stream.
+
+The option defaults to `false` because reordering can change ownership of exactly
+coplanar overlapping triangles within an opaque/masked primitive. Leave it off
+for assets that rely on that order. Material and object draw order remain
+unchanged. A cached path keeps its original setting when the option is omitted;
+explicitly requesting a different setting throws. Choose the setting on the
+first load or reload the script to change it. The value must be a boolean.
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen

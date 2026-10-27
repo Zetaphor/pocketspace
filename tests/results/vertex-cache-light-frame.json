@@ -1,0 +1,36 @@
+[
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": false,
+    "samples": 11,
+    "fpsMedian": 75.11529298065733,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "profileSamples": 10,
+    "gpuMs": 8.6100695,
+    "enqueueMs": 0.4262645,
+    "waitMs": 11.763168,
+    "submitMs": 0.047751,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 74.84002667390354,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "profileSamples": 10,
+    "gpuMs": 8.9315865,
+    "enqueueMs": 0.42325599999999997,
+    "waitMs": 11.74053,
+    "submitMs": 0.0511695,
+    "matchingStorage": true
+  }
+]

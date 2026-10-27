@@ -21,6 +21,7 @@ set(QJS_LIB "$ENV{HOME}/Code/third_party/quickjs-ng/build/libqjs.a" CACHE FILEPA
 set(STEAMVR_BIN "/opt/steamvr/bin/linuxarm64" CACHE PATH "SteamVR binaries")
 find_path(DRM_INCLUDE drm_fourcc.h PATH_SUFFIXES libdrm REQUIRED)
 find_package(Freetype REQUIRED)
+include(cmake/MeshCache.cmake)
 add_executable(sf-overlay-engine src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 # Explicit regression target: uses the actual QuickJS loader without starting VR.
 add_executable(lifecycle-script-regression EXCLUDE_FROM_ALL tests/lifecycle-script-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
@@ -39,7 +40,7 @@ add_executable(gpu-sync-pixels EXCLUDE_FROM_ALL tests/gpu-sync-pixels.cpp src/mo
 foreach(engine_target gpu-sync-pixels gpu-sync-experiment render-group-split-regression shared-depth-prototype projected-bounds-regression panel-submission-regression render-stress-benchmark render-occlusion-regression sf-overlay-engine lifecycle-script-regression animation-regression examples-regression physics-api-regression)
   target_include_directories(${engine_target} PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${DRM_INCLUDE})
   target_link_directories(${engine_target} PRIVATE ${STEAMVR_BIN})
-  target_link_libraries(${engine_target} PRIVATE sf-physics openvr_api ${QJS_LIB} Freetype::Freetype pthread EGL GLESv2 gbm drm m)
+  target_link_libraries(${engine_target} PRIVATE sf-physics meshoptimizer openvr_api ${QJS_LIB} Freetype::Freetype pthread EGL GLESv2 gbm drm m)
 endforeach()
 # Assertions are the regression checks even in a Release build.
 target_compile_options(lifecycle-script-regression PRIVATE -UNDEBUG)

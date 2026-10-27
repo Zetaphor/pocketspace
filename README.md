@@ -22,8 +22,11 @@ cmake --build build -j2
 ./run-overlay-engine.sh scripts/grabbing.js
 ```
 
-The first CMake configuration downloads a pinned Jolt Physics source archive;
-see [physics builds](docs/physics-api.md#building) for offline configuration.
+The first CMake configuration downloads pinned Jolt Physics and meshoptimizer
+source archives. See [physics builds](docs/physics-api.md#building) for offline
+Jolt configuration; use `-DFETCHCONTENT_SOURCE_DIR_MESHOPTIMIZER=/path/to/meshoptimizer`
+for an offline meshoptimizer 1.0 checkout at commit
+`73583c335e541c139821d0de2bf5f12960a04941`.
 
 Start SteamVR before running an overlay. The wrapper sets the runtime library
 path and X11/EGL environment, then runs from the repository root. Its default
@@ -88,3 +91,5 @@ Sample sources and licenses are listed in [asset attribution](assets/samples/ATT
 The glTF loader uses [cgltf](https://github.com/jkuhlmann/cgltf), vendored at
 commit `85cd62382dfea638278962690cf515023f33ed00`; see
 [its license](third_party/cgltf-LICENSE).
+Optional GPU triangle reordering uses [meshoptimizer](https://github.com/zeux/meshoptimizer)
+1.0; see [its license](third_party/meshoptimizer-LICENSE).

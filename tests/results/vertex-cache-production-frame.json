@@ -1,0 +1,12 @@
+[
+  {
+    "name": "128-models-fixed",
+    "vertexCache": true,
+    "samples": 7,
+    "fpsMedian": 28.827086945607554,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 1,
+    "surfaceCreations": 2
+  }
+]
