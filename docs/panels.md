@@ -42,6 +42,12 @@ sets the row-major 3×3 rotation used by arbitrary placement.
 removes it; its native surface detaches before backing resources are freed.
 These globals accept either the returned panel object or its numeric ID.
 
+Unchanged panels retain their compositor submission. Uploaded content is submitted
+once per update, placement is submitted when its computed transform changes,
+and visibility is submitted on transitions. Head-locked and viewer-facing panels
+continue following the headset. Content changed while hidden appears when the
+panel is shown again. Failed submissions are retried automatically.
+
 ## Pointer events and compatibility
 
 Interactive panels receive native SteamVR pointer events through

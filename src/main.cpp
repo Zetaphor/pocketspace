@@ -33,6 +33,7 @@
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
+#include "panel_submission.h"
 #include "eye_calibration.h"
 #include "scope_exit.h"
 #include "physics_world.h"
@@ -1075,6 +1076,15 @@ static void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,
   up[2]=right[0]*forward[1]-right[1]*forward[0];
   for(int i=0;i<3;i++){panel.m[i][0]=right[i];panel.m[i][1]=up[i];panel.m[i][2]=-forward[i];}
 }
+static vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head){
+  auto transform=panel.mode=="headLocked"?head:anchor;
+  for(int row=0;row<3;row++)transform.m[row][3]+=transform.m[row][0]*panel.x+transform.m[row][1]*panel.y-transform.m[row][2]*panel.z;
+  if(panel.mode=="arbitrary")for(int row=0;row<3;row++)for(int col=0;col<3;col++){
+    float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panel.rotation[axis*3+col];transform.m[row][col]=value;
+  }
+  if(panel.mode=="viewerFacing"){float right[3],up[3],forward[3];faceViewer(transform,anchor,head,right,up,forward);}
+  return transform;
+}
 static bool createLaser(vr::VROverlayHandle_t &handle,int hand){
   auto *overlays=vr::VROverlay();const std::string key="sf_overlay_engine.laser."+std::to_string(hand);
   if(overlays->CreateOverlay(key.c_str(),key.c_str(),&handle)!=vr::VROverlayError_None)return false;
@@ -1415,7 +1425,7 @@ int main(int argc,char **argv) {
   trackingAnchor=anchor;trackingAnchorValid=true;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
-  std::map<int,std::unique_ptr<Surface>> surfaces;std::map<int,vr::VROverlayHandle_t> panelOverlays;std::map<int,vr::Texture_t> panelTextures;
+  std::map<int,std::unique_ptr<Surface>> surfaces;std::map<int,vr::VROverlayHandle_t> panelOverlays;std::map<int,PanelSubmission> panelSubmissions;
   ScopeExit overlayCleanup{[&]{
     for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
     for(auto &[id,item]:surfaces)destroySurface(*item,display);
@@ -1469,14 +1479,14 @@ int main(int argc,char **argv) {
       const bool exists=std::any_of(script.scene.panels.begin(),script.scene.panels.end(),[id](const Panel &p){return p.id==id;});
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
-      panelTextures.erase(id);
+      panelSubmissions.erase(id);
       for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){frameInput.addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;}
       it=panelOverlays.erase(it);
     }
     for(auto &retired:script.scene.retiredPanels)panelDestroy(retired);
     script.scene.retiredPanels.clear();
     for(auto &panel:script.scene.panels){
-      if(!panel.visible){if(panelOverlays.count(panel.id))overlays->HideOverlay(panelOverlays.at(panel.id));for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){frameInput.addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
+      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){frameInput.addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
       vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
@@ -1544,7 +1554,7 @@ int main(int argc,char **argv) {
           for(auto &[id,surface]:surfaces)destroySurface(*surface,display);
           surfaces.clear();pointerStates.clear();grabs={};
           for(auto &[id,handle]:panelOverlays){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);}
-          panelOverlays.clear();panelTextures.clear();panelHovered[0]=panelHovered[1]=0;
+          panelOverlays.clear();panelSubmissions.clear();panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
           lastAnimationTick=std::chrono::steady_clock::now();
@@ -1692,7 +1702,12 @@ int main(int argc,char **argv) {
       }
       ready.clear();
       ready.reserve(surfaces.size());
-      for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end())continue;if(!panelData.texture||!panelData.visible){overlays->HideOverlay(h->second);continue;}auto &texture=panelTextures[panelData.id];texture={reinterpret_cast<void*>(static_cast<uintptr_t>(panelData.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};auto panelError=overlays->SetOverlayTexture(h->second,&texture);if(panelError!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,(int)panelError);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="arbitrary"){for(int row=0;row<3;row++)for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panelData.rotation[axis*3+col];transform.m[row][col]=value;}}if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
+      for(const auto &panelData:script.scene.panels){
+        auto overlay=panelOverlays.find(panelData.id);if(overlay==panelOverlays.end())continue;
+        const auto transform=panelData.visible&&panelData.texture?panelTransform(panelData,anchor,head):vr::HmdMatrix34_t{};
+        const auto error=submitPanel(*overlays,overlay->second,panelData,transform,panelSubmissions[panelData.id]);
+        if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
+      }
       int shrinkBudget=2;
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
