@@ -58,7 +58,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Resolution must be a multiple of 64 from 256 through 2048. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale)` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
@@ -76,6 +76,18 @@ surface submission. Occluder drawing is limited to conservative target bounds;
 near-plane cases retain the full viewport. Each object keeps three independent
 color buffers and reuses one depth attachment while rendering them. Masked holes remain transparent. Blended materials are not
 opaque occluders; ordering between blended surfaces remains compositor-dependent.
+
+Object surfaces crop centered, transparent borders using conservative bounds from
+both eyes. Pixel count and physical overlay width shrink together, preserving
+the reference pixel spacing and centered sample grid; `loadModel` still defaults
+to a 768-pixel reference. This removes unused pixels rather than scaling the
+model into fewer samples. Near-plane crossings or invalid bounds retain the full
+reference surface. Buffers grow immediately when required, and shrink after 45
+consecutive eligible frames, with at most two shrinks per frame. Resize keeps the
+overlay handle and interaction state; the native intersection mask retains its
+reference physical extent within the cropped surface. Allocation estimates count
+the actual current buffers, including crops.
+
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen

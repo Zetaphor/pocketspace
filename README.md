@@ -5,7 +5,8 @@ QuickJS scripts place GLB models, play node and skeletal animations, grab object
 with either controller, simulate rigid-body physics and connected mechanisms,
 draw interactive panels, and read controller and eye data.
 Each object has its own stereo surface with three DMA-BUF color buffers
-and one shared depth attachment.
+and one shared depth attachment. Transparent margins are cropped while preserving
+the requested pixel density on the model.
 
 ## Build and run
 
