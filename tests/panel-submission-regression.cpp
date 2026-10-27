@@ -129,6 +129,43 @@ static void splitPresentation(){
   CHECK(submitGroupSplit(backend,parent,child,1,retire)==vr::VROverlayError_None&&!parent.previous);
   puts("PASS split presentation: complete parent retained on either tile texture/show failure, child rollback, hidden writes, retry and two-tile retirement");
 }
+static void regroupPresentation(){
+  for(auto operation:{Backend::Texture,Backend::Show})for(auto failingHandle:{4,6}){
+    Backend backend;backend.shared=backend.hiddenWrites=true;backend.visible={1,2};
+    Surface a,b;a.overlay=3;a.stagingOverlay=4;b.overlay=5;b.stagingOverlay=6;
+    a.previous=std::make_unique<Surface>();a.previous->overlay=1;a.previous->shown=true;
+    b.previous=std::make_unique<Surface>();b.previous->overlay=2;b.previous->shown=true;
+    int retired=0;auto retire=[&](Surface &old){CHECK(a.shown&&b.shown);CHECK(old.overlay==1||old.overlay==2);backend.visible.erase(old.overlay);++retired;};
+    CHECK(hideSurfaceFront(backend,a)==vr::VROverlayError_None&&hideSurfaceFront(backend,b)==vr::VROverlayError_None);
+    CHECK(backend.visible==std::set<vr::VROverlayHandle_t>({1,2}));
+    backend.failure=operation;backend.failureHandle=failingHandle;
+    CHECK(submitGroupSplit(backend,a,b,0,retire)!=vr::VROverlayError_None);
+    CHECK(a.previous&&b.previous&&retired==0&&backend.visible==std::set<vr::VROverlayHandle_t>({1,2}));
+    auto transform=identity();CHECK(prepareSurface(backend,a,1,transform)==vr::VROverlayError_None);CHECK(prepareSurface(backend,b,1,transform)==vr::VROverlayError_None);
+    CHECK(submitGroupSplit(backend,a,b,1,retire)==vr::VROverlayError_None);
+    CHECK(!a.previous&&!b.previous&&retired==2&&backend.visible.size()==2&&!backend.visible.count(1)&&!backend.visible.count(2));
+  }
+  for(bool aVisible:{false,true})for(bool bVisible:{false,true}){
+    Backend backend;backend.shared=true;backend.visible={1,2};Surface a,b;a.overlay=3;a.stagingOverlay=4;b.overlay=5;b.stagingOverlay=6;
+    a.previous=std::make_unique<Surface>();a.previous->overlay=1;a.previous->shown=true;b.previous=std::make_unique<Surface>();b.previous->overlay=2;b.previous->shown=true;
+    auto retire=[&](Surface &old){CHECK(!aVisible||a.shown);CHECK(!bVisible||b.shown);backend.visible.erase(old.overlay);};
+    CHECK(submitGroupSplit(backend,a,b,0,retire,aVisible,bVisible)==vr::VROverlayError_None);
+    CHECK(!a.previous&&!b.previous&&backend.visible.size()==size_t(aVisible)+size_t(bVisible));
+  }
+  for(auto operation:{Backend::Texture,Backend::Show}){
+    Backend backend;backend.shared=true;backend.visible={1,2};Surface merged;merged.overlay=3;merged.stagingOverlay=4;
+    merged.previous=std::make_unique<Surface>();merged.previous->overlay=1;merged.previous->shown=true;
+    merged.previous->previous=std::make_unique<Surface>();merged.previous->previous->overlay=2;merged.previous->previous->shown=true;
+    int retired=0;auto retire=[&](Surface &old){CHECK(merged.shown);for(auto *item=&old;item;item=item->previous.get()){backend.visible.erase(item->overlay);++retired;}};
+    backend.failure=operation;CHECK(submitSurface(backend,merged,0,retire)!=vr::VROverlayError_None);
+    CHECK(merged.previous&&merged.previous->previous&&retired==0&&backend.visible==std::set<vr::VROverlayHandle_t>({1,2}));
+    CHECK(submitSurface(backend,merged,1,retire)==vr::VROverlayError_None&&retired==2&&!merged.previous&&backend.visible.size()==1);
+  }
+  Surface removed,survivor;removed.previous=std::make_unique<Surface>();removed.previous->overlay=1;
+  survivor.previous=std::make_unique<Surface>();survivor.previous->overlay=2;
+  preserveSurfaceFallback(removed,survivor);CHECK(!removed.previous&&survivor.previous->overlay==2&&survivor.previous->previous->overlay==1);
+  puts("PASS regroup handoff: both old tiles retained on either output failure, culled replacements, merge rollback/retry, and removal transfers complete fallback chains");
+}
 static void pixels(){
   EGLDisplay display;EGLContext context;EGLSurface surface;CHECK(initEgl(display,context,surface));
   Panel panel;CHECK(panelInit(panel,1,8,8,.1f,.1f,""));panelClear(panel,25,50,75,255);panelUpload(panel);CHECK(panel.textureRevision==1&&!panel.dirty);auto texture=panel.texture;
@@ -139,4 +176,4 @@ static void pixels(){
   glBindFramebuffer(GL_FRAMEBUFFER,0);glDeleteFramebuffers(1,&fbo);panelDestroy(panel);
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
-int main(){splitPresentation();stagedPresentation();surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}
+int main(){regroupPresentation();splitPresentation();stagedPresentation();surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}

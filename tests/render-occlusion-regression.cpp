@@ -225,6 +225,16 @@ int main(){
       for(auto &object:renderer.scene.objects){object.renderGroup=7;object.renderTile=object.id==1?0:1;}
       assert(floor==renderer.renderSet({},head,eye,0,true,1,true,-7));
       assert(bodies==renderer.renderSet({},head,eye,0,true,1,true,-263));
+      auto whole=renderer.renderSet({},head,eye,0,true,1,true,-7);
+      auto other=renderer.renderSet({},head,eye,0,true,1,true,-263);
+      for(size_t i=0;i<whole.size();i+=4)if(other[i+3])std::copy_n(other.data()+i,4,whole.data()+i);
+      renderer.scene.objects[2].renderTile=0; // Rebalance one member between the tiles.
+      auto rebalanced=renderer.renderSet({},head,eye,0,true,1,true,-7);
+      other=renderer.renderSet({},head,eye,0,true,1,true,-263);
+      for(size_t i=0;i<rebalanced.size();i+=4)if(other[i+3])std::copy_n(other.data()+i,4,rebalanced.data()+i);
+      assert(whole==rebalanced);
+      for(auto &object:renderer.scene.objects)object.renderTile=0; // Merge both tiles.
+      assert(whole==renderer.renderSet({},head,eye,0,true,1,true,-7));
       for(auto &object:renderer.scene.objects){object.renderGroup=0;object.renderTile=0;}
     }
     puts("PASS subdivided GLES: runtime tile keys preserve cross-tile floor/body occlusion and exact stereo pixels on a matching grid");

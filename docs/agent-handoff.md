@@ -170,16 +170,19 @@ Object IDs, vector order, physics, animations, and interaction state stay stable
 Split planning uses the current `FrameBoundsCache` after the physics barrier.
 Try bounded quartile cuts along both angular axes, requiring valid stereo bounds,
 uncapped children and at least 20% allocated-texel savings. Policies cap logical
-tile memberships including hidden members. Split-only stable membership avoids
-camera-driven churn; merging/rebalancing is not implemented.
+tile memberships including hidden members. Default split-only membership remains stable. Optional merging/rebalancing uses
+steady requested allocations, three matching observations over a second, and a
+two-second regroup cooldown; it never changes script IDs or logical groups.
 
 A split allocates a new parent generation and child before publishing tile
 membership. Keep the complete old parent in `Surface::previous`. A pending pair
-must both finish rendering (or be successfully hidden by view culling) before
-`submitGroupSplit` shows the visible child then parent;
-only the successful parent presentation retires its complete fallback. On failure
-hide the child and retry. Before writing a pending child's buffers, retry hiding
-it; skip writes if hiding fails. Keep only one pending split, reset it on reload,
+must both finish rendering (or have its replacement fronts successfully hidden by
+view culling) before `submitGroupSplit` shows the visible outputs. Detach both
+previous chains during submission so neither old tile retires until both outputs
+succeed. Restore both chains on failure; hide only the replacement fronts, keeping
+old snapshots visible. Before writing either pending output's buffers, retry
+hiding its current fronts; skip writes if hiding fails. Never recursively hide its retained
+fallbacks while waiting for another output. Keep only one pending structural change, reset it on reload,
 and include every retained generation in resource estimates. Removal/visibility
 changes may eliminate either pending tile; resolve keys again before submission.
 
@@ -192,3 +195,20 @@ synchronization: a producer-complete fence does not acknowledge compositor
 consumption, and `WaitFrameSync` is pacing rather than ownership. Preserve the
 existing buffer lifetime behavior; do not treat three buffers or successful
 visual tests as proof of consumer completion.
+
+
+`planGroupAdjustment` merges a compact pair or rebalances two tiles only when
+uncapped outputs save >=20% of steady requested allocation with headroom. Never
+count an ordinary delayed shrink as an adjustment saving. Hidden-member tiles
+are deferred. `StableGroupAdjustment` stores keys and object IDs, not pointers,
+across checks. Reset it and regroup cooldowns on scene reload. Pair evaluation
+is bounded to four per check, with a sticky proposal and rotating search.
+
+For a merge, the replacement's previous chain retains both old tiles. Both source
+tiles must have no pending resize generation when planning; this bounds retained
+snapshots. `preserveSurfaceFallback` transfers snapshots to the surviving pending
+output on removal/hiding, including the immediate live removal hook. Count the
+whole retained chain in resource estimates and destroy it on handoff or teardown.
+Default policies keep `merge` and `rebalance` false; examples that enable them do
+so explicitly. The shared projection plane, premultiplied alpha, and GPU producer
+completion rules are unchanged.

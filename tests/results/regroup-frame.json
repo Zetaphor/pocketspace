@@ -1,0 +1,290 @@
+[
+  {
+    "name": "boxes-split-only",
+    "unchangedObjectIds": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "events": [
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      }
+    ],
+    "stages": [
+      {
+        "stage": "wide",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.99210958182398,
+        "cpuPercent": 16.986803445020865,
+        "ramBytes": 104906752.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "mixed",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 82.02489591179065,
+        "cpuPercent": 17.74808072501541,
+        "ramBytes": 104923136.0,
+        "gpuAllocatedEstimateBytes": 497226396.0
+      },
+      {
+        "stage": "compact",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.97848577428857,
+        "cpuPercent": 14.998863026187163,
+        "ramBytes": 104927232.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "wide-again",
+        "bodyTiles": 2,
+        "samples": 12,
+        "fps": 89.96458908790667,
+        "cpuPercent": 13.939276108460296,
+        "ramBytes": 104931328.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      }
+    ],
+    "resolutionLimitedGroups": []
+  },
+  {
+    "name": "boxes-adaptive",
+    "unchangedObjectIds": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "events": [
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      },
+      {
+        "operation": "rebalance",
+        "bodyTiles": 2
+      },
+      {
+        "operation": "merge",
+        "bodyTiles": 1
+      },
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      }
+    ],
+    "stages": [
+      {
+        "stage": "wide",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.96016840543525,
+        "cpuPercent": 17.929487092457656,
+        "ramBytes": 104968192.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "mixed",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.88780879933267,
+        "cpuPercent": 15.974478055644838,
+        "ramBytes": 104988672.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "compact",
+        "bodyTiles": 1,
+        "samples": 8,
+        "fps": 89.96924563282684,
+        "cpuPercent": 15.994532556946995,
+        "ramBytes": 104992768.0,
+        "gpuAllocatedEstimateBytes": 96670364.0
+      },
+      {
+        "stage": "wide-again",
+        "bodyTiles": 2,
+        "samples": 12,
+        "fps": 89.97530806879728,
+        "cpuPercent": 12.906910175238291,
+        "ramBytes": 104996864.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      }
+    ],
+    "resolutionLimitedGroups": []
+  },
+  {
+    "name": "models-adaptive",
+    "unchangedObjectIds": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "events": [
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      },
+      {
+        "operation": "rebalance",
+        "bodyTiles": 2
+      },
+      {
+        "operation": "merge",
+        "bodyTiles": 1
+      },
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      }
+    ],
+    "stages": [
+      {
+        "stage": "wide",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.74307872744994,
+        "cpuPercent": 19.942906383877766,
+        "ramBytes": 105316352.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "mixed",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.81847947529288,
+        "cpuPercent": 19.95728639782976,
+        "ramBytes": 105340928.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "compact",
+        "bodyTiles": 1,
+        "samples": 8,
+        "fps": 89.56510895299982,
+        "cpuPercent": 18.94317917633342,
+        "ramBytes": 105345024.0,
+        "gpuAllocatedEstimateBytes": 96670364.0
+      },
+      {
+        "stage": "wide-again",
+        "bodyTiles": 2,
+        "samples": 12,
+        "fps": 89.57964322434688,
+        "cpuPercent": 19.910576543456894,
+        "ramBytes": 105345024.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      }
+    ],
+    "resolutionLimitedGroups": []
+  },
+  {
+    "name": "models-split-only",
+    "unchangedObjectIds": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "events": [
+      {
+        "operation": "split",
+        "bodyTiles": 2
+      }
+    ],
+    "stages": [
+      {
+        "stage": "wide",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.52333206426343,
+        "cpuPercent": 19.361537152631808,
+        "ramBytes": 105054208.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "mixed",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 60.9056178529167,
+        "cpuPercent": 15.807625080829592,
+        "ramBytes": 105070592.0,
+        "gpuAllocatedEstimateBytes": 497226396.0
+      },
+      {
+        "stage": "compact",
+        "bodyTiles": 2,
+        "samples": 8,
+        "fps": 89.61668805316776,
+        "cpuPercent": 19.819113821918847,
+        "ramBytes": 105078784.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      },
+      {
+        "stage": "wide-again",
+        "bodyTiles": 2,
+        "samples": 12,
+        "fps": 89.55544266307015,
+        "cpuPercent": 18.887798201730682,
+        "ramBytes": 104779776.0,
+        "gpuAllocatedEstimateBytes": 115544732.0
+      }
+    ],
+    "resolutionLimitedGroups": []
+  }
+]

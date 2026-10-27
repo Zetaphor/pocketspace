@@ -102,9 +102,10 @@ failures, and actual GLES occlusion coverage. Failures exit without core dumps.
 
 `tests/scenes/auto-split.js` starts two islands of colored boxes in one opted-in
 logical group, plus a floor in a separate group. Grip/trigger grabs individuals;
-bumper rebuilds wide/compact islands, A/X rebuilds boxes/ToyCar/Avocado, and B/Y
+bumper moves the existing IDs between wide islands and a compact grid, A/X
+rebuilds boxes/ToyCar/Avocado, and B/Y
 clears the bodies. Check head-motion edges, floor occlusion, and the allocation
-HUD as tiles split. Geometry switches rebuild memberships from one tile. Runtime
+HUD as tiles split, merge, or rebalance. Geometry switches rebuild memberships from one tile. Runtime
 logs report logical group IDs, new tile counts, and planned allocation savings.
 
 ```sh
@@ -166,3 +167,46 @@ scene surface instead. Keep the headset awake and head steady during comparisons
 both completion methods, including stereo and lateral viewpoints.
 
 See [synchronization contract review and measurements](results/gpu-sync.md).
+
+
+## Render tile merging and rebalancing
+
+`setRenderGroupAutoSplit` keeps split-only defaults. The grouped stress example
+and adaptive test scene explicitly enable the new `merge` and `rebalance` flags.
+`render-group-split-regression` covers both planners, strict option validation,
+normalized allocation savings, material/hidden/near-plane exclusions, and proposal
+stability using a simulated clock. `panel-submission-regression` injects failures
+into either output and checks that both fallback tiles remain available, including
+culled outputs, merge retry, and snapshot transfer on removal. GLES checks compare
+combined output before/after runtime tile reassignment and merging on a matching
+grid at stereo/lateral viewpoints.
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-regroup.py --engine build/sf-overlay-engine \
+  --output /tmp/regroup-comparison
+```
+
+The bounded native runner compares split-only against split/merge/rebalance for
+boxes and actual ToyCar/Avocado instances. Kinematic comparison runs ignore live
+controller callbacks, disable grabbing, and hide lasers so inputs cannot rebuild
+or move the measured objects. Each run holds 16 kinematic bodies plus
+a floor and keeps the same IDs while moving through four eight-second phases:
+wide islands, interleaved tile membership across islands, a compact grid, and
+wide islands again. It rejects wrong IDs/counts, GL/submission errors, incorrect
+settled tile counts, and missing expected structural operations. Samples begin
+four seconds into each phase to allow handoff/shrink/statistics settling. Pair
+order alternates between geometries. It records FPS, CPU, RSS, GPU estimates,
+structural events, body tile counts, and resolution-cap warnings. Keep the headset
+awake and head steady; results depend on projected demand and are scene-specific.
+A valid refusal to merge can require adjusting the fixture, not relaxing the
+allocation threshold. No persistent demo is left running. Visual headset
+acceptance is separate from these bounded checks.
+
+
+`tests/regroup-lifecycle.py --engine build/sf-overlay-engine --output /tmp/regroup-lifecycle.log`
+adds a bounded native lifecycle run: split/rebalance/merge, hide/show, partial/full
+body removal, and live script replacement from boxes to models. It checks that
+reload commits, removal leaves only the floor, structural operations occurred,
+and SIGTERM stops the process normally.
+See [regrouping measurements and validation](results/regroup.md).

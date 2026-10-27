@@ -28,9 +28,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Deferred performance work
 
-- Extend opt-in, split-only render group subdivision with measured merging or
-  rebalancing policies for objects that move between established tiles, preserving
-  the common projection plane and coherent depth-cutout reprojection.
+- Profile opt-in pairwise subdivision, merging, and rebalancing in larger moving
+  scenes before considering wider regrouping searches or different cost thresholds;
+  preserve the common projection plane and coherent depth-cutout reprojection.
 - Evaluate grouped rendering quality and performance across larger scenes before
   selecting broader defaults.
 
