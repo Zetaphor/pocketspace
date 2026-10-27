@@ -1400,7 +1400,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
 }
 struct ProjectedBounds {float x0=INFINITY,x1=-INFINITY,y0=INFINITY,y1=-INFINITY,near=INFINITY,far=-INFINITY;bool valid=true;};
 using WorldBounds=std::array<std::array<float,3>,8>;
-static WorldBounds worldBounds(const Object &object,const ModelAsset &geometry,const vr::HmdMatrix34_t &anchor){
+template<class Geometry> static WorldBounds worldBounds(const Object &object,const Geometry &geometry,const vr::HmdMatrix34_t &anchor){
   WorldBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
   for(int corner=0;corner<8;corner++){
     float local[3],rotated[3]{},position[3]={object.x,object.y,object.z};
@@ -1453,6 +1453,9 @@ static bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &ta
   return occluder.near<=target.far+margin&&occluder.x1+margin>=target.x0&&occluder.x0-margin<=target.x1&&occluder.y1+margin>=target.y0&&occluder.y0-margin<=target.y1;
 }
 struct ScissorRegion {int x=0,y=0,width=0,height=0;};
+#ifdef SF_GPU_SYNC_EXPERIMENT
+#include "../tests/primitive-visibility-experiment.h"
+#endif
 // Convert the target's conservative angular bounds to its overlay pixels.
 // Invalid/near-plane bounds retain the full viewport. Padding covers raster edges.
 static ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float center[3],const float eye[3],const float right[3],const float up[3],const float forward[3],float halfWidth,int pixels){
@@ -1902,6 +1905,9 @@ int main(int argc,char **argv) {
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
 #ifdef SF_GPU_SYNC_EXPERIMENT
   GpuSyncExperiment gpuSync;
+  const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
+  const bool primitiveVisibility=primitiveMode&&std::strcmp(primitiveMode,"1")==0;
+  PrimitiveVisibilityExperiment primitiveExperiment;
   const char *opaqueMode=std::getenv("SF_GPU_OPAQUE_SHADER");
   const bool specializeOpaque=opaqueMode&&std::strcmp(opaqueMode,"1")==0;
   std::unique_ptr<OpaqueExperimentProgram> opaqueExperiment,depthExperiment;
@@ -1947,6 +1953,9 @@ int main(int argc,char **argv) {
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
           lastAnimationTick=std::chrono::steady_clock::now();
           fprintf(stdout,"[lifecycle] scene state reset\n");
+#ifdef SF_GPU_SYNC_EXPERIMENT
+          primitiveExperiment.reset();
+#endif
         });
         if(!loaded)script.mtime=modified;
       }
@@ -2090,6 +2099,9 @@ int main(int argc,char **argv) {
         for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
       }
       frameBounds.update(script.scene,anchor,head,eyes);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
+#endif
       if(!pendingTileChange&&std::chrono::steady_clock::now()>=nextAdaptationCheck){
         const auto now=std::chrono::steady_clock::now();nextAdaptationCheck=now+std::chrono::milliseconds(500);
         const auto candidates=surfaceMembers();
@@ -2269,6 +2281,9 @@ int main(int argc,char **argv) {
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
 #ifdef SF_GPU_SYNC_EXPERIMENT
+                if(primitiveVisibility&&pass<0&&!primitiveExperiment.mayDraw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels))continue;
+#endif
+#ifdef SF_GPU_SYNC_EXPERIMENT
                 if(special)special->material(part);else
 #endif
                 {glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
@@ -2288,6 +2303,7 @@ int main(int argc,char **argv) {
       renderMs+=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.complete();
+      if(primitiveVisibility)primitiveExperiment.report();
 #else
       glFinish();
 #endif
