@@ -42,7 +42,7 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -1002,6 +1002,10 @@ static void destroyBuffer(Buffer &buffer,EGLDisplay display){
 }
 static void destroySurface(Surface &surface,EGLDisplay display){
   if(surface.previous){destroySurface(*surface.previous,display);surface.previous.reset();}
+  if(surface.stagingOverlay!=vr::k_ulOverlayHandleInvalid){
+    vr::VROverlay()->ClearOverlayTexture(surface.stagingOverlay);
+    vr::VROverlay()->DestroyOverlay(surface.stagingOverlay);surface.stagingOverlay=vr::k_ulOverlayHandleInvalid;
+  }
   if(surface.overlay!=vr::k_ulOverlayHandleInvalid){
     vr::VROverlay()->ClearOverlayTexture(surface.overlay);
     vr::VROverlay()->DestroyOverlay(surface.overlay);
@@ -1035,6 +1039,16 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
     mask.m_Primitive.m_Circle.m_flRadius=.3f;
     overlays->SetOverlayIntersectionMask(surface.overlay,&mask,1);
     vr::HmdVector2_t scale{{1,1}};overlays->SetOverlayMouseScale(surface.overlay,&scale);
+  }
+  if(id<0){
+    if(surface.stagingOverlay==vr::k_ulOverlayHandleInvalid){
+      error=overlays->CreateOverlay((key+".stage").c_str(),(key+".stage").c_str(),&surface.stagingOverlay);
+      if(error!=vr::VROverlayError_None)return false;
+    }
+    if(overlays->SetOverlayFlag(surface.stagingOverlay,vr::VROverlayFlags_SideBySide_Parallel,true)!=vr::VROverlayError_None)return false;
+    if(overlays->SetOverlayWidthInMeters(surface.stagingOverlay,width)!=vr::VROverlayError_None)return false;
+    overlays->SetOverlayTextureBounds(surface.stagingOverlay,&bounds);
+    overlays->SetOverlayTransformAbsolute(surface.stagingOverlay,vr::TrackingUniverseStanding,&anchor);
   }
   // The compositor imports color only. Rendering is ordered on one GL context,
   // so the three color FBOs can reuse one depth attachment without extra fences.
@@ -1078,15 +1092,42 @@ static bool replaceGroupedSurface(Surface &surface,int pixels,gbm_device *gbm,EG
   surface=std::move(replacement);
   return true;
 }
+template<class Overlays>
+static vr::EVROverlayError hideSurface(Overlays &overlays,Surface &surface){
+  if(surface.shown){const auto error=overlays.HideOverlay(surface.overlay);if(error!=vr::VROverlayError_None)return error;surface.shown=false;}
+  if(surface.stagingShown){const auto error=overlays.HideOverlay(surface.stagingOverlay);if(error!=vr::VROverlayError_None)return error;surface.stagingShown=false;}
+  return surface.previous?hideSurface(overlays,*surface.previous):vr::VROverlayError_None;
+}
+template<class Overlays>
+static vr::EVROverlayError prepareSurface(Overlays &overlays,Surface &surface,float width,const vr::HmdMatrix34_t &transform){
+  const bool staged=surface.stagingOverlay!=vr::k_ulOverlayHandleInvalid;
+  const auto handle=staged?surface.stagingOverlay:surface.overlay;
+  if(surface.stagingShown){
+    const auto error=overlays.HideOverlay(handle);if(error!=vr::VROverlayError_None)return error;
+    surface.stagingShown=false;
+  }
+  if(staged||std::fabs(surface.width-width)>.000001f){
+    const auto error=overlays.SetOverlayWidthInMeters(handle,width);if(error!=vr::VROverlayError_None)return error;
+  }
+  const auto error=overlays.SetOverlayTransformAbsolute(handle,vr::TrackingUniverseStanding,&transform);
+  if(error==vr::VROverlayError_None)surface.width=width;
+  return error;
+}
 template<class Overlays,class Retire>
 static vr::EVROverlayError submitSurface(Overlays &overlays,Surface &surface,int frame,Retire retire){
+  const bool staged=surface.stagingOverlay!=vr::k_ulOverlayHandleInvalid;
+  const auto handle=staged?surface.stagingOverlay:surface.overlay;
   auto &buffer=surface.buffers[frame%3];
   vr::Texture_t texture{&buffer.handle,vr::TextureType_SharedTextureHandle,vr::ColorSpace_Gamma};
-  auto error=overlays.SetOverlayTexture(surface.overlay,&texture);
+  auto error=overlays.SetOverlayTexture(handle,&texture);
   if(error!=vr::VROverlayError_None)return error;
-  if(!surface.shown){
-    error=overlays.ShowOverlay(surface.overlay);
-    if(error!=vr::VROverlayError_None)return error;
+  if(staged||!surface.shown){
+    error=overlays.ShowOverlay(handle);if(error!=vr::VROverlayError_None)return error;
+    if(staged){
+      surface.stagingShown=true;
+      if(surface.shown){error=overlays.HideOverlay(surface.overlay);if(error!=vr::VROverlayError_None)return error;}
+      std::swap(surface.overlay,surface.stagingOverlay);surface.stagingShown=false;
+    }
     surface.shown=true;
   }
   if(surface.previous){retire(*surface.previous);surface.previous.reset();}
@@ -1539,6 +1580,10 @@ int main(int argc,char **argv) {
     const auto key="sf_overlay_engine."+std::to_string(id);
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
     if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
+    if(id<0){
+      const auto stageError=overlays->CreateOverlay((key+".stage").c_str(),(key+".stage").c_str(),&reserved->stagingOverlay);
+      if(stageError!=vr::VROverlayError_None){destroySurface(*reserved,display);return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(stageError);}
+    }
     surfaces.emplace(id,std::move(reserved));return {};
   };
   releaseObjectOverlay=[&](int id){auto it=surfaces.find(id);if(it!=surfaces.end()){destroySurface(*it->second,display);surfaces.erase(it);}};
@@ -1800,8 +1845,8 @@ int main(int argc,char **argv) {
         float distanceSquared=0,facing=0;
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
         if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
-          if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}
-          if(surface->previous&&surface->previous->shown){overlays->HideOverlay(surface->previous->overlay);surface->previous->shown=false;}
+          const auto error=hideSurface(*overlays,*surface);
+          if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] hide id=%d error=%d\n",id,int(error));
           continue;
         }
         float panelRight[3],panelUp[3],panelForward[3];
@@ -1828,8 +1873,8 @@ int main(int argc,char **argv) {
           surface->shrinkFrames=0;
         }
         const float width=animatedWidth*float(surface->eyePixels)/surface->referenceEyePixels;
-        if(std::fabs(surface->width-width)>.000001f){surface->width=width;overlays->SetOverlayWidthInMeters(surface->overlay,width);}
-        overlays->SetOverlayTransformAbsolute(surface->overlay,vr::TrackingUniverseStanding,&panel);
+        const auto placementError=prepareSurface(*overlays,*surface,width,panel);
+        if(placementError!=vr::VROverlayError_None){fprintf(stderr,"[surface] placement id=%d error=%d\n",id,int(placementError));continue;}
         setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);
         setVec3(panelRightLocation,panelRight[0],panelRight[1],panelRight[2]);
         setVec3(panelUpLocation,panelUp[0],panelUp[1],panelUp[2]);

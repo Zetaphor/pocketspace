@@ -5,12 +5,13 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);std::exit(1);}}while(0)
 struct Backend {
   enum Operation{None,Texture,Transform,Show,Hide} failure=None;
-  int textures=0,transforms=0,shows=0,hides=0;bool shared=false;
+  int textures=0,transforms=0,shows=0,hides=0,widths=0;bool shared=false,hiddenWrites=false;std::set<vr::VROverlayHandle_t> visible;
   vr::EVROverlayError result(Operation op){if(failure==op){failure=None;return vr::VROverlayError_InvalidHandle;}return vr::VROverlayError_None;}
-  vr::EVROverlayError SetOverlayTexture(vr::VROverlayHandle_t,const vr::Texture_t *texture){++textures;CHECK(texture->eType==(shared?vr::TextureType_SharedTextureHandle:vr::TextureType_OpenGL));return result(Texture);}
-  vr::EVROverlayError SetOverlayTransformAbsolute(vr::VROverlayHandle_t,vr::ETrackingUniverseOrigin origin,const vr::HmdMatrix34_t*){++transforms;CHECK(origin==vr::TrackingUniverseStanding);return result(Transform);}
-  vr::EVROverlayError ShowOverlay(vr::VROverlayHandle_t){++shows;return result(Show);}
-  vr::EVROverlayError HideOverlay(vr::VROverlayHandle_t){++hides;return result(Hide);}
+  vr::EVROverlayError SetOverlayTexture(vr::VROverlayHandle_t handle,const vr::Texture_t *texture){if(hiddenWrites)CHECK(!visible.count(handle));++textures;CHECK(texture->eType==(shared?vr::TextureType_SharedTextureHandle:vr::TextureType_OpenGL));return result(Texture);}
+  vr::EVROverlayError SetOverlayTransformAbsolute(vr::VROverlayHandle_t handle,vr::ETrackingUniverseOrigin origin,const vr::HmdMatrix34_t*){if(hiddenWrites)CHECK(!visible.count(handle));++transforms;CHECK(origin==vr::TrackingUniverseStanding);return result(Transform);}
+  vr::EVROverlayError SetOverlayWidthInMeters(vr::VROverlayHandle_t handle,float){if(hiddenWrites)CHECK(!visible.count(handle));++widths;return vr::VROverlayError_None;}
+  vr::EVROverlayError ShowOverlay(vr::VROverlayHandle_t handle){++shows;auto error=result(Show);if(error==vr::VROverlayError_None)visible.insert(handle);return error;}
+  vr::EVROverlayError HideOverlay(vr::VROverlayHandle_t handle){++hides;auto error=result(Hide);if(error==vr::VROverlayError_None)visible.erase(handle);return error;}
 };
 static vr::HmdMatrix34_t identity(){vr::HmdMatrix34_t m{};for(int i=0;i<3;i++)m.m[i][i]=1;return m;}
 static void placement(){
@@ -63,6 +64,31 @@ static void surfaceReplacement(){
   CHECK(groupBufferPixels(768,4096)==1024&&groupBufferPixels(1000,4096)==1280&&groupBufferPixels(4000,4096)==4096);
   puts("PASS shared surface replacement: old overlay retained on texture/show failures, retired only after successful show, bounded allocation headroom");
 }
+static void stagedPresentation(){
+  Backend backend;backend.shared=backend.hiddenWrites=true;backend.visible.insert(1);
+  Surface surface;surface.overlay=1;surface.stagingOverlay=2;surface.shown=true;
+  auto transform=identity();auto retire=[](Surface &){CHECK(false);};
+  CHECK(prepareSurface(backend,surface,1,transform)==vr::VROverlayError_None);
+  CHECK(backend.visible==std::set<vr::VROverlayHandle_t>{1});
+  backend.failure=Backend::Texture;
+  CHECK(submitSurface(backend,surface,0,retire)!=vr::VROverlayError_None&&surface.overlay==1&&backend.visible.size()==1);
+  backend.failure=Backend::Show;
+  CHECK(submitSurface(backend,surface,1,retire)!=vr::VROverlayError_None&&surface.overlay==1&&backend.visible.size()==1);
+  CHECK(submitSurface(backend,surface,2,retire)==vr::VROverlayError_None&&surface.overlay==2&&surface.stagingOverlay==1);
+  CHECK(backend.visible==std::set<vr::VROverlayHandle_t>{2});
+  transform.m[0][3]=.2f;
+  CHECK(prepareSurface(backend,surface,1,transform)==vr::VROverlayError_None&&backend.widths==2);
+  backend.failure=Backend::Hide;
+  CHECK(submitSurface(backend,surface,3,retire)!=vr::VROverlayError_None&&surface.overlay==2&&surface.stagingShown&&backend.visible.size()==2);
+  backend.failure=Backend::Hide;const int transforms=backend.transforms;
+  CHECK(prepareSurface(backend,surface,1,transform)!=vr::VROverlayError_None&&backend.transforms==transforms);
+  CHECK(prepareSurface(backend,surface,1,transform)==vr::VROverlayError_None&&!surface.stagingShown&&backend.visible.size()==1);
+  CHECK(submitSurface(backend,surface,4,retire)==vr::VROverlayError_None&&surface.overlay==1&&backend.visible.size()==1);
+  backend.failure=Backend::Hide;
+  CHECK(hideSurface(backend,surface)!=vr::VROverlayError_None&&surface.shown&&backend.visible.size()==1);
+  CHECK(hideSurface(backend,surface)==vr::VROverlayError_None&&!surface.shown&&backend.visible.empty());
+  puts("PASS staged grouped presentation: visible pose/width/texture never mutated; submit/show/hide failures retain a coherent visible frame and recover");
+}
 static void pixels(){
   EGLDisplay display;EGLContext context;EGLSurface surface;CHECK(initEgl(display,context,surface));
   Panel panel;CHECK(panelInit(panel,1,8,8,.1f,.1f,""));panelClear(panel,25,50,75,255);panelUpload(panel);CHECK(panel.textureRevision==1&&!panel.dirty);auto texture=panel.texture;
@@ -73,4 +99,4 @@ static void pixels(){
   glBindFramebuffer(GL_FRAMEBUFFER,0);glDeleteFramebuffers(1,&fbo);panelDestroy(panel);
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
-int main(){surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}
+int main(){stagedPresentation();surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}

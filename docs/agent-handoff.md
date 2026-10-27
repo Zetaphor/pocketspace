@@ -91,7 +91,7 @@ growth, erasure, or scene replacement. Surface synchronization walks visible
 objects directly; picking and depth traversal retain scene order.
 
 Render groups use negative surface keys (`-renderGroup`), while independent
-objects use positive object IDs. Reserve group handles before publishing the
+objects use positive object IDs. Reserve both group handles before publishing the
 first live member; release only after removing the last member. Native mouse
 surfaces remain independent-only; grouped objects use the existing mesh picker
 and per-object grab state. Rebuild frame-local member lists after script updates
@@ -112,3 +112,12 @@ pending generation; retain it on submission failure, include its allocations in
 statistics, and destroy both generations on removal/reload/shutdown. Group
 handles may change on resize; object IDs and mesh interaction remain stable.
 Independent interactive surfaces retain their existing handle-preserving path.
+
+Grouped frames must stage width, transform, and texture on the hidden overlay.
+`prepareSurface` never changes the visible grouped overlay; `submitSurface`
+shows the staged frame, hides the old front, then swaps handles. Keep the last
+coherent visible frame on errors. If hiding the old front fails after showing
+the staged frame, hide that staged handle before preparing it again; skip writes
+if hiding fails. Destroy both handles during removal and release partial live
+reservations if the second handle cannot be created. Per-surface color buffers
+and object IDs remain independent of the alternating overlay handles.
