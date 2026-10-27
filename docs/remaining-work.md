@@ -33,7 +33,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Reuse scene depth across different object surfaces as counts grow, preserving
   per-eye opaque/masked occlusion.
-- Replace repeated object/surface scans with direct lookups at higher counts.
 - Investigate GPU/shared-texture synchronization with explicit compositor
   ownership and buffer-reuse guarantees before replacing `glFinish`.
 - Profile rendering time, GPU/shared memory, overlay count, and per-eye resolution

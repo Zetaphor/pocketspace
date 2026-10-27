@@ -18,6 +18,7 @@ header=r'''
 #include <cstdio>
 #include <memory>
 #include "animation.h"
+#include "scene_lookup.h"
 struct ModelPose;
 '''
 mocks=r'''

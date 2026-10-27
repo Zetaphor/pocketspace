@@ -18,6 +18,7 @@ these guides; implementation history belongs in Git.
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
+| `src/scene_lookup.h` | Object/panel ID lookup over sorted scene storage. |
 | `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |
 | `cfg/` | Runtime OpenVR action manifest and bindings. |
 | `scripts/` | Concise examples and the personal calibration generator. |
@@ -82,3 +83,9 @@ only successful calls so failures retry. Compare the computed world transform
 for head-locked/viewer-facing panels each frame. Clear caches on panel removal
 and scene replacement before IDs can be reused. Preserve deferred texture
 destruction and compositor synchronization.
+
+Object and panel vectors remain sorted by increasing ID: append new IDs and
+preserve order on removal. `findSceneItem` uses binary search without storing
+pointers or a separate index across mutations. Resolve IDs again after vector
+growth, erasure, or scene replacement. Surface synchronization walks visible
+objects directly; picking and depth traversal retain scene order.
