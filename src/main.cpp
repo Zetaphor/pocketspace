@@ -516,13 +516,23 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   int eyePixels=kDefaultEyePixels;
   if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
   if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
+  bool optimizeVertexCache=false,explicitCache=false;
+  if(argc>2&&!JS_IsUndefined(argv[2])){
+    if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"model options must be an object");
+    JSValue option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;
+    explicitCache=!JS_IsUndefined(option);
+    if(explicitCache&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"optimizeVertexCache must be a boolean");}
+    if(explicitCache)optimizeVertexCache=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
+  }
   for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name){
     if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
+    if(explicitCache&&currentScene->assets[i].optimizeVertexCache!=optimizeVertexCache)return JS_ThrowRangeError(ctx,"model already loaded with different optimizeVertexCache options");
     return JS_NewInt32(ctx,(int)i+1);
   }
   ModelAsset asset;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
   asset.eyePixels=eyePixels;
+  asset.optimizeVertexCache=optimizeVertexCache;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
@@ -2199,14 +2209,16 @@ int main(int argc,char **argv) {
               // At most one group resize per 100 ms, including allocation failure.
               // Preflight the complete generation before creating any buffers.
               const int requested=groupBufferPixels(crop,maxGroupPixels);
-              const int pixels=groupBufferBudget.fittingPixels(requested);
-              nextGroupResize=now+std::chrono::milliseconds(100);
-              if(!pixels||(crop>surface->eyePixels&&pixels<=surface->eyePixels)||!replaceGroupedSurface(*surface,pixels,gbm,display,panel)){
-                surface->resizeAfter=now+std::chrono::seconds(5);
-                fprintf(stderr,"[surface] replacement id=%d deferred; retaining buffers, retry in 5s\n",id);
-              }else if(pixels<requested){
-                surface->resizeAfter=now+std::chrono::seconds(5);
-                fprintf(stderr,"[surface] replacement id=%d budget limited eye_px=%d requested=%d; retry in 5s\n",id,pixels,requested);
+              if(requested!=surface->eyePixels){
+                const int pixels=groupBufferBudget.resizePixels(requested,surface->eyePixels);
+                nextGroupResize=now+std::chrono::milliseconds(100);
+                if(!pixels||!replaceGroupedSurface(*surface,pixels,gbm,display,panel)){
+                  surface->resizeAfter=now+std::chrono::seconds(5);
+                  fprintf(stderr,"[surface] replacement id=%d deferred; retaining buffers, retry in 5s\n",id);
+                }else if(pixels<requested){
+                  surface->resizeAfter=now+std::chrono::seconds(5);
+                  fprintf(stderr,"[surface] replacement id=%d budget limited eye_px=%d requested=%d; retry in 5s\n",id,pixels,requested);
+                }
               }
             }
           }else if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}

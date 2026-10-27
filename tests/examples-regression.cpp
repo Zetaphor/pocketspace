@@ -109,6 +109,29 @@ int main() {
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
       std::set<int> groups;for(const auto &object:host.scene.objects)groups.insert(objectSurfaceKey(object));assert(groups.size()==5);
     }
+    if(entry.path().filename()=="fast-motion.js"){
+      const char *source=R"({
+        const asset=loadModel('assets/Avocado.glb',768,{optimizeVertexCache:true});
+        if(asset!==loadModel('assets/Avocado.glb')||asset!==loadModel('assets/Avocado.glb',768,{}))throw Error('model cache identity');
+        const count=assets.length;
+        for(const value of [0,1,'true',null,{},[]]){
+          let failed=false;try{loadModel('assets/Avocado.glb',768,{optimizeVertexCache:value})}catch(error){failed=true}
+          if(!failed)throw Error('cache option boolean validation');
+        }
+        let failed=false;try{loadModel('assets/Avocado.glb',768,{optimizeVertexCache:false})}catch(error){failed=true}
+        if(!failed)throw Error('cached model options conflict');
+        for(const value of [null,0,'options',false]){
+          failed=false;try{loadModel('assets/Avocado.glb',768,value)}catch(error){failed=true}
+          if(!failed)throw Error('model options object validation');
+        }
+        failed=false;try{loadModel('assets/Avocado.glb',768,{get optimizeVertexCache(){throw Error('getter')}})}catch(error){failed=true}
+        if(!failed)throw Error('model option getter propagation');
+      })";
+      JSValue result=JS_Eval(host.ctx,source,strlen(source),"model-cache-options",JS_EVAL_TYPE_GLOBAL);
+      if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"cache options: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      assert(host.scene.assets.size()==3&&host.scene.assets.back().optimizeVertexCache);
+    }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
     currentScene = liveScene = nullptr;

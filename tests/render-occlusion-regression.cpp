@@ -137,7 +137,7 @@ static void indexingValidation(){
   auto indexed=mesh::index(source);assert(indexed.vertices.size()==25&&indexed.indices.size()==6);
   for(size_t i=0;i<indexed.indices.size();i++)for(int j=0;j<5;j++)assert(std::bit_cast<uint32_t>(source[i*5+j])==std::bit_cast<uint32_t>(indexed.vertices[indexed.indices[i]*5+j]));
   for(bool repeated:{false,true}){
-    ModelAsset asset;asset.primitives.resize(1);auto &part=asset.primitives[0];
+    ModelAsset asset;asset.optimizeVertexCache=true;asset.primitives.resize(1);auto &part=asset.primitives[0];
     const int count=repeated?65538:3;
     for(int repeat=0;repeat<(repeated?2:1);repeat++)for(int i=0;i<count;i++)part.vertices.insert(part.vertices.end(),{float(i),0,0,0,0});
     part.vertexCount=GLsizei(part.vertices.size()/5);part.rgba={255,255,255,255};
@@ -166,6 +166,75 @@ static void sharedDepthLifetime(EGLDisplay display){
   for(int i=1;i<3;i++){glBindFramebuffer(GL_FRAMEBUFFER,buffers[i].fbo);assert(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);}
   glBindFramebuffer(GL_FRAMEBUFFER,0);for(auto &buffer:buffers)destroyBuffer(buffer,display);
   assert(glGetError()==GL_NO_ERROR);
+}
+static std::vector<uint32_t> uploadedIndices(const PrimitiveAsset &part){
+  assert(part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);
+  const size_t size=part.indexType==GL_UNSIGNED_SHORT?2:4;
+  const void *data=glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER,0,part.vertexCount*size,GL_MAP_READ_BIT);assert(data);
+  std::vector<uint32_t> result(part.vertexCount);
+  for(size_t i=0;i<result.size();i++)result[i]=size==2?static_cast<const uint16_t*>(data)[i]:static_cast<const uint32_t*>(data)[i];
+  assert(glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER));
+  // Compare oriented triangles using original exact vertex IDs even when the
+  // GPU vertex stream is repacked into optimized first-use order.
+  const auto source=mesh::index(part.vertices);
+  std::map<std::array<uint32_t,5>,uint32_t> original;
+  for(size_t i=0;i<source.vertices.size();i+=5){std::array<uint32_t,5> key;for(int j=0;j<5;j++)key[j]=std::bit_cast<uint32_t>(source.vertices[i+j]);original.emplace(key,i/5);}
+  glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
+  const float *vertices=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,0,part.gpuVertexCount*5*sizeof(float),GL_MAP_READ_BIT));assert(vertices);
+  std::vector<uint32_t> remap(part.gpuVertexCount);
+  for(size_t i=0;i<remap.size();i++){
+    std::array<uint32_t,5> key;for(int j=0;j<5;j++)key[j]=std::bit_cast<uint32_t>(vertices[i*5+j]);
+    auto found=original.find(key);assert(found!=original.end());remap[i]=found->second;
+  }
+  assert(glUnmapBuffer(GL_ARRAY_BUFFER));
+  for(auto &index:result){assert(index<remap.size());index=remap[index];}
+  return result;
+}
+static size_t cacheMisses(const std::vector<uint32_t> &indices){
+  std::vector<uint32_t> cache;size_t misses=0;
+  for(auto index:indices){auto found=std::find(cache.begin(),cache.end(),index);if(found==cache.end())++misses;else cache.erase(found);cache.insert(cache.begin(),index);if(cache.size()>32)cache.pop_back();}
+  return misses;
+}
+static void vertexCachePixels(){
+  {
+    // Do not pass an incomplete triangle tail to a library that requires triples.
+    ModelAsset asset;asset.optimizeVertexCache=true;asset.primitives.resize(1);auto &part=asset.primitives[0];
+    for(int i=0;i<4;i++)part.vertices.insert(part.vertices.end(),{0,0,0,0,0});
+    part.vertexCount=4;part.rgba={255,255,255,255};uploadModel(asset);
+    assert(uploadedIndices(part)==std::vector<uint32_t>({0,0,0,0}));deleteModel(asset);
+  }
+  Renderer reference,optimized;size_t views=0;
+  for(const char *path:{"assets/samples/Box/Box.glb","assets/Avocado.glb","assets/samples/ToyCar/ToyCar.glb"})for(int mode=0;mode<3;mode++){
+    for(auto *renderer:{&reference,&optimized}){
+      auto &asset=renderer->scene.assets[2];deleteModel(asset);asset={};assert(loadModelFile(path,asset));asset.optimizeVertexCache=renderer==&optimized;
+      for(auto &part:asset.primitives){part.alphaMode=mode;part.factor[3]=mode==2?.6f:1;}
+      uploadModel(asset);
+      for(auto &part:asset.primitives)if(part.indexBuffer){
+        const auto source=mesh::index(part.vertices).indices,actual=uploadedIndices(part);
+        if(mode==2||renderer==&reference)assert(source==actual);
+        else{
+          std::vector<std::array<uint32_t,3>> before,after;
+          for(size_t i=0;i<source.size();i+=3){before.push_back({source[i],source[i+1],source[i+2]});after.push_back({actual[i],actual[i+1],actual[i+2]});}
+          std::sort(before.begin(),before.end());std::sort(after.begin(),after.end());assert(before==after);
+          if(mode==0)printf("CACHE_REUSE model=%s triangles=%zu misses_before=%zu misses_after=%zu\n",path,source.size()/3,cacheMisses(source),cacheMisses(actual));
+        }
+        if(mode==1){const unsigned char holes[16]={255,255,255,255,255,255,255,0,255,255,255,0,255,255,255,255};glBindTexture(GL_TEXTURE_2D,part.texture);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,holes);glGenerateMipmap(GL_TEXTURE_2D);}
+      }
+    }
+    for(int pose=0;pose<3;pose++){
+      for(auto *renderer:{&reference,&optimized}){auto &object=renderer->scene.objects[2];object.pitch=.13f*pose;object.yaw=.37f*pose;object.roll=-.17f*pose;}
+      for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
+        const auto before=reference.renderSet({1,2,3},head,eye),after=optimized.renderSet({1,2,3},head,eye);
+        assert(before==after);++views;
+      }
+    }
+  }
+  for(int deforming=0;deforming<2;deforming++){
+    ModelAsset asset;assert(loadModelFile("assets/Avocado.glb",asset));asset.optimizeVertexCache=true;asset.hasSkin=deforming;asset.hasAnimation=!deforming;uploadModel(asset);
+    for(const auto &part:asset.primitives)if(part.indexBuffer)assert(uploadedIndices(part)==mesh::index(part.vertices).indices);
+    deleteModel(asset);
+  }
+  printf("PASS vertex cache: %zu exact stereo model/material/rotation views, oriented triangle preservation, blend/deformation order and CPU geometry\n",views);
 }
 static void coherentGroupPlanes(){
   Scene scene;ModelAsset asset;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}scene.assets.push_back(std::move(asset));
@@ -200,6 +269,7 @@ static void coherentGroupPlanes(){
 #ifndef SF_OCCLUSION_HELPERS_ONLY
 int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
+  vertexCachePixels();
   {
     coherentGroupPlanes();indexingValidation();sharedDepthLifetime(display);
     Renderer renderer;int sample=0,ignored=0;int cases=0;

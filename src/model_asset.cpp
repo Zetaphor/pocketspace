@@ -1,5 +1,6 @@
 #include "model_asset.h"
 #include "mesh_index.h"
+#include <meshoptimizer.h>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -214,6 +215,12 @@ void uploadModel(ModelAsset &asset){
     part.indexType=unique<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
     const size_t indexSize=part.indexType==GL_UNSIGNED_SHORT?sizeof(uint16_t):sizeof(uint32_t);
     if(indexed.vertices.size()*sizeof(float)+indexed.indices.size()*indexSize<part.vertices.size()*sizeof(float)){
+      // Reorder complete oriented triangles only. Blend order and CPU-deformed
+      // streams keep their original order; all CPU geometry remains unchanged.
+      if(asset.optimizeVertexCache&&!asset.hasAnimation&&!asset.hasSkin&&part.alphaMode!=2&&indexed.indices.size()%3==0){
+        meshopt_optimizeVertexCache(indexed.indices.data(),indexed.indices.data(),indexed.indices.size(),unique);
+        meshopt_optimizeVertexFetch(indexed.vertices.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,5*sizeof(float));
+      }
       glBufferData(GL_ARRAY_BUFFER,indexed.vertices.size()*sizeof(float),indexed.vertices.data(),GL_STATIC_DRAW);
       part.gpuVertexCount=GLsizei(unique);
       glGenBuffers(1,&part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);

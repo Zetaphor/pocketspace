@@ -72,6 +72,19 @@ attribute in the deduplication key if the vertex format grows. Resource estimate
 count uploaded vertex counts and 16/32-bit index storage, and model teardown
 releases both buffer types.
 
+`loadModel(path, eyePixels, {optimizeVertexCache:true})` opts an asset into
+meshoptimizer cache/fetch reordering during upload. Default order is unchanged.
+Only complete-triangle indexed static opaque/masked primitives reorder; blended materials and
+animated/skinned assets skip it. Keep CPU vertices/BVH/colliders unchanged and
+preserve complete oriented triangles, exact position/UV values, and draw counts.
+Explicit cache-setting conflicts on a cached path throw; omission inherits its
+original setting. Do not silently enable this for assets relying on coplanar
+triangle ownership. The dependency revision/digest is pinned in
+`cmake/MeshCache.cmake`; preserve `third_party/meshoptimizer-LICENSE`.
+Budget-limited shrinking must retain the old allocation if the full requested
+replacement cannot fit; partial-density fallback is for growth only. Reject
+performance comparisons where allocation sizes differ between on/off cases.
+
 Live `createObject` calls reserve overlay handles before publishing an object;
 reservation failures throw to JavaScript. Surface initialization reuses those
 handles, and removal releases them immediately. Candidate script evaluation

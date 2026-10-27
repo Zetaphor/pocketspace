@@ -101,6 +101,11 @@ static void memoryBudget(){
   CHECK(budget.reserve(GroupBufferBudget::limit));CHECK(!budget.reserve(1));
   CHECK(budget.fittingPixels(4096)==0);
   budget.release(GroupBufferBudget::limit);CHECK(budget.used==0);
+  CHECK(budget.reserve(GroupBufferBudget::bytes(3840)+GroupBufferBudget::bytes(1024)));
+  CHECK(budget.fittingPixels(2048)==768);
+  CHECK(budget.resizePixels(2048,3840)==0); // Preserve sharpness on refused shrink.
+  CHECK(budget.resizePixels(4096,512)==768); // Partial growth is an improvement.
+  CHECK(budget.resizePixels(4096,1024)==0); // Never shrink as a growth fallback.
   // A bounded buffer must show the full moving layout, even below its requested density.
   CHECK(surfaceCoverageWidth(2,768,4096,true)==2);
   CHECK(surfaceCoverageWidth(2,1280,1024,true)==2.5f);
