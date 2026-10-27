@@ -40,7 +40,7 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -991,7 +991,7 @@ static void destroySurface(Surface &surface,EGLDisplay display){
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
 static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
-  surface.objectId=id;surface.width=width;surface.eyePixels=eyePixels;surface.interactive=interactive;
+  surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
   const std::string key="sf_overlay_engine."+std::to_string(id);
   auto *overlays=vr::VROverlay();
   auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&surface.overlay);
@@ -1022,6 +1022,25 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
     sharedDepth=buffer.depth;
   }
   fprintf(stdout,"[surface] created id=%d width=%.3f eye_px=%d\n",id,width,eyePixels);fflush(stdout);
+  return true;
+}
+// Keep the overlay handle stable while replacing its three color buffers.
+// Called between frames for this surface, after the previous frame's glFinish.
+static bool resizeSurfaceBuffers(Surface &surface,int pixels,gbm_device *gbm,EGLDisplay display){
+  std::array<Buffer,3> next{};GLuint depth=0;
+  for(auto &buffer:next){
+    if(!makeBuffer(buffer,gbm,display,pixels,depth)){for(auto &item:next)destroyBuffer(item,display);return false;}
+    depth=buffer.depth;
+  }
+  vr::VROverlay()->ClearOverlayTexture(surface.overlay);
+  for(int i=0;i<3;i++){destroyBuffer(surface.buffers[i],display);surface.buffers[i]=next[i];}
+  surface.eyePixels=pixels;
+  if(surface.interactive){
+    vr::VROverlayIntersectionMaskPrimitive_t mask{};mask.m_nPrimitiveType=vr::OverlayIntersectionPrimitiveType_Circle;
+    mask.m_Primitive.m_Circle.m_flCenterX=mask.m_Primitive.m_Circle.m_flCenterY=.5f;
+    mask.m_Primitive.m_Circle.m_flRadius=std::min(.707107f,.3f*surface.referenceEyePixels/pixels);
+    vr::VROverlay()->SetOverlayIntersectionMask(surface.overlay,&mask,1);
+  }
   return true;
 }
 static GLuint compile(GLenum type,const char *source) {
@@ -1242,6 +1261,20 @@ static ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float 
   const int highX=int(std::ceil(std::clamp(x1+2,0.f,float(pixels)))),highY=int(std::ceil(std::clamp(y1+2,0.f,float(pixels))));
   return {lowX,lowY,std::max(0,highX-lowX),std::max(0,highY-lowY)};
 }
+// Crop only transparent margins: physical width and pixel count scale together,
+// leaving the original sample spacing and centered pixel grid unchanged.
+static int objectCropPixels(const ProjectedBounds bounds[2],const float center[3],const float eyes[2][3],const float right[3],const float up[3],const float forward[3],float referenceWidth,int referencePixels){
+  int extent=0;
+  for(int eye=0;eye<2;eye++){
+    if(!bounds[eye].valid)return referencePixels;
+    auto r=projectedScissor(bounds[eye],center,eyes[eye],right,up,forward,referenceWidth*.5f,referencePixels);
+    if(!r.width||!r.height)return referencePixels;
+    const int mid=referencePixels/2;
+    extent=std::max({extent,mid-r.x,r.x+r.width-mid,mid-r.y,r.y+r.height-mid});
+  }
+  // Extra transparent border and 64-pixel buckets limit resize churn.
+  return std::min(referencePixels,std::max(128,((2*extent+32+63)/64)*64));
+}
 // Occluders write depth only; masked holes keep their alpha-test behavior.
 // Blended surfaces must not become opaque occluders.
 template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw,const ScissorRegion *region=nullptr){
@@ -1398,16 +1431,13 @@ int main(int argc,char **argv) {
       const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
       const bool interactive=!object->laserPassThrough;
       auto found=surfaces.find(id);
-      if(found!=surfaces.end()&&(found->second->eyePixels!=eyePixels||found->second->interactive!=interactive)){
+      if(found!=surfaces.end()&&(found->second->referenceEyePixels!=eyePixels||found->second->interactive!=interactive)){
         pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
         if(!createSurface(*created,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
-      }else if(std::fabs(found->second->width-width)>.0001f){
-        found->second->width=width;
-        overlays->SetOverlayWidthInMeters(found->second->overlay,width);
       }
     }
     return true;
@@ -1644,12 +1674,12 @@ int main(int argc,char **argv) {
       ready.clear();
       ready.reserve(surfaces.size());
       for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end())continue;if(!panelData.texture||!panelData.visible){overlays->HideOverlay(h->second);continue;}auto &texture=panelTextures[panelData.id];texture={reinterpret_cast<void*>(static_cast<uintptr_t>(panelData.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};auto panelError=overlays->SetOverlayTexture(h->second,&texture);if(panelError!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,(int)panelError);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="arbitrary"){for(int row=0;row<3;row++)for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panelData.rotation[axis*3+col];transform.m[row][col]=value;}}if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
+      int shrinkBudget=2;
       for(auto &[id,surface]:surfaces){
         const Object *target=nullptr;
         for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
         if(!target)continue;
         const float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
-        if(std::fabs(surface->width-animatedWidth)>.0001f){surface->width=animatedWidth;overlays->SetOverlayWidthInMeters(surface->overlay,animatedWidth);}
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
         auto panel=anchor;
         for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
@@ -1661,6 +1691,19 @@ int main(int argc,char **argv) {
         }
         float panelRight[3],panelUp[3],panelForward[3];
         faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
+        const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
+        const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
+        ProjectedBounds targetBounds[2];for(int eye=0;eye<2;eye++)targetBounds[eye]=projectedBounds(*target,targetGeometry,anchor,eyes[eye],panelRight,panelUp,panelForward);
+        const int crop=objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels);
+        // Grow immediately when needed; shrink only after 45 consecutive frames.
+        if(crop<surface->eyePixels)++surface->shrinkFrames;else surface->shrinkFrames=0;
+        if(crop>surface->eyePixels||(surface->shrinkFrames>=45&&shrinkBudget>0)){
+          if(crop<surface->eyePixels)--shrinkBudget;
+          if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
+          surface->shrinkFrames=0;
+        }
+        const float width=animatedWidth*float(surface->eyePixels)/surface->referenceEyePixels;
+        if(std::fabs(surface->width-width)>.000001f){surface->width=width;overlays->SetOverlayWidthInMeters(surface->overlay,width);}
         overlays->SetOverlayTransformAbsolute(surface->overlay,vr::TrackingUniverseStanding,&panel);
         setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);
         setVec3(panelRightLocation,panelRight[0],panelRight[1],panelRight[2]);
@@ -1672,16 +1715,13 @@ int main(int argc,char **argv) {
         glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
         for(int i=0;i<2;i++){
           setVec3(eyeLocation,eyes[i][0],eyes[i][1],eyes[i][2]);glViewport(i*surface->eyePixels,0,surface->eyePixels,surface->eyePixels);
-          const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
-          const auto targetBounds=projectedBounds(*target,targetGeometry,anchor,eyes[i],panelRight,panelUp,panelForward);
-          const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
-          auto region=projectedScissor(targetBounds,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
+          auto region=projectedScissor(targetBounds[i],surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
             for(const auto &object:script.scene.objects){
               if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
               const auto &geometry=object.animationPose?object.animationPose->geometry:script.scene.assets[size_t(object.asset)-1];
-              if(pass<0&&!mayOcclude(projectedBounds(object,geometry,anchor,eyes[i],panelRight,panelUp,panelForward),targetBounds))continue;
+              if(pass<0&&!mayOcclude(projectedBounds(object,geometry,anchor,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);

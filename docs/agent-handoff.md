@@ -53,3 +53,10 @@ Contact aggregation must remain synchronized when workers run, with all script
 callbacks after the solver barrier. Keep the joint adjacency cache consistent on
 creation/removal and retain the final pose when a body goes to sleep. Physics
 timings in `getEngineStats` describe the latest advance, not the process sample.
+
+Object surfaces distinguish reference resolution from allocated resolution.
+Stereo projected bounds crop transparent margins; physical width scales with
+allocated pixels to preserve reference sample density and the centered grid.
+Keep immediate growth, near-plane fallback, delayed/budgeted shrinking, stable
+overlay handles, and physical input-mask sizing when changing this path. Each
+buffer replacement clears the compositor texture before releasing its resources.
