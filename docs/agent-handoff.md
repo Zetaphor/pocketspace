@@ -151,3 +151,11 @@ visible objects belonging to that snapshot, and never use them across script
 mutations or a reload without calling `update` again. Animation poses use their
 current geometry bounds. Retain conservative near-plane fallback and viewport
 padding; projection reuse does not change buffers, sampling density, or shaders.
+
+
+Shared scene-depth reuse is not enabled. The isolated matching-grid prototype in
+`tests/shared-depth-prototype.cpp` uses the real GLES shader/pass harness; see
+[measured results and adoption constraints](../tests/results/shared-depth-prototype.md).
+Do not replace per-group occluder passes with an all-scene prepass based on
+unculled comparisons. Current bounds culling can make per-group rendering faster,
+and shared depth requires compatible grids plus explicit equal-depth ownership.

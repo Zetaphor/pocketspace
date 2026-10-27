@@ -65,3 +65,29 @@ replacement, model colliders, and fallen-body cleanup using real bindings.
 
 See the [recorded comparison](results/overlay-comparison.md) for measured results
 and resolution-limit caveats.
+
+## Shared scene-depth prototype
+
+`shared-depth-prototype` is an offscreen experiment, excluded from normal builds.
+It reuses the actual GLES shader/pass harness to compare per-group occluder
+rendering with one opaque/masked scene prepass and read-only depth for group
+colors. It opens no OpenVR session and leaves no headset demo running.
+
+```sh
+cmake --build build --target shared-depth-prototype render-occlusion-regression -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/shared-depth-prototype --bench
+```
+
+Omit `--bench` for pixel comparisons only. Checks cover stereo, lateral views,
+opaque/masked/blended/hidden geometry, checker-mask holes, ToyCar and Avocado,
+coincident surfaces, and mismatched projection grids. Expected rejection cases
+must exhibit pixel differences; these are experimental findings, not crashes.
+The benchmark alternates order across three rounds, uses 48 bodies plus a floor,
+five groups, two eyes, a fixed common 768-pixel grid, bounded warmup/measurement,
+and `glFinish` per frame. Baseline occluders use bounds culling and scissors.
+
+This is a matching-grid feasibility test, not an engine FPS comparison. It reuses
+one offscreen color target, omits compositor submission, physics, triple buffers,
+and dynamic group layouts. Timing includes CPU submission and completed GPU work.
+See [results and adoption requirements](results/shared-depth-prototype.md).
