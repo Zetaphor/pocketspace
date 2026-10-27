@@ -62,10 +62,10 @@ under `/tmp/sf-fast-motion-final`; the live lifecycle log is
 
 ## Limits
 
-The user accepted a subsequent fixed-group 128-Avocado headset run with mesh
-optimization on 2026-10-27; see the [acceptance record](vertex-cache.md).
-Continuous-motion automatic grouping and the detailed-model mix still need
-headset acceptance. These short runs do not establish long-duration memory
+The user accepted subsequent fixed and adaptive 128-Avocado continuous-motion
+headset runs with mesh optimization on 2026-10-27; see the
+[acceptance record](vertex-cache.md). The detailed-model mix still needs headset
+acceptance. These short runs do not establish long-duration memory
 stability or a guaranteed FPS at arbitrary object counts. Fixed and
 adaptive cases can use different allocation sizes and pixel densities. Throughput
 comparisons therefore describe these policies as exercised, not equal-quality

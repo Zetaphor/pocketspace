@@ -28,10 +28,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Complete continuous-motion headset validation of automatic grouping and
-  longer-duration stress checks. The fixed-group 128-Avocado visual check passed;
-  that does not establish automatic grouping's suitability or long-term memory
-  stability. See
+- Complete longer-duration stress checks and headset validation of the detailed
+  model mix. Fixed and adaptive 128-Avocado continuous-motion visual checks passed;
+  those short checks do not establish long-term memory stability or suitability
+  for arbitrary geometry. See
   [continuous-motion validation](../tests/results/fast-motion.md) for the workload
   and measured limits.
 - Profile larger moving box/model scenes to identify the next bottleneck. Measure
