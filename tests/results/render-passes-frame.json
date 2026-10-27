@@ -1,0 +1,362 @@
+[
+  {
+    "name": "128-models-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 30.312018127525537,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 0.9691675,
+    "waitMs": 31.0636705,
+    "submitMs": 0.036366499999999996,
+    "wholeRenderGpuMs": 24.2451505,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 31.882799755598054,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 0.9945805000000001,
+    "waitMs": 29.644462500000003,
+    "submitMs": 0.025043,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.002134,
+      23.566587,
+      0.00078
+    ],
+    "threadCpuMs": [
+      0.00177,
+      0.1645065,
+      0.0212495
+    ],
+    "draws": [
+      0.0,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      14031104.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 9.269337401052829e-05,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 21.777854494339834,
+    "gpuEstimateMiBMedian": 423.01949310302734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 7,
+    "surfaceCreations": 3,
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 1.8727800000000001,
+    "waitMs": 43.476372,
+    "submitMs": 0.043165999999999996,
+    "wholeRenderGpuMs": 35.6616725,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 25.292506795340234,
+    "gpuEstimateMiBMedian": 423.01949310302734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3,
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 1.9347475,
+    "waitMs": 36.298030499999996,
+    "submitMs": 0.033167,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      13.3522635,
+      18.237289,
+      0.001534
+    ],
+    "threadCpuMs": [
+      0.087159,
+      0.1767175,
+      0.0332555
+    ],
+    "draws": [
+      267.0,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      7290279.0,
+      14031104.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.4238017536994409,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 77.21739536613778,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 0.33982650000000003,
+    "waitMs": 11.348957500000001,
+    "submitMs": 0.022858,
+    "wholeRenderGpuMs": 8.581909,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 74.77272769598622,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 0.3410575,
+    "waitMs": 12.143156999999999,
+    "submitMs": 0.016066499999999997,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.0022905,
+      7.9425514999999995,
+      0.00078
+    ],
+    "threadCpuMs": [
+      0.0019529999999999999,
+      0.0859645,
+      0.021615
+    ],
+    "draws": [
+      0.0,
+      256.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      174592.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.00027167560464579456,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 75.7910247422832,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 1,
+    "passProfiling": true,
+    "enqueueMs": 0.3416345,
+    "waitMs": 12.0135085,
+    "submitMs": 0.0176015,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.001978,
+      5.763332500000001,
+      0.000754
+    ],
+    "threadCpuMs": [
+      0.0020835,
+      0.0828135,
+      0.0209635
+    ],
+    "draws": [
+      0.0,
+      256.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      174592.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.00030423213925373017,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 73.16645062591269,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 1,
+    "passProfiling": false,
+    "enqueueMs": 0.3560605,
+    "waitMs": 12.6010785,
+    "submitMs": 0.022562,
+    "wholeRenderGpuMs": 9.411601000000001,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 22.930343189463805,
+    "gpuEstimateMiBMedian": 423.01949310302734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 7,
+    "surfaceCreations": 3,
+    "round": 1,
+    "passProfiling": true,
+    "enqueueMs": 1.897293,
+    "waitMs": 40.575113,
+    "submitMs": 0.034225500000000006,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      15.1275235,
+      16.595154,
+      0.001534
+    ],
+    "threadCpuMs": [
+      0.07476550000000001,
+      0.1754695,
+      0.0382025
+    ],
+    "draws": [
+      194.0,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      5369918.0,
+      14031104.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.4618023065502044,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 23.45300154078891,
+    "gpuEstimateMiBMedian": 423.01949310302734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3,
+    "round": 1,
+    "passProfiling": false,
+    "enqueueMs": 1.8624610000000001,
+    "waitMs": 40.411531,
+    "submitMs": 0.0465695,
+    "wholeRenderGpuMs": 33.147379,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 32.872273178591016,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 1,
+    "passProfiling": true,
+    "enqueueMs": 0.9615469999999999,
+    "waitMs": 28.512597,
+    "submitMs": 0.0258735,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.001613,
+      21.936717,
+      0.00078
+    ],
+    "threadCpuMs": [
+      0.0016405,
+      0.183879,
+      0.0225005
+    ],
+    "draws": [
+      0.0,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      14031104.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 8.084360013467574e-05,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-fixed",
+    "vertexCache": true,
+    "samples": 11,
+    "fpsMedian": 30.228208985102075,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 1,
+    "passProfiling": false,
+    "enqueueMs": 1.011029,
+    "waitMs": 30.997822,
+    "submitMs": 0.033881999999999995,
+    "wholeRenderGpuMs": 24.704054,
+    "matchingStorage": true
+  }
+]

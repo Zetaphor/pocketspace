@@ -2242,6 +2242,9 @@ int main(int argc,char **argv) {
           auto region=projectedScissor(targetBounds[i],surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
+#ifdef SF_GPU_SYNC_EXPERIMENT
+            gpuSync.beginPass(pass);ScopeExit finishPass{[&]{gpuSync.endPass();}};
+#endif
             for(const auto &object:script.scene.objects){
               if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))continue;
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
@@ -2254,6 +2257,9 @@ int main(int argc,char **argv) {
                 glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
                 glUniform3fv(sheenLocation,1,part.sheen);
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                gpuSync.draw(part.vertexCount);
+#endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
               }
             }

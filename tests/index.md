@@ -66,6 +66,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
 | [compare-vertex-cache.py](compare-vertex-cache.py) | Alternating mesh cache optimization off/on with matched instrumentation and allocation checks. |
 | [fast-motion.py](fast-motion.py) | Bounded continuously moving box/model workloads with throughput and error checks. |
+| [profile-render-passes.py](profile-render-passes.py) | Pairs whole-render GPU timing with sampled occluder, opaque, and blended draw attribution on moving models. |
 | [lifecycle-runtime.py](lifecycle-runtime.py) | Runtime script reload, rollback, callbacks, object removal, overlay inventory, and shutdown. |
 | [regroup-lifecycle.py](regroup-lifecycle.py) | Runtime grouping changes, visibility, removal, and scene reload lifecycle. |
 | [soak-motion.py](soak-motion.py) | Repeated moving-model scene reloads with bounded duration, object counts, errors, and buffer accounting. |
@@ -124,6 +125,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [results/motion-soak.md](results/motion-soak.md) | Five-minute motion/reload stability check. |
 | [results/overlay-comparison.md](results/overlay-comparison.md) | Single/grouped rendering measurements and resolution caveats. |
 | [results/regroup.md](results/regroup.md) | Tile merging/rebalancing measurements and lifecycle validation. |
+| [results/render-passes.md](results/render-passes.md) | GPU draw-pass attribution for dense moving models and instrumentation comparisons. |
 | [results/shared-depth-prototype.md](results/shared-depth-prototype.md) | Shared-depth prototype findings and requirements for any future adoption. |
 | [results/vertex-cache.md](results/vertex-cache.md) | Mesh cache/fetch optimization validation and matched performance results. |
 

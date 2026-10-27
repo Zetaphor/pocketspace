@@ -28,13 +28,12 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Profile dense moving model scenes to identify the next GPU bottleneck, separating
-  visible geometry draws from repeated occluder draws and CPU submission cost.
-  Measure GPU/shared memory, overlay count, and per-eye resolution, and
-  evaluate grouped rendering quality before changing defaults. Subdivision,
-  merging, and rebalancing are implemented; consider wider regrouping searches or
-  different cost thresholds only if these measurements justify them. Preserve
-  the common projection plane and coherent depth-cutout reprojection.
+- Compare specialized opaque/depth-only shader paths with the current shared
+  material shader, preserving masked holes and blended-material behavior. The
+  [completed pass profile](../tests/results/render-passes.md) identifies opaque
+  drawing as the fixed dense scene's main GPU cost and additional occluder work
+  in adaptive grouping. It does not separate vertex, raster, and fragment costs;
+  require matched pixel and throughput evidence before adopting a shader change.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. Compare geometry
@@ -42,6 +41,9 @@ This roadmap contains future work, without prescribing an implementation order.
   choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
+  Preserve the common projection plane and coherent depth-cutout reprojection.
+  Consider wider regrouping searches or changed cost thresholds only if further
+  measurements justify them.
 - Extend bounded stability checks to longer sessions or larger workloads when
   needed. Revisit allocation-site profiling if live heap totals grow or memory
   pressure appears; the completed reload/RSS investigation is recorded in the
