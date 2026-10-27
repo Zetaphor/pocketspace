@@ -103,6 +103,10 @@ not fall off the platform. Subsequent allocation protection and continuous-motio
 validation are tracked in [fast-motion validation](fast-motion.md). Headset
 acceptance still requires a separate visual run; no persistent demo is running.
 
-Headset visual acceptance of these new policies is pending. Automatic grouping
+After buffer-budget hardening and the stationary interactive-fixture correction,
+the user accepted the boxes/models headset visual check on 2026-10-27, including
+wide/compact movement, grabbing and head-motion occlusion. Large-count continuous
+motion and longer-duration acceptance remain separate outstanding checks.
+Automatic grouping
 retains existing scene-order and coplanar-depth limitations; fixed groups remain
 available where scripts need direct control over compositor surfaces.

@@ -34,9 +34,6 @@ This roadmap contains future work, without prescribing an implementation order.
   is suitable for this workload. See
   [continuous-motion validation](../tests/results/fast-motion.md) for the workload
   and measured limits.
-- Complete headset visual validation of the implemented tile merging and
-  rebalancing policies with boxes and models. Automated validation and bounded
-  native comparisons are complete; see the [validation record](../tests/results/regroup.md).
 - Profile larger moving box/model scenes to identify the next bottleneck. Measure
   rendering time, GPU/shared memory, overlay count, and per-eye resolution, and
   evaluate grouped rendering quality before changing defaults. Subdivision,
