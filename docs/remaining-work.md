@@ -28,8 +28,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Profile larger moving box/model scenes to identify the next bottleneck. Measure
-  rendering time, GPU/shared memory, overlay count, and per-eye resolution, and
+- Profile dense moving model scenes to identify the next GPU bottleneck, separating
+  visible geometry draws from repeated occluder draws and CPU submission cost.
+  Measure GPU/shared memory, overlay count, and per-eye resolution, and
   evaluate grouped rendering quality before changing defaults. Subdivision,
   merging, and rebalancing are implemented; consider wider regrouping searches or
   different cost thresholds only if these measurements justify them. Preserve
@@ -41,6 +42,10 @@ This roadmap contains future work, without prescribing an implementation order.
   choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
+- Extend bounded stability checks to longer sessions or larger workloads when
+  needed. Revisit allocation-site profiling if live heap totals grow or memory
+  pressure appears; the completed reload/RSS investigation is recorded in the
+  [test results](../tests/results/memory-reload.md).
 
 ## Conditional performance investigations
 
