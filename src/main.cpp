@@ -42,7 +42,7 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false,resolutionLimited=false;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -56,8 +56,10 @@ struct Object {
   bool handPitch=false,handYaw=false,handRoll=false;
   animation::Playback animation;
   std::shared_ptr<ModelPose> animationPose;
+  int renderGroup=0;
 };
 struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+static int objectSurfaceKey(const Object &object){return object.renderGroup?-object.renderGroup:object.id;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
 // Installed only by the VR host; candidate scripts never reserve live resources.
 static std::function<std::string(int)> reserveObjectOverlay;
@@ -459,7 +461,7 @@ static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JS
 }
 static JSValue jsEnableObjectSurface(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectSurface(objectId) requires a live object");
-  // Kept for existing scripts: every object now owns a full-sphere surface.
+  // Compatibility no-op: rendering allocates independent or grouped surfaces.
   return JS_UNDEFINED;
 }
 static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -513,9 +515,17 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   float values[4]={0,0,0,.55f};
   for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
   if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
+  int group=0;
+  if(argc>5&&!JS_IsUndefined(argv[5])){
+    if(!JS_IsObject(argv[5])||JS_IsNull(argv[5]))return JS_ThrowTypeError(ctx,"createObject options must be an object");
+    JSValue value=JS_GetPropertyStr(ctx,argv[5],"renderGroup");if(JS_IsException(value))return value;
+    double number=0;const bool valid=JS_IsUndefined(value)||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&number,value)==0&&std::isfinite(number)&&number>=0&&number<=256&&number==std::floor(number));
+    JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"renderGroup must be an integer from 0 to 256");group=int(number);
+  }
   int id=currentScene->nextId++;
-  if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
+  if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(group?-group:id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
   currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
+  currentScene->objects.back().renderGroup=group;
   return JS_NewInt32(ctx,id);
 }
 static physics::Pose physicsPose(const Object &o){return {{o.x,o.y,o.z},o.pitch,o.yaw,o.roll};}
@@ -844,7 +854,11 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   if(currentScene->physics)currentScene->physics->remove(id);
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
-  if(currentScene==liveScene){forgetObjectInteraction(id);if(releaseObjectOverlay)releaseObjectOverlay(id);}
+  if(currentScene==liveScene){
+    forgetObjectInteraction(id);const int key=objectSurfaceKey(*object);
+    const bool shared=std::any_of(currentScene->objects.begin(),currentScene->objects.end(),[&](const Object &other){return other.id!=id&&objectSurfaceKey(other)==key;});
+    if(!shared&&releaseObjectOverlay)releaseObjectOverlay(key);
+  }
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
 }
@@ -921,7 +935,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
-  bind(candidate.ctx,"createObject",jsCreateObject,5);
+  bind(candidate.ctx,"createObject",jsCreateObject,6);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
   bind(candidate.ctx,"setObjectRotation",jsSetObjectRotation,4);
@@ -1291,6 +1305,31 @@ static int objectCropPixels(const ProjectedBounds bounds[2],const float center[3
   // Extra transparent border and 64-pixel buckets limit resize churn.
   return std::min(referencePixels,std::max(128,((2*extent+32+63)/64)*64));
 }
+struct GroupLayout {float width=.55f;int pixels=128;ProjectedBounds bounds[2];bool limited=false;};
+// Project all members onto one plane for both eyes. Match the most demanding
+// member's reference angular density, rather than stretching a 768px texture.
+static GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels=4096){
+  GroupLayout result;float extent=0,density=0;
+  for(int eye=0;eye<2;eye++){
+    float plane=0,cx=0,cy=0;for(int axis=0;axis<3;axis++){const float delta=center[axis]-eyes[eye][axis];plane+=delta*forward[axis];cx+=delta*right[axis];cy+=delta*up[axis];}
+    for(const auto *object:members){
+      const auto &asset=scene.assets[size_t(object->asset)-1];const auto &geometry=object->animationPose?object->animationPose->geometry:asset;
+      const auto bounds=projectedBounds(*object,geometry,anchor,eyes[eye],right,up,forward);
+      auto &combined=result.bounds[eye];combined.valid=combined.valid&&bounds.valid;
+      combined.x0=std::min(combined.x0,bounds.x0);combined.x1=std::max(combined.x1,bounds.x1);combined.y0=std::min(combined.y0,bounds.y0);combined.y1=std::max(combined.y1,bounds.y1);combined.near=std::min(combined.near,bounds.near);combined.far=std::max(combined.far,bounds.far);
+      if(bounds.valid&&plane>.05f)extent=std::max({extent,std::abs(plane*bounds.x0-cx),std::abs(plane*bounds.x1-cx),std::abs(plane*bounds.y0-cy),std::abs(plane*bounds.y1-cy)});
+      float distance=0;for(int axis=0;axis<3;axis++){const float delta=anchor.m[axis][3]+anchor.m[axis][0]*object->x+anchor.m[axis][1]*object->y-anchor.m[axis][2]*object->z-head.m[axis][3];distance+=delta*delta;}
+      const float referenceWidth=std::max(.55f,object->scale*2.1f*objectRadius(*object));
+      density=std::max(density,asset.eyePixels/referenceWidth*std::sqrt(distance)/std::max(.05f,plane));
+    }
+  }
+  density=std::max(1.f,density);
+  result.width=(!result.bounds[0].valid||!result.bounds[1].valid)?fallbackWidth:std::max(.01f,2*extent+32/density);
+  const double wanted=std::ceil(double(result.width)*density/64)*64;
+  result.limited=wanted>maxPixels;
+  result.pixels=int(std::clamp(wanted,128.0,double(maxPixels)));
+  return result;
+}
 // Occluders write depth only; masked holes keep their alpha-test behavior.
 // Blended surfaces must not become opaque occluders.
 template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw,const ScissorRegion *region=nullptr){
@@ -1432,21 +1471,24 @@ int main(int argc,char **argv) {
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
   std::array<GrabState,2> grabs{};
+  GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
+  const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
+  using SurfaceMembers=std::map<int,std::vector<const Object*>>;
+  auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto syncSurfaces=[&]()->bool{
+    const auto groups=surfaceMembers();
     for(auto it=surfaces.begin();it!=surfaces.end();){
-      const auto *object=findSceneItem(script.scene.objects,it->first);
-      if(!object||!object->visible){
+      if(!groups.count(it->first)){
         forgetObjectInteraction(it->first);destroySurface(*it->second,display);it=surfaces.erase(it);
       }else ++it;
     }
-    for(const auto &entry:script.scene.objects){
-      if(!entry.visible)continue;
-      const auto *object=&entry;const int id=entry.id;
+    for(const auto &[id,members]:groups){
+      const auto *object=members.front();
       const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
       const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
-      const bool interactive=!object->laserPassThrough;
+      const bool interactive=id>0&&!object->laserPassThrough;
       auto found=surfaces.find(id);
-      if(found!=surfaces.end()&&found->second->buffers[0].fbo&&(found->second->referenceEyePixels!=eyePixels||found->second->interactive!=interactive)){
+      if(found!=surfaces.end()&&found->second->buffers[0].fbo&&((id>0&&found->second->referenceEyePixels!=eyePixels)||found->second->interactive!=interactive)){
         pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
       }
       if(found==surfaces.end()){
@@ -1461,6 +1503,7 @@ int main(int argc,char **argv) {
   };
   if(!syncSurfaces())return 8;
   reserveObjectOverlay=[&](int id)->std::string{
+    if(surfaces.count(id))return {};
     auto reserved=std::make_unique<Surface>();reserved->objectId=id;
     const auto key="sf_overlay_engine."+std::to_string(id);
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
@@ -1586,7 +1629,7 @@ int main(int argc,char **argv) {
       }
     }
     for(auto &[id,surface]:surfaces){
-      if(id==0)continue;
+      if(id<=0)continue;
       vr::VREvent_t event{};
       auto &state=pointerStates[id];
       state.scrollX=state.scrollY=0;
@@ -1707,18 +1750,25 @@ int main(int argc,char **argv) {
         const auto error=submitPanel(*overlays,overlay->second,panelData,transform,panelSubmissions[panelData.id]);
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
       }
+      const auto groups=surfaceMembers();
       int shrinkBudget=2;
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
-        const auto *target=findSceneItem(script.scene.objects,id);
-        if(!target)continue;
-        const float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
+        auto group=groups.find(id);if(group==groups.end())continue;
+        const auto &members=group->second;const auto *target=members.front();
+        float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
+        if(id<0){
+          float low[3]={INFINITY,INFINITY,INFINITY},high[3]={-INFINITY,-INFINITY,-INFINITY};
+          for(const auto *member:members){const float p[3]={member->x,member->y,member->z};for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],p[axis]);high[axis]=std::max(high[axis],p[axis]);}}
+          surfaceX=(low[0]+high[0])*.5f;surfaceY=(low[1]+high[1])*.5f;surfaceZ=(low[2]+high[2])*.5f;
+          for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+member->scale*objectRadius(*member)));}
+        }
         auto panel=anchor;
         for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
         float distanceSquared=0,facing=0;
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
-        if(facing<.25f*std::sqrt(distanceSquared)-target->scale*(target->animationPose?objectRadius(*target):.6f)){
+        if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
           if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}
           continue;
         }
@@ -1727,7 +1777,15 @@ int main(int argc,char **argv) {
         const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
         ProjectedBounds targetBounds[2];for(int eye=0;eye<2;eye++)targetBounds[eye]=projectedBounds(*target,targetGeometry,anchor,eyes[eye],panelRight,panelUp,panelForward);
-        const int crop=objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels);
+        int crop=objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels);
+        if(id<0){
+          const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels);
+          if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",-id,maxGroupPixels);
+          surface->resolutionLimited=layout.limited;
+          animatedWidth=layout.width;crop=layout.pixels;
+          targetBounds[0]=layout.bounds[0];targetBounds[1]=layout.bounds[1];
+          surface->referenceEyePixels=crop;
+        }
         // Grow immediately when needed; shrink only after 45 consecutive frames.
         if(crop<surface->eyePixels)++surface->shrinkFrames;else surface->shrinkFrames=0;
         if(crop>surface->eyePixels||(surface->shrinkFrames>=45&&shrinkBudget>0)){
@@ -1752,7 +1810,7 @@ int main(int argc,char **argv) {
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
             for(const auto &object:script.scene.objects){
-              if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
+              if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))continue;
               const auto &geometry=object.animationPose?object.animationPose->geometry:script.scene.assets[size_t(object.asset)-1];
               if(pass<0&&!mayOcclude(projectedBounds(object,geometry,anchor,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
               const auto &asset=script.scene.assets[(size_t)object.asset-1];

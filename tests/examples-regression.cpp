@@ -65,6 +65,29 @@ int main() {
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);reserveObjectOverlay={};
       assert(host.scene.physics->contains(1)&&!host.scene.physics->contains(2)&&!host.scene.physics->contains(3));
     }
+    if(entry.path().filename()=="grouped-stress.js"){
+      std::set<int> handles;for(const auto &object:host.scene.objects)handles.insert(objectSurfaceKey(object));
+      int released=0;const size_t initialHandles=handles.size(),groupCount=initialHandles-1;
+      reserveObjectOverlay=[&](int key)->std::string{if(!handles.count(key)&&handles.size()>=initialHandles)return "simulated overlay budget";handles.insert(key);return {};};
+      releaseObjectOverlay=[&](int key){assert(handles.erase(key)==1);released++;};
+      const char *source=R"(
+        add(150);if(objects.length<150)throw Error('grouped count');
+        for(let i=objects.length-1;i>=0;i-=2)removeObject(objects.splice(i,1)[0]);
+        objects.forEach(id=>setObjectPosition(id,0,0,0));
+        for(const value of [-1,257,1.5,NaN,'1',null]){
+          let failed=false;try{createObject(assets[0],0,0,0,.1,{renderGroup:value})}catch(error){failed=true}
+          if(!failed)throw Error('group validation');
+        }
+        const before=getEngineStats().objectCount;
+        let failed=false;try{createObject(assets[0],0,0,0,.1,{renderGroup:256})}catch(error){failed=true}
+        if(!failed||getEngineStats().objectCount!==before)throw Error('reservation rollback');
+        clear();add(80);if(objects.length!==80)throw Error('group recreation');
+      )";
+      JSValue result=JS_Eval(host.ctx,source,strlen(source),"grouped-controls",JS_EVAL_TYPE_GLOBAL);
+      if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"grouped example: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);assert(handles.size()==initialHandles&&handles.count(-1)&&released==int(groupCount));
+      reserveObjectOverlay={};releaseObjectOverlay={};
+    }
     printf("PASS example %s\n", entry.path().c_str());
     closeScript(host);
     currentScene = liveScene = nullptr;

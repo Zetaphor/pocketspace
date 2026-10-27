@@ -62,7 +62,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | Function | Behavior |
 | --- | --- |
 | `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
-| `createObject(assetId, x, y, z, scale)` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. |
+| `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
 | `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
@@ -71,15 +71,15 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | `removeObject(id)` | Remove the instance and its interaction state. |
 
 Invalid IDs and invalid arguments throw. During live scene updates, object
-creation reserves an overlay handle and throws if SteamVR cannot allocate it; a
-failed reservation leaves no object behind. Removal releases that handle
+creation reserves an overlay handle when its surface needs one and throws if SteamVR cannot allocate it; a
+failed reservation leaves no object behind. Removal of the last surface member releases that handle
 immediately so subsequent spawns can reuse the available capacity. Assets remain loaded until the scene
 is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
-GPU time and memory; there is no shared scene-wide surface. Opaque and
+GPU time and memory. By default each object has its own surface. Opaque and
 alpha-masked models occlude one another using per-eye geometry depth before
 surface submission. Occluder drawing is limited to conservative target bounds;
-near-plane cases retain the full viewport. Each object keeps three independent
+near-plane cases retain the full viewport. Each surface keeps three independent
 color buffers and reuses one depth attachment while rendering them. Masked holes remain transparent. Blended materials are not
 opaque occluders; ordering between blended surfaces remains compositor-dependent.
 
@@ -93,6 +93,35 @@ consecutive eligible frames, with at most two shrinks per frame. Resize keeps th
 overlay handle and interaction state; the native intersection mask retains its
 reference physical extent within the cropped surface. Allocation estimates count
 the actual current buffers, including crops.
+
+
+### Shared render groups
+
+`createObject(asset, x, y, z, scale, {renderGroup: 1})` opts an object into a
+shared stereo surface. Group membership is fixed at creation and scoped to the
+scene. Physics, transforms, animation, visibility, mesh picking, and grabbing
+remain per object. Native rectangular pointer state/events are unavailable for
+grouped objects; use mesh hover/controller events and the interaction helper.
+The shared surface passes native overlay input through to other applications.
+
+A live creation reserves a handle only when its group needs one. Removing the
+last member releases it. Hidden members do not render; an entirely hidden group
+releases its surface during synchronization and recreates it when shown again.
+Both eyes share conservative group bounds and geometry depth, including occlusion
+by objects outside the group. Alpha blending retains scene-order limitations.
+
+Surface dimensions grow with projected bounds and the most demanding member's
+reference angular pixel density. This can use more memory when members spread
+apart or approach the headset. Resolution is bounded by 4096 pixels per eye and
+half the GPU's maximum renderbuffer width; reaching that ceiling logs a warning
+and reduces sampling density. Keep groups compact to avoid this limit. Buffer
+growth is immediate, shrinking uses the existing delay and budget, and each
+surface retains three color buffers and one shared depth attachment.
+
+[grouped-stress.js](../scripts/grouped-stress.js) uses four compact groups for up to 240
+colored boxes plus a separate floor and statistics panel. Bumper adds 10, A/X
+adds 40, and B/Y clears. Fallen/distant bodies are removed. The original
+[stress.js](../scripts/stress.js) keeps its independent surfaces and 51-box cap.
 
 
 Shared GPU meshes reuse identical position/UV vertices within each material
