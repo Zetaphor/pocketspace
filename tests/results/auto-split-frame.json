@@ -1,0 +1,38 @@
+[
+  {
+    "name": "boxes-single",
+    "samples": 14,
+    "bodyTiles": 1,
+    "fps": 89.78603162631957,
+    "cpuPercent": 15.889398252459749,
+    "ramBytes": 104796160.0,
+    "gpuAllocatedEstimateBytes": 287511196.0
+  },
+  {
+    "name": "boxes-adaptive",
+    "samples": 14,
+    "bodyTiles": 2,
+    "fps": 89.97959373965634,
+    "cpuPercent": 13.997088633558397,
+    "ramBytes": 104919040.0,
+    "gpuAllocatedEstimateBytes": 115544732.0
+  },
+  {
+    "name": "models-adaptive",
+    "samples": 14,
+    "bodyTiles": 2,
+    "fps": 89.74723973314688,
+    "cpuPercent": 19.777998004686783,
+    "ramBytes": 104779776.0,
+    "gpuAllocatedEstimateBytes": 115544732.0
+  },
+  {
+    "name": "models-single",
+    "samples": 13,
+    "bodyTiles": 1,
+    "fps": 84.54703974186519,
+    "cpuPercent": 15.850527716671628,
+    "ramBytes": 104792064,
+    "gpuAllocatedEstimateBytes": 287511196
+  }
+]

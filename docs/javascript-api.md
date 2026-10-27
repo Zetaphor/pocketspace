@@ -63,6 +63,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | --- | --- |
 | `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
+| `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048). Pass `false` to stop future splits; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
 | `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
@@ -107,6 +108,7 @@ detailed models, animated instances, and static scenery together.
 | Independent objects (default) | Omit it or use `0` | One per visible object | One per allocated object surface. |
 | Single scene surface | Give all 3D objects the same positive ID | One for the whole scene | Two for the shared surface, including hidden staging. |
 | Multiple grouped surfaces | Assign different positive IDs to subsets | One per nonempty visible group | Two per allocated group, including hidden staging. |
+| Adaptive grouped surfaces | Positive IDs plus `setRenderGroupAutoSplit` | One or more tiles per opted-in group | Two per allocated tile; extra handles during transitions. |
 
 For example, these are alternative ways to create the same content:
 
@@ -146,11 +148,13 @@ groups may be faster. Use `getEngineStats` and visual checks for the intended
 scene instead of assuming one approach always wins. Panels created with
 `createPanel` and controller lasers remain separate overlays in all three modes;
 "single scene surface" refers to 3D geometry, not every overlay owned by the app.
+Automatic subdivision is a separate opt-in; it preserves logical group membership
+and individual object IDs while allowing several render tiles.
 
 ### Shared render group behavior
 
 `createObject(asset, x, y, z, scale, {renderGroup: 1})` opts an object into a
-shared stereo surface. Each group uses two overlay handles, alternating a
+shared stereo surface by default. Each allocated tile uses two overlay handles, alternating a
 visible overlay and a hidden staging overlay. Transform, width, and texture are
 prepared on the hidden overlay before it is shown; the previously visible
 overlay is then hidden. Group membership is fixed at creation and scoped to the
@@ -161,7 +165,7 @@ The shared surface passes native overlay input through to other applications.
 
 A live creation reserves both handles when its group needs them; failure rolls
 back the reservation before publishing the object. Removing the last member
-releases both. Hidden members do not render; an entirely hidden group
+of a tile releases both of its handles. Hidden members do not render; an entirely hidden group
 releases its surface during synchronization and recreates it when shown again.
 Both eyes share conservative group bounds and geometry depth, including occlusion
 by objects outside the group. Grouped surfaces use different texture regions on
@@ -185,9 +189,57 @@ and buffer set. Failed allocation keeps the previous surface available. Each
 surface retains three color buffers and one shared depth attachment.
 
 [grouped-stress.js](../scripts/grouped-stress.js) uses four compact groups for up to 240
-colored boxes plus a floor in its own render group and a statistics panel. Bumper adds 10, A/X
+colored boxes plus a floor in its own render group and a statistics panel. Its body
+groups opt into at most two tiles each when spreading makes that beneficial. Bumper adds 10, A/X
 adds 40, and B/Y clears. Fallen/distant bodies are removed. The original
 [stress.js](../scripts/stress.js) keeps its independent surfaces and 51-box cap.
+
+
+### Automatic render group subdivision
+
+```js
+setRenderGroupAutoSplit(1, {maxSurfaces: 4, targetEyePixels: 2048});
+createObject(boxAsset, -.6, 0, 0, .1, {renderGroup: 1});
+createObject(carAsset,  .6, 0, 0, .1, {renderGroup: 1});
+// Stop further subdivision without changing existing tiles or object IDs:
+// setRenderGroupAutoSplit(1, false);
+```
+
+The policy is scene-local and can be configured before or after creating members.
+Groups without a policy retain the requested single surface. The engine checks
+at most every 500 milliseconds and starts at most one split at a time. A tile
+must exceed `targetEyePixels` or reach the resolution ceiling. Bounded candidates
+along both projected axes must preserve member sampling density, avoid the
+ceiling in both children, and reduce estimated total allocated texels by at
+least 20%, including normal allocation headroom. `targetEyePixels` is a trigger,
+not a hard per-tile size limit or a promise that a useful split exists.
+
+After an allocation failure the engine waits at least five seconds before
+trying another split, avoiding repeated allocation pressure.
+
+A split retains the complete parent surface until both replacements can be
+presented. Allocation failure keeps the current membership and tile; presentation
+failure keeps the parent available and retries. Splitting temporarily needs
+another two overlay pairs and two complete buffer sets alongside the retained
+parent. Overlay limits or allocation failures can prevent a split. Statistics
+include retained generations until they are released.
+
+Each object keeps its tile membership after a split, so head motion does not
+shuffle objects between tiles. New objects join the nearest existing member's
+tile. Physics, animation, grabbing, and script IDs are unchanged. Tiles share the
+same projection plane and per-eye opaque/masked occlusion rules. Hidden objects
+retain logical tile membership; `maxSurfaces` counts those memberships too.
+Removing all members releases their tile, and entirely hidden tiles follow the
+normal surface synchronization rules.
+
+There is no automatic merge or migration of existing objects between established
+tiles. Disabling the policy or reducing `maxSurfaces` stops additional splits;
+it does not merge existing ones. Reload the scene or remove and recreate its
+group members to start from one tile again. A single large object, invalid
+near-plane bounds, overlapping clusters, or insufficient allocation savings can
+leave a group unsplit. Moving an isolated object close to the headset can still
+reach the resolution ceiling. Use several explicit compact groups for layouts
+that need direct control over surface count.
 
 
 Shared GPU meshes reuse identical position/UV vertices within each material

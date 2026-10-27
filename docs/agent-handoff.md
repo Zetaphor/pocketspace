@@ -159,3 +159,26 @@ Shared scene-depth reuse is not enabled. The isolated matching-grid prototype in
 Do not replace per-group occluder passes with an all-scene prepass based on
 unculled comparisons. Current bounds culling can make per-group rendering faster,
 and shared depth requires compatible grids plus explicit equal-depth ownership.
+
+
+Automatic subdivision is opt-in through `setRenderGroupAutoSplit`. Script group
+IDs remain 1–256; internal negative keys encode `-(group + 256*renderTile)`.
+Decode group IDs with `surfaceRenderGroup`, never plain negation. New members
+join a nearest existing member's tile; removal checks the runtime surface key.
+Object IDs, vector order, physics, animations, and interaction state stay stable.
+
+Split planning uses the current `FrameBoundsCache` after the physics barrier.
+Try bounded quartile cuts along both angular axes, requiring valid stereo bounds,
+uncapped children and at least 20% allocated-texel savings. Policies cap logical
+tile memberships including hidden members. Split-only stable membership avoids
+camera-driven churn; merging/rebalancing is not implemented.
+
+A split allocates a new parent generation and child before publishing tile
+membership. Keep the complete old parent in `Surface::previous`. A pending pair
+must both finish rendering (or be successfully hidden by view culling) before
+`submitGroupSplit` shows the visible child then parent;
+only the successful parent presentation retires its complete fallback. On failure
+hide the child and retry. Before writing a pending child's buffers, retry hiding
+it; skip writes if hiding fails. Keep only one pending split, reset it on reload,
+and include every retained generation in resource estimates. Removal/visibility
+changes may eliminate either pending tile; resolve keys again before submission.
