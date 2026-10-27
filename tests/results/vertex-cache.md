@@ -101,5 +101,7 @@ produced 54 late samples, median 58.34 FPS and 449.88 MiB estimated GPU allocati
 retaining all 32 objects. Grouped buffer peak was 498 MiB, and shutdown released
 all grouped charges. The raw log is `/tmp/sf-detailed-motion-headset.log` on Frame;
 the demo is stopped. This is visual acceptance at 32 detailed models, not a
-headset-rate performance claim. The 128-object detailed mix and long-duration
-memory stability remain unvalidated in the headset.
+headset-rate performance claim. A subsequent
+[five-minute motion/reload run](motion-soak.md) completed its native checks.
+The 128-object detailed headset mix and multi-hour memory behavior remain outside
+that validation scope.

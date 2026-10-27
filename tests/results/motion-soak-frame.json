@@ -1,0 +1,49 @@
+{
+  "elapsedSeconds": 300.12113603299804,
+  "phases": [
+    {
+      "phase": 0,
+      "objects": 128,
+      "samples": 50,
+      "fpsMedian": 75.82820006600505,
+      "ramMiBMedian": 85.04296875,
+      "gpuEstimateMiBMedian": 416.87102127075195
+    },
+    {
+      "phase": 1,
+      "objects": 32,
+      "samples": 50,
+      "fpsMedian": 48.721127565751466,
+      "ramMiBMedian": 123.96484375,
+      "gpuEstimateMiBMedian": 477.87886810302734
+    },
+    {
+      "phase": 2,
+      "objects": 128,
+      "samples": 50,
+      "fpsMedian": 72.93207445232167,
+      "ramMiBMedian": 163.73046875,
+      "gpuEstimateMiBMedian": 444.87102127075195
+    },
+    {
+      "phase": 3,
+      "objects": 32,
+      "samples": 50,
+      "fpsMedian": 68.08884119942243,
+      "ramMiBMedian": 120.23046875,
+      "gpuEstimateMiBMedian": 415.87886810302734
+    },
+    {
+      "phase": 4,
+      "objects": 128,
+      "samples": 50,
+      "fpsMedian": 72.13660884763752,
+      "ramMiBMedian": 164.08203125,
+      "gpuEstimateMiBMedian": 476.87102127075195
+    }
+  ],
+  "reloads": 4,
+  "groupBufferPeakMiB": 512.0,
+  "groupedBytesAfterShutdown": 0,
+  "firstToLastAvocadoRamMiB": 79.0390625
+}

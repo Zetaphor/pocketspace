@@ -28,13 +28,11 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Complete longer-duration stress checks and larger detailed-model headset
-  validation. Fixed and adaptive 128-Avocado and adaptive 32-object ToyCar/Avocado
-  continuous-motion visual checks passed;
-  those short checks do not establish long-term memory stability or suitability
-  for arbitrary geometry. See
-  [continuous-motion validation](../tests/results/fast-motion.md) for the workload
-  and measured limits.
+- Characterize RSS retention across repeated mixed-model reloads, separating
+  reusable allocator/driver caches from live allocations. The
+  [five-minute motion/reload check](../tests/results/motion-soak.md) completed;
+  its warmup memory rise and later plateau need attribution before changing
+  reclamation behavior.
 - Profile larger moving box/model scenes to identify the next bottleneck. Measure
   rendering time, GPU/shared memory, overlay count, and per-eye resolution, and
   evaluate grouped rendering quality before changing defaults. Subdivision,
@@ -46,7 +44,8 @@ This roadmap contains future work, without prescribing an implementation order.
   fall below headset frame rates. Compare geometry
   visibility, repeated occluder draws, batching/instancing and model LOD before
   choosing an implementation; object count alone is not a sufficient workload
-  budget.
+  budget. Validate larger detailed-model counts in the headset after reducing
+  their rendering cost; the accepted detailed headset case contains 32 objects.
 
 ## Conditional performance investigations
 
