@@ -212,3 +212,35 @@ body removal, and live script replacement from boxes to models. It checks that
 reload commits, removal leaves only the floor, structural operations occurred,
 and SIGTERM stops the process normally.
 See [regrouping measurements and validation](results/regroup.md).
+
+## Render pass attribution
+
+The excluded `gpu-sync-experiment` target also supports
+`SF_GPU_PROFILE_PASSES=1`. This replaces its whole-render GPU query with separate
+elapsed GPU queries around the occluder, opaque, and blended draw callbacks in
+one sampled frame per second. Other frames run without pass queries. Production
+builds compile out the hooks and environment option.
+
+```sh
+cmake --build build --target gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/profile-render-passes.py --output /tmp/render-pass-profile
+```
+
+The bounded runner alternates whole-render and per-pass timing runs across two
+rounds of fixed/adaptive 128 mixed models and fixed 128 Avocados, with mesh cache
+optimization enabled. It retains logs, checks object counts and shutdown buffer
+accounting, rejects unavailable/disjoint GPU timings and reported GL errors, and
+records whether paired storage estimates match. Keep the headset awake and the
+view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
+
+`RENDER_PASS_SAMPLE` arrays are ordered occluder, opaque, blended. GPU times sum
+the elapsed queries for each category; CPU values measure render-thread CPU time
+inside the same callbacks, including culling and driver calls. Draw/triangle
+counts describe submitted primitives, not visible fragments or hardware vertex
+invocations. Timings exclude framebuffer clears, surface setup, layer state
+changes outside the callbacks, and compositor work. GPU elapsed time can include
+scheduling effects. These sampled sums are attribution evidence, not a replacement
+for whole-render timing or a guarantee of the savings from removing a pass.
+Compare matching-storage pairs to assess instrumentation overhead before drawing
+throughput conclusions; differing dynamic allocations invalidate that comparison.
