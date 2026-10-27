@@ -88,6 +88,8 @@ full PBR lighting or morph animation. Finger sensing exposes controller
 capacitance/contact rather than a hand skeleton. See the linked guides for
 supported data and limits.
 
+This project is licensed under the [MIT License](LICENSE).
+Third-party code and sample assets retain their respective licenses.
 Sample sources and licenses are listed in [asset attribution](assets/samples/ATTRIBUTION.md).
 The glTF loader uses [cgltf](https://github.com/jkuhlmann/cgltf), vendored at
 commit `85cd62382dfea638278962690cf515023f33ed00`; see
