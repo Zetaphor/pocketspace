@@ -28,11 +28,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Characterize RSS retention across repeated mixed-model reloads, separating
-  reusable allocator/driver caches from live allocations. The
-  [five-minute motion/reload check](../tests/results/motion-soak.md) completed;
-  its warmup memory rise and later plateau need attribution before changing
-  reclamation behavior.
 - Profile larger moving box/model scenes to identify the next bottleneck. Measure
   rendering time, GPU/shared memory, overlay count, and per-eye resolution, and
   evaluate grouped rendering quality before changing defaults. Subdivision,

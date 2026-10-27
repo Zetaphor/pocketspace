@@ -31,6 +31,8 @@ detailed phase. This is consistent with a warmup/retention plateau during this
 run; it does not identify the retained allocations or prove the absence of leaks.
 Separate allocator/driver retention from live allocations before attributing
 that rise to a leak or changing memory reclamation behavior.
+The subsequent [allocator measurement](memory-reload.md) accounts for most of
+the rise as free heap space retained for reuse, with stable live heap totals.
 
 Dynamic allocation sizes differed across phases. This is a lifecycle/stability
 check, not an equal-quality performance comparison. FPS variation in the detailed
