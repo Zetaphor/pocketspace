@@ -63,7 +63,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | --- | --- |
 | `loadModel(path, eyePixels = 768)` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
-| `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048). Pass `false` to stop future splits; existing tiles remain. |
+| `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
 | `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
@@ -190,7 +190,7 @@ surface retains three color buffers and one shared depth attachment.
 
 [grouped-stress.js](../scripts/grouped-stress.js) uses four compact groups for up to 240
 colored boxes plus a floor in its own render group and a statistics panel. Its body
-groups opt into at most two tiles each when spreading makes that beneficial. Bumper adds 10, A/X
+groups opt into at most two tiles each, with merging and rebalancing enabled. Bumper adds 10, A/X
 adds 40, and B/Y clears. Fallen/distant bodies are removed. The original
 [stress.js](../scripts/stress.js) keeps its independent surfaces and 51-box cap.
 
@@ -212,10 +212,12 @@ FPS. Keep tightly packed scenes on one surface when measurements favor it.
 compare the intended layout after its allocations settle.
 
 ```js
-setRenderGroupAutoSplit(1, {maxSurfaces: 4, targetEyePixels: 2048});
+setRenderGroupAutoSplit(1, {
+  maxSurfaces: 4, targetEyePixels: 2048, merge: true, rebalance: true
+});
 createObject(boxAsset, -.6, 0, 0, .1, {renderGroup: 1});
 createObject(carAsset,  .6, 0, 0, .1, {renderGroup: 1});
-// Stop further subdivision without changing existing tiles or object IDs:
+// Stop further adaptation without changing existing tiles or object IDs:
 // setRenderGroupAutoSplit(1, false);
 ```
 
@@ -240,22 +242,68 @@ another two overlay pairs and two complete buffer sets alongside the retained
 parent. Overlay limits or allocation failures can prevent a split. Statistics
 include retained generations until they are released.
 
-Each object keeps its tile membership after a split, so head motion does not
-shuffle objects between tiles. New objects join the nearest existing member's
+With the default split-only policy, existing objects keep their tile membership
+after a split. Enabling `merge` or `rebalance` allows the engine to change render
+tile membership under the constraints below, while logical group and object IDs
+remain unchanged. New objects join the nearest existing member's
 tile. Physics, animation, grabbing, and script IDs are unchanged. Tiles share the
 same projection plane and per-eye opaque/masked occlusion rules. Hidden objects
 retain logical tile membership; `maxSurfaces` counts those memberships too.
 Removing all members releases their tile, and entirely hidden tiles follow the
 normal surface synchronization rules.
 
-There is no automatic merge or migration of existing objects between established
-tiles. Disabling the policy or reducing `maxSurfaces` stops additional splits;
-it does not merge existing ones. Reload the scene or remove and recreate its
-group members to start from one tile again. A single large object, invalid
+`merge` and `rebalance` default to `false`, preserving split-only behavior.
+Disabling the policy stops future splits, merges, and rebalances; it leaves current
+tiles intact. Reducing `maxSurfaces` prevents additional splits and does not force
+a merge. With merging disabled, reload the scene or remove and recreate its group
+members to start from one tile again. A single large object, invalid
 near-plane bounds, overlapping clusters, or insufficient allocation savings can
 leave a group unsplit. Moving an isolated object close to the headset can still
 reach the resolution ceiling. Use several explicit compact groups for layouts
 that need direct control over surface count.
+
+
+#### Merging and rebalancing
+
+Set `merge: true` to let two tiles in the same logical group combine when their
+members come back together. The combined image must fit within `targetEyePixels`,
+avoid the resolution ceiling, and reduce estimated steady allocation by at least
+20%. Requiring a compact result avoids immediately splitting the merged tile
+again. This can reduce overlay count and repeated rendering; it is not a guarantee
+of higher FPS in every scene.
+
+Set `rebalance: true` to let two existing tiles exchange members when objects have
+moved between spatial clusters. The engine tries bounded cuts along both projected
+axes, keeps the tile count unchanged, and requires at least 20% less estimated
+steady allocation. Both outputs preserve member sampling density and avoid the
+resolution ceiling. Output labels are chosen to minimize membership changes.
+
+Merging takes priority when it qualifies. Allocation comparisons use current
+projected demand with normal headroom, rather than oversized buffers awaiting
+ordinary shrinking. A proposal must have the same object-to-output assignment on
+at least three checks spanning one second. Regrouping waits at least two seconds
+after the group's previous structural change completes. At most four candidate
+pairs are evaluated per check, using a rotating search while a persistent proposal
+is rechecked first. These constraints limit churn from brief movements. Tiles
+containing hidden members defer merging/rebalancing until those members are
+visible again. Pairs containing blended materials are excluded to preserve their
+existing compositor order; opaque and masked materials can regroup. Unchanged groups and invalid near-plane bounds stay as they are.
+
+Both old tiles remain available until every visible replacement is ready to show;
+view-culled replacements can complete the handoff without being shown. A rebalance
+retains both old buffer sets on either output's presentation failure. It hides
+replacement fronts before reusing their buffers, retries failed hiding, and keeps
+the fallbacks. Removing or hiding a pending output transfers its fallback snapshots
+to the surviving output until the handoff can finish. Object IDs, interaction,
+physics, and animation are preserved; this moves render membership only.
+
+A merge temporarily adds one overlay pair and buffer set before releasing the two
+old tiles. A rebalance temporarily adds two pairs and buffer sets. Retained
+snapshots are included in GPU allocation estimates. Allocation failure leaves
+current membership intact and uses the existing five-second retry backoff.
+Already-started handoffs finish even if a script subsequently disables the policy.
+Each configuration call replaces that group's options; omitted options return to
+their defaults, including `merge: false` and `rebalance: false`.
 
 
 ### Shared model geometry

@@ -1,5 +1,5 @@
 // Compact body groups can subdivide as their members spread apart.
-for (let group = 1; group <= 4; group++) setRenderGroupAutoSplit(group, {maxSurfaces: 2, targetEyePixels: 2048});
+for (let group = 1; group <= 4; group++) setRenderGroupAutoSplit(group, {maxSurfaces: 2, targetEyePixels: 2048, merge: true, rebalance: true});
 const LIMIT = 240;
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2, {renderGroup: 5});
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
