@@ -121,3 +121,20 @@ the staged frame, hide that staged handle before preparing it again; skip writes
 if hiding fails. Destroy both handles during removal and release partial live
 reservations if the second handle cannot be created. Per-surface color buffers
 and object IDs remain independent of the alternating overlay handles.
+
+All grouped surfaces use `groupPlane`: one head-facing plane through the scene
+anchor, with each tile offset only within that plane. Do not face each tile
+separately or place it at member depth; compositor late-pose reprojection would
+then separate color edges from depth cutouts in other groups. Convert the tile's
+world origin back to scene coordinates before setting model offsets. The grouped
+stress floor participates in this same projection cohort. Independent surfaces
+retain their separate projection behavior.
+
+Object surfaces use `VROverlayFlags_IsPremultiplied`, matching GL's blended
+framebuffer output. Masked fragments premultiply RGB explicitly because that
+pass disables GL blending; opaque fragments have alpha one. Panels keep their
+own retained-canvas alpha convention.
+
+Group sampling density uses axial depth relative to the common plane, including
+its oblique angular magnification. Using radial object range instead inflates
+allocations for objects beside or below the view.

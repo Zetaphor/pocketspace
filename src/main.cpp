@@ -1024,6 +1024,10 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
   }
   error=overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_SideBySide_Parallel,true);
   if(error!=vr::VROverlayError_None)return false;
+  // GL blending stores premultiplied colors; preserve that convention when
+  // the compositor filters transparent silhouette/cutout borders.
+  error=overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_IsPremultiplied,true);
+  if(error!=vr::VROverlayError_None)return false;
   error=overlays->SetOverlayWidthInMeters(surface.overlay,width);
   if(error!=vr::VROverlayError_None)return false;
   vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(surface.overlay,&bounds);
@@ -1046,6 +1050,7 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
       if(error!=vr::VROverlayError_None)return false;
     }
     if(overlays->SetOverlayFlag(surface.stagingOverlay,vr::VROverlayFlags_SideBySide_Parallel,true)!=vr::VROverlayError_None)return false;
+    if(overlays->SetOverlayFlag(surface.stagingOverlay,vr::VROverlayFlags_IsPremultiplied,true)!=vr::VROverlayError_None)return false;
     if(overlays->SetOverlayWidthInMeters(surface.stagingOverlay,width)!=vr::VROverlayError_None)return false;
     overlays->SetOverlayTextureBounds(surface.stagingOverlay,&bounds);
     overlays->SetOverlayTransformAbsolute(surface.stagingOverlay,vr::TrackingUniverseStanding,&anchor);
@@ -1390,9 +1395,12 @@ static GroupLayout groupLayout(const std::vector<const Object*> &members,const S
       auto &combined=result.bounds[eye];combined.valid=combined.valid&&bounds.valid;
       combined.x0=std::min(combined.x0,bounds.x0);combined.x1=std::max(combined.x1,bounds.x1);combined.y0=std::min(combined.y0,bounds.y0);combined.y1=std::max(combined.y1,bounds.y1);combined.near=std::min(combined.near,bounds.near);combined.far=std::max(combined.far,bounds.far);
       if(bounds.valid&&plane>.05f)extent=std::max({extent,std::abs(plane*bounds.x0-cx),std::abs(plane*bounds.x1-cx),std::abs(plane*bounds.y0-cy),std::abs(plane*bounds.y1-cy)});
-      float distance=0;for(int axis=0;axis<3;axis++){const float delta=anchor.m[axis][3]+anchor.m[axis][0]*object->x+anchor.m[axis][1]*object->y-anchor.m[axis][2]*object->z-head.m[axis][3];distance+=delta*delta;}
+      // Account for the common plane's obliquity. Its minimum angular
+      // magnification is plane/cos(theta), so matching an object's own facing
+      // plane requires referenceDensity * axialDepth / plane, not radial range.
+      float axialDepth=0;for(int axis=0;axis<3;axis++){const float delta=anchor.m[axis][3]+anchor.m[axis][0]*object->x+anchor.m[axis][1]*object->y-anchor.m[axis][2]*object->z-head.m[axis][3];axialDepth+=delta*forward[axis];}
       const float referenceWidth=std::max(.55f,object->scale*2.1f*objectRadius(*object));
-      density=std::max(density,asset.eyePixels/referenceWidth*std::sqrt(distance)/std::max(.05f,plane));
+      density=std::max(density,asset.eyePixels/referenceWidth*std::max(.05f,axialDepth)/std::max(.05f,plane));
     }
   }
   density=std::max(1.f,density);
@@ -1400,6 +1408,36 @@ static GroupLayout groupLayout(const std::vector<const Object*> &members,const S
   const double wanted=std::ceil(double(result.width)*density/64)*64;
   result.limited=wanted>maxPixels;
   result.pixels=int(std::clamp(wanted,128.0,double(maxPixels)));
+  return result;
+}
+struct GroupPlane {
+  vr::HmdMatrix34_t transform{};
+  float sceneOrigin[3]{},right[3]{},up[3]{},forward[3]{};
+};
+// All grouped tiles lie on one plane. Otherwise late head-pose reprojection
+// moves an occluder's color and its cutout in another tile by different amounts.
+static GroupPlane groupPlane(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3]){
+  GroupPlane result;result.transform=anchor;
+  faceViewer(result.transform,anchor,head,result.right,result.up,result.forward);
+  float lowX=INFINITY,highX=-INFINITY,lowY=INFINITY,highY=-INFINITY;bool valid=true;
+  for(int eye=0;eye<2;eye++){
+    float distance=0,eyeX=0,eyeY=0;
+    for(int axis=0;axis<3;axis++){const float delta=eyes[eye][axis]-anchor.m[axis][3];distance-=delta*result.forward[axis];eyeX+=delta*result.right[axis];eyeY+=delta*result.up[axis];}
+    if(distance<=.05f){valid=false;break;}
+    for(const auto *object:members){
+      const auto &asset=scene.assets[size_t(object->asset)-1];const auto &geometry=object->animationPose?object->animationPose->geometry:asset;
+      const auto bounds=projectedBounds(*object,geometry,anchor,eyes[eye],result.right,result.up,result.forward);
+      if(!bounds.valid){valid=false;break;}
+      lowX=std::min(lowX,eyeX+distance*bounds.x0);highX=std::max(highX,eyeX+distance*bounds.x1);
+      lowY=std::min(lowY,eyeY+distance*bounds.y0);highY=std::max(highY,eyeY+distance*bounds.y1);
+    }
+    if(!valid)break;
+  }
+  if(valid&&std::isfinite(lowX)&&std::isfinite(highX)&&std::isfinite(lowY)&&std::isfinite(highY)){
+    const float x=(lowX+highX)*.5f,y=(lowY+highY)*.5f;
+    for(int row=0;row<3;row++)result.transform.m[row][3]+=result.right[row]*x+result.up[row]*y;
+  }
+  for(int axis=0;axis<3;axis++)for(int row=0;row<3;row++)result.sceneOrigin[axis]+=(result.transform.m[row][3]-anchor.m[row][3])*anchor.m[row][axis]*(axis==2?-1.f:1.f);
   return result;
 }
 // Occluders write depth only; masked holes keep their alpha-test behavior.
@@ -1834,14 +1872,17 @@ int main(int argc,char **argv) {
         const auto &members=group->second;const auto *target=members.front();
         float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
-        if(id<0){
-          float low[3]={INFINITY,INFINITY,INFINITY},high[3]={-INFINITY,-INFINITY,-INFINITY};
-          for(const auto *member:members){const float p[3]={member->x,member->y,member->z};for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],p[axis]);high[axis]=std::max(high[axis],p[axis]);}}
-          surfaceX=(low[0]+high[0])*.5f;surfaceY=(low[1]+high[1])*.5f;surfaceZ=(low[2]+high[2])*.5f;
-          for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+member->scale*objectRadius(*member)));}
-        }
         auto panel=anchor;
-        for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
+        float panelRight[3],panelUp[3],panelForward[3];
+        if(id<0){
+          const auto projection=groupPlane(members,script.scene,anchor,head,eyes);
+          panel=projection.transform;surfaceX=projection.sceneOrigin[0];surfaceY=projection.sceneOrigin[1];surfaceZ=projection.sceneOrigin[2];
+          std::copy_n(projection.right,3,panelRight);std::copy_n(projection.up,3,panelUp);std::copy_n(projection.forward,3,panelForward);
+          for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+member->scale*objectRadius(*member)));}
+        }else{
+          for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
+          faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
+        }
         float distanceSquared=0,facing=0;
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
         if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
@@ -1849,8 +1890,6 @@ int main(int argc,char **argv) {
           if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] hide id=%d error=%d\n",id,int(error));
           continue;
         }
-        float panelRight[3],panelUp[3],panelForward[3];
-        faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
         const auto &targetGeometry=target->animationPose?target->animationPose->geometry:script.scene.assets[size_t(target->asset)-1];
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
         ProjectedBounds targetBounds[2];for(int eye=0;eye<2;eye++)targetBounds[eye]=projectedBounds(*target,targetGeometry,anchor,eyes[eye],panelRight,panelUp,panelForward);

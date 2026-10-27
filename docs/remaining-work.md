@@ -29,7 +29,8 @@ This roadmap contains future work, without prescribing an implementation order.
 ## Deferred performance work
 
 - Split or spatially partition shared render groups when members spread apart or
-  approach the headset, avoiding resolution ceilings and excess buffer memory.
+  approach the headset, avoiding resolution ceilings and excess buffer memory while preserving the
+  common projection plane and coherent depth-cutout reprojection.
 - Evaluate grouped rendering quality and performance across larger scenes before
   selecting broader defaults.
 
