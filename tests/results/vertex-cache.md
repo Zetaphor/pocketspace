@@ -79,4 +79,7 @@ Raw logs remain on Frame under `/tmp/sf-cache-validated-comparison`,
 `/tmp/sf-cache-validated-light`, and `/tmp/sf-cache-production-check`; final native
 reload output is `/tmp/sf-cache-delivery-lifecycle.log`. Earlier exploratory
 triangle-only and mismatched-allocation runs are not the retained comparison.
-Headset visual acceptance and long-duration stress validation remain pending.
+The user accepted the interactive headset visual check on 2026-10-27 with mesh
+optimization enabled: boxes/models, wide/compact movement, grabbing/rotation and
+head-motion occlusion were reported as good. Large-count continuous-motion and
+long-duration stress acceptance remain pending.
