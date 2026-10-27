@@ -72,6 +72,5 @@ releases both buffer types.
 Live `createObject` calls reserve overlay handles before publishing an object;
 reservation failures throw to JavaScript. Surface initialization reuses those
 handles, and removal releases them immediately. Candidate script evaluation
-must not call the live reserve/release hooks. The stress scene has no fixed
-spawn cap and catches creation failures, cleaning up partial bodies and showing
+must not call the live reserve/release hooks. The stress scene caps spawned boxes at 51 and catches creation failures, cleaning up partial bodies and showing
 the error on its HUD.

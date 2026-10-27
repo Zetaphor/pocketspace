@@ -49,15 +49,19 @@ int main() {
     if(entry.path().filename()=="stress.js"){
       reserveObjectOverlay=[](int)->std::string{return currentScene->objects.size()>=81?"simulated runtime overlay limit":"";};
       const char *source=R"(
-        clear();add(1000);if(getEngineStats().objectCount!==81||objects.length!==80||!spawnStatus)throw Error('stress runtime failure');
+        clear();add(1000);if(getEngineStats().objectCount!==52||objects.length!==51||spawnStatus)throw Error('stress cap');
         const fallen=objects[0], distant=objects[1], kept=objects[2];
         setObjectPosition(fallen,0,-1.3,0);setObjectPosition(distant,3.1,0,0);
-        if(!prune()||getEngineStats().objectCount!==79||objects.includes(fallen)||objects.includes(distant)||!objects.includes(kept))throw Error('stress cleanup');
-        add(2);if(getEngineStats().objectCount!==81||spawnStatus)throw Error('stress reclaimed capacity');
+        if(!prune()||getEngineStats().objectCount!==50||objects.includes(fallen)||objects.includes(distant)||!objects.includes(kept))throw Error('stress cleanup');
+        add(2);if(getEngineStats().objectCount!==52||spawnStatus)throw Error('stress reclaimed capacity');
         clear();if(getEngineStats().objectCount!==1)throw Error('stress clear');
       )";
       JSValue result=JS_Eval(host.ctx,source,strlen(source),"stress-controls",JS_EVAL_TYPE_GLOBAL);
       if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"stress example: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      reserveObjectOverlay=[](int)->std::string{return currentScene->objects.size()>=11?"simulated runtime overlay limit":"";};
+      const char *failure="add(1000);if(objects.length!==10||getEngineStats().objectCount!==11||!spawnStatus)throw Error('stress runtime failure');clear();";
+      result=JS_Eval(host.ctx,failure,strlen(failure),"stress-resource-failure",JS_EVAL_TYPE_GLOBAL);
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);reserveObjectOverlay={};
       assert(host.scene.physics->contains(1)&&!host.scene.physics->contains(2)&&!host.scene.physics->contains(3));
     }

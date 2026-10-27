@@ -28,6 +28,9 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Deferred performance work
 
+- Render multiple bodies through fewer overlays to increase visible object counts
+  beyond the runtime overlay budget, preserving stereo quality and interaction.
+
 - Reuse scene depth across different object surfaces as counts grow, preserving
   per-eye opaque/masked occlusion.
 - Replace repeated object/surface scans with direct lookups at higher counts.
