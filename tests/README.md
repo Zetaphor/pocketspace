@@ -91,3 +91,35 @@ This is a matching-grid feasibility test, not an engine FPS comparison. It reuse
 one offscreen color target, omits compositor submission, physics, triple buffers,
 and dynamic group layouts. Timing includes CPU submission and completed GPU work.
 See [results and adoption requirements](results/shared-depth-prototype.md).
+
+
+## Automatic render group subdivision
+
+Build `render-group-split-regression`, `panel-submission-regression`, and
+`render-occlusion-regression` for CPU/API planning checks, simulated presentation
+failures, and actual GLES occlusion coverage. Failures exit without core dumps.
+`examples-regression` also exercises the adaptive scene's controls and bindings.
+
+`tests/scenes/auto-split.js` starts two islands of colored boxes in one opted-in
+logical group, plus a floor in a separate group. Grip/trigger grabs individuals;
+bumper rebuilds wide/compact islands, A/X rebuilds boxes/ToyCar/Avocado, and B/Y
+clears the bodies. Check head-motion edges, floor occlusion, and the allocation
+HUD as tiles split. Geometry switches rebuild memberships from one tile. Runtime
+logs report logical group IDs, new tile counts, and planned allocation savings.
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-auto-split.py --engine build/sf-overlay-engine \
+  --output /tmp/auto-split-comparison
+```
+
+This bounded runner compares fixed kinematic geometry with subdivision disabled
+and enabled, alternating pair order for boxes/models. Both variants preload the
+same assets, use identical positions, floor, interaction flags, and panel, and
+retain member sampling density. It verifies object counts and split decisions,
+discards warmup samples, and records median FPS/CPU/RSS/GPU allocation estimates.
+Keep the headset awake and head steady for performance comparisons. No persistent
+demo remains after the runner finishes; headset visual acceptance is separate.
+
+See [native subdivision results](results/auto-split.md) for measurements and
+validation limits.

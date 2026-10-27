@@ -34,7 +34,7 @@ struct Renderer {
     scene.objects.push_back({2,2,-.6f,-.1f,0,.6f,0,0,float(std::acos(-1)/2)});
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
-  std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false){
+  std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0){
     auto panel=anchor,head=anchor;panel.m[1][3]=-.2f;
     head.m[0][3]=headScene.x;head.m[1][3]=headScene.y;head.m[2][3]=-headScene.z;
     float r[3],u[3],f[3];faceViewer(panel,anchor,head,r,u,f);
@@ -42,13 +42,14 @@ struct Renderer {
     vector("panelRight",r[0],r[1],r[2]);vector("panelUp",u[0],u[1],u[2]);vector("panelForward",f[0],f[1],f[2]);
     glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),1.2f*gridScale);
     glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(0,0,pixels,pixels);glClearColor(0,0,0,0);glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glClear(sharedDepth==2?GL_COLOR_BUFFER_BIT:GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    for(auto &object:scene.objects)object.renderGroup=std::find(ids.begin(),ids.end(),object.id)!=ids.end()?1:0;
+    const int targetKey=tileKey?tileKey:-1;
+    if(!tileKey)for(auto &object:scene.objects)object.renderGroup=std::find(ids.begin(),ids.end(),object.id)!=ids.end()?1:0;
     std::vector<ProjectedBounds> projected;ProjectedBounds combined;
     const float eyePosition[3]={head.m[0][3]+(eyeIndex?.032f:-.032f),head.m[1][3],head.m[2][3]},planeCenter[3]={0,-.2f,0};
     if(cull){
       for(const auto &object:scene.objects){
         projected.push_back(projectedBounds(object,scene.assets[object.asset-1],anchor,eyePosition,r,u,f));
-        if(object.visible&&object.renderGroup==1){const auto &b=projected.back();combined.valid&=b.valid;combined.x0=std::min(combined.x0,b.x0);combined.x1=std::max(combined.x1,b.x1);combined.y0=std::min(combined.y0,b.y0);combined.y1=std::max(combined.y1,b.y1);combined.near=std::min(combined.near,b.near);combined.far=std::max(combined.far,b.far);}
+        if(object.visible&&objectSurfaceKey(object)==targetKey){const auto &b=projected.back();combined.valid&=b.valid;combined.x0=std::min(combined.x0,b.x0);combined.x1=std::max(combined.x1,b.x1);combined.y0=std::min(combined.y0,b.y0);combined.y1=std::max(combined.y1,b.y1);combined.near=std::min(combined.near,b.near);combined.far=std::max(combined.far,b.far);}
       }
     }
     ScissorRegion region{};if(cull)region=projectedScissor(combined,planeCenter,eyePosition,r,u,f,1.2f*gridScale,pixels);
@@ -69,11 +70,11 @@ struct Renderer {
     if(sharedDepth==1){
       glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);draw(-999,-1);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
     }else if(sharedDepth==2){
-      glDepthMask(GL_FALSE);glDepthFunc(GL_LEQUAL);draw(-1,0);
-      glDepthFunc(GL_LESS);glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);draw(-1,1);
+      glDepthMask(GL_FALSE);glDepthFunc(GL_LEQUAL);draw(targetKey,0);
+      glDepthFunc(GL_LESS);glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);draw(targetKey,1);
       glDisable(GL_BLEND);glDepthMask(GL_TRUE);
-    }else renderObjectLayers(-1,draw,cull?&region:nullptr);
-    for(auto &object:scene.objects)object.renderGroup=0;
+    }else renderObjectLayers(targetKey,draw,cull?&region:nullptr);
+    if(!tileKey)for(auto &object:scene.objects)object.renderGroup=0;
     if(!readback)return {};
     std::vector<unsigned char> image(pixels*pixels*4);glReadPixels(0,0,pixels,pixels,GL_RGBA,GL_UNSIGNED_BYTE,image.data());assert(glGetError()==GL_NO_ERROR);return image;
   }
@@ -219,6 +220,14 @@ int main(){
       for(size_t i=0;i<bodies.size();i+=4)if(bodies[i+3])std::copy_n(bodies.data()+i,4,floor.data()+i);
       assert(grouped==floor);
     }
+    for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
+      const auto floor=renderer.renderSet({1},head,eye),bodies=renderer.renderSet({2,3},head,eye);
+      for(auto &object:renderer.scene.objects){object.renderGroup=7;object.renderTile=object.id==1?0:1;}
+      assert(floor==renderer.renderSet({},head,eye,0,true,1,true,-7));
+      assert(bodies==renderer.renderSet({},head,eye,0,true,1,true,-263));
+      for(auto &object:renderer.scene.objects){object.renderGroup=0;object.renderTile=0;}
+    }
+    puts("PASS subdivided GLES: runtime tile keys preserve cross-tile floor/body occlusion and exact stereo pixels on a matching grid");
     {
       Scene groupScene;ModelAsset asset;asset.eyePixels=768;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}groupScene.assets.push_back(std::move(asset));
       groupScene.objects.push_back({1,1,-.25f,0,0,.1f,0});groupScene.objects.push_back({2,1,.25f,0,0,.1f,0});

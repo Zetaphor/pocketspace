@@ -28,6 +28,7 @@
 #include <utility>
 #include <functional>
 #include <quickjs.h>
+#include <tuple>
 #include "model_asset.h"
 #include "model_shaders.h"
 #include "controller_input.h"
@@ -56,10 +57,12 @@ struct Object {
   bool handPitch=false,handYaw=false,handRoll=false;
   animation::Playback animation;
   std::shared_ptr<ModelPose> animationPose;
-  int renderGroup=0;
+  int renderGroup=0,renderTile=0;
 };
-struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
-static int objectSurfaceKey(const Object &object){return object.renderGroup?-object.renderGroup:object.id;}
+struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;};
+struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
+static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
 // Installed only by the VR host; candidate scripts never reserve live resources.
 static std::function<std::string(int)> reserveObjectOverlay;
@@ -509,6 +512,23 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
+static JSValue jsSetRenderGroupAutoSplit(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  double group=0;
+  if(!currentScene||argc<1||!JS_IsNumber(argv[0])||JS_ToFloat64(ctx,&group,argv[0])<0||!std::isfinite(group)||group<1||group>256||group!=std::floor(group))return JS_ThrowRangeError(ctx,"render group must be an integer from 1 to 256");
+  if(argc>1&&JS_IsBool(argv[1])&&!JS_ToBool(ctx,argv[1])){currentScene->renderGroupSplits.erase(int(group));return JS_UNDEFINED;}
+  RenderGroupSplitPolicy policy;
+  if(argc>1&&!JS_IsUndefined(argv[1])){
+    if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"auto split options must be an object or false");
+    for(auto [name,destination,low,high,step]:{std::tuple{"maxSurfaces",&policy.maxSurfaces,1,16,1},std::tuple{"targetEyePixels",&policy.targetEyePixels,256,4096,64}}){
+      JSValue value=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(value))return value;
+      double number=0;const bool missing=JS_IsUndefined(value);
+      const bool valid=missing||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&number,value)==0&&std::isfinite(number)&&number>=low&&number<=high&&std::fmod(number,step)==0);
+      JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"invalid auto split %s",name);
+      if(!missing)*destination=int(number);
+    }
+  }
+  currentScene->renderGroupSplits[int(group)]=policy;return JS_UNDEFINED;
+}
 static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<4||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs asset, x, y, z; limit is 256 objects");
   int asset=0;if(JS_ToInt32(ctx,&asset,argv[0])<0||asset<1||asset>(int)currentScene->assets.size())return JS_ThrowRangeError(ctx,"unknown asset id");
@@ -522,10 +542,15 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
     double number=0;const bool valid=JS_IsUndefined(value)||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&number,value)==0&&std::isfinite(number)&&number>=0&&number<=256&&number==std::floor(number));
     JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"renderGroup must be an integer from 0 to 256");group=int(number);
   }
+  int tile=0;double nearest=INFINITY;
+  if(group)for(const auto &other:currentScene->objects)if(other.renderGroup==group){
+    const double dx=double(other.x)-values[0],dy=double(other.y)-values[1],dz=double(other.z)-values[2],distance=dx*dx+dy*dy+dz*dz;
+    if(distance<nearest){nearest=distance;tile=other.renderTile;}
+  }
   int id=currentScene->nextId++;
-  if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(group?-group:id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
+  if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(group?-(group+256*tile):id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
   currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
-  currentScene->objects.back().renderGroup=group;
+  currentScene->objects.back().renderGroup=group;currentScene->objects.back().renderTile=tile;
   return JS_NewInt32(ctx,id);
 }
 static physics::Pose physicsPose(const Object &o){return {{o.x,o.y,o.z},o.pitch,o.yaw,o.roll};}
@@ -902,6 +927,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"getEngineStats",jsGetEngineStats,0);
+  bind(candidate.ctx,"setRenderGroupAutoSplit",jsSetRenderGroupAutoSplit,2);
   bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);
   bind(candidate.ctx,"setPhysicsJointMotor",jsSetPhysicsJointMotor,2);
   bind(candidate.ctx,"setPhysicsJoint",jsSetPhysicsJoint,2);
@@ -1473,6 +1499,59 @@ static GroupPlane groupPlane(const std::vector<const Object*> &members,const Sce
   for(int axis=0;axis<3;axis++)for(int row=0;row<3;row++)result.sceneOrigin[axis]+=(result.transform.m[row][3]-anchor.m[row][3])*anchor.m[row][axis]*(axis==2?-1.f:1.f);
   return result;
 }
+struct GroupSplitPlan {
+  std::vector<const Object*> members[2];int pixels[2]{};float widths[2]{};
+  uint64_t parentPixelsSquared=0,childPixelsSquared=0;
+  explicit operator bool()const{return !members[0].empty()&&!members[1].empty();}
+};
+// Bounded candidates on either angular axis. Membership remains stable after a
+// split; camera motion never migrates objects between already allocated tiles.
+static GroupSplitPlan planGroupSplit(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache &cache,int maximum,int allocated,const RenderGroupSplitPolicy &policy){
+  GroupSplitPlan best;if(members.size()<2)return best;
+  auto layout=[&](const std::vector<const Object*> &items){
+    const auto plane=groupPlane(items,scene,anchor,head,eyes,&cache);
+    const float center[3]={plane.transform.m[0][3],plane.transform.m[1][3],plane.transform.m[2][3]};
+    return groupLayout(items,scene,anchor,head,eyes,center,plane.right,plane.up,plane.forward,1,maximum,&cache);
+  };
+  for(const auto *object:members)for(int eye=0;eye<2;eye++){
+    const auto &b=cache.common(*object,eye);
+    if(!b.valid||!std::isfinite(b.x0)||!std::isfinite(b.x1)||!std::isfinite(b.y0)||!std::isfinite(b.y1)||!std::isfinite(b.near)||!std::isfinite(b.far))return best;
+  }
+  const auto parent=layout(members);
+  if(!parent.limited&&parent.pixels<=policy.targetEyePixels)return best;
+  const uint64_t baseline=std::max(allocated,groupBufferPixels(parent.pixels,maximum));
+  uint64_t bestCost=baseline*baseline*4/5; // Require at least 20% fewer allocated texels.
+  for(int axis=0;axis<2;axis++){
+    auto ordered=members;
+    auto coordinate=[&](const Object *object){const auto &a=cache.common(*object,0),&b=cache.common(*object,1);return axis?(double(a.y0)+a.y1+b.y0+b.y1):(double(a.x0)+a.x1+b.x0+b.x1);};
+    std::sort(ordered.begin(),ordered.end(),[&](const Object *a,const Object *b){const double x=coordinate(a),y=coordinate(b);return x==y?a->id<b->id:x<y;});
+    for(int quarter=1;quarter<=3;quarter++){
+      const size_t cut=ordered.size()*quarter/4;if(!cut||cut==ordered.size())continue;
+      GroupSplitPlan candidate;candidate.members[0].assign(ordered.begin(),ordered.begin()+cut);candidate.members[1].assign(ordered.begin()+cut,ordered.end());
+      uint64_t cost=0;bool limited=false;
+      for(int tile=0;tile<2;tile++){
+        const auto child=layout(candidate.members[tile]);limited|=child.limited;
+        candidate.pixels[tile]=groupBufferPixels(child.pixels,maximum);candidate.widths[tile]=child.width*float(candidate.pixels[tile])/child.pixels;
+        cost+=uint64_t(candidate.pixels[tile])*candidate.pixels[tile];
+      }
+      if(limited||cost>=bestCost)continue;
+      candidate.parentPixelsSquared=baseline*baseline;candidate.childPixelsSquared=cost;bestCost=cost;best=std::move(candidate);
+    }
+  }
+  return best;
+}
+// The parent has a retained previous generation containing the complete group.
+// Show the child first and retire the parent fallback only after both succeed.
+template<class Overlays,class Retire>
+static vr::EVROverlayError submitGroupSplit(Overlays &overlays,Surface &parent,Surface &child,int frame,Retire retire,bool parentVisible=true,bool childVisible=true){
+  auto error=childVisible?submitSurface(overlays,child,frame,retire):vr::VROverlayError_None;
+  if(error==vr::VROverlayError_None){
+    if(parentVisible)error=submitSurface(overlays,parent,frame,retire);
+    else if(parent.previous){retire(*parent.previous);parent.previous.reset();}
+  }
+  if(error!=vr::VROverlayError_None)hideSurface(overlays,child);
+  return error;
+}
 // Occluders write depth only; masked holes keep their alpha-test behavior.
 // Blended surfaces must not become opaque occluders.
 template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw,const ScissorRegion *region=nullptr){
@@ -1616,6 +1695,8 @@ int main(int argc,char **argv) {
   std::array<GrabState,2> grabs{};
   GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
   const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
+  struct PendingSplit {int parent=0,child=0;};std::optional<PendingSplit> pendingSplit;
+  auto nextSplitCheck=std::chrono::steady_clock::now();
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
   auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto syncSurfaces=[&]()->bool{
@@ -1740,7 +1821,7 @@ int main(int argc,char **argv) {
       if(!ec&&modified!=script.mtime){
         const bool loaded=loadScript(script,scriptPath,[&]{
           for(auto &[id,surface]:surfaces)destroySurface(*surface,display);
-          surfaces.clear();pointerStates.clear();grabs={};
+          surfaces.clear();pendingSplit.reset();pointerStates.clear();grabs={};
           for(auto &[id,handle]:panelOverlays){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);}
           panelOverlays.clear();panelSubmissions.clear();panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
@@ -1890,6 +1971,36 @@ int main(int argc,char **argv) {
         for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
       }
       frameBounds.update(script.scene,anchor,head,eyes);
+      if(!pendingSplit&&std::chrono::steady_clock::now()>=nextSplitCheck){
+        nextSplitCheck=std::chrono::steady_clock::now()+std::chrono::milliseconds(500);
+        const auto candidates=surfaceMembers();
+        for(const auto &[key,members]:candidates){
+          const int group=surfaceRenderGroup(key);auto policy=script.scene.renderGroupSplits.find(group);
+          auto found=surfaces.find(key);
+          if(!group||policy==script.scene.renderGroupSplits.end()||found==surfaces.end()||!found->second->buffers[0].fbo||found->second->previous)continue;
+          std::set<int> tiles;int nextTile=0;
+          for(const auto &object:script.scene.objects)if(object.renderGroup==group){tiles.insert(object.renderTile);}
+          if(tiles.size()>=size_t(policy->second.maxSurfaces))continue;
+          while(tiles.count(nextTile))++nextTile;
+          const auto plan=planGroupSplit(members,script.scene,anchor,head,eyes,frameBounds,maxGroupPixels,found->second->eyePixels,policy->second);
+          if(!plan)continue;
+          const int childKey=-(group+256*nextTile);auto child=std::make_unique<Surface>();Surface parent;
+          static uint64_t splitGeneration=0;const auto suffix=".split."+std::to_string(++splitGeneration);
+          // Allocate both replacement tiles before changing membership or the visible parent.
+          if(!createSurface(parent,key,plan.widths[0],plan.pixels[0],false,gbm,display,anchor,suffix)||
+             !createSurface(*child,childKey,plan.widths[1],plan.pixels[1],false,gbm,display,anchor,suffix)){
+            destroySurface(parent,display);destroySurface(*child,display);
+            nextSplitCheck=std::chrono::steady_clock::now()+std::chrono::seconds(5);
+            fprintf(stderr,"[surface] group=%d split allocation unavailable; retaining existing tile\n",group);break;
+          }
+          parent.previous=std::move(found->second);found->second=std::make_unique<Surface>(std::move(parent));
+          surfaces.emplace(childKey,std::move(child));
+          for(const auto *object:plan.members[1])script.scene.objects[size_t(object-script.scene.objects.data())].renderTile=nextTile;
+          pendingSplit=PendingSplit{key,childKey};
+          fprintf(stdout,"[surface] group=%d split tiles=%zu parent_pixels_squared=%llu child_pixels_squared=%llu\n",group,tiles.size()+1,(unsigned long long)plan.parentPixelsSquared,(unsigned long long)plan.childPixelsSquared);fflush(stdout);
+          break;
+        }
+      }
       ready.clear();
       ready.reserve(surfaces.size());
       for(const auto &panelData:script.scene.panels){
@@ -1899,11 +2010,14 @@ int main(int argc,char **argv) {
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
       }
       const auto groups=surfaceMembers();
-      int shrinkBudget=2;
+      int shrinkBudget=2;std::set<int> culledSurfaces;
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
         const auto &members=group->second;const auto *target=members.front();
+        // A failed split presentation may leave a child visible. Hide it before
+        // reusing any of its color buffers; the complete parent remains retained.
+        if(pendingSplit&&id==pendingSplit->child&&hideSurface(*overlays,*surface)!=vr::VROverlayError_None)continue;
         float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
         auto panel=anchor;
@@ -1922,6 +2036,7 @@ int main(int argc,char **argv) {
         if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
           const auto error=hideSurface(*overlays,*surface);
           if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] hide id=%d error=%d\n",id,int(error));
+          else culledSurfaces.insert(id);
           continue;
         }
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
@@ -1929,7 +2044,7 @@ int main(int argc,char **argv) {
         int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels):surface->referenceEyePixels;
         if(id<0){
           const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels,&frameBounds);
-          if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",-id,maxGroupPixels);
+          if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",surfaceRenderGroup(id),maxGroupPixels);
           surface->resolutionLimited=layout.limited;
           animatedWidth=layout.width;crop=layout.pixels;
           targetBounds[0]=layout.bounds[0];targetBounds[1]=layout.bounds[1];
@@ -1984,7 +2099,22 @@ int main(int argc,char **argv) {
       glFinish();
       finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
       glBindFramebuffer(GL_FRAMEBUFFER,0);
+      std::set<int> splitSubmissions;
+      if(pendingSplit){
+        const auto parent=surfaces.find(pendingSplit->parent),child=surfaces.find(pendingSplit->child);
+        if(parent==surfaces.end()||child==surfaces.end())pendingSplit.reset();
+        else{
+          splitSubmissions={pendingSplit->parent,pendingSplit->child};
+          const bool parentVisible=std::find(ready.begin(),ready.end(),parent->second.get())!=ready.end(),childVisible=std::find(ready.begin(),ready.end(),child->second.get())!=ready.end();
+          if((parentVisible||culledSurfaces.count(pendingSplit->parent))&&(childVisible||culledSurfaces.count(pendingSplit->child))){
+            const auto error=submitGroupSplit(*overlays,*parent->second,*child->second,frame,[&](Surface &retired){destroySurface(retired,display);},parentVisible,childVisible);
+            if(error==vr::VROverlayError_None)pendingSplit.reset();
+            else fprintf(stderr,"[surface] split presentation error=%d; retaining complete parent\n",int(error));
+          }
+        }
+      }
       for(auto *surface:ready){
+        if(splitSubmissions.count(surface->objectId))continue;
         const auto error=submitSurface(*overlays,*surface,frame,[&](Surface &retired){destroySurface(retired,display);});
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,int(error));
       }
