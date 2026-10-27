@@ -123,3 +123,46 @@ demo remains after the runner finishes; headset visual acceptance is separate.
 
 See [native subdivision results](results/auto-split.md) for measurements and
 validation limits.
+
+## GPU synchronization investigation
+
+The excluded `gpu-sync-experiment` target builds the real engine with test-only
+profiling. Production builds keep `glFinish`, triple buffering, and existing
+compositor ownership behavior. No script API or production setting selects the
+experimental wait method.
+
+```sh
+cmake --build build --target gpu-sync-experiment gpu-sync-pixels -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/gpu-sync-pixels
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-gpu-sync.py --rounds 2 --output /tmp/gpu-sync-comparison
+```
+
+The runner compares `glFinish` with a fence inserted after rendering and waited
+on the CPU **before** any overlay texture submission. It never submits unfinished
+textures, skips a required completion wait, pipelines an extra frame, or changes
+buffer reuse. Fence creation/wait failure falls back to `glFinish` and invalidates
+the benchmark case. The fence is deleted after its completion wait. An initial
+flush flag submits the pending GL commands; subsequent waits repeat only if the timeout expires. The default 100-millisecond
+timeout returns immediately when signaled; it does not deliberately sleep that
+long. `--fence-wait-ms 1` reproduces the frequent-wakeup comparison.
+
+`SF_GPU_SYNC_MODE=fence` selects the alternative only in the experiment executable;
+its default is `finish`. Optional `GL_EXT_disjoint_timer_query` queries enclose the
+object render loop. Results are read only after availability is reported; disjoint
+results are discarded and unavailable GPU timings remain `null`. Profiling also
+records CPU enqueue time, completion-wait wall time, render-thread CPU time inside
+that wait, and overlay submission time. GPU query duration is not exclusive GPU
+occupancy and can include scheduling effects; it is not interchangeable with the
+CPU wait duration. Instrumentation itself can affect timings.
+
+The runner reuses the fixed overlay-comparison geometry, alternates order across
+boxes/models and rounds, rejects GL/fence errors and wrong body counts, discards
+warmup, and saves logs and summaries. It defaults to 48 bodies, grouped rendering,
+12-second runs, and five seconds of warmup. `--renderer single` tests one common
+scene surface instead. Keep the headset awake and head steady during comparisons.
+`gpu-sync-pixels` compares finished opaque/masked/blended output exactly between
+both completion methods, including stereo and lateral viewpoints.
+
+See [synchronization contract review and measurements](results/gpu-sync.md).

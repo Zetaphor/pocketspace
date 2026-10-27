@@ -40,6 +40,9 @@
 #include "scene_lookup.h"
 #include "physics_world.h"
 #include "runtime_stats.h"
+#ifdef SF_GPU_SYNC_EXPERIMENT
+#include "../tests/gpu-sync-experiment.h"
+#endif
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
@@ -1788,6 +1791,9 @@ int main(int argc,char **argv) {
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;FrameBoundsCache frameBounds;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+  GpuSyncExperiment gpuSync;
+#endif
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto lastAnimationTick=std::chrono::steady_clock::now();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
@@ -2011,6 +2017,9 @@ int main(int argc,char **argv) {
       }
       const auto groups=surfaceMembers();
       int shrinkBudget=2;std::set<int> culledSurfaces;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      gpuSync.begin();
+#endif
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
@@ -2096,7 +2105,11 @@ int main(int argc,char **argv) {
       }
       const auto finishStart=std::chrono::steady_clock::now();
       renderMs+=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      gpuSync.complete();
+#else
       glFinish();
+#endif
       finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
       glBindFramebuffer(GL_FRAMEBUFFER,0);
       std::set<int> splitSubmissions;
@@ -2118,6 +2131,9 @@ int main(int argc,char **argv) {
         const auto error=submitSurface(*overlays,*surface,frame,[&](Surface &retired){destroySurface(retired,display);});
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,int(error));
       }
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      gpuSync.submitted();
+#endif
       ++frame;
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
