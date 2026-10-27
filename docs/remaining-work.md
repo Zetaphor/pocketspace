@@ -26,19 +26,29 @@ This roadmap contains future work, without prescribing an implementation order.
 - Maintain compatibility with the undocumented vrserver controller stream and
   evaluate documented alternatives that support overlay input requirements.
 
-## Deferred performance work
+## Performance validation and profiling
 
-- Profile opt-in pairwise subdivision, merging, and rebalancing in larger moving
-  scenes before considering wider regrouping searches or different cost thresholds;
-  preserve the common projection plane and coherent depth-cutout reprojection.
-- Evaluate grouped rendering quality and performance across larger scenes before
-  selecting broader defaults.
+- Complete headset visual validation of the implemented tile merging and
+  rebalancing policies with boxes and models. Automated validation and bounded
+  native comparisons are complete; see the [validation record](../tests/results/regroup.md).
+- Profile larger moving box/model scenes to identify the next bottleneck. Measure
+  rendering time, GPU/shared memory, overlay count, and per-eye resolution, and
+  evaluate grouped rendering quality before changing defaults. Subdivision,
+  merging, and rebalancing are implemented; consider wider regrouping searches or
+  different cost thresholds only if these measurements justify them. Preserve
+  the common projection plane and coherent depth-cutout reprojection.
 
-- Revisit scene-depth reuse only when profiling shows repeated occluder work
-  remains costly after bounds culling; require compatible pixel grids and correct
-  equal-depth ownership while preserving per-eye opaque/masked occlusion.
-- Establish explicit producer/compositor ownership, buffer-reuse, and latency
-  guarantees before attempting asynchronous shared-texture submission. Retain
-  `glFinish` unless a replacement demonstrates a repeatable measured benefit.
-- Profile rendering time, GPU/shared memory, overlay count, and per-eye resolution
-  as scenes grow; use measurements to choose the next optimization.
+## Conditional performance investigations
+
+These are deferred investigations, not unimplemented fixes ready to enable.
+
+- Revisit scene-depth reuse only if profiling shows repeated occluder work remains
+  costly after bounds culling. The [prototype investigation](../tests/results/shared-depth-prototype.md)
+  is complete and did not justify adoption. A new design must establish compatible
+  pixel grids and correct equal-depth ownership while preserving per-eye
+  opaque/masked occlusion.
+- Investigate asynchronous shared-texture submission only after establishing
+  explicit producer/compositor ownership, buffer-reuse, and latency guarantees.
+  The [synchronous fence comparison](../tests/results/gpu-sync.md) is complete and
+  showed no repeatable throughput benefit. Retain `glFinish` unless a replacement
+  demonstrates a repeatable measured benefit.
