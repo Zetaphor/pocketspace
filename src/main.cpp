@@ -86,6 +86,12 @@ static JSValue jsGetEngineStats(JSContext *ctx,JSValueConst,int,JSValueConst*){
   JS_SetPropertyStr(ctx,value,"gpuAllocatedEstimateBytes",engineStats.sampleId?JS_NewFloat64(ctx,double(engineStats.gpuAllocatedEstimateBytes)):JS_NULL);
   JS_SetPropertyStr(ctx,value,"sampleSeconds",JS_NewFloat64(ctx,engineStats.sampleSeconds));JS_SetPropertyStr(ctx,value,"sampleId",JS_NewFloat64(ctx,double(engineStats.sampleId)));
   JS_SetPropertyStr(ctx,value,"objectCount",JS_NewInt32(ctx,int(currentScene->objects.size())));JS_SetPropertyStr(ctx,value,"panelCount",JS_NewInt32(ctx,int(currentScene->panels.size())));
+  const auto perf=currentScene->physics?currentScene->physics->performance():physics::Performance{};
+  JS_SetPropertyStr(ctx,value,"physicsAdvanceMs",JS_NewFloat64(ctx,perf.advanceMs));
+  JS_SetPropertyStr(ctx,value,"physicsSolverMs",JS_NewFloat64(ctx,perf.solverMs));
+  JS_SetPropertyStr(ctx,value,"physicsSteps",JS_NewUint32(ctx,perf.steps));
+  JS_SetPropertyStr(ctx,value,"physicsActiveBodies",JS_NewUint32(ctx,perf.activeBodies));
+  JS_SetPropertyStr(ctx,value,"physicsWorkers",JS_NewUint32(ctx,perf.workers));
   return value;
 }
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -534,6 +540,7 @@ static JSValue physicsState(JSContext *ctx,const physics::State &s){
   JS_SetPropertyStr(ctx,o,"type",JS_NewString(ctx,c.type==physics::Type::Static?"static":c.type==physics::Type::Kinematic?"kinematic":"dynamic"));
   JS_SetPropertyStr(ctx,o,"shape",JS_NewString(ctx,c.shape==physics::Shape::Box?"box":c.shape==physics::Shape::Sphere?"sphere":c.shape==physics::Shape::Convex?"convex":"mesh"));
   for(const auto &[name,value]:std::initializer_list<std::pair<const char*,float>>{{"mass",c.mass},{"friction",c.friction},{"restitution",c.restitution},{"linearDamping",c.linearDamping},{"angularDamping",c.angularDamping},{"gravityFactor",c.gravityFactor}})JS_SetPropertyStr(ctx,o,name,JS_NewFloat64(ctx,value));
+  JS_SetPropertyStr(ctx,o,"continuous",JS_NewBool(ctx,c.continuous));
   JS_SetPropertyStr(ctx,o,"halfExtents",c.halfExtents?physicsVector(ctx,*c.halfExtents):JS_NULL);
   JS_SetPropertyStr(ctx,o,"radius",c.radius?JS_NewFloat64(ctx,*c.radius):JS_NULL);
   JS_SetPropertyStr(ctx,o,"offset",c.offset?physicsVector(ctx,*c.offset):JS_NULL);
@@ -581,6 +588,12 @@ static JSValue jsSetObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValueCo
     if(!text("type",type)||!text("shape",shape))return JS_EXCEPTION;
     if(type=="static")settings.type=physics::Type::Static;else if(type=="dynamic")settings.type=physics::Type::Dynamic;else if(type=="kinematic")settings.type=physics::Type::Kinematic;else return JS_ThrowRangeError(ctx,"physics type must be static, dynamic, or kinematic");
     if(shape=="box")settings.shape=physics::Shape::Box;else if(shape=="sphere")settings.shape=physics::Shape::Sphere;else if(shape=="convex")settings.shape=physics::Shape::Convex;else if(shape=="mesh")settings.shape=physics::Shape::Mesh;else return JS_ThrowRangeError(ctx,"physics shape must be box, sphere, convex, or mesh");
+    JSValue continuous=JS_GetPropertyStr(ctx,argv[1],"continuous");
+    if(JS_IsException(continuous))return JS_EXCEPTION;
+    if(!JS_IsUndefined(continuous)){
+      if(!JS_IsBool(continuous)){JS_FreeValue(ctx,continuous);return JS_ThrowTypeError(ctx,"continuous must be a boolean");}
+      settings.continuous=JS_ToBool(ctx,continuous)>0;
+    }JS_FreeValue(ctx,continuous);
     if(shape!="sphere")settings.radius.reset();
     if(shape!="box")settings.halfExtents.reset();
     if(!readColliderVector(ctx,argv[1],"halfExtents",settings.halfExtents)||!readColliderVector(ctx,argv[1],"offset",settings.offset))return JS_EXCEPTION;
@@ -605,6 +618,10 @@ static JSValue jsRemoveObjectPhysics(JSContext *ctx,JSValueConst,int argc,JSValu
 static bool readPhysicsVector(JSContext *ctx,int argc,JSValueConst *argv,int offset,physics::Vec3 &v){
   if(argc<offset+3){JS_ThrowTypeError(ctx,"physics vector requires x, y, z");return false;}
   float *fields[]={&v.x,&v.y,&v.z};for(int i=0;i<3;i++){double n;if(!JS_IsNumber(argv[offset+i])||JS_ToFloat64(ctx,&n,argv[offset+i])<0||!std::isfinite(n)||std::fabs(n)>10000){JS_ThrowRangeError(ctx,"physics vectors require finite components within +/-10000");return false;}*fields[i]=float(n);}return true;
+}
+static JSValue jsSetPhysicsWorkers(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  double n=0;if(argc<1||!JS_IsNumber(argv[0])||JS_ToFloat64(ctx,&n,argv[0])<0||!std::isfinite(n)||n!=std::floor(n)||n < -1||n>4)return JS_ThrowRangeError(ctx,"physics workers must be an integer from -1 to 4");
+  physicsWorld(*currentScene).workers(int(n));return JS_UNDEFINED;
 }
 static JSValue jsSetPhysicsGravity(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){physics::Vec3 v;if(!readPhysicsVector(ctx,argc,argv,0,v))return JS_EXCEPTION;physicsWorld(*currentScene).gravity(v);return JS_UNDEFINED;}
 template<int Operation> static JSValue jsPhysicsVectorOperation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -750,10 +767,7 @@ static JSValue jsSetPhysicsCollisionEvents(JSContext *ctx,JSValueConst,int argc,
 }
 static void updateScenePhysics(Scene &scene,double elapsed){
   if(!scene.physics)return;
-  for(const auto &o:scene.objects)if(scene.physics->contains(o.id)){
-    const auto state=scene.physics->get(o.id);
-    if(state.held||state.settings.type==physics::Type::Kinematic)scene.physics->target(o.id,physicsPose(o),elapsed);
-  }
+  for(const auto &o:scene.objects)if(scene.physics->needsTarget(o.id))scene.physics->target(o.id,physicsPose(o),elapsed);
   scene.physics->advance(elapsed);
   auto breaks=scene.physics->takeJointBreaks();
   if(&scene==liveScene)for(const auto &broken:breaks){
@@ -770,9 +784,10 @@ static void updateScenePhysics(Scene &scene,double elapsed){
     frameInput.addEvent(std::move(event));
   }
 
-  for(auto &o:scene.objects)if(scene.physics->contains(o.id)){
-    const auto s=scene.physics->get(o.id);
-    if(s.settings.type==physics::Type::Dynamic&&(!s.held||s.jointed)){o.x=s.pose.position.x;o.y=s.pose.position.y;o.z=s.pose.position.z;o.pitch=s.pose.pitch;o.yaw=s.pose.yaw;o.roll=s.pose.roll;}
+  const auto updates=scene.physics->takePoseUpdates();
+  for(auto &o:scene.objects){auto it=std::lower_bound(updates.begin(),updates.end(),o.id,[](const auto &u,int id){return u.objectId<id;});
+    if(it==updates.end()||it->objectId!=o.id)continue;
+    const auto &p=it->pose;o.x=p.position.x;o.y=p.position.y;o.z=p.position.z;o.pitch=p.pitch;o.yaw=p.yaw;o.roll=p.roll;
   }
 }
 
@@ -877,6 +892,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"removePhysicsJoint",jsPhysicsJoint<true>,1);
   bind(candidate.ctx,"getObjectPhysics",jsGetObjectPhysics,1);
   bind(candidate.ctx,"removeObjectPhysics",jsRemoveObjectPhysics,1);
+  bind(candidate.ctx,"setPhysicsWorkers",jsSetPhysicsWorkers,1);
   bind(candidate.ctx,"setPhysicsGravity",jsSetPhysicsGravity,3);
   bind(candidate.ctx,"setPhysicsCollisionEvents",jsSetPhysicsCollisionEvents,2);
   bind(candidate.ctx,"setObjectVelocity",jsPhysicsVectorOperation<0>,4);

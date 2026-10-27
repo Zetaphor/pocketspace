@@ -13,6 +13,7 @@ enum class Type { Static, Dynamic, Kinematic };
 enum class Shape { Box, Sphere, Convex, Mesh };
 struct Settings {
   Type type=Type::Dynamic;Shape shape=Shape::Box;
+  bool continuous=true;
   float mass=1,friction=.5f,restitution=0,linearDamping=.05f,angularDamping=.05f,gravityFactor=1;
   std::optional<Vec3> halfExtents,offset;
   std::optional<float> radius;
@@ -52,6 +53,8 @@ struct JointMotor {
 };
 struct JointState {int id,objectA,objectB;JointSettings settings;Vec3 anchorA,anchorB;float distance=0,angle=0;JointMotor motor;};
 struct JointBreak {int jointId,objectA,objectB;float force,torque;};
+struct PoseUpdate {int objectId;Pose pose;};
+struct Performance {double advanceMs=0,solverMs=0;unsigned steps=0,activeBodies=0,workers=0;};
 class World {
 public:
   World();~World();
@@ -62,6 +65,10 @@ public:
   void remove(int id);
   bool contains(int id) const;
   State get(int id) const;
+  bool needsTarget(int id) const;
+  std::vector<PoseUpdate> takePoseUpdates(); // sorted by object ID; includes final pose on sleep
+  void workers(int count); // -1 automatic, 0 single-threaded, 1..4 worker threads
+  Performance performance() const;
   int createJoint(int objectA,int objectB,const JointSettings&);
   bool containsJoint(int id) const;
   bool hasJoints(int objectId) const;

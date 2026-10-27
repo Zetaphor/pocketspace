@@ -8,6 +8,17 @@ setPhysicsGravity(0, 0, 0);
 check(setObjectPhysics(box, {mass: 2}).type === 'dynamic');
 setObjectInteraction(box, {grabbable: true});
 check(getObjectPhysics(box).type === 'dynamic');
+
+check(getObjectPhysics(box).continuous === true);
+setObjectPhysics(box, {continuous: false});
+check(getObjectPhysics(box).continuous === false);
+setObjectPhysics(box, {continuous: true});
+rejects(() => setObjectPhysics(box, {continuous: 1}));
+for (const n of [-2, 5, 0.5, NaN, '2']) rejects(() => setPhysicsWorkers(n));
+setPhysicsWorkers(2);
+setPhysicsWorkers(-1);
+check(getEngineStats().physicsSolverMs >= 0);
+
 setObjectVelocity(box, 0, 0, 1);
 applyObjectImpulse(box, 2, 0, 0);
 check(getObjectPhysics(box).velocity.x === 1);

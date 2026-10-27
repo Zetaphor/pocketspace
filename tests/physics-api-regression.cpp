@@ -5,9 +5,10 @@
 int main(){
   ScriptHost host;ScopeExit cleanup{[&]{closeScript(host);}};
   assert(loadScript(host,"tests/physics-api-smoke.js"));
+  host.scene.physics->workers(2);
   for(int i=0;i<45;i++)updateScenePhysics(host.scene,1./90);
   auto eval=[&](const char *source){auto value=JS_Eval(host.ctx,source,strlen(source),"physics-regression",JS_EVAL_TYPE_GLOBAL);const bool ok=!JS_IsException(value);if(!ok){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"%s\n",message);JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}JS_FreeValue(host.ctx,value);return ok;};
-  assert(eval("verifyAdvance()"));
+  assert(eval("verifyAdvance();const perf=getEngineStats();check(perf.physicsWorkers===2&&perf.physicsSteps===1&&perf.physicsAdvanceMs>=perf.physicsSolverMs)"));
   auto &w=*host.scene.physics;
   w.hold(1);assert(eval("check(getObjectPhysics(box).held);rejects(()=>applyObjectImpulse(box,1,0,0))"));
   w.release(1,false);
@@ -37,6 +38,7 @@ int main(){
   assert(loadScript(host,"scripts/avocado.js"));assert(!host.scene.physics);
   frameInput.resetScene();
   assert(loadScript(host,"tests/collision-api-smoke.js"));
+  host.scene.physics->workers(2);
   auto dispatch=[&]{for(const auto &event:frameInput.takeCallbackEvents()){
     JSValue value=inputEventValue(host.ctx,event);JSValue result=JS_Call(host.ctx,inputCallback,JS_UNDEFINED,1,&value);
     assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);JS_FreeValue(host.ctx,value);

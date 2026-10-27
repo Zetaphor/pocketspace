@@ -4,7 +4,8 @@ Physics is opt-in per object. Objects without a body retain their existing
 scripted transforms and grabbing behavior. The engine uses
 [Jolt Physics](https://github.com/jrouwe/JoltPhysics), pinned to version 5.6.0
 (revision `e77f175595e64cb44218cc9d9d56fc365ad0e36a`). Simulation runs on the CPU
-with a single-threaded job system. No GPU compute backend is enabled.
+with adaptive CPU workers. Small scenes use one thread; automatic mode uses up
+to two additional workers at 64 active bodies. No GPU compute backend is enabled.
 
 ```js
 const asset = loadModel('assets/samples/Box/Box.glb');
@@ -28,6 +29,8 @@ the following entry points:
 | --- | --- |
 | Body type, mass, friction, restitution, damping, gravity factor | `setObjectPhysics`, `getObjectPhysics` |
 | Box/sphere dimensions, model convex/mesh colliders, local offset and center of mass | `setObjectPhysics`, `getObjectPhysics`, `setObjectScale` |
+| CPU workers and physics timings | `setPhysicsWorkers`, `getEngineStats` |
+| Continuous collision detection | `setObjectPhysics`, `getObjectPhysics` |
 | Gravity | `setPhysicsGravity` |
 | Position and rotation; kinematic targets | `setObjectPosition`, `setObjectRotation`, `setObjectYaw` |
 | Linear/angular velocity and center-of-mass impulses | `setObjectVelocity`, `setObjectAngularVelocity`, `applyObjectImpulse` |
@@ -54,6 +57,7 @@ configuration throws while preserving the previous body.
 | Option | Default | Supported values |
 | --- | --- | --- |
 | `type` | `'dynamic'` | `'static'`, `'dynamic'`, `'kinematic'`. |
+| `continuous` | `true` | Continuous collision detection. Set `false` for cheaper discrete checks on slow bodies; fast bodies may tunnel through thin colliders. |
 | `shape` | `'box'` | `'box'`, `'sphere'`, `'convex'`, or `'mesh'` (static only). |
 | `halfExtents` | `null` | Box half-sizes `{x,y,z}` in meters; each 0.001–100. `null` uses model bounds. |
 | `radius` | `null` | Sphere radius in meters, 0.001–100. `null` uses model bounds. |
@@ -404,6 +408,7 @@ can grab either panel to oppose the motor, then release it to resume motion.
 | --- | --- |
 | `getObjectPhysics(id)` | Return body state, or `null` when a live object has no body. |
 | `removeObjectPhysics(id)` | Remove simulation from an object, keeping its current rendered transform. Repeated removal is harmless. |
+| `setPhysicsWorkers(count)` | Set scene worker policy: `-1` automatic (default), `0` single-threaded, or `1`–`4` additional workers. Only integers are accepted. Changes apply before the next physics step; scene reload restores automatic mode. |
 | `setPhysicsGravity(x, y, z)` | Set scene gravity in meters/second²; default `(0, -9.81, 0)`. |
 | `setObjectVelocity(id, x, y, z)` | Set linear velocity in meters/second. |
 | `setObjectAngularVelocity(id, x, y, z)` | Set angular velocity in radians/second. |
@@ -526,3 +531,22 @@ CMake 3.20 or newer downloads the pinned, SHA-256-verified Jolt archive on first
 configuration. For offline builds, pass
 `-DFETCHCONTENT_SOURCE_DIR_JOLT=/absolute/path/to/JoltPhysics` with that revision.
 The bundled [license](../third_party/Jolt-LICENSE) covers the dependency.
+
+## Performance
+
+Sleeping bodies retain their last rendered pose. The host reads poses for active
+or changed dynamic bodies and sends targets only to held/kinematic bodies.
+Joint connections and immutable collider geometry are cached. Continuous
+collision detection remains enabled by default, including after grabbing.
+
+Worker jobs finish before scripts receive collision events or modify bodies.
+Contact aggregation is synchronized; JavaScript always runs on the main thread.
+Worker scheduling can change event order between unrelated pairs, so scripts
+should use object IDs rather than relying on callback order.
+
+`getEngineStats()` includes `physicsAdvanceMs`, `physicsSolverMs`, `physicsSteps`,
+`physicsActiveBodies`, and `physicsWorkers`. These describe the latest host
+physics advance, not the one-second process sample. Solver time includes waiting
+for worker completion; advance time also includes targets, contact reconciliation,
+and joint breaking inside the physics world (excluding host pose synchronization).
+A frame without a fixed step reports zero solver time, steps, and workers.

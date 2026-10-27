@@ -49,7 +49,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
-| [stress.js](scripts/stress.js) | Add physics boxes with controllers; FPS, CPU, RAM, and measured/estimated GPU memory HUD |
+| [stress.js](scripts/stress.js) | Add physics boxes with controllers; FPS, CPU, RAM, GPU memory, and physics timing HUD |
 | [joint-controls.js](scripts/joint-controls.js) | Live spring length/response and hinge-limit changes with controller buttons |
 | [breakable-joints.js](scripts/breakable-joints.js) | Pull suspended objects free of breakable connections; bumper reconnects |
 | [springs.js](scripts/springs.js) | Elastic hanging weights with different damping; grip or trigger grabs, bumper resets |

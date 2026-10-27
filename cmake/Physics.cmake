@@ -38,3 +38,8 @@ target_compile_options(physics-collision-regression PRIVATE -UNDEBUG)
 add_executable(physics-joint-regression EXCLUDE_FROM_ALL tests/physics-joint-regression.cpp)
 target_link_libraries(physics-joint-regression PRIVATE sf-physics)
 target_compile_options(physics-joint-regression PRIVATE -UNDEBUG)
+
+add_executable(physics-performance-regression EXCLUDE_FROM_ALL tests/physics-performance-regression.cpp)
+target_link_libraries(physics-performance-regression PRIVATE sf-physics)
+add_executable(physics-benchmark EXCLUDE_FROM_ALL tests/physics-benchmark.cpp)
+target_link_libraries(physics-benchmark PRIVATE sf-physics)
