@@ -268,3 +268,34 @@ checks GPU timings/errors and object counts, and rejects pairs with differing
 buffer estimates. Both use the unchanged vertex shader, geometry, sampling,
 alpha convention, and producer completion wait. No production setting or API
 enables these shaders. See the [results and adoption decision](results/opaque-shaders.md).
+
+## Primitive occluder visibility experiment
+
+`primitive-visibility-pixels` compares the normal renderer with conservative
+material-primitive rejection for nonmember occluders. It covers stereo, group
+membership, material alpha modes, near-plane views, and spatially separated
+parts, and requires that some draws actually be rejected. CPU checks exercise
+invalid data, deforming-asset fallback, and cache reset.
+
+```sh
+cmake --build build --target primitive-visibility-pixels gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/primitive-visibility-pixels
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-primitive-visibility.py --output /tmp/primitive-visibility
+```
+
+Only the excluded `gpu-sync-experiment` accepts
+`SF_GPU_PRIMITIVE_VISIBILITY=1`. The candidate caches normalized static primitive
+bounds, refreshes world/stereo bounds after scene mutations, and adds padded
+angular/depth rejection after the existing object-level occlusion check. Single
+primitive, animated, skinned, morphing, invalid, and near-plane cases retain the
+baseline path. Reload clears cached asset bounds. Visible member/color passes
+are unchanged; this does not remove geometry inside a visible model.
+
+The runner alternates modes and case order across two rounds, disables opaque
+shader specialization and pass-query sampling, enables mesh cache optimization,
+and rejects invalid timing or mismatched buffer estimates. It retains GPU/FPS
+metrics and skipped draws/triangles per stereo frame, plus bounds preparation
+wall time. Whole-render GPU timing starts after preparation; FPS includes its
+cost. See [measurements and adoption decision](results/primitive-visibility.md).
