@@ -33,7 +33,9 @@ int main(){
   const auto path=std::filesystem::temp_directory_path()/("sf-physics-rollback-"+std::to_string(getpid())+".js");
   ScopeExit unlink{[&]{std::filesystem::remove(path);}};
   std::ofstream(path)<<"const a=loadModel('assets/samples/Box/Box.glb');const b=createObject(a,0,1,0,.2);setObjectPhysics(b);throw Error('EXPECTED_ROLLBACK');";
-  auto *active=host.scene.physics.get();assert(!loadScript(host,path.string()));assert(host.scene.physics.get()==active);
+  int reservations=0;reserveObjectOverlay=[&](int)->std::string{++reservations;return "unexpected live reservation";};
+  auto *active=host.scene.physics.get();assert(!loadScript(host,path.string()));assert(host.scene.physics.get()==active&&reservations==0);
+  reserveObjectOverlay={};
   // Reload releases the old world and every body.
   assert(loadScript(host,"scripts/avocado.js"));assert(!host.scene.physics);
   frameInput.resetScene();

@@ -39,8 +39,11 @@ Steam Frame GPU memory uses shared system RAM rather than a separate VRAM pool.
 
 Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
 statistics panel including solver time, active bodies, and worker count. Either bumper adds one object; A or X adds five; B or Y clears
-the spawned objects. The scene starts with four boxes and caps at 48 spawned
-objects to leave room for the floor, HUD, lasers, and other overlay surfaces.
+the spawned objects. The scene starts with four boxes and has no fixed script spawn cap.
+Spawning stops on a creation error and displays the reason on the HUD; clear or
+remove objects to free resources before trying again. The engine's 256-object
+limit and SteamVR's system-wide overlay budget still apply. Each model uses one
+overlay, in addition to the HUD and two controller lasers.
 Boxes below scene Y = −1.2 meters or more than 3 meters from the scene origin
 are removed every 100 ms, reclaiming their physics body, overlay buffers, and
 spawn capacity. Shared model assets remain cached for subsequent spawns.
@@ -67,7 +70,10 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | `setObjectVisible(id, visible)` | Show/hide rendering and selection. |
 | `removeObject(id)` | Remove the instance and its interaction state. |
 
-Invalid IDs and invalid arguments throw. Assets remain loaded until the scene
+Invalid IDs and invalid arguments throw. During live scene updates, object
+creation reserves an overlay handle and throws if SteamVR cannot allocate it; a
+failed reservation leaves no object behind. Removal releases that handle
+immediately so subsequent spawns can reuse the available capacity. Assets remain loaded until the scene
 is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
 GPU time and memory; there is no shared scene-wide surface. Opaque and
