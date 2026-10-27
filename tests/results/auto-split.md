@@ -50,6 +50,8 @@ members' requested angular sampling density.
 - Existing GLES, panel, projection-cache, examples, script-lifecycle, and grab
   regressions passed; documentation lint passed.
 
-Headset visual acceptance of automatic subdivision is still pending. Keep this
-opt-in. Stable tiles do not merge or rebalance after objects move, and a single
-large object can still exceed the resolution ceiling.
+Headset visual testing was accepted on 2026-10-26 after testing instructions
+covered head motion, grabbing, boxes/models, and compact/wide rebuilds. The user
+reported "Looks good." Keep subdivision opt-in. Stable tiles do not merge or
+rebalance after objects move, and a single large object can still exceed the
+resolution ceiling.
