@@ -87,5 +87,11 @@ stats panel. Over approximately 72 seconds, 63 late samples had median 71.96 FPS
 and 466.87 MiB estimated GPU allocation; all retained 128 objects. Grouped buffer
 peak was 468 MiB, and shutdown released all grouped charges. The raw headset log
 is `/tmp/sf-fast-models-headset.log` on Frame. The demo is stopped.
-Continuous-motion automatic grouping and long-duration stress acceptance remain
-pending; the accepted fixed-group case does not cover the detailed ToyCar mix.
+The user also accepted the same continuous-motion Avocado scene with automatic
+grouping enabled on 2026-10-27. Approximately 40 seconds produced 33 late samples
+with median 71.98 FPS and 416.87 MiB estimated GPU allocation, retaining all 128
+objects. Grouped buffer peak was 504 MiB, below the 512 MiB budget; shutdown
+released all grouped charges. Budget deferrals occurred and retained existing
+tiles/buffers. The raw log is `/tmp/sf-fast-adaptive-headset.log` on Frame, and
+the demo is stopped. These fixed/adaptive visual checks do not cover the detailed
+ToyCar mix or long-duration memory stability, which remain pending.
