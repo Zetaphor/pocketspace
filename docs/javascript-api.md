@@ -115,7 +115,11 @@ reference angular pixel density. This can use more memory when members spread
 apart or approach the headset. Resolution is bounded by 4096 pixels per eye and
 half the GPU's maximum renderbuffer width; reaching that ceiling logs a warning
 and reduces sampling density. Keep groups compact to avoid this limit. Buffer
-growth is immediate, shrinking uses the existing delay and budget, and each
+growth uses 25% allocation headroom rounded to 256 pixels. Shrinking requires
+the requested size to stay below 60% of the allocation for 45 frames, with at
+most two shrinks per frame. A resize renders and shows a replacement overlay
+before detaching the previous one; it temporarily needs an extra overlay handle
+and buffer set. Failed allocation keeps the previous surface available. Each
 surface retains three color buffers and one shared depth attachment.
 
 [grouped-stress.js](../scripts/grouped-stress.js) uses four compact groups for up to 240

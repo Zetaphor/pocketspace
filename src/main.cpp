@@ -42,7 +42,7 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false,resolutionLimited=false;};
+struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;};
 static PFNEGLCREATEIMAGEKHRPROC createImage=nullptr;
 static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
@@ -1001,6 +1001,7 @@ static void destroyBuffer(Buffer &buffer,EGLDisplay display){
   buffer={};
 }
 static void destroySurface(Surface &surface,EGLDisplay display){
+  if(surface.previous){destroySurface(*surface.previous,display);surface.previous.reset();}
   if(surface.overlay!=vr::k_ulOverlayHandleInvalid){
     vr::VROverlay()->ClearOverlayTexture(surface.overlay);
     vr::VROverlay()->DestroyOverlay(surface.overlay);
@@ -1008,9 +1009,9 @@ static void destroySurface(Surface &surface,EGLDisplay display){
   for(auto &buffer:surface.buffers)destroyBuffer(buffer,display);
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
-static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor){
+static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={}){
   surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
-  const std::string key="sf_overlay_engine."+std::to_string(id);
+  const std::string key="sf_overlay_engine."+std::to_string(id)+suffix;
   auto *overlays=vr::VROverlay();
   auto error=vr::VROverlayError_None;
   if(surface.overlay==vr::k_ulOverlayHandleInvalid){
@@ -1063,6 +1064,36 @@ static bool resizeSurfaceBuffers(Surface &surface,int pixels,gbm_device *gbm,EGL
     vr::VROverlay()->SetOverlayIntersectionMask(surface.overlay,&mask,1);
   }
   return true;
+}
+// Shared groups resize as their projected bounds move. Keep the old overlay
+// visible until the replacement has a finished texture and has been shown.
+static bool replaceGroupedSurface(Surface &surface,int pixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &transform){
+  if(surface.previous)return true;
+  static uint64_t generation=0;
+  Surface replacement;
+  if(!createSurface(replacement,surface.objectId,surface.width,pixels,false,gbm,display,transform,".resize."+std::to_string(++generation))){destroySurface(replacement,display);return false;}
+  replacement.referenceEyePixels=surface.referenceEyePixels;
+  replacement.resolutionLimited=surface.resolutionLimited;
+  replacement.previous=std::make_unique<Surface>(std::move(surface));
+  surface=std::move(replacement);
+  return true;
+}
+template<class Overlays,class Retire>
+static vr::EVROverlayError submitSurface(Overlays &overlays,Surface &surface,int frame,Retire retire){
+  auto &buffer=surface.buffers[frame%3];
+  vr::Texture_t texture{&buffer.handle,vr::TextureType_SharedTextureHandle,vr::ColorSpace_Gamma};
+  auto error=overlays.SetOverlayTexture(surface.overlay,&texture);
+  if(error!=vr::VROverlayError_None)return error;
+  if(!surface.shown){
+    error=overlays.ShowOverlay(surface.overlay);
+    if(error!=vr::VROverlayError_None)return error;
+    surface.shown=true;
+  }
+  if(surface.previous){retire(*surface.previous);surface.previous.reset();}
+  return vr::VROverlayError_None;
+}
+static int groupBufferPixels(int required,int maximum){
+  return int(std::min(double(maximum),std::ceil(required*1.25/256)*256));
 }
 static GLuint compile(GLenum type,const char *source) {
   GLuint shader=glCreateShader(type);glShaderSource(shader,1,&source,nullptr);glCompileShader(shader);
@@ -1770,6 +1801,7 @@ int main(int argc,char **argv) {
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
         if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
           if(surface->shown){overlays->HideOverlay(surface->overlay);surface->shown=false;}
+          if(surface->previous&&surface->previous->shown){overlays->HideOverlay(surface->previous->overlay);surface->previous->shown=false;}
           continue;
         }
         float panelRight[3],panelUp[3],panelForward[3];
@@ -1787,10 +1819,12 @@ int main(int argc,char **argv) {
           surface->referenceEyePixels=crop;
         }
         // Grow immediately when needed; shrink only after 45 consecutive frames.
-        if(crop<surface->eyePixels)++surface->shrinkFrames;else surface->shrinkFrames=0;
+        if(crop<(id<0?surface->eyePixels*.6f:surface->eyePixels))++surface->shrinkFrames;else surface->shrinkFrames=0;
         if(crop>surface->eyePixels||(surface->shrinkFrames>=45&&shrinkBudget>0)){
           if(crop<surface->eyePixels)--shrinkBudget;
-          if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
+          if(id<0){
+            if(!replaceGroupedSurface(*surface,groupBufferPixels(crop,maxGroupPixels),gbm,display,panel))fprintf(stderr,"[surface] replacement id=%d unavailable; retaining previous buffers\n",id);
+          }else if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
           surface->shrinkFrames=0;
         }
         const float width=animatedWidth*float(surface->eyePixels)/surface->referenceEyePixels;
@@ -1835,11 +1869,8 @@ int main(int argc,char **argv) {
       finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
       glBindFramebuffer(GL_FRAMEBUFFER,0);
       for(auto *surface:ready){
-        auto &buffer=surface->buffers[frame%3];
-        vr::Texture_t texture{&buffer.handle,vr::TextureType_SharedTextureHandle,vr::ColorSpace_Gamma};
-        auto error=overlays->SetOverlayTexture(surface->overlay,&texture);
-        if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,(int)error);
-        if(!surface->shown){overlays->ShowOverlay(surface->overlay);surface->shown=true;}
+        const auto error=submitSurface(*overlays,*surface,frame,[&](Surface &retired){destroySurface(retired,display);});
+        if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,int(error));
       }
       ++frame;
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
@@ -1847,8 +1878,8 @@ int main(int argc,char **argv) {
     }
     if(engineStats.update(++diagnosticFrames)){
       uint64_t bytes=0;std::set<GLuint> countedDepth;
-      for(const auto &[id,surface]:surfaces)for(const auto &buffer:surface->buffers){
-        const uint64_t height=surface->eyePixels,width=2*height;
+      for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
+        const uint64_t height=generation->eyePixels,width=2*height;
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
         if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
