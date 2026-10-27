@@ -68,3 +68,10 @@ VBO overrides must use the expanded draw path. Include every shader vertex
 attribute in the deduplication key if the vertex format grows. Resource estimates
 count uploaded vertex counts and 16/32-bit index storage, and model teardown
 releases both buffer types.
+
+Live `createObject` calls reserve overlay handles before publishing an object;
+reservation failures throw to JavaScript. Surface initialization reuses those
+handles, and removal releases them immediately. Candidate script evaluation
+must not call the live reserve/release hooks. The stress scene has no fixed
+spawn cap and catches creation failures, cleaning up partial bodies and showing
+the error on its HUD.

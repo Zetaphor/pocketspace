@@ -57,6 +57,9 @@ struct Object {
 };
 struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static Scene *currentScene=nullptr,*liveScene=nullptr;
+// Installed only by the VR host; candidate scripts never reserve live resources.
+static std::function<std::string(int)> reserveObjectOverlay;
+static std::function<void(int)> releaseObjectOverlay;
 static diagnostics::Sampler engineStats;
 struct ControllerSnapshot {bool valid=false,connected=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -511,6 +514,7 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
   if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
   int id=currentScene->nextId++;
+  if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
   currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
   return JS_NewInt32(ctx,id);
 }
@@ -840,7 +844,7 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   if(currentScene->physics)currentScene->physics->remove(id);
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
-  if(currentScene==liveScene)forgetObjectInteraction(id);
+  if(currentScene==liveScene){forgetObjectInteraction(id);if(releaseObjectOverlay)releaseObjectOverlay(id);}
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
   return JS_UNDEFINED;
 }
@@ -994,8 +998,11 @@ static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool
   surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
   const std::string key="sf_overlay_engine."+std::to_string(id);
   auto *overlays=vr::VROverlay();
-  auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&surface.overlay);
-  if(error!=vr::VROverlayError_None){fprintf(stderr,"[surface] create id=%d error=%d\n",id,(int)error);return false;}
+  auto error=vr::VROverlayError_None;
+  if(surface.overlay==vr::k_ulOverlayHandleInvalid){
+    error=overlays->CreateOverlay(key.c_str(),key.c_str(),&surface.overlay);
+    if(error!=vr::VROverlayError_None){fprintf(stderr,"[surface] create id=%d error=%d\n",id,(int)error);return false;}
+  }
   error=overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_SideBySide_Parallel,true);
   if(error!=vr::VROverlayError_None)return false;
   error=overlays->SetOverlayWidthInMeters(surface.overlay,width);
@@ -1431,18 +1438,30 @@ int main(int argc,char **argv) {
       const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
       const bool interactive=!object->laserPassThrough;
       auto found=surfaces.find(id);
-      if(found!=surfaces.end()&&(found->second->referenceEyePixels!=eyePixels||found->second->interactive!=interactive)){
+      if(found!=surfaces.end()&&found->second->buffers[0].fbo&&(found->second->referenceEyePixels!=eyePixels||found->second->interactive!=interactive)){
         pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
         if(!createSurface(*created,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
+      }else if(!found->second->buffers[0].fbo){
+        if(!createSurface(*found->second,id,width,eyePixels,interactive,gbm,display,anchor))return false;
       }
     }
     return true;
   };
   if(!syncSurfaces())return 8;
+  reserveObjectOverlay=[&](int id)->std::string{
+    auto reserved=std::make_unique<Surface>();reserved->objectId=id;
+    const auto key="sf_overlay_engine."+std::to_string(id);
+    const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
+    if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
+    surfaces.emplace(id,std::move(reserved));return {};
+  };
+  releaseObjectOverlay=[&](int id){auto it=surfaces.find(id);if(it!=surfaces.end()){destroySurface(*it->second,display);surfaces.erase(it);}};
+  ScopeExit objectOverlayHooksCleanup{[]{reserveObjectOverlay={};releaseObjectOverlay={};}};
+
   int panelHovered[2]={0,0};float panelCursorX[2]={0,0},panelCursorY[2]={0,0};
   auto syncPanels=[&](){
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
@@ -1676,6 +1695,7 @@ int main(int argc,char **argv) {
       for(auto &panelData:script.scene.panels){auto h=panelOverlays.find(panelData.id);if(h==panelOverlays.end())continue;if(!panelData.texture||!panelData.visible){overlays->HideOverlay(h->second);continue;}auto &texture=panelTextures[panelData.id];texture={reinterpret_cast<void*>(static_cast<uintptr_t>(panelData.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};auto panelError=overlays->SetOverlayTexture(h->second,&texture);if(panelError!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,(int)panelError);auto transform=anchor;transform.m[0][3]+=anchor.m[0][0]*panelData.x+anchor.m[0][1]*panelData.y-anchor.m[0][2]*panelData.z;transform.m[1][3]+=anchor.m[1][0]*panelData.x+anchor.m[1][1]*panelData.y-anchor.m[1][2]*panelData.z;transform.m[2][3]+=anchor.m[2][0]*panelData.x+anchor.m[2][1]*panelData.y-anchor.m[2][2]*panelData.z;if(panelData.mode=="arbitrary"){for(int row=0;row<3;row++)for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*panelData.rotation[axis*3+col];transform.m[row][col]=value;}}if(panelData.mode=="headLocked"){transform=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;transform.m[0][3]+=transform.m[0][0]*panelData.x+transform.m[0][1]*panelData.y-transform.m[0][2]*panelData.z;transform.m[1][3]+=transform.m[1][0]*panelData.x+transform.m[1][1]*panelData.y-transform.m[1][2]*panelData.z;transform.m[2][3]+=transform.m[2][0]*panelData.x+transform.m[2][1]*panelData.y-transform.m[2][2]*panelData.z;}if(panelData.mode=="viewerFacing"){float pr[3],pu[3],pf[3];faceViewer(transform,anchor,head,pr,pu,pf);for(int i=0;i<3;i++){transform.m[i][0]=pr[i];transform.m[i][1]=pu[i];transform.m[i][2]=-pf[i];}}overlays->SetOverlayTransformAbsolute(h->second,vr::TrackingUniverseStanding,&transform);overlays->ShowOverlay(h->second);}
       int shrinkBudget=2;
       for(auto &[id,surface]:surfaces){
+        if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         const Object *target=nullptr;
         for(const auto &object:script.scene.objects)if(object.id==id){target=&object;break;}
         if(!target)continue;
