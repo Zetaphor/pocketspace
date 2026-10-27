@@ -89,3 +89,18 @@ preserve order on removal. `findSceneItem` uses binary search without storing
 pointers or a separate index across mutations. Resolve IDs again after vector
 growth, erasure, or scene replacement. Surface synchronization walks visible
 objects directly; picking and depth traversal retain scene order.
+
+Render groups use negative surface keys (`-renderGroup`), while independent
+objects use positive object IDs. Reserve group handles before publishing the
+first live member; release only after removing the last member. Native mouse
+surfaces remain independent-only; grouped objects use the existing mesh picker
+and per-object grab state. Rebuild frame-local member lists after script updates
+so object-vector mutations cannot leave stale pointers.
+
+`groupLayout` unions both eyes' projected bounds and requests the maximum member
+reference angular density. Group extents can grow sharply near the headset;
+resolution is capped by 4096 pixels per eye and half the renderbuffer width, with
+a warning when limited. Group buffers retain immediate growth and delayed
+shrinking. Keep grouped rendering opt-in and retain the independent stress scene
+as a comparison. Shared depth must exclude members from their own occluder pass
+and include visible opaque/masked nonmembers.

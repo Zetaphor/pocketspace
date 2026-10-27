@@ -34,6 +34,31 @@ struct Renderer {
     scene.objects.push_back({2,2,-.6f,-.1f,0,.6f,0,0,float(std::acos(-1)/2)});
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
+  std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex){
+    auto panel=anchor,head=anchor;panel.m[1][3]=-.2f;
+    head.m[0][3]=headScene.x;head.m[1][3]=headScene.y;head.m[2][3]=-headScene.z;
+    float r[3],u[3],f[3];faceViewer(panel,anchor,head,r,u,f);
+    glUseProgram(program);vector("center",0,-.2f,0);vector("eye",head.m[0][3]+(eyeIndex?.032f:-.032f),head.m[1][3],head.m[2][3]);
+    vector("panelRight",r[0],r[1],r[2]);vector("panelUp",u[0],u[1],u[2]);vector("panelForward",f[0],f[1],f[2]);
+    glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),1.2f);
+    glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(0,0,pixels,pixels);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    for(auto &object:scene.objects)object.renderGroup=std::find(ids.begin(),ids.end(),object.id)!=ids.end()?1:0;
+    renderObjectLayers(-1,[&](int key,int pass){
+      for(const auto &object:scene.objects){
+        if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))continue;
+        const auto &asset=scene.assets[object.asset-1];
+        vector("offset",object.x,object.y+.2f,object.z);
+        glUniform1f(glGetUniformLocation(program,"yaw"),object.yaw);glUniform1f(glGetUniformLocation(program,"pitch"),object.pitch);glUniform1f(glGetUniformLocation(program,"roll"),object.roll);glUniform1f(glGetUniformLocation(program,"modelScale"),object.scale);
+        for(const auto &part:asset.primitives){
+          if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
+          glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
+          glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);drawModelPrimitive(part);
+        }
+      }
+    });
+    for(auto &object:scene.objects)object.renderGroup=0;
+    std::vector<unsigned char> image(pixels*pixels*4);glReadPixels(0,0,pixels,pixels,GL_RGBA,GL_UNSIGNED_BYTE,image.data());assert(glGetError()==GL_NO_ERROR);return image;
+  }
   ~Renderer(){for(auto [part,buffer]:expandedBuffers)glDeleteBuffers(1,&buffer);for(auto &asset:scene.assets)deleteModel(asset);glDeleteRenderbuffers(1,&depth);glDeleteTextures(1,&color);glDeleteFramebuffers(1,&fbo);glDeleteProgram(program);}
   void vector(const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
   std::vector<unsigned char> render(int id,physics::Vec3 headScene,int eyeIndex,bool occlusion,bool bounds,int &sample,bool scissor=false,bool crop=false,bool expanded=false){
@@ -134,6 +159,33 @@ int main(){
       assert(fixed==renderer.render(1,head,eye,true,true,ignored,true));
       auto box=renderer.render(3,head,eye,true,true,sample);assert(box[sample+3]>250);assert(box==renderer.render(3,head,eye,true,true,ignored,true));cases++;
     }
+    for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{1,0,-.4f}})for(int eye=0;eye<2;eye++){
+      // Render on the same projection plane: independent depth-clipped images
+      // must composite to exactly the shared opaque/masked group image.
+      auto grouped=renderer.renderSet({1,2,3},head,eye);std::vector<unsigned char> composed(grouped.size());
+      for(int id:{1,2,3}){auto image=renderer.renderSet({id},head,eye);for(size_t i=0;i<image.size();i+=4)if(image[i+3])std::copy_n(image.data()+i,4,composed.data()+i);}
+      assert(grouped==composed);
+      auto bodies=renderer.renderSet({2,3},head,eye);auto floor=renderer.renderSet({1},head,eye);
+      for(size_t i=0;i<bodies.size();i+=4)if(bodies[i+3])std::copy_n(bodies.data()+i,4,floor.data()+i);
+      assert(grouped==floor);
+    }
+    {
+      Scene groupScene;ModelAsset asset;asset.eyePixels=768;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}groupScene.assets.push_back(std::move(asset));
+      groupScene.objects.push_back({1,1,-.25f,0,0,.1f,0});groupScene.objects.push_back({2,1,.25f,0,0,.1f,0});
+      std::vector<const Object*> members{&groupScene.objects[0],&groupScene.objects[1]};
+      auto head=renderer.anchor;head.m[2][3]=1;
+      const float center[3]={0,0,0},eyes[2][3]={{-.032f,0,1},{.032f,0,1}},r[3]={1,0,0},u[3]={0,1,0},f[3]={0,0,-1};
+      const auto layout=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1);
+      assert(!layout.limited&&layout.pixels%64==0&&layout.pixels/layout.width>=768/.55f);
+      for(int eye=0;eye<2;eye++){
+        const auto &bounds=layout.bounds[eye];assert(bounds.valid);
+        assert(std::abs(bounds.x0-eyes[eye][0]*-1)<layout.width*.5f);assert(std::abs(bounds.x1-eyes[eye][0]*-1)<layout.width*.5f);
+      }
+      const auto limited=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,128);assert(limited.limited&&limited.pixels==128);
+      groupScene.objects[0].z=-.98f;
+      const auto near=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,2);assert(!near.bounds[0].valid&&near.width==2);
+    }
+    puts("PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, resolution ceiling and near-plane fallback");
     renderer.scene.objects[2].y=-.5f;
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto floor=renderer.render(1,head,eye,true,true,sample);assert(floor[sample+3]>250);

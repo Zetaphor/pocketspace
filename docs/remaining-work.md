@@ -28,8 +28,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Deferred performance work
 
-- Render multiple bodies through fewer overlays to increase visible object counts
-  beyond the runtime overlay budget, preserving stereo quality and interaction.
+- Split or spatially partition shared render groups when members spread apart or
+  approach the headset, avoiding resolution ceilings and excess buffer memory.
+- Evaluate grouped rendering quality and performance across larger scenes before
+  selecting broader defaults.
 
 - Reuse scene depth across different object surfaces as counts grow, preserving
   per-eye opaque/masked occlusion.
