@@ -80,6 +80,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Input architecture](docs/input-architecture.md): native data sources and delivery.
 - [Remaining work](docs/remaining-work.md): unimplemented and deferred features.
 - [Maintainer handoff](docs/agent-handoff.md): source map and maintenance entry points.
+- [Test index](tests/index.md): regression checks, API fixtures, headset scenes, profiling tools, and recorded results.
 
 The model renderer supports embedded base-color textures, material factors,
 alpha modes, UV transforms, and an approximate sheen tint. It does not implement
