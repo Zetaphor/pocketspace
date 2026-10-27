@@ -39,7 +39,7 @@ Steam Frame GPU memory uses shared system RAM rather than a separate VRAM pool.
 
 Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
 statistics panel including solver time, active bodies, and worker count. Either bumper adds one object; A or X adds five; B or Y clears
-the spawned objects. The scene starts with four boxes and has no fixed script spawn cap.
+the spawned objects. The scene starts with four boxes and caps at 51 spawned boxes.
 Spawning stops on a creation error and displays the reason on the HUD; clear or
 remove objects to free resources before trying again. The engine's 256-object
 limit and SteamVR's system-wide overlay budget still apply. Each model uses one

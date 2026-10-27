@@ -1,3 +1,4 @@
+const LIMIT = 51;
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const assets = ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb', 'assets/physics/GreenBox.glb', 'assets/samples/Box/Box.glb'].map(path => loadModel(path));
@@ -5,7 +6,7 @@ const objects = [];
 let sequence = 0, spawnStatus = '';
 function add(count) {
   spawnStatus = '';
-  while (count-- > 0) {
+  while (count-- > 0 && objects.length < LIMIT) {
     let id;
     try {
       const n = sequence++;
@@ -43,7 +44,7 @@ function draw() {
   const s = getEngineStats(), c = panel.canvas;
   c.clear(12, 18, 29, 255);
   const lines = [
-    `Objects: ${objects.length}   FPS: ${s.fps === null ? '--' : s.fps.toFixed(1)}`,
+    `Objects: ${objects.length}/${LIMIT}   FPS: ${s.fps === null ? '--' : s.fps.toFixed(1)}`,
     `CPU: ${s.cpuPercent === null ? '--' : s.cpuPercent.toFixed(1) + '%'} (100% = one core)`,
     `RAM (process RSS): ${mib(s.ramBytes)}`,
     s.vramBytes !== null ? `GPU driver memory: ${mib(s.vramBytes)}` : `GPU allocations (estimate): ${mib(s.gpuAllocatedEstimateBytes)}`,
