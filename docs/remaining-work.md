@@ -28,10 +28,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Complete headset visibility/quality and longer-duration validation with large
-  numbers of continuously fast-moving objects, including models. Memory admission
-  and short bounded native runs alone do not establish that automatic grouping
-  is suitable for this workload. See
+- Complete continuous-motion headset validation of automatic grouping and
+  longer-duration stress checks. The fixed-group 128-Avocado visual check passed;
+  that does not establish automatic grouping's suitability or long-term memory
+  stability. See
   [continuous-motion validation](../tests/results/fast-motion.md) for the workload
   and measured limits.
 - Profile larger moving box/model scenes to identify the next bottleneck. Measure

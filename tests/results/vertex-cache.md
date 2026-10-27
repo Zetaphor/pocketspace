@@ -81,5 +81,11 @@ reload output is `/tmp/sf-cache-delivery-lifecycle.log`. Earlier exploratory
 triangle-only and mismatched-allocation runs are not the retained comparison.
 The user accepted the interactive headset visual check on 2026-10-27 with mesh
 optimization enabled: boxes/models, wide/compact movement, grabbing/rotation and
-head-motion occlusion were reported as good. Large-count continuous-motion and
-long-duration stress acceptance remain pending.
+head-motion occlusion were reported as good. The user subsequently accepted
+128 continuously moving Avocados with mesh optimization, one fixed group, and a
+stats panel. Over approximately 72 seconds, 63 late samples had median 71.96 FPS
+and 466.87 MiB estimated GPU allocation; all retained 128 objects. Grouped buffer
+peak was 468 MiB, and shutdown released all grouped charges. The raw headset log
+is `/tmp/sf-fast-models-headset.log` on Frame. The demo is stopped.
+Continuous-motion automatic grouping and long-duration stress acceptance remain
+pending; the accepted fixed-group case does not cover the detailed ToyCar mix.

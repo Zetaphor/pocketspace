@@ -62,8 +62,11 @@ under `/tmp/sf-fast-motion-final`; the live lifecycle log is
 
 ## Limits
 
-These short native runs do not establish headset visual acceptance, long-duration
-memory stability, or a guaranteed FPS at arbitrary object counts. Fixed and
+The user accepted a subsequent fixed-group 128-Avocado headset run with mesh
+optimization on 2026-10-27; see the [acceptance record](vertex-cache.md).
+Continuous-motion automatic grouping and the detailed-model mix still need
+headset acceptance. These short runs do not establish long-duration memory
+stability or a guaranteed FPS at arbitrary object counts. Fixed and
 adaptive cases can use different allocation sizes and pixel densities. Throughput
 comparisons therefore describe these policies as exercised, not equal-quality
 microbenchmarks. The run order is not thermally controlled. Model complexity,
