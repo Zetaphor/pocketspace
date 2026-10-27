@@ -11,6 +11,7 @@ these guides; implementation history belongs in Git.
 | --- | --- |
 | `src/main.cpp` | QuickJS bindings, scene lifecycle, interaction, rendering, and OpenVR host loop. |
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
+| `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
@@ -60,3 +61,10 @@ allocated pixels to preserve reference sample density and the centered grid.
 Keep immediate growth, near-plane fallback, delayed/budgeted shrinking, stable
 overlay handles, and physical input-mask sizing when changing this path. Each
 buffer replacement clears the compositor texture before releasing its resources.
+
+Shared assets may use indexed GPU geometry while retaining expanded CPU triangle
+streams. Route rendering through `drawModelPrimitive`; per-instance deformed
+VBO overrides must use the expanded draw path. Include every shader vertex
+attribute in the deduplication key if the vertex format grows. Resource estimates
+count uploaded vertex counts and 16/32-bit index storage, and model teardown
+releases both buffer types.

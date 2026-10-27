@@ -7,7 +7,8 @@
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
-int main(){
+int main(int argc,char **argv){
+  const bool detailed=argc>1&&std::string(argv[1])=="--detailed";
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
   constexpr int pixels=768,count=35;
   {
@@ -16,6 +17,15 @@ int main(){
     for(const char *path:{"assets/physics/ThinPlatform.glb","assets/samples/Box/Box.glb"}){ModelAsset a;assert(loadModelFile(path,a));uploadModel(a);scene.assets.push_back(std::move(a));}
     scene.objects.push_back({1,1,0,-.55f,0,1.2f,0});
     for(int i=0;i<count-1;i++)scene.objects.push_back({i+2,2,((i%6)-2.5f)*.13f,-.25f+(i/6)*.13f,0,.1f,0});
+    if(detailed){
+      for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","assets/Avocado.glb"}){ModelAsset a;assert(loadModelFile(path,a));uploadModel(a);scene.assets.push_back(std::move(a));}
+      scene.objects[count-2]={count-1,3,-.25f,.35f,.1f,.25f,0};scene.objects[count-1]={count,4,.25f,.35f,.1f,.25f,0};
+    }
+    std::map<const PrimitiveAsset*,GLuint> expandedBuffers;uint64_t originalBytes=0,indexedBytes=0,originalVertices=0,indexedVertices=0;
+    for(const auto &asset:scene.assets)for(const auto &part:asset.primitives){GLuint buffer;glGenBuffers(1,&buffer);glBindBuffer(GL_ARRAY_BUFFER,buffer);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);expandedBuffers[&part]=buffer;
+      originalBytes+=part.vertices.size()*sizeof(float);indexedBytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float)+(part.indexBuffer?uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4):0);originalVertices+=part.vertexCount;indexedVertices+=part.gpuVertexCount;
+    }
+    printf("GEOMETRY detailed=%d vertices=%llu unique=%llu expanded_bytes=%llu indexed_bytes=%llu\n",int(detailed),(unsigned long long)originalVertices,(unsigned long long)indexedVertices,(unsigned long long)originalBytes,(unsigned long long)indexedBytes);
     GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);assert(linked);glDeleteShader(v);glDeleteShader(f);glUseProgram(program);
     auto location=[&](const char *name){return glGetUniformLocation(program,name);};
@@ -33,7 +43,7 @@ int main(){
       glGenTextures(1,&t.color);glBindTexture(GL_TEXTURE_2D,t.color);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,t.size,t.size,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,t.color,0);
       glGenRenderbuffers(1,&t.depth);glBindRenderbuffer(GL_RENDERBUFFER,t.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,t.size,t.size);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,t.depth);assert(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);targets.push_back(t);
     }
-    auto frame=[&](bool scissor,bool crop){
+    auto frame=[&](bool scissor,bool crop,bool indexed){
       for(const auto &target:scene.objects){
         auto panel=anchor;panel.m[0][3]=target.x;panel.m[1][3]=target.y;panel.m[2][3]=-target.z;
         float right[3],up[3],forward[3];faceViewer(panel,anchor,head,right,up,forward);
@@ -54,7 +64,7 @@ int main(){
               for(const auto &part:asset.primitives){
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
                 glUniform4fv(factorLoc,1,part.factor);glUniform1i(modeLoc,part.alphaMode);glUniform1f(cutoffLoc,part.alphaCutoff);glUniform3fv(sheenLoc,1,part.sheen);
-                glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));glBindTexture(GL_TEXTURE_2D,part.texture);glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
+                glBindTexture(GL_TEXTURE_2D,part.texture);drawModelPrimitive(part,indexed?0:expandedBuffers.at(&part));
               }
             }
           },scissor?&region:nullptr);
@@ -62,13 +72,14 @@ int main(){
       }
       glFinish();assert(glGetError()==GL_NO_ERROR);
     };
-    for(int round=0;round<3;round++)for(int mode=0;mode<3;mode++){
-      const bool scissor=mode>0,crop=mode==2;
-      for(int i=0;i<20;i++)frame(scissor,crop);
-      const auto start=std::chrono::steady_clock::now();for(int i=0;i<200;i++)frame(scissor,crop);
+    for(int round=0;round<3;round++)for(int mode=0;mode<2;mode++){
+      const bool scissor=true,crop=true,indexed=(round%2?mode==0:mode==1);
+      for(int i=0;i<20;i++)frame(scissor,crop,indexed);
+      const auto start=std::chrono::steady_clock::now();for(int i=0;i<200;i++)frame(scissor,crop,indexed);
       const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()/200;
-      printf("BENCH round=%d scissor=%d crop=%d objects=%d eyes=2 pixels=%d frame_ms=%.3f\n",round,int(scissor),int(crop),count,pixels,ms);fflush(stdout);
+      printf("BENCH round=%d scissor=%d crop=%d indexed=%d detailed=%d objects=%d eyes=2 pixels=%d frame_ms=%.3f\n",round,int(scissor),int(crop),int(indexed),int(detailed),count,pixels,ms);fflush(stdout);
     }
+    for(auto [part,buffer]:expandedBuffers)glDeleteBuffers(1,&buffer);
     for(auto t:targets){glDeleteRenderbuffers(1,&t.depth);glDeleteTextures(1,&t.color);glDeleteFramebuffers(1,&t.fbo);}for(auto &a:scene.assets)deleteModel(a);glDeleteProgram(program);
   }
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);

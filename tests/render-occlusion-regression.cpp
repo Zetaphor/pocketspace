@@ -4,6 +4,7 @@
 #undef main
 #include <cassert>
 #include <cstdlib>
+#include "../src/mesh_index.h"
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
@@ -11,6 +12,7 @@ constexpr int pixels=768;
 struct Renderer {
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
+  std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
   Renderer(){
     for(int i=0;i<3;i++)anchor.m[i][i]=1;
@@ -32,9 +34,9 @@ struct Renderer {
     scene.objects.push_back({2,2,-.6f,-.1f,0,.6f,0,0,float(std::acos(-1)/2)});
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
-  ~Renderer(){for(auto &asset:scene.assets)deleteModel(asset);glDeleteRenderbuffers(1,&depth);glDeleteTextures(1,&color);glDeleteFramebuffers(1,&fbo);glDeleteProgram(program);}
+  ~Renderer(){for(auto [part,buffer]:expandedBuffers)glDeleteBuffers(1,&buffer);for(auto &asset:scene.assets)deleteModel(asset);glDeleteRenderbuffers(1,&depth);glDeleteTextures(1,&color);glDeleteFramebuffers(1,&fbo);glDeleteProgram(program);}
   void vector(const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);}
-  std::vector<unsigned char> render(int id,physics::Vec3 headScene,int eyeIndex,bool occlusion,bool bounds,int &sample,bool scissor=false,bool crop=false){
+  std::vector<unsigned char> render(int id,physics::Vec3 headScene,int eyeIndex,bool occlusion,bool bounds,int &sample,bool scissor=false,bool crop=false,bool expanded=false){
     auto &target=scene.objects[size_t(id)-1];
     auto panel=anchor,head=anchor;
     panel.m[0][3]=target.x;panel.m[1][3]=target.y;panel.m[2][3]=-target.z;
@@ -63,8 +65,9 @@ struct Renderer {
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);
           glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
-          glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-          glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
+          GLuint reference=0;
+          if(expanded){auto &buffer=expandedBuffers[&part];if(!buffer){glGenBuffers(1,&buffer);glBindBuffer(GL_ARRAY_BUFFER,buffer);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);}reference=buffer;}
+          glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);drawModelPrimitive(part,reference);
         }
       }
     };
@@ -82,6 +85,22 @@ struct Renderer {
     assert(glGetError()==GL_NO_ERROR);return result;
   }
 };
+static void indexingValidation(){
+  // UV seams and distinct float bit patterns must remain separate.
+  const std::vector<float> source={0,0,0,0,0, 1,0,0,1,0, 0,1,0,0,1, 0,0,0,0,0, 0,0,0,1,1, -0.f,0,0,0,0};
+  auto indexed=mesh::index(source);assert(indexed.vertices.size()==25&&indexed.indices.size()==6);
+  for(size_t i=0;i<indexed.indices.size();i++)for(int j=0;j<5;j++)assert(std::bit_cast<uint32_t>(source[i*5+j])==std::bit_cast<uint32_t>(indexed.vertices[indexed.indices[i]*5+j]));
+  for(bool repeated:{false,true}){
+    ModelAsset asset;asset.primitives.resize(1);auto &part=asset.primitives[0];
+    const int count=repeated?65538:3;
+    for(int repeat=0;repeat<(repeated?2:1);repeat++)for(int i=0;i<count;i++)part.vertices.insert(part.vertices.end(),{float(i),0,0,0,0});
+    part.vertexCount=GLsizei(part.vertices.size()/5);part.rgba={255,255,255,255};
+    uploadModel(asset);
+    if(repeated){assert(part.indexBuffer&&part.indexType==GL_UNSIGNED_INT&&part.gpuVertexCount==count);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);GLint bytes;glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER,GL_BUFFER_SIZE,&bytes);assert(bytes==part.vertexCount*4);}
+    else assert(!part.indexBuffer&&part.gpuVertexCount==part.vertexCount);
+    auto buffer=part.indexBuffer;deleteModel(asset);assert(!part.vbo&&!part.indexBuffer&&!part.texture);if(buffer)assert(!glIsBuffer(buffer));
+  }
+}
 static void sharedDepthLifetime(EGLDisplay display){
   std::array<Buffer,3> buffers;GLuint shared=0;
   for(int i=0;i<3;i++){
@@ -105,7 +124,7 @@ static void sharedDepthLifetime(EGLDisplay display){
 int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
   {
-    sharedDepthLifetime(display);
+    indexingValidation();sharedDepthLifetime(display);
     Renderer renderer;int sample=0,ignored=0;int cases=0;
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{0,.1f,-1.2f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto old=renderer.render(1,head,eye,false,false,sample);assert(old[sample+3]>250);
@@ -144,18 +163,24 @@ int main(){
       const int id=int(renderer.scene.objects.size())+1;renderer.scene.objects.push_back({id,int(renderer.scene.assets.size()),0,-.32f,0,.12f,0});
     }
     for(int id:{3,4,5})for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{0,-.32f,-.08f}})for(int eye=0;eye<2;eye++){
-      auto full=renderer.render(id,head,eye,true,true,ignored,true);
+      auto full=renderer.render(id,head,eye,true,true,ignored,true,false,true);
+      assert(full==renderer.render(id,head,eye,true,true,ignored,true));
       auto cropped=renderer.render(id,head,eye,true,true,ignored,true,true);
       int differences=0,maxError=0;for(size_t i=0;i<full.size();i++){int error=std::abs(int(full[i])-int(cropped[i]));maxError=std::max(maxError,error);if(error>1)++differences;}
       if(differences)fprintf(stderr,"crop id=%d eye=%d differences=%d max_error=%d\n",id,eye,differences,maxError);
       assert(differences==0);
     }
+    bool shortIndices=false;
+    for(const auto &asset:renderer.scene.assets)for(const auto &part:asset.primitives){
+      auto indexed=mesh::index(part.vertices);for(size_t i=0;i<indexed.indices.size();i++)for(int j=0;j<5;j++)assert(std::bit_cast<uint32_t>(part.vertices[i*5+j])==std::bit_cast<uint32_t>(indexed.vertices[indexed.indices[i]*5+j]));
+      shortIndices|=part.indexBuffer&&part.indexType==GL_UNSIGNED_SHORT;
+    }assert(shortIndices);
     const float center[3]={0,0,0},eye[3]={0,0,1},r[3]={1,0,0},u[3]={0,1,0},f[3]={0,0,-1};
     ProjectedBounds invalid;invalid.valid=false;
     const auto full=projectedScissor(invalid,center,eye,r,u,f,.275f,pixels);assert(full.x==0&&full.y==0&&full.width==pixels&&full.height==pixels);
     ProjectedBounds outside;outside.x0=10;outside.x1=11;outside.y0=0;outside.y1=1;
     assert(projectedScissor(outside,center,eye,r,u,f,.275f,pixels).width==0);
-    printf("PASS GLES occlusion: %d stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime and cropped model pixels\n",cases);
+    printf("PASS GLES occlusion: %d stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup\n",cases);
   }
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
