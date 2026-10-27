@@ -1,0 +1,43 @@
+[picking] nodes=3 triangles=12 build_ms=0.007 reserved_bytes=408
+[model] loaded assets/physics/ThinPlatform.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[picking] nodes=3 triangles=12 build_ms=0.001 reserved_bytes=408
+[model] loaded assets/physics/ThinWallBlue.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[picking] nodes=3 triangles=12 build_ms=0.001 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+PIXELS case=opaque eye=0 differing_surface_pixels=0
+PIXELS case=opaque eye=1 differing_surface_pixels=0
+PIXELS case=opaque eye=0 differing_surface_pixels=0
+PIXELS case=opaque eye=1 differing_surface_pixels=0
+PIXELS case=opaque eye=0 differing_surface_pixels=0
+PIXELS case=opaque eye=1 differing_surface_pixels=0
+PIXELS case=masked-hole eye=0 differing_surface_pixels=0
+PIXELS case=masked-hole eye=1 differing_surface_pixels=0
+PIXELS case=blended eye=0 differing_surface_pixels=0
+PIXELS case=blended eye=1 differing_surface_pixels=0
+PIXELS case=checker-mask eye=0 differing_surface_pixels=0
+PIXELS case=checker-mask eye=1 differing_surface_pixels=0
+PIXELS case=hidden eye=0 differing_surface_pixels=0
+PIXELS case=hidden eye=1 differing_surface_pixels=0
+REJECT differing_grid_surface_pixels=761 (1% projection scale mismatch)
+REJECT coincident_surface_pixels=6740 (baseline strict depth excludes equal-depth nonmembers)
+[picking] nodes=32767 triangles=108936 build_ms=61.292 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.179 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+PIXELS case=model-4 eye=0 differing_surface_pixels=0
+PIXELS case=model-4 eye=1 differing_surface_pixels=0
+PIXELS case=model-5 eye=0 differing_surface_pixels=0
+PIXELS case=model-5 eye=1 differing_surface_pixels=0
+SUMMARY views=18 ordinary_differences=0 adoption=blocked_by_equal_depth_and_grid_requirements
+BENCH geometry=boxes round=0 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=1.792
+BENCH geometry=boxes round=0 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=1.947
+BENCH geometry=boxes round=1 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=2.139
+BENCH geometry=boxes round=1 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=2.142
+BENCH geometry=boxes round=2 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=1.896
+BENCH geometry=boxes round=2 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=1.850
+BENCH geometry=models round=0 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=13.887
+BENCH geometry=models round=0 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=19.424
+BENCH geometry=models round=1 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=19.012
+BENCH geometry=models round=1 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=14.398
+BENCH geometry=models round=2 shared=0 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=13.883
+BENCH geometry=models round=2 shared=1 groups=5 objects=49 grid=768 baseline_culling=1 frame_ms=19.416

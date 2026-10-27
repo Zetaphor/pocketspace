@@ -34,8 +34,9 @@ This roadmap contains future work, without prescribing an implementation order.
 - Evaluate grouped rendering quality and performance across larger scenes before
   selecting broader defaults.
 
-- Reuse scene depth across different object surfaces as counts grow, preserving
-  per-eye opaque/masked occlusion.
+- Revisit scene-depth reuse only when profiling shows repeated occluder work
+  remains costly after bounds culling; require compatible pixel grids and correct
+  equal-depth ownership while preserving per-eye opaque/masked occlusion.
 - Investigate GPU/shared-texture synchronization with explicit compositor
   ownership and buffer-reuse guarantees before replacing `glFinish`.
 - Profile rendering time, GPU/shared memory, overlay count, and per-eye resolution
