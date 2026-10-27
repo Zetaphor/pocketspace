@@ -17,8 +17,9 @@ struct PrimitiveAsset {
   int alphaMode=0; // 0 opaque, 1 mask, 2 blend
   float alphaCutoff=.5f;
   bool doubleSided=false;
-  GLuint vbo=0,texture=0;
-  GLsizei vertexCount=0;
+  GLuint vbo=0,indexBuffer=0,texture=0;
+  GLenum indexType=GL_UNSIGNED_INT;
+  GLsizei vertexCount=0,gpuVertexCount=0; // expanded draw count; uploaded vertex count
 };
 struct ModelAsset {
   std::string path;
@@ -38,6 +39,8 @@ struct ModelAsset {
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
+// An expanded override is used for per-instance CPU-deformed geometry.
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0);
 
 // Per-object deformed geometry; material textures remain on the shared asset.
 struct ModelPose {

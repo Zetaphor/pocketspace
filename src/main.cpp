@@ -1730,11 +1730,8 @@ int main(int argc,char **argv) {
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
                 glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
                 glUniform3fv(sheenLocation,1,part.sheen);
-                glBindBuffer(GL_ARRAY_BUFFER,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:part.vbo);
-                glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)0);
-                glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
-                glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
+                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
               }
             }
           },&region);
@@ -1764,8 +1761,8 @@ int main(int argc,char **argv) {
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
         if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=part.vertices.size()*sizeof(float);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
-      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=part.vertices.size()*sizeof(float);
+      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
+      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       engineStats.gpuAllocatedEstimateBytes=bytes;

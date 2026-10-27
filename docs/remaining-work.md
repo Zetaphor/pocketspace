@@ -30,8 +30,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Reuse scene depth across different object surfaces as counts grow, preserving
   per-eye opaque/masked occlusion.
-- Preserve shared vertices and use indexed rendering rather than expanded
-  triangle streams.
 - Replace repeated object/surface scans with direct lookups at higher counts.
 - Avoid redundant unchanged panel texture, transform, and visibility submissions.
 - Investigate GPU/shared-texture synchronization with explicit compositor
