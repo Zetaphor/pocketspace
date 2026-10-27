@@ -71,9 +71,10 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | `removeObject(id)` | Remove the instance and its interaction state. |
 
 Invalid IDs and invalid arguments throw. During live scene updates, object
-creation reserves an overlay handle when its surface needs one and throws if SteamVR cannot allocate it; a
-failed reservation leaves no object behind. Removal of the last surface member releases that handle
-immediately so subsequent spawns can reuse the available capacity. Assets remain loaded until the scene
+creation reserves the native handles its surface needs and throws if SteamVR
+cannot allocate them; a failed reservation leaves no object behind. Removal of
+the last surface member releases its handles immediately so subsequent spawns
+can reuse the available capacity. Assets remain loaded until the scene
 is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
 GPU time and memory. By default each object has its own surface. Opaque and
@@ -95,7 +96,55 @@ reference physical extent within the cropped surface. Allocation estimates count
 the actual current buffers, including crops.
 
 
-### Shared render groups
+### Choosing an object rendering approach
+
+Scripts choose rendering per object through the final `createObject` options.
+The choice is independent of the model asset: a group may contain boxes,
+detailed models, animated instances, and static scenery together.
+
+| Approach | `renderGroup` | Visible 3D surfaces | Native handles |
+| --- | --- | --- | --- |
+| Independent objects (default) | Omit it or use `0` | One per visible object | One per allocated object surface. |
+| Single scene surface | Give all 3D objects the same positive ID | One for the whole scene | Two for the shared surface, including hidden staging. |
+| Multiple grouped surfaces | Assign different positive IDs to subsets | One per nonempty visible group | Two per allocated group, including hidden staging. |
+
+For example, these are alternative ways to create the same content:
+
+```js
+// Independent surfaces: each object retains native rectangular pointer input.
+createObject(boxAsset, -.2, 0, 0, .14);
+createObject(carAsset,  .2, 0, 0, .14, {renderGroup: 0});
+```
+
+```js
+// One visible stereo surface: include the floor and every 3D model in group 1.
+createObject(floorAsset, 0, -.55, 0, 1.2, {renderGroup: 1});
+createObject(boxAsset, -.2, 0, 0, .14, {renderGroup: 1});
+createObject(carAsset,  .2, 0, 0, .14, {renderGroup: 1});
+```
+
+```js
+// Separate groups can concentrate pixels around different parts of the scene.
+createObject(floorAsset, 0, -.55, 0, 1.2, {renderGroup: 3});
+createObject(boxAsset, -.2, 0, 0, .14, {renderGroup: 1});
+createObject(carAsset,  .2, 0, 0, .14, {renderGroup: 2});
+```
+
+Group IDs are scene-local integer labels from 1 through 256, not object IDs.
+Membership is fixed at creation. Changing an object's group requires removing
+and recreating it; the new object has a new ID, and physics, interaction, and
+animation settings must be applied again. Existing objects are never migrated
+when another object uses a different group ID.
+
+A single surface reduces repeated scene traversal and depth passes, but must
+cover all its members at one sampling density. Large or widely separated groups
+can allocate more GPU memory or reach the resolution ceiling. Several compact
+groups may be faster. Use `getEngineStats` and visual checks for the intended
+scene instead of assuming one approach always wins. Panels created with
+`createPanel` and controller lasers remain separate overlays in all three modes;
+"single scene surface" refers to 3D geometry, not every overlay owned by the app.
+
+### Shared render group behavior
 
 `createObject(asset, x, y, z, scale, {renderGroup: 1})` opts an object into a
 shared stereo surface. Each group uses two overlay handles, alternating a
