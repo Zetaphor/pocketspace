@@ -112,7 +112,13 @@ back the reservation before publishing the object. Removing the last member
 releases both. Hidden members do not render; an entirely hidden group
 releases its surface during synchronization and recreates it when shown again.
 Both eyes share conservative group bounds and geometry depth, including occlusion
-by objects outside the group. Alpha blending retains scene-order limitations.
+by objects outside the group. Grouped surfaces use different texture regions on
+one common projection plane so late head-pose reprojection moves box silhouettes
+and their depth cutouts together. Include mutually occluding geometry such as
+floors in render groups too; independent surfaces use their own planes and can
+reproject differently during head movement. Alpha blending retains scene-order
+limitations. Object framebuffer colors use premultiplied alpha, including masked
+and blended materials, and the native overlay is configured to match.
 
 Surface dimensions grow with projected bounds and the most demanding member's
 reference angular pixel density. This can use more memory when members spread
@@ -127,7 +133,7 @@ and buffer set. Failed allocation keeps the previous surface available. Each
 surface retains three color buffers and one shared depth attachment.
 
 [grouped-stress.js](../scripts/grouped-stress.js) uses four compact groups for up to 240
-colored boxes plus a separate floor and statistics panel. Bumper adds 10, A/X
+colored boxes plus a floor in its own render group and a statistics panel. Bumper adds 10, A/X
 adds 40, and B/Y clears. Fallen/distant bodies are removed. The original
 [stress.js](../scripts/stress.js) keeps its independent surfaces and 51-box cap.
 

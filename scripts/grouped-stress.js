@@ -1,6 +1,6 @@
-// Four compact body groups share stereo overlays; the floor stays separate.
+// Four compact body groups and the floor share one projection plane.
 const LIMIT = 240;
-const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2);
+const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2, {renderGroup: 5});
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const assets = ['BlueBox', 'YellowBox', 'GreenBox'].map(name => loadModel(`assets/physics/${name}.glb`));
 const objects = [];

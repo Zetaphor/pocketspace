@@ -146,10 +146,40 @@ static void sharedDepthLifetime(EGLDisplay display){
   glBindFramebuffer(GL_FRAMEBUFFER,0);for(auto &buffer:buffers)destroyBuffer(buffer,display);
   assert(glGetError()==GL_NO_ERROR);
 }
+static void coherentGroupPlanes(){
+  Scene scene;ModelAsset asset;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}scene.assets.push_back(std::move(asset));
+  scene.objects.push_back({1,1,-.3f,-.2f,-.35f,.15f,0});scene.objects.push_back({2,1,.3f,.1f,.35f,.15f,0});
+  vr::HmdMatrix34_t anchor{};for(int axis=0;axis<3;axis++)anchor.m[axis][axis]=1;
+  for(const auto position:{physics::Vec3{0,.2f,1.2f},physics::Vec3{.4f,.3f,1},physics::Vec3{-.4f,.3f,1.5f}}){
+    auto head=anchor;head.m[0][3]=position.x;head.m[1][3]=position.y;head.m[2][3]=position.z;
+    float eyes[2][3]={{position.x-.032f,position.y,position.z},{position.x+.032f,position.y,position.z}};
+    auto a=groupPlane({&scene.objects[0]},scene,anchor,head,eyes),b=groupPlane({&scene.objects[1]},scene,anchor,head,eyes);
+    float offset=0;for(int axis=0;axis<3;axis++){assert(a.forward[axis]==b.forward[axis]);offset+=(a.transform.m[axis][3]-b.transform.m[axis][3])*a.forward[axis];}
+    assert(std::abs(offset)<1e-5f);
+    for(int eye=0;eye<2;eye++){
+      // Color and an external depth cutout for the same world point must land
+      // at the same physical point on both tiles before late-pose reprojection.
+      const float point[3]={-.3f,-.2f,.35f};float hits[2][3];int tile=0;
+      for(const auto *plane:{&a,&b}){
+        float distance=0,along=0;for(int axis=0;axis<3;axis++){distance+=(plane->transform.m[axis][3]-eyes[eye][axis])*plane->forward[axis];along+=(point[axis]-eyes[eye][axis])*plane->forward[axis];}
+        for(int axis=0;axis<3;axis++)hits[tile][axis]=eyes[eye][axis]+distance/along*(point[axis]-eyes[eye][axis]);tile++;
+      }
+      for(int axis=0;axis<3;axis++)assert(std::abs(hits[0][axis]-hits[1][axis])<1e-5f);
+      for(float shift:{-.12f,.12f}){
+        const float displayX=eyes[eye][0]+shift;
+        const float u0=(hits[0][0]-displayX)/(position.z-hits[0][2]),u1=(hits[1][0]-displayX)/(position.z-hits[1][2]);assert(std::abs(u0-u1)<1e-5f);
+      }
+    }
+    const float origin[3]={a.sceneOrigin[0],a.sceneOrigin[1],-a.sceneOrigin[2]};for(int axis=0;axis<3;axis++)assert(std::abs(origin[axis]-a.transform.m[axis][3])<1e-5f);
+  }
+  // The previous independent planes produce a visible gap after translation.
+  assert(std::abs(.12f/.8f-.12f/1.2f)>.04f);
+  puts("PASS common group planes: stereo color/cutout alignment through lateral head motion, different object depths, and tile scene transforms");
+}
 int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
   {
-    indexingValidation();sharedDepthLifetime(display);
+    coherentGroupPlanes();indexingValidation();sharedDepthLifetime(display);
     Renderer renderer;int sample=0,ignored=0;int cases=0;
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{0,.1f,-1.2f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto old=renderer.render(1,head,eye,false,false,sample);assert(old[sample+3]>250);
@@ -182,10 +212,31 @@ int main(){
         assert(std::abs(bounds.x0-eyes[eye][0]*-1)<layout.width*.5f);assert(std::abs(bounds.x1-eyes[eye][0]*-1)<layout.width*.5f);
       }
       const auto limited=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,128);assert(limited.limited&&limited.pixels==128);
+      for(auto &object:groupScene.objects)object.y=-2;
+      const auto tile=groupPlane(members,groupScene,renderer.anchor,head,eyes);
+      const float tileCenter[3]={tile.transform.m[0][3],tile.transform.m[1][3],tile.transform.m[2][3]};
+      const auto offAxis=groupLayout(members,groupScene,renderer.anchor,head,eyes,tileCenter,tile.right,tile.up,tile.forward,1);
+      assert(!offAxis.limited&&offAxis.pixels/offAxis.width>=768/.55f&&offAxis.pixels/offAxis.width<768/.55f*1.1f);
+      for(auto &object:groupScene.objects)object.y=0;
       groupScene.objects[0].z=-.98f;
       const auto near=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,2);assert(!near.bounds[0].valid&&near.width==2);
     }
     puts("PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, resolution ceiling and near-plane fallback");
+    {
+      auto &material=renderer.scene.assets[2].primitives[0];const auto originalMode=material.alphaMode;const float originalAlpha=material.factor[3];
+      material.alphaMode=0;material.factor[3]=1;auto opaque=renderer.renderSet({3},{0,.1f,-1.2f},0);
+      material.alphaMode=2;material.factor[3]=.5f;auto blended=renderer.renderSet({3},{0,.1f,-1.2f},0);
+      material.alphaMode=1;material.factor[3]=.75f;auto masked=renderer.renderSet({3},{0,.1f,-1.2f},0);
+      int checked=0;
+      for(size_t i=0;i<opaque.size();i+=4)if(opaque[i+3]==255){
+        assert(blended[i+3]>=127&&blended[i+3]<=192&&std::abs(int(masked[i+3])-191)<=1);
+        const float coverage=blended[i+3]/255.f;
+        for(int channel=0;channel<3;channel++){assert(std::abs(int(blended[i+channel])-opaque[i+channel]*coverage)<=2);assert(std::abs(int(masked[i+channel])-opaque[i+channel]*.75f)<=1);}
+        checked++;
+      }
+      assert(checked>100);material.alphaMode=originalMode;material.factor[3]=originalAlpha;
+      puts("PASS object alpha: blended and masked framebuffer colors match premultiplied compositor input");
+    }
     renderer.scene.objects[2].y=-.5f;
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto floor=renderer.render(1,head,eye,true,true,sample);assert(floor[sample+3]>250);
