@@ -28,9 +28,12 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Harden grouped buffer allocation against excessive aggregate memory use and
-  repeated resize failures before repeating headset validation. The interactive
-  test exhausted buffer allocations as moving bodies inflated tile bounds.
+- Complete headset visibility/quality and longer-duration validation with large
+  numbers of continuously fast-moving objects, including models. Memory admission
+  and short bounded native runs alone do not establish that automatic grouping
+  is suitable for this workload. See
+  [continuous-motion validation](../tests/results/fast-motion.md) for the workload
+  and measured limits.
 - Complete headset visual validation of the implemented tile merging and
   rebalancing policies with boxes and models. Automated validation and bounded
   native comparisons are complete; see the [validation record](../tests/results/regroup.md).
@@ -40,6 +43,10 @@ This roadmap contains future work, without prescribing an implementation order.
   merging, and rebalancing are implemented; consider wider regrouping searches or
   different cost thresholds only if these measurements justify them. Preserve
   the common projection plane and coherent depth-cutout reprojection.
+- Reduce the cost of dense high-triangle model scenes. Compare geometry
+  visibility, repeated occluder draws, batching/instancing and model LOD before
+  choosing an implementation; object count alone is not a sufficient workload
+  budget.
 
 ## Conditional performance investigations
 

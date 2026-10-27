@@ -1,0 +1,65 @@
+[
+  {
+    "name": "128-boxes-adaptive",
+    "samples": 11,
+    "fpsMedian": 71.91468444559608,
+    "gpuEstimateMiBMedian": 400.00045013427734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3
+  },
+  {
+    "name": "240-boxes-adaptive",
+    "samples": 11,
+    "fpsMedian": 62.91882684851207,
+    "gpuEstimateMiBMedian": 400.00045013427734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3
+  },
+  {
+    "name": "128-models-adaptive",
+    "samples": 11,
+    "fpsMedian": 18.041600451460855,
+    "gpuEstimateMiBMedian": 423.01949310302734,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3
+  },
+  {
+    "name": "128-models-fixed",
+    "samples": 11,
+    "fpsMedian": 23.970837175375788,
+    "gpuEstimateMiBMedian": 473.01949310302734,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2
+  },
+  {
+    "name": "240-boxes-fixed",
+    "samples": 11,
+    "fpsMedian": 63.28808098418789,
+    "gpuEstimateMiBMedian": 450.00045013427734,
+    "groupBufferPeakMiB": 500.0,
+    "deferredAllocations": 0,
+    "surfaceCreations": 4
+  },
+  {
+    "name": "128-avocados-adaptive",
+    "samples": 11,
+    "fpsMedian": 73.02203177422865,
+    "gpuEstimateMiBMedian": 416.01164627075195,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3
+  },
+  {
+    "name": "128-avocados-fixed",
+    "samples": 11,
+    "fpsMedian": 87.05025277647617,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 500.0,
+    "deferredAllocations": 0,
+    "surfaceCreations": 4
+  }
+]

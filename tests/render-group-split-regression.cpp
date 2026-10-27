@@ -88,4 +88,23 @@ static void bindings(){
   reserveObjectOverlay={};releaseObjectOverlay={};closeScript(host);currentScene=liveScene=nullptr;
   puts("PASS split API: strict validation, defaults, disable without merging, nearest-tile reservation, stable physics/grab IDs and removal");
 }
-int main(){planner();adjustments();bindings();}
+static void memoryBudget(){
+  GroupBufferBudget budget;
+  const auto old=GroupBufferBudget::bytes(1024),next=GroupBufferBudget::bytes(2048);
+  CHECK(budget.reserve(old*5));
+  CHECK(budget.fittingPixels(4096)==3328);
+  CHECK(budget.reserve(next*2)); // Both new outputs coexist with old snapshots.
+  const auto peak=budget.used;
+  CHECK(!budget.reserve(next));CHECK(budget.used==peak);
+  budget.release(old*5);CHECK(budget.reserve(next));
+  budget.release(next*3);CHECK(budget.used==0);
+  CHECK(budget.reserve(GroupBufferBudget::limit));CHECK(!budget.reserve(1));
+  CHECK(budget.fittingPixels(4096)==0);
+  budget.release(GroupBufferBudget::limit);CHECK(budget.used==0);
+  // A bounded buffer must show the full moving layout, even below its requested density.
+  CHECK(surfaceCoverageWidth(2,768,4096,true)==2);
+  CHECK(surfaceCoverageWidth(2,1280,1024,true)==2.5f);
+  CHECK(surfaceCoverageWidth(2,384,768,false)==1);
+  puts("PASS grouped budget: transactional peaks, rejection without charging, retirement, limit and unclipped fallback");
+}
+int main(){memoryBudget();planner();adjustments();bindings();}

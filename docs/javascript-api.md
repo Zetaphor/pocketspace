@@ -242,6 +242,26 @@ another two overlay pairs and two complete buffer sets alongside the retained
 parent. Overlay limits or allocation failures can prevent a split. Statistics
 include retained generations until they are released.
 
+Grouped native color/depth buffers share an engine-wide 512 MiB allocation
+budget. All three stereo color buffers, the shared depth attachment, and retained
+replacement generations count against it. This is a conservative surface-storage
+estimate, not a limit on total GPU memory: models, panels, independent surfaces,
+driver overhead, and compositor resources are outside this budget. A structural
+change must fit both complete new outputs alongside the old snapshots before
+allocation starts; otherwise membership stays unchanged and adaptation waits five
+seconds before retrying.
+
+Ordinary grouped buffer resizing admits at most one attempt per 100 ms and does
+not run during a structural handoff. Allocation failure or budget refusal retains
+the current buffers and delays that tile's next attempt for five seconds. Growth
+can use a smaller 256-pixel allocation bucket when the full request cannot fit;
+the engine keeps the current allocation if no larger bucket can be admitted.
+While growth is delayed, denied, or awaiting presentation, the current buffer
+renders the entire moving group at reduced pixel density instead of clipping its
+bounds. Fast-moving objects therefore need not wait for regrouping to remain
+visible. These limits bound allocation pressure; they do not guarantee a target
+FPS or full reference sharpness for arbitrary object counts or motion.
+
 With the default split-only policy, existing objects keep their tile membership
 after a split. Enabling `merge` or `rebalance` allows the engine to change render
 tile membership under the constraints below, while logical group and object IDs

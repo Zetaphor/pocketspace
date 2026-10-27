@@ -13,6 +13,7 @@ int main() {
   for(const auto &entry:std::filesystem::directory_iterator("scripts"))scenes.push_back(entry);
   scenes.emplace_back("tests/scenes/overlay-comparison.js");
   scenes.emplace_back("tests/scenes/auto-split.js");
+  scenes.emplace_back("tests/scenes/fast-motion.js");
   for (const auto &entry : scenes) {
     if (entry.path().extension() != ".js") continue;
     ScriptHost host;

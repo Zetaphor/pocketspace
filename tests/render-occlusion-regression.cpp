@@ -34,7 +34,8 @@ struct Renderer {
     scene.objects.push_back({2,2,-.6f,-.1f,0,.6f,0,0,float(std::acos(-1)/2)});
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
-  std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0){
+  std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
+    if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
     auto panel=anchor,head=anchor;panel.m[1][3]=-.2f;
     head.m[0][3]=headScene.x;head.m[1][3]=headScene.y;head.m[2][3]=-headScene.z;
     float r[3],u[3],f[3];faceViewer(panel,anchor,head,r,u,f);
@@ -214,6 +215,8 @@ int main(){
       // Render on the same projection plane: independent depth-clipped images
       // must composite to exactly the shared opaque/masked group image.
       auto grouped=renderer.renderSet({1,2,3},head,eye);std::vector<unsigned char> composed(grouped.size());
+      // Refused growth must preserve the complete image on the existing grid.
+      assert(grouped==renderer.renderSet({1,2,3},head,eye,0,true,1,false,0,4096));
       for(int id:{1,2,3}){auto image=renderer.renderSet({id},head,eye);for(size_t i=0;i<image.size();i+=4)if(image[i+3])std::copy_n(image.data()+i,4,composed.data()+i);}
       assert(grouped==composed);
       auto bodies=renderer.renderSet({2,3},head,eye);auto floor=renderer.renderSet({1},head,eye);
