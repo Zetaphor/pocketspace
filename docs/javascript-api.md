@@ -98,14 +98,18 @@ the actual current buffers, including crops.
 ### Shared render groups
 
 `createObject(asset, x, y, z, scale, {renderGroup: 1})` opts an object into a
-shared stereo surface. Group membership is fixed at creation and scoped to the
+shared stereo surface. Each group uses two overlay handles, alternating a
+visible overlay and a hidden staging overlay. Transform, width, and texture are
+prepared on the hidden overlay before it is shown; the previously visible
+overlay is then hidden. Group membership is fixed at creation and scoped to the
 scene. Physics, transforms, animation, visibility, mesh picking, and grabbing
 remain per object. Native rectangular pointer state/events are unavailable for
 grouped objects; use mesh hover/controller events and the interaction helper.
 The shared surface passes native overlay input through to other applications.
 
-A live creation reserves a handle only when its group needs one. Removing the
-last member releases it. Hidden members do not render; an entirely hidden group
+A live creation reserves both handles when its group needs them; failure rolls
+back the reservation before publishing the object. Removing the last member
+releases both. Hidden members do not render; an entirely hidden group
 releases its surface during synchronization and recreates it when shown again.
 Both eyes share conservative group bounds and geometry depth, including occlusion
 by objects outside the group. Alpha blending retains scene-order limitations.
@@ -118,7 +122,7 @@ and reduces sampling density. Keep groups compact to avoid this limit. Buffer
 growth uses 25% allocation headroom rounded to 256 pixels. Shrinking requires
 the requested size to stay below 60% of the allocation for 45 frames, with at
 most two shrinks per frame. A resize renders and shows a replacement overlay
-before detaching the previous one; it temporarily needs an extra overlay handle
+before detaching the previous one; it temporarily needs another overlay pair
 and buffer set. Failed allocation keeps the previous surface available. Each
 surface retains three color buffers and one shared depth attachment.
 
