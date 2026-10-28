@@ -1,0 +1,9 @@
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS GPU instancing: 387 exact stereo/group/material/near-plane views, ordered overlap, multi-part and blended fallback, attribute state and buffer release
+PASS GLES occlusion: 16 stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup
+PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing option validation and cache inheritance
+PASS example scripts/instances.js
+5d16ce61d43f0afc4c59dc7da5d402a42f5b7d95b25d49737a7617f92bce913b  src/main.cpp
+9f560a6910c12a2309d88d48c438d9489619309b4b428a60baceeb1fd65f895f  src/model_asset.h
+8a66fc315e585e25dde04c276e3123df5a442899e85b36ae3e254ffb1155a241  src/model_instancing.h
+bbcab249a47e69c7fbf077d7e1986b493121b090187fc15a14b1db90efbaa92d  build/sf-overlay-engine

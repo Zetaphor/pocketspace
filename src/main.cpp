@@ -75,6 +75,7 @@ struct Object {
 };
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
 struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+#include "model_instancing.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
@@ -516,23 +517,28 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   int eyePixels=kDefaultEyePixels;
   if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
   if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
-  bool optimizeVertexCache=false,explicitCache=false;
+  bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=false,explicitInstancing=false;
   if(argc>2&&!JS_IsUndefined(argv[2])){
     if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"model options must be an object");
     JSValue option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;
     explicitCache=!JS_IsUndefined(option);
     if(explicitCache&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"optimizeVertexCache must be a boolean");}
     if(explicitCache)optimizeVertexCache=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
+    option=JS_GetPropertyStr(ctx,argv[2],"gpuInstancing");if(JS_IsException(option))return option;
+    explicitInstancing=!JS_IsUndefined(option);
+    if(explicitInstancing&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"gpuInstancing must be a boolean");}
+    if(explicitInstancing)gpuInstancing=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
   }
   for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name){
     if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
     if(explicitCache&&currentScene->assets[i].optimizeVertexCache!=optimizeVertexCache)return JS_ThrowRangeError(ctx,"model already loaded with different optimizeVertexCache options");
+    if(explicitInstancing&&currentScene->assets[i].gpuInstancing!=gpuInstancing)return JS_ThrowRangeError(ctx,"model already loaded with different gpuInstancing options");
     return JS_NewInt32(ctx,(int)i+1);
   }
   ModelAsset asset;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
   asset.eyePixels=eyePixels;
-  asset.optimizeVertexCache=optimizeVertexCache;
+  asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
@@ -1456,6 +1462,7 @@ struct ScissorRegion {int x=0,y=0,width=0,height=0;};
 #ifdef SF_GPU_SYNC_EXPERIMENT
 #include "../tests/primitive-visibility-experiment.h"
 #include "../tests/cluster-visibility-experiment.h"
+
 #endif
 // Convert the target's conservative angular bounds to its overlay pixels.
 // Invalid/near-plane bounds retain the full viewport. Padding covers raster edges.
@@ -1904,8 +1911,11 @@ int main(int argc,char **argv) {
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;FrameBoundsCache frameBounds;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
+  ModelInstancing instanceExperiment(ModelInstancing::Instanced);
 #ifdef SF_GPU_SYNC_EXPERIMENT
   GpuSyncExperiment gpuSync;
+  const char *instanceMode=std::getenv("SF_GPU_INSTANCING");
+  if(instanceMode){instanceExperiment.mode=std::strcmp(instanceMode,"1")==0?ModelInstancing::Instanced:ModelInstancing::Original;instanceExperiment.prewarm();}
   const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
   const bool primitiveVisibility=primitiveMode&&std::strcmp(primitiveMode,"1")==0;
   PrimitiveVisibilityExperiment primitiveExperiment;
@@ -1954,6 +1964,7 @@ int main(int argc,char **argv) {
           panelOverlays.clear();panelSubmissions.clear();panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
+          instanceExperiment.reset();
           lastAnimationTick=std::chrono::steady_clock::now();
           fprintf(stdout,"[lifecycle] scene state reset\n");
 #ifdef SF_GPU_SYNC_EXPERIMENT
@@ -2103,7 +2114,9 @@ int main(int argc,char **argv) {
         for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
       }
       frameBounds.update(script.scene,anchor,head,eyes);
+      const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
 #ifdef SF_GPU_SYNC_EXPERIMENT
+      if(useInstancing&&(primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque)){fprintf(stderr,"instancing cannot combine with other geometry/shader experiments\n");return 13;}
       if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
       if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.update(script.scene,anchor,head,eyes);
 #endif
@@ -2273,9 +2286,12 @@ int main(int argc,char **argv) {
             ScopeExit restoreProgram{[&]{if(special)glUseProgram(program);}};
             if(special)special->view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
 #endif
-            for(const auto &object:script.scene.objects){
-              if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))continue;
-              if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))continue;
+            auto selected=[&](const Object &object){
+              if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))return false;
+              if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))return false;
+              return true;
+            };
+            auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
 #ifdef SF_GPU_SYNC_EXPERIMENT
               if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
@@ -2300,7 +2316,19 @@ int main(int argc,char **argv) {
 #endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
               }
+            };
+            if(useInstancing){
+              std::vector<const Object*> objects;objects.reserve(script.scene.objects.size());for(const auto &object:script.scene.objects)if(selected(object))objects.push_back(&object);
+              const float origin[3]={surfaceX,surfaceY,surfaceZ};
+              instanceExperiment.draw(script.scene,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                gpuSync.draw(count);
+#else
+                (void)count;
+#endif
+              });return;
             }
+            for(const auto &object:script.scene.objects)if(selected(object))drawObject(object);
           },&region);
         }
         ready.push_back(surface.get());
@@ -2309,6 +2337,7 @@ int main(int argc,char **argv) {
       renderMs+=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.complete();
+      if(useInstancing)instanceExperiment.report();
       if(primitiveVisibility)primitiveExperiment.report();
       if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.report();
 #else
@@ -2359,6 +2388,7 @@ int main(int argc,char **argv) {
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
+      bytes+=instanceExperiment.allocatedBytes();
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.

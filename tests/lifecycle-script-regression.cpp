@@ -35,5 +35,7 @@ int main(){
     write("onInputEvent(()=>{});throw Error('EXPECTED_ROLLBACK');");original=host.ctx;
     assert(!loadScript(host,path.string()));assert(inputCallbackCtx==original&&host.ctx==original);
   }
-  puts("PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown");
+  assert(loadScript(host,"tests/instancing-api-smoke.js"));
+  assert(host.scene.assets.size()==2&&host.scene.assets[0].gpuInstancing&&!host.scene.assets[1].gpuInstancing);
+  puts("PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing option validation and cache inheritance");
 }

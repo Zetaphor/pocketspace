@@ -19,7 +19,7 @@ the GPU. Scene counts are current at the time of the query.
 | `cpuPercent` | Process user+system CPU time divided by elapsed time. 100% means one fully occupied core; multithreaded usage can exceed 100%. |
 | `ramBytes` | Process resident RAM (`VmRSS`), in bytes. |
 | `vramBytes` | Driver-reported process GPU memory total from DRM fdinfo, in bytes, or `null` when unavailable. Duplicate DRM clients are counted once. |
-| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers, deformed VBOs, and panel textures. |
+| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers, deformed VBOs, the reusable instancing buffer when allocated, and panel textures. |
 | `sampleId` | Increasing sample number; zero before the first sample. |
 | `physicsAdvanceMs` | Wall time of the latest physics-world advance in milliseconds, including solver, contact handling, and joint breaking; excludes host pose synchronization. |
 | `physicsSolverMs` | Solver wall time summed over the latest advance's fixed steps, including worker waits. |
@@ -61,7 +61,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. `options.optimizeVertexCache` is an opt-in boolean, default `false`; see shared model geometry below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or cache option throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean options `optimizeVertexCache` and `gpuInstancing` both default to `false`; see shared geometry and ordered GPU instancing below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -367,6 +367,48 @@ first load or reload the script to change it. The value must be a boolean.
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen
 are supported. [Animation](animation-api.md) covers skinning and clip limits.
+
+### Ordered GPU instancing
+
+Opt repeated static models into instancing on their first load:
+
+```js
+const asset = loadModel('assets/Avocado.glb', 768, {gpuInstancing: true});
+for (let i = 0; i < 16; i++) {
+  createObject(asset, (i % 4 - 1.5) * .16, (Math.floor(i / 4) - 1.5) * .16,
+    0, .12, {renderGroup: 1});
+}
+```
+
+The renderer combines consecutive eligible copies of the same asset into one
+GPU draw per eye/pass. Sharing a `renderGroup` lets their visible geometry use
+the same surface. Single, grouped, and adaptive rendering keep their existing
+surface membership, projection, and occlusion rules. Instancing changes neither
+triangle detail nor texture resolution, and works with moving, rotated, grabbed,
+and physics-driven objects.
+
+Eligible assets have one opaque or masked material primitive and no animation,
+skinning, morph targets, or per-instance deformation. Multi-part models such as
+ToyCar, blended materials, isolated instances, and incompatible runs keep the
+original drawing path. The renderer preserves object and triangle order; it
+does not sort objects by asset to manufacture batches. Interleaving different
+assets can therefore prevent batching. Masked holes use the same material shader.
+
+`gpuInstancing` must be a boolean and defaults to `false`. A cached path inherits
+its first-load setting when the option is omitted; an explicitly conflicting
+setting throws. Reload the script to change the setting. Unsupported geometry
+falls back normally rather than causing a load error. `optimizeVertexCache` is
+independent and can be combined with this option.
+
+Instancing primarily reduces CPU draw submission; GPU-bound workloads may see
+little FPS improvement. Measure the actual scene before enabling it broadly.
+The renderer lazily creates a shared shader and a reusable 7 KiB instance buffer;
+the buffer is included in `gpuAllocatedEstimateBytes`. Driver streaming copies
+remain outside that estimate. Initialization failure retains original draws,
+with another initialization attempt after scene reload. Instancing resources
+are released on successful scene replacement and engine shutdown.
+
+See [instances.js](../scripts/instances.js) for a grabbable example.
 
 ## Grabbing and selection
 

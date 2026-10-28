@@ -8,6 +8,7 @@
 #include "opaque-shader-experiment.h"
 #include "primitive-visibility-experiment.h"
 #include "cluster-visibility-experiment.h"
+
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
@@ -21,6 +22,7 @@ struct Renderer {
   bool primitiveVisibility=false;
   PrimitiveVisibilityExperiment primitiveBounds;
   ClusterVisibilityExperiment clusterBounds;
+  ModelInstancing instanceExperiment;
   std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
   Renderer(bool specialization=false):specialize(specialization){
     if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
@@ -45,17 +47,22 @@ struct Renderer {
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
-    auto panel=anchor,head=anchor;panel.m[1][3]=-.2f;
-    head.m[0][3]=headScene.x;head.m[1][3]=headScene.y;head.m[2][3]=-headScene.z;
+    auto panel=anchor,head=anchor;
+    for(int row=0;row<3;row++){
+      panel.m[row][3]+=anchor.m[row][1]*-.2f;
+      head.m[row][3]=anchor.m[row][3]+anchor.m[row][0]*headScene.x+anchor.m[row][1]*headScene.y-anchor.m[row][2]*headScene.z;
+    }
     float r[3],u[3],f[3];faceViewer(panel,anchor,head,r,u,f);
-    glUseProgram(program);vector("center",0,-.2f,0);vector("eye",head.m[0][3]+(eyeIndex?.032f:-.032f),head.m[1][3],head.m[2][3]);
+    const float eyePosition[3]={head.m[0][3]+anchor.m[0][0]*(eyeIndex?.032f:-.032f),head.m[1][3]+anchor.m[1][0]*(eyeIndex?.032f:-.032f),head.m[2][3]+anchor.m[2][0]*(eyeIndex?.032f:-.032f)};
+    const float planeCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]},origin[3]={0,-.2f,0};
+    glUseProgram(program);vector("center",planeCenter[0],planeCenter[1],planeCenter[2]);vector("eye",eyePosition[0],eyePosition[1],eyePosition[2]);
+    vector("right",anchor.m[0][0],anchor.m[1][0],anchor.m[2][0]);vector("up",anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);vector("forward",-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
     vector("panelRight",r[0],r[1],r[2]);vector("panelUp",u[0],u[1],u[2]);vector("panelForward",f[0],f[1],f[2]);
     glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),1.2f*gridScale);
     glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(0,0,pixels,pixels);glClearColor(0,0,0,0);glDepthMask(GL_TRUE);glDepthFunc(GL_LESS);glClear(sharedDepth==2?GL_COLOR_BUFFER_BIT:GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     const int targetKey=tileKey?tileKey:-1;
     if(!tileKey)for(auto &object:scene.objects)object.renderGroup=std::find(ids.begin(),ids.end(),object.id)!=ids.end()?1:0;
     std::vector<ProjectedBounds> projected;ProjectedBounds combined;
-    const float eyePosition[3]={head.m[0][3]+(eyeIndex?.032f:-.032f),head.m[1][3],head.m[2][3]},planeCenter[3]={0,-.2f,0};
     if(cull){
       for(const auto &object:scene.objects){
         projected.push_back(projectedBounds(object,scene.assets[object.asset-1],anchor,eyePosition,r,u,f));
@@ -66,9 +73,12 @@ struct Renderer {
     if(primitiveVisibility){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);primitiveBounds.update(scene,anchor,head,eyes);}
     if(clusterBounds.mode!=ClusterVisibilityExperiment::Off){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);clusterBounds.update(scene,anchor,head,eyes);}
     auto draw=[&](int key,int pass){
-      for(const auto &object:scene.objects){
-        if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))continue;
-        if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))continue;
+      auto selected=[&](const Object &object){
+        if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))return false;
+        if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))return false;
+        return true;
+      };
+      auto drawObject=[&](const Object &object){
         const auto &asset=scene.assets[object.asset-1];
         vector("offset",object.x,object.y+.2f,object.z);
         glUniform1f(glGetUniformLocation(program,"yaw"),object.yaw);glUniform1f(glGetUniformLocation(program,"pitch"),object.pitch);glUniform1f(glGetUniformLocation(program,"roll"),object.roll);glUniform1f(glGetUniformLocation(program,"modelScale"),object.scale);
@@ -84,9 +94,14 @@ struct Renderer {
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
-          drawModelPrimitive(part);if(special)glUseProgram(program);
+          drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);if(special)glUseProgram(program);
         }
+      };
+      if(instanceExperiment.mode!=ModelInstancing::Off){
+        std::vector<const Object*> objects;for(const auto &object:scene.objects)if(selected(object))objects.push_back(&object);
+        instanceExperiment.draw(scene,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){});return;
       }
+      for(const auto &object:scene.objects)if(selected(object))drawObject(object);
     };
     if(sharedDepth==1){
       glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);draw(-999,-1);glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);

@@ -13,6 +13,7 @@ these guides; implementation history belongs in Git.
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
+| `src/model_instancing.h` | Opt-in ordered static-model batches, streamed instance data, fallback, and shader/resource lifetime. |
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
@@ -50,6 +51,15 @@ attachment shared by their FBOs. Only color is imported by the compositor; keep
 `glFinish` and color ownership rules intact. GPU allocation estimates deduplicate
 the shared depth IDs. Depth occluders are scissored to padded, conservative target
 bounds per eye, with full-viewport fallback for near-plane/invalid bounds.
+
+`loadModel(..., {gpuInstancing: true})` permits consecutive same-asset batches
+only for static single-primitive opaque/masked geometry. Preserve draw order;
+never sort assets or split multi-part object ordering for batching. Deforming
+and blended geometry retains the original path. Refresh instance transforms
+from the current render snapshot; reset streamed data and shader resources on
+successful reload. Instance attributes/divisors must be disabled/reset before
+normal draws or panel work. Count the owned instance buffer in GPU estimates,
+while leaving driver streaming overhead outside the estimate.
 
 Physics uses single-threaded stepping for small scenes and a bounded worker pool
 for larger active scenes; scripts can override with `setPhysicsWorkers`.

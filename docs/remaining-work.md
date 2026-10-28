@@ -31,7 +31,8 @@ This roadmap contains future work, without prescribing an implementation order.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. Compare geometry
-  repeated occluder draws, batching/instancing and model LOD before
+  repeated occluder draws, order-preserving batching for multi-part models,
+  and model LOD before
   choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
