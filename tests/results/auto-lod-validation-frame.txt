@@ -8,3 +8,13 @@ PASS object alpha: blended and masked framebuffer colors match premultiplied com
 PASS GLES occlusion: 16 stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup
 PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
 PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release
+PASS 23 final examples and 3 test scenes
+PASS production excludes fixed-detail environment override
+PASS no demo remains running
+bb66f71ac3e648bd72094a3ec547cb3b65bb2623bf4291aebc649ebd5e511b2d  src/main.cpp
+2182b3d975b4d00825088ab17732ff5bf0e696b358267f5fde6b6eef0216fe94  src/model_asset.h
+b53f9f615e7352d860564ed6bc563edd019d2fd9006ce71733b0a82bf7a2be3d  src/model_asset.cpp
+e9379a5487c61f3d71793d2f58c939ff5909fa7a7977dcd3142338167df9647c  src/model_instancing.h
+790b3341506293f84f401083ac91440d080202e631c95c45e56ac4c55b55a6e2  src/model_lod.h
+39e8f696ca3b1569fc4a4dcc7956244ae6f27de1300cfba3dbfbd50d5109a329  tests/auto-lod-regression.cpp
+5aefc26035518af0b80261fa4cf0c7b9046e7133e81df6eac66d57c231b0f2e9  build/sf-overlay-engine
