@@ -68,6 +68,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-primitive-visibility.py](compare-primitive-visibility.py) | Matched object-only versus primitive occluder rejection, with skipped-work and preparation-cost counters. |
 | [compare-cluster-visibility.py](compare-cluster-visibility.py) | Compares original, full spatial-cluster, and culled spatial-cluster occluder draws with CPU/GPU and memory counters. |
 | [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
+| [lod-pixels.cpp](lod-pixels.cpp), [lod-experiment.h](lod-experiment.h) | Test-only bounded-error GPU simplification, stereo image metrics, unchanged CPU meshes, fallback and cleanup. |
+| [compare-lod.py](compare-lod.py) | Matched original versus simplified-model FPS/GPU timing with identical allocation capacities. |
 | [multipart-instancing-pixels.cpp](multipart-instancing-pixels.cpp), [multipart-instancing-experiment.h](multipart-instancing-experiment.h) | Test-only combined multi-material geometry, exact stereo/order/material comparisons, singleton batching, and cleanup. |
 | [instancing-lifecycle.py](instancing-lifecycle.py) | Production reloads between instanced and empty scenes, requiring zero owned GPU bytes in empty scenes. |
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
@@ -141,6 +143,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [results/opaque-shaders.md](results/opaque-shaders.md) | Pixel validation and native timing of shader specialization; not adopted as the default. |
 | [results/primitive-visibility.md](results/primitive-visibility.md) | Primitive rejection correctness and throughput evidence; not adopted as the default. |
 | [results/cluster-visibility.md](results/cluster-visibility.md) | Spatial-cluster correctness, matched three-mode timing, and rejected adaptive measurements; not adopted. |
+| [results/lod.md](results/lod.md) | Bounded-error model detail reduction, image comparisons, native timing and adoption requirements. |
 | [results/multipart-instancing.md](results/multipart-instancing.md) | Exact multi-material batching validation and matched native results; not adopted. |
 | [results/instancing.md](results/instancing.md) | Ordered instancing correctness, matched performance, production measurements, and reload validation. |
 | [results/regroup.md](results/regroup.md) | Tile merging/rebalancing measurements and lifecycle validation. |

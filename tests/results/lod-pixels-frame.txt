@@ -1,0 +1,181 @@
+[picking] nodes=3 triangles=12 build_ms=0.002 reserved_bytes=408
+[model] loaded assets/physics/ThinPlatform.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[picking] nodes=3 triangles=12 build_ms=0.001 reserved_bytes=408
+[model] loaded assets/physics/ThinWallBlue.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[picking] nodes=3 triangles=12 build_ms=0.001 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[picking] nodes=32767 triangles=108936 build_ms=56.587 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+[picking] nodes=32767 triangles=108936 build_ms=57.572 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.50,"originalTriangles":88837,"triangles":44417,"error":0.00018310,"buildMs":92.205}
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.50,"originalTriangles":17605,"triangles":8801,"error":0.00065722,"buildMs":7.800}
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.50,"originalTriangles":2494,"triangles":1246,"error":0.00017759,"buildMs":0.671}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":0,"eye":0,"changed":2,"coverage":52,"maskChanged":0,"rms":0.039746}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":0,"eye":1,"changed":1,"coverage":53,"maskChanged":0,"rms":0.000651}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":1,"eye":0,"changed":6,"coverage":78,"maskChanged":0,"rms":0.002347}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":1,"eye":1,"changed":4,"coverage":77,"maskChanged":0,"rms":0.001722}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":2,"eye":0,"changed":3,"coverage":64,"maskChanged":0,"rms":0.063649}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":2,"eye":1,"changed":3,"coverage":65,"maskChanged":0,"rms":0.001302}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":0,"eye":0,"changed":36,"coverage":686,"maskChanged":0,"rms":0.015324}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":0,"eye":1,"changed":35,"coverage":689,"maskChanged":0,"rms":0.006478}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":1,"eye":0,"changed":52,"coverage":989,"maskChanged":0,"rms":0.186000}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":1,"eye":1,"changed":52,"coverage":986,"maskChanged":0,"rms":0.048854}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":2,"eye":0,"changed":37,"coverage":851,"maskChanged":0,"rms":0.083247}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":2,"eye":1,"changed":28,"coverage":911,"maskChanged":0,"rms":0.132123}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":0,"eye":0,"changed":1400,"coverage":8951,"maskChanged":1,"rms":0.646436}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":0,"eye":1,"changed":1421,"coverage":9034,"maskChanged":2,"rms":0.359272}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":1,"eye":0,"changed":1992,"coverage":12036,"maskChanged":0,"rms":0.606422}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":1,"eye":1,"changed":2063,"coverage":12035,"maskChanged":1,"rms":0.383273}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":2,"eye":0,"changed":1139,"coverage":10278,"maskChanged":6,"rms":0.470246}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":2,"eye":1,"changed":1354,"coverage":10973,"maskChanged":4,"rms":0.685417}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":0,"eye":0,"changed":54,"coverage":815,"maskChanged":1,"rms":0.176804}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":0,"eye":1,"changed":44,"coverage":811,"maskChanged":1,"rms":0.300170}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":1,"eye":0,"changed":73,"coverage":1194,"maskChanged":0,"rms":0.180346}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":1,"eye":1,"changed":59,"coverage":1188,"maskChanged":1,"rms":0.185958}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":2,"eye":0,"changed":47,"coverage":1012,"maskChanged":0,"rms":0.077233}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":2,"eye":1,"changed":34,"coverage":1086,"maskChanged":0,"rms":0.051527}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":0,"eye":0,"changed":1474,"coverage":10908,"maskChanged":4,"rms":0.531111}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":0,"eye":1,"changed":1392,"coverage":10940,"maskChanged":2,"rms":0.367708}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":1,"eye":0,"changed":2468,"coverage":15889,"maskChanged":1,"rms":0.422570}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":1,"eye":1,"changed":2527,"coverage":15829,"maskChanged":5,"rms":0.644074}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":2,"eye":0,"changed":1458,"coverage":13553,"maskChanged":11,"rms":0.760313}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":2,"eye":1,"changed":1644,"coverage":14533,"maskChanged":5,"rms":0.533043}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":0,"eye":0,"changed":72301,"coverage":143381,"maskChanged":41,"rms":2.014873}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":0,"eye":1,"changed":71314,"coverage":144615,"maskChanged":35,"rms":2.024679}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":1,"eye":0,"changed":91077,"coverage":192465,"maskChanged":36,"rms":2.234884}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":1,"eye":1,"changed":92473,"coverage":192601,"maskChanged":45,"rms":2.419854}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":2,"eye":0,"changed":69694,"coverage":160406,"maskChanged":82,"rms":2.217616}
+LOD_PIXELS {"model":"car","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":2,"eye":1,"changed":75369,"coverage":168521,"maskChanged":72,"rms":2.229513}
+[picking] nodes=32767 triangles=108936 build_ms=54.343 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.25,"originalTriangles":88837,"triangles":22209,"error":0.00048709,"buildMs":107.041}
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.25,"originalTriangles":17605,"triangles":5307,"error":0.00099471,"buildMs":7.289}
+LOD_UPLOAD {"path":"assets/samples/ToyCar/ToyCar.glb","ratio":0.25,"originalTriangles":2494,"triangles":622,"error":0.00035479,"buildMs":0.844}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":0,"eye":0,"changed":4,"coverage":52,"maskChanged":0,"rms":0.054197}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":0,"eye":1,"changed":4,"coverage":53,"maskChanged":0,"rms":0.013765}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":1,"eye":0,"changed":7,"coverage":78,"maskChanged":0,"rms":0.002436}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":1,"eye":1,"changed":8,"coverage":77,"maskChanged":0,"rms":0.002255}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":2,"eye":0,"changed":6,"coverage":64,"maskChanged":0,"rms":0.071247}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":2,"eye":1,"changed":3,"coverage":65,"maskChanged":0,"rms":0.001128}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":0,"eye":0,"changed":57,"coverage":686,"maskChanged":0,"rms":0.209594}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":0,"eye":1,"changed":56,"coverage":689,"maskChanged":0,"rms":0.007648}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":1,"eye":0,"changed":89,"coverage":989,"maskChanged":0,"rms":0.249074}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":1,"eye":1,"changed":95,"coverage":986,"maskChanged":0,"rms":0.081874}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":2,"eye":0,"changed":52,"coverage":851,"maskChanged":1,"rms":0.215008}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":2,"eye":1,"changed":52,"coverage":911,"maskChanged":0,"rms":0.142678}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":0,"eye":0,"changed":2320,"coverage":8951,"maskChanged":7,"rms":0.976794}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":0,"eye":1,"changed":2228,"coverage":9034,"maskChanged":8,"rms":0.673547}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":1,"eye":0,"changed":2989,"coverage":12036,"maskChanged":4,"rms":0.802214}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":1,"eye":1,"changed":3124,"coverage":12035,"maskChanged":4,"rms":0.686225}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":2,"eye":0,"changed":1829,"coverage":10278,"maskChanged":9,"rms":0.792268}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":2,"eye":1,"changed":2120,"coverage":10973,"maskChanged":9,"rms":0.952578}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":0,"eye":0,"changed":70,"coverage":815,"maskChanged":3,"rms":0.309757}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":0,"eye":1,"changed":77,"coverage":811,"maskChanged":2,"rms":0.267285}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":1,"eye":0,"changed":113,"coverage":1194,"maskChanged":0,"rms":0.183424}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":1,"eye":1,"changed":116,"coverage":1188,"maskChanged":1,"rms":0.300802}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":2,"eye":0,"changed":76,"coverage":1012,"maskChanged":0,"rms":0.112110}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":2,"eye":1,"changed":70,"coverage":1086,"maskChanged":1,"rms":0.193631}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":0,"eye":0,"changed":2499,"coverage":10908,"maskChanged":8,"rms":0.808566}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":0,"eye":1,"changed":2451,"coverage":10940,"maskChanged":6,"rms":0.778310}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":1,"eye":0,"changed":3877,"coverage":15889,"maskChanged":7,"rms":0.980956}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":1,"eye":1,"changed":3985,"coverage":15829,"maskChanged":8,"rms":0.880564}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":2,"eye":0,"changed":2395,"coverage":13553,"maskChanged":14,"rms":0.957454}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":2,"eye":1,"changed":2755,"coverage":14533,"maskChanged":13,"rms":0.955525}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":0,"eye":0,"changed":94255,"coverage":143381,"maskChanged":93,"rms":3.197643}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":0,"eye":1,"changed":93792,"coverage":144615,"maskChanged":90,"rms":3.289160}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":1,"eye":0,"changed":118745,"coverage":192465,"maskChanged":89,"rms":3.246805}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":1,"eye":1,"changed":119886,"coverage":192601,"maskChanged":104,"rms":3.482669}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":2,"eye":0,"changed":92913,"coverage":160406,"maskChanged":167,"rms":3.500502}
+LOD_PIXELS {"model":"car","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":2,"eye":1,"changed":99375,"coverage":168521,"maskChanged":151,"rms":3.415393}
+[picking] nodes=255 triangles=682 build_ms=0.155 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.149 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+LOD_UPLOAD {"path":"assets/Avocado.glb","ratio":0.50,"originalTriangles":682,"triangles":650,"error":0.00093912,"buildMs":0.181}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":0,"eye":0,"changed":1,"coverage":97,"maskChanged":0,"rms":0.000651}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":0,"eye":1,"changed":2,"coverage":100,"maskChanged":0,"rms":0.017794}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":1,"eye":0,"changed":4,"coverage":82,"maskChanged":0,"rms":0.053274}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":1,"eye":1,"changed":2,"coverage":84,"maskChanged":0,"rms":0.000921}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":2,"eye":0,"changed":1,"coverage":56,"maskChanged":0,"rms":0.001128}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":1.00,"angle":2,"eye":1,"changed":2,"coverage":59,"maskChanged":0,"rms":0.001595}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":0,"eye":0,"changed":18,"coverage":1286,"maskChanged":0,"rms":0.028838}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":0,"eye":1,"changed":16,"coverage":1286,"maskChanged":0,"rms":0.003445}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":1,"eye":0,"changed":44,"coverage":1015,"maskChanged":0,"rms":0.028527}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":1,"eye":1,"changed":31,"coverage":1051,"maskChanged":0,"rms":0.027173}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":2,"eye":0,"changed":32,"coverage":716,"maskChanged":0,"rms":0.006245}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":1.00,"angle":2,"eye":1,"changed":39,"coverage":737,"maskChanged":0,"rms":0.007648}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":0,"eye":0,"changed":87,"coverage":12920,"maskChanged":1,"rms":0.185233}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":0,"eye":1,"changed":60,"coverage":12910,"maskChanged":1,"rms":0.189444}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":1,"eye":0,"changed":361,"coverage":9542,"maskChanged":0,"rms":0.040133}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":1,"eye":1,"changed":322,"coverage":9948,"maskChanged":0,"rms":0.041145}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":2,"eye":0,"changed":536,"coverage":6889,"maskChanged":0,"rms":0.045438}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":1.00,"angle":2,"eye":1,"changed":523,"coverage":7064,"maskChanged":0,"rms":0.061935}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":0,"eye":0,"changed":19,"coverage":1583,"maskChanged":0,"rms":0.013672}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":0,"eye":1,"changed":20,"coverage":1582,"maskChanged":2,"rms":0.258007}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":1,"eye":0,"changed":41,"coverage":1292,"maskChanged":0,"rms":0.008000}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":1,"eye":1,"changed":45,"coverage":1333,"maskChanged":0,"rms":0.013948}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":2,"eye":0,"changed":37,"coverage":917,"maskChanged":0,"rms":0.007423}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.045,"gridScale":0.25,"angle":2,"eye":1,"changed":49,"coverage":942,"maskChanged":0,"rms":0.007452}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":0,"eye":0,"changed":176,"coverage":20582,"maskChanged":1,"rms":0.184950}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":0,"eye":1,"changed":131,"coverage":20545,"maskChanged":1,"rms":0.183695}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":1,"eye":0,"changed":499,"coverage":16293,"maskChanged":1,"rms":0.186926}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":1,"eye":1,"changed":443,"coverage":16843,"maskChanged":0,"rms":0.046219}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":2,"eye":0,"changed":702,"coverage":11433,"maskChanged":0,"rms":0.065221}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.160,"gridScale":0.25,"angle":2,"eye":1,"changed":690,"coverage":11796,"maskChanged":0,"rms":0.053262}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":0,"eye":0,"changed":1203,"coverage":206995,"maskChanged":17,"rms":0.751280}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":0,"eye":1,"changed":921,"coverage":206802,"maskChanged":32,"rms":1.030273}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":1,"eye":0,"changed":6080,"coverage":152710,"maskChanged":15,"rms":0.776057}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":1,"eye":1,"changed":5387,"coverage":159309,"maskChanged":3,"rms":0.439427}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":2,"eye":0,"changed":9417,"coverage":110147,"maskChanged":0,"rms":0.201738}
+LOD_PIXELS {"model":"avocado","ratio":0.5,"scale":0.500,"gridScale":0.25,"angle":2,"eye":1,"changed":9420,"coverage":113023,"maskChanged":0,"rms":0.196347}
+[picking] nodes=255 triangles=682 build_ms=0.136 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+LOD_UPLOAD {"path":"assets/Avocado.glb","ratio":0.25,"originalTriangles":682,"triangles":650,"error":0.00093912,"buildMs":0.168}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":0,"eye":0,"changed":1,"coverage":97,"maskChanged":0,"rms":0.000651}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":0,"eye":1,"changed":2,"coverage":100,"maskChanged":0,"rms":0.017794}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":1,"eye":0,"changed":4,"coverage":82,"maskChanged":0,"rms":0.053274}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":1,"eye":1,"changed":2,"coverage":84,"maskChanged":0,"rms":0.000921}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":2,"eye":0,"changed":1,"coverage":56,"maskChanged":0,"rms":0.001128}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":1.00,"angle":2,"eye":1,"changed":2,"coverage":59,"maskChanged":0,"rms":0.001595}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":0,"eye":0,"changed":18,"coverage":1286,"maskChanged":0,"rms":0.028838}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":0,"eye":1,"changed":16,"coverage":1286,"maskChanged":0,"rms":0.003445}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":1,"eye":0,"changed":44,"coverage":1015,"maskChanged":0,"rms":0.028527}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":1,"eye":1,"changed":31,"coverage":1051,"maskChanged":0,"rms":0.027173}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":2,"eye":0,"changed":32,"coverage":716,"maskChanged":0,"rms":0.006245}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":1.00,"angle":2,"eye":1,"changed":39,"coverage":737,"maskChanged":0,"rms":0.007648}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":0,"eye":0,"changed":87,"coverage":12920,"maskChanged":1,"rms":0.185233}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":0,"eye":1,"changed":60,"coverage":12910,"maskChanged":1,"rms":0.189444}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":1,"eye":0,"changed":361,"coverage":9542,"maskChanged":0,"rms":0.040133}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":1,"eye":1,"changed":322,"coverage":9948,"maskChanged":0,"rms":0.041145}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":2,"eye":0,"changed":536,"coverage":6889,"maskChanged":0,"rms":0.045438}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":1.00,"angle":2,"eye":1,"changed":523,"coverage":7064,"maskChanged":0,"rms":0.061935}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":0,"eye":0,"changed":19,"coverage":1583,"maskChanged":0,"rms":0.013672}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":0,"eye":1,"changed":20,"coverage":1582,"maskChanged":2,"rms":0.258007}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":1,"eye":0,"changed":41,"coverage":1292,"maskChanged":0,"rms":0.008000}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":1,"eye":1,"changed":45,"coverage":1333,"maskChanged":0,"rms":0.013948}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":2,"eye":0,"changed":37,"coverage":917,"maskChanged":0,"rms":0.007423}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.045,"gridScale":0.25,"angle":2,"eye":1,"changed":49,"coverage":942,"maskChanged":0,"rms":0.007452}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":0,"eye":0,"changed":176,"coverage":20582,"maskChanged":1,"rms":0.184950}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":0,"eye":1,"changed":131,"coverage":20545,"maskChanged":1,"rms":0.183695}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":1,"eye":0,"changed":499,"coverage":16293,"maskChanged":1,"rms":0.186926}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":1,"eye":1,"changed":443,"coverage":16843,"maskChanged":0,"rms":0.046219}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":2,"eye":0,"changed":702,"coverage":11433,"maskChanged":0,"rms":0.065221}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.160,"gridScale":0.25,"angle":2,"eye":1,"changed":690,"coverage":11796,"maskChanged":0,"rms":0.053262}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":0,"eye":0,"changed":1203,"coverage":206995,"maskChanged":17,"rms":0.751280}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":0,"eye":1,"changed":921,"coverage":206802,"maskChanged":32,"rms":1.030273}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":1,"eye":0,"changed":6080,"coverage":152710,"maskChanged":15,"rms":0.776057}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":1,"eye":1,"changed":5387,"coverage":159309,"maskChanged":3,"rms":0.439427}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":2,"eye":0,"changed":9417,"coverage":110147,"maskChanged":0,"rms":0.201738}
+LOD_PIXELS {"model":"avocado","ratio":0.25,"scale":0.500,"gridScale":0.25,"angle":2,"eye":1,"changed":9420,"coverage":113023,"maskChanged":0,"rms":0.196347}
+[picking] nodes=255 triangles=682 build_ms=0.155 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.161 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.175 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.155 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=255 triangles=682 build_ms=0.823 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+PASS LOD: 144 stereo views, unchanged CPU/picking geometry, bounded simplifier metric, blend/mask/deformation fallback, reduced GPU counts and metadata cleanup

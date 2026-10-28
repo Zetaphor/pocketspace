@@ -55,3 +55,14 @@ struct ModelPose {
 };
 void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose);
 void uploadModelPose(ModelPose &pose);
+
+#ifdef SF_MODEL_LOD_EXPERIMENT
+#include "../tests/lod-experiment.h"
+#endif
+inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part){
+#ifdef SF_MODEL_LOD_EXPERIMENT
+  return lodExperiment::count(part);
+#else
+  return part.vertexCount;
+#endif
+}

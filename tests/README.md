@@ -406,3 +406,38 @@ python3 tests/compare-instancing.py --multipart --case 32-cars-fixed \
 interleaves ToyCar and Avocado to measure isolated combined draws without sorting.
 The pixel target also verifies that reversing coplanar material order changes
 the reference image, then checks the prototype against the original order.
+
+## Bounded-error model LOD experiment
+
+`lod-pixels` and the excluded `gpu-sync-experiment` are compiled with
+`SF_MODEL_LOD_EXPERIMENT`; the production engine is not. `SF_GPU_MODEL_LOD=0.5`
+or `0.25` selects a triangle target during GPU upload. Missing/other values retain
+full geometry. This is a fixed-detail investigation, not a production LOD API or
+a distance-based selector.
+
+The prototype uses meshoptimizer's attribute-aware simplifier with UV weights
+of 0.1, locked topological borders, and a relative combined error limit of 0.001.
+It may stop above the requested triangle count. Only indexed opaque primitives in static assets are eligible; masked/blended
+primitives and animated, skinned and morph assets keep full geometry. CPU vertices, picking, colliders and normalization stay unchanged.
+The same selected index stream renders both eyes and all color/depth passes.
+
+Original vertex/index allocation capacities remain allocated in both comparison
+paths. Reduced index streams are padded for storage but drawn with their actual
+counts. GPU estimates therefore still describe the full capacities; these runs
+isolate rendering work and do not claim memory savings. Vertex-cache optimization
+is enabled in both paths. Other shader/geometry experiments and GPU instancing
+must be off; `compare-lod.py` selects these controls automatically.
+
+```sh
+cmake --build build --target lod-pixels gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 ./build/lod-pixels /tmp/sf-lod-images
+python3 tests/compare-lod.py --ratio 0.5 --rounds 2 --seconds 16 \
+  --output /tmp/sf-lod-comparison
+```
+
+The pixel target writes original/reduced PPMs and per-view `LOD_PIXELS` metrics.
+Unlike the exact rendering regressions, this is lossy geometry: pixel differences
+are measured, not asserted equal. It validates CPU-mesh preservation, guarded
+fallbacks, GL errors and metadata cleanup. `LOD_UPLOAD` records achieved triangle
+counts, the simplifier's error metric and one-time generation cost. The metric
+is not a guaranteed pixel displacement or a substitute for headset visual review.
