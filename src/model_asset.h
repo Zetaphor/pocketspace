@@ -5,6 +5,7 @@
 #include "picking_bvh.h"
 #include "animation.h"
 
+struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;};
 struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
   std::vector<float> localVertices; // retained for animated or skinned assets
@@ -17,6 +18,7 @@ struct PrimitiveAsset {
   int alphaMode=0; // 0 opaque, 1 mask, 2 blend
   float alphaCutoff=.5f;
   bool doubleSided=false;
+  ModelLodLevel lod[2];
   GLuint vbo=0,indexBuffer=0,texture=0;
   GLenum indexType=GL_UNSIGNED_INT;
   GLsizei vertexCount=0,gpuVertexCount=0; // expanded draw count; uploaded vertex count
@@ -37,12 +39,13 @@ struct ModelAsset {
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
   bool optimizeVertexCache=false;
   bool gpuInstancing=true;
+  bool lod=true;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0);
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
 
 // Per-object deformed geometry; material textures remain on the shared asset.
 struct ModelPose {
@@ -59,7 +62,13 @@ void uploadModelPose(ModelPose &pose);
 #ifdef SF_MODEL_LOD_EXPERIMENT
 #include "../tests/lod-experiment.h"
 #endif
-inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part){
+inline const ModelLodLevel *modelLodLevel(const PrimitiveAsset &part,int level){
+  if(level==2&&part.lod[1].indexBuffer)return &part.lod[1];
+  return level>=1&&level<=2&&part.lod[0].indexBuffer?&part.lod[0]:nullptr;
+}
+inline GLuint modelIndexBuffer(const PrimitiveAsset &part,int level=0){const auto *lod=modelLodLevel(part,level);return lod?lod->indexBuffer:part.indexBuffer;}
+inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part,int level=0){
+  if(const auto *lod=modelLodLevel(part,level))return lod->count;
 #ifdef SF_MODEL_LOD_EXPERIMENT
   return lodExperiment::count(part);
 #else

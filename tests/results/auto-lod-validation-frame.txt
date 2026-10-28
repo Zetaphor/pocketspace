@@ -1,0 +1,10 @@
+PASS automatic LOD: policy/hysteresis/near restoration, 26 exact indexed/expanded and instanced views, mixed-level barriers, 16/32-bit LOD indices, opt-out/material/deformation guards, full CPU meshes and buffer release
+PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing/LOD option validation and cache inheritance
+PASS vertex cache: 162 exact stereo model/material/rotation views, oriented triangle preservation, blend/deformation order and CPU geometry
+PASS common group planes: stereo color/cutout alignment through lateral head motion, different object depths, and tile scene transforms
+PASS subdivided GLES: runtime tile keys preserve cross-tile floor/body occlusion and exact stereo pixels on a matching grid
+PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, resolution ceiling and near-plane fallback
+PASS object alpha: blended and masked framebuffer colors match premultiplied compositor input
+PASS GLES occlusion: 16 stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release

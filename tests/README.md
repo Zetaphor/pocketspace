@@ -441,3 +441,27 @@ are measured, not asserted equal. It validates CPU-mesh preservation, guarded
 fallbacks, GL errors and metadata cleanup. `LOD_UPLOAD` records achieved triangle
 counts, the simplifier's error metric and one-time generation cost. The metric
 is not a guaranteed pixel displacement or a substitute for headset visual review.
+
+## Production automatic model LOD
+
+Normal `loadModel` defaults to `lod: true`; see the
+[API contract](../docs/javascript-api.md#automatic-model-lod). `auto-lod-regression`
+checks size/distance hysteresis, off-axis bounds, near restoration, full CPU
+geometry, exact pixels against expanded selected-index references, instancing
+at every level, mixed-level barriers and actual buffer deletion. The lifecycle
+API harness runs `lod-api-smoke.js` for strict boolean parsing and cache rules.
+
+```sh
+cmake --build build --target auto-lod-regression sf-overlay-engine -j2
+DISPLAY=:0 EGL_PLATFORM=x11 ./build/auto-lod-regression
+python3 tests/instancing-lifecycle.py --lod --output /tmp/auto-lod-reload
+python3 tests/compare-auto-lod.py --output /tmp/auto-lod-performance
+```
+
+`--lod` selects ToyCar in the reload fixture so generated index buffers must be
+released in both empty phases. `compare-auto-lod.py` alternates the production
+default and explicit opt-out, checking that grouped allocations match and GPU
+estimate differences equal the generated shared index-buffer bytes. It records
+actual FPS, not the fixed-detail GPU-query measurements. `fast-motion.py --no-lod` selects explicit opt-out. Other isolated optimization comparison runners
+use that opt-out to keep LOD from confounding their measurements; the fixed-detail
+LOD harness still applies its test override. No interactive demo is left running.

@@ -89,7 +89,7 @@ uniform float panelHalfWidth;
     const auto &asset=scene.assets[size_t(object.asset)-1];
     bool geometry=asset.primitives.size()==1&&asset.primitives[0].alphaMode!=2&&asset.primitives[0].vbo;
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
-    geometry|=multipart.enabled&&MultipartInstancingExperiment::eligible(asset);
+    geometry|=multipart.enabled&&object.lodLevel==0&&MultipartInstancingExperiment::eligible(asset);
 #endif
     return geometry&&asset.gpuInstancing&&pass<=0&&!object.animationPose&&!asset.hasAnimation&&!asset.hasSkin&&!asset.hasMorph;
   }
@@ -120,7 +120,7 @@ public:
 #endif
     for(size_t begin=0;begin<objects.size();){
       size_t end=begin+1;
-      if(mode==Instanced&&eligible(scene,*objects[begin],pass))while(end<objects.size()&&end-begin<capacity&&objects[end]->asset==objects[begin]->asset&&eligible(scene,*objects[end],pass))++end;
+      if(mode==Instanced&&eligible(scene,*objects[begin],pass))while(end<objects.size()&&end-begin<capacity&&objects[end]->asset==objects[begin]->asset&&objects[end]->lodLevel==objects[begin]->lodLevel&&eligible(scene,*objects[end],pass))++end;
       bool singleton=end-begin<2;
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
       if(mode==Instanced&&eligible(scene,*objects[begin],pass)&&MultipartInstancingExperiment::eligible(scene.assets[objects[begin]->asset-1]))singleton=false;
@@ -164,10 +164,10 @@ public:
       }else
 #endif
       {glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
-      if(part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);glDrawElementsInstanced(GL_TRIANGLES,part.vertexCount,part.indexType,nullptr,end-begin);}
+      if(part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,modelIndexBuffer(part,objects[begin]->lodLevel));glDrawElementsInstanced(GL_TRIANGLES,modelDrawVertexCount(part,objects[begin]->lodLevel),part.indexType,nullptr,end-begin);}
       else glDrawArraysInstanced(GL_TRIANGLES,0,part.vertexCount,end-begin);}
       glVertexAttribDivisor(2,0);glVertexAttribDivisor(3,0);glDisableVertexAttribArray(2);glDisableVertexAttribArray(3);glUseProgram(baseline);
-      unsigned vertices=part.vertexCount;
+      unsigned vertices=modelDrawVertexCount(part,objects[begin]->lodLevel);
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
       if(multi)vertices=mesh->count;
 #endif

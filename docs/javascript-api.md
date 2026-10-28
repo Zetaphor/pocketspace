@@ -19,7 +19,7 @@ the GPU. Scene counts are current at the time of the query.
 | `cpuPercent` | Process user+system CPU time divided by elapsed time. 100% means one fully occupied core; multithreaded usage can exceed 100%. |
 | `ramBytes` | Process resident RAM (`VmRSS`), in bytes. |
 | `vramBytes` | Driver-reported process GPU memory total from DRM fdinfo, in bytes, or `null` when unavailable. Duplicate DRM clients are counted once. |
-| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers, deformed VBOs, the reusable instancing buffer when allocated, and panel textures. |
+| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers (including retained LOD indices), deformed VBOs, the reusable instancing buffer when allocated, and panel textures. |
 | `sampleId` | Increasing sample number; zero before the first sample. |
 | `physicsAdvanceMs` | Wall time of the latest physics-world advance in milliseconds, including solver, contact handling, and joint breaking; excludes host pose synchronization. |
 | `physicsSolverMs` | Solver wall time summed over the latest advance's fixed steps, including worker waits. |
@@ -61,7 +61,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` defaults to `true`; see shared geometry and ordered GPU instancing below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -332,7 +332,9 @@ their defaults, including `merge: false` and `rebalance: false`.
 
 Shared GPU meshes reuse identical position/UV vertices within each material
 primitive when vertex and index buffers together use less storage. By default,
-triangle order, UV seams, and material boundaries are preserved. Indices use 16 bits when
+full-detail triangle order, UV seams, and material boundaries are preserved.
+Automatic LOD retains that full mesh and selects reduced index streams for
+smaller objects; opt out with `lod: false` to always render the full mesh. Indices use 16 bits when
 possible, otherwise 32 bits. Picking, collision construction, and per-instance
 CPU animation retain their expanded geometry; deformed instances draw from their
 own dynamic vertex buffers.
@@ -359,7 +361,8 @@ retain their original stream.
 
 The option defaults to `false` because reordering can change ownership of exactly
 coplanar overlapping triangles within an opaque/masked primitive. Leave it off
-for assets that rely on that order. Material and object draw order remain
+for assets that rely on that order, and also set `lod: false` to retain the full
+geometry at every size. Material and object draw order remain
 unchanged. A cached path keeps its original setting when the option is omitted;
 explicitly requesting a different setting throws. Choose the setting on the
 first load or reload the script to change it. The value must be a boolean.
@@ -380,7 +383,8 @@ for (let i = 0; i < 16; i++) {
 }
 ```
 
-The renderer combines consecutive eligible copies of the same asset into one
+The renderer combines consecutive eligible copies of the same asset at the
+same selected LOD level into one
 GPU draw per eye/pass. Sharing a `renderGroup` lets their visible geometry use
 the same surface. Single, grouped, and adaptive rendering keep their existing
 surface membership, projection, and occlusion rules. Instancing changes neither
@@ -390,8 +394,8 @@ and physics-driven objects.
 Eligible assets have one opaque or masked material primitive and no animation,
 skinning, morph targets, or per-instance deformation. Multi-part models such as
 ToyCar, blended materials, isolated instances, and incompatible runs keep the
-original drawing path. The renderer preserves object and triangle order; it
-does not sort objects by asset to manufacture batches. Interleaving different
+original drawing path. Instancing preserves object order and the selected geometry
+index stream; it does not sort objects by asset to manufacture batches. Interleaving different
 assets can therefore prevent batching. Masked holes use the same material shader.
 
 `gpuInstancing` must be a boolean and defaults to `true`. Pass
@@ -410,6 +414,54 @@ with another initialization attempt after scene reload. Instancing resources
 are released on successful scene replacement and engine shutdown.
 
 See [instances.js](../scripts/instances.js) for a grabbable example.
+
+### Automatic model LOD
+
+`loadModel` enables automatic level of detail by default:
+
+```js
+const car = loadModel('assets/samples/ToyCar/ToyCar.glb');
+// Keep the full mesh at every distance for this separately loaded asset.
+const exact = loadModel('assets/Avocado.glb', 768, {lod: false});
+```
+
+The engine retains full geometry and generates up to two shared reduced index
+buffers per eligible primitive, targeting half and quarter triangle counts.
+Only indexed opaque primitives in static assets qualify; animated, skinned,
+morph, CPU-deformed, masked and blended geometry keeps full detail. Small meshes
+and reductions saving less than 20% of indices keep the original path. Generation
+uses a relative position/UV error limit of 0.001, UV weights of 0.1 and locked
+mesh borders. It may stop above the target count. This is lossy geometry, not a
+promise of identical pixels or a forced triangle budget.
+
+Each object gets one detail decision per frame after input, animation and
+physics updates. The engine estimates its projected bounding-sphere diameter
+from both eyes, headset projection/resolution and off-axis placement. Both eyes,
+all grouped/independent surfaces, and color/depth occlusion passes use that same
+choice. Instancing batches only consecutive instances with matching asset and
+selected detail. Textures, reference resolution, picking and physics/collision
+meshes remain unchanged.
+
+Grabbed objects always use the full mesh. The nearest sphere point inside 35 cm
+also restores full detail; after restoration it stays full until beyond 40 cm.
+For other objects, the conservative diameter estimate starts quarter detail
+below 102 pixels, half detail below 255 pixels, and full detail above that.
+Hysteresis retains quarter detail through 138 pixels and half detail through
+345 pixels. Invalid/near-plane projections keep full detail. If a requested
+level is unavailable, the renderer uses a finer available level or the full mesh.
+These thresholds concern estimated headset pixels, independently of `eyePixels`.
+
+`lod` must be a boolean. A cached exact path inherits its first-load setting when
+the option is omitted; an explicitly conflicting setting throws. Reload the
+script to change it. Use `{lod: false}` for assets requiring unchanged geometry
+or for visual comparisons. `optimizeVertexCache` remains independently opt-in.
+
+Reduced indices are generated once during GPU upload and shared by every copy
+of the asset. Full vertices and indices remain allocated, so LOD adds index
+storage while reducing rendering work. `gpuAllocatedEstimateBytes` includes
+these extra buffers; reload/removal of the scene and shutdown release them.
+Generation can add loading time, and unavailable reductions retain full geometry.
+See [lod.js](../scripts/lod.js) for a detailed grabbable-model example.
 
 ## Grabbing and selection
 

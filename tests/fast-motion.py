@@ -16,6 +16,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--seconds', type=int, default=20)
 parser.add_argument('--case', action='append', help='Run only this named case; repeat to select several')
 parser.add_argument('--vertex-cache', action='store_true', help='Opt loaded assets into GPU triangle reordering')
+parser.add_argument('--no-lod', action='store_true', help='Disable automatic model LOD')
 parser.add_argument('--instancing', action='store_true', help='Opt loaded assets into ordered GPU instancing')
 args = parser.parse_args()
 for process_name in {'sf-overlay-engi', args.engine.name[:15], 'gpu-sync-experi'}:
@@ -44,7 +45,7 @@ for configuration in configurations:
         continue
     with tempfile.TemporaryDirectory(prefix='sf-motion-') as temp:
         path = Path(temp) / 'scene.js'
-        path.write_text(f'globalThis.motionCarsOnly={json.dumps(cars)};globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};globalThis.motionInstancing={json.dumps(args.instancing)};\n' + source)
+        path.write_text(f'globalThis.motionLOD={json.dumps(not args.no_lod)};globalThis.motionCarsOnly={json.dumps(cars)};globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};globalThis.motionInstancing={json.dumps(args.instancing)};\n' + source)
         env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
         error_path = args.output / f'{name}.stderr.log'
         with error_path.open('w') as errors:
@@ -69,7 +70,7 @@ for configuration in configurations:
     late = [s for s in samples if s['seconds'] >= 5 and s['fps'] is not None]
     if len(late) < 3 or any(s['objectCount'] != count for s in samples):
         raise RuntimeError(f'{name}: missing samples or changing object count')
-    result = dict(name=name, vertexCache=args.vertex_cache, gpuInstancing=args.instancing, samples=len(late), fpsMedian=statistics.median(s['fps'] for s in late),
+    result = dict(name=name, lod=not args.no_lod, lodIndexBytes=sum(int(n) for n in re.findall(r"\[model\] lod .*index_bytes=(\d+)", log)), vertexCache=args.vertex_cache, gpuInstancing=args.instancing, samples=len(late), fpsMedian=statistics.median(s['fps'] for s in late),
                   gpuEstimateMiBMedian=statistics.median(s['gpuAllocatedEstimateBytes'] / 1048576 for s in late),
                   groupBufferPeakMiB=int(memory[2]) / 1048576,
                   deferredAllocations=log.count('deferred;'),

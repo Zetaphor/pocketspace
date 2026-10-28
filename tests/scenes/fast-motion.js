@@ -7,7 +7,7 @@ if (globalThis.motionAdaptive !== false)
   setRenderGroupAutoSplit(1, {maxSurfaces: 8, targetEyePixels: 1024, merge: true, rebalance: true});
 const assets = (globalThis.motionModels ?
   (globalThis.motionSimpleModels ? ['assets/Avocado.glb', 'assets/Avocado.glb'] : ['assets/samples/ToyCar/ToyCar.glb', globalThis.motionCarsOnly ? 'assets/samples/ToyCar/ToyCar.glb' : 'assets/Avocado.glb']) :
-  ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb']).map(path => loadModel(path, 768, {optimizeVertexCache: !!globalThis.motionCache, gpuInstancing: !!globalThis.motionInstancing}));
+  ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb']).map(path => loadModel(path, 768, {lod: globalThis.motionLOD !== false, optimizeVertexCache: !!globalThis.motionCache, gpuInstancing: !!globalThis.motionInstancing}));
 const bodies = [];
 for (let n = 0; n < count; n++) {
   const angle = n * 2 * Math.PI / count;
