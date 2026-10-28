@@ -7,7 +7,13 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Morph target geometry and morph-weight animation.
 - Clip blending and transitions between animations.
-- GPU skeletal skinning for larger animated scenes.
+- GPU skeletal skinning and rigid-node vertex deformation for larger animated
+  scenes. First profile an animated-model stress workload, separating CPU pose
+  evaluation, per-vertex deformation, bounds/BVH refits and dynamic mesh uploads.
+  Design accurate picking and conservative bounds alongside GPU deformation;
+  retaining the complete CPU deformation path would duplicate much of the work.
+  Preserve supported animation influences, per-instance poses and coherent
+  color/depth rendering.
 - Full material lighting/PBR, including normal/tangent support and a physical
   replacement for the current approximate sheen tint.
 
@@ -47,6 +53,21 @@ This roadmap contains future work, without prescribing an implementation order.
 ## Conditional performance investigations
 
 These are deferred investigations, not unimplemented fixes ready to enable.
+
+- Investigate GPU visibility culling and LOD selection only when larger workloads
+  show meaningful CPU selection cost. Include dispatch/submission overhead and
+  avoid synchronous GPU readback; preserve draw order and one coherent per-object
+  choice across eyes, surfaces and depth passes. Current CPU selection is not an
+  established bottleneck.
+- Consider GPU physics only if profiling establishes a CPU simulation bottleneck
+  that the existing Jolt worker path cannot address. This would be a substantial
+  backend redesign, not a switch in Jolt; account for contacts, queries, script
+  callbacks and CPU/GPU synchronization before comparing end-to-end throughput.
+- Consider GPU LOD generation only if model loading becomes a significant
+  problem. Generation currently runs once at upload, so this targets loading
+  latency rather than steady-state FPS. Compare offline asset preprocessing and
+  CPU generation improvements before adding a GPU implementation; preserve
+  material boundaries, UV quality, error limits and the retained full mesh.
 
 - Revisit multi-part batching only with evidence that lower submission overhead
   outweighs material selection and additional geometry-buffer costs. The
