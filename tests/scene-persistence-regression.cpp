@@ -26,7 +26,7 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(1024*1024));
-    bad(s=>s.version=2);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.version=3);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));
@@ -34,7 +34,7 @@ int main(){
     fails(()=>restoreSceneContainer({toJSON(){throw Error('getter');}}));
     fails(()=>captureSceneContainer(0));fails(()=>saveSceneContainer(owner,'../escape'));fails(()=>saveSceneContainer(owner,''));
     const p=createPanel({widthPixels:8,heightPixels:8,widthMeters:.1,container:owner});fails(()=>captureSceneContainer(owner));removePanel(p);
-    setObjectPhysics(o);fails(()=>captureSceneContainer(owner));removeObjectPhysics(o);
+    setObjectPhysics(o);check(captureSceneContainer(owner).objects[0].physics.settings.type==='dynamic');removeObjectPhysics(o);
     saveSceneContainer(owner,'roundtrip');const disk=loadSceneContainer('roundtrip');check(disk.objectIds.length===2);disposeSceneContainer(disk.containerId);
     fails(()=>loadSceneContainer('missing'));
     onInputEvent(()=>{}, {container:owner});
@@ -70,5 +70,20 @@ int main(){
   closeScript(host);std::ofstream(script)<<"const restored=loadSceneContainer('roundtrip');if(restored.objectIds.length!==2)throw Error('fresh runtime restore');function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.assets.size()==1&&host.scene.objects.size()==2);
   assert(host.scene.assets[0].eyePixels==512&&!host.scene.assets[0].lod&&!host.scene.assets[0].gpuInstancing&&host.scene.assets[0].optimizeVertexCache);
-  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files and atomic replacement cleanup");
+  closeScript(host);assert(loadScript(host,"tests/physics-persistence-api-smoke.js"));ctx=host.ctx;
+  liveScene=currentScene=&host.scene;
+  const auto objectCount=host.scene.objects.size(),assetCount=host.scene.assets.size();const int objectNext=host.scene.nextId,containerNext=host.scene.nextContainerId,jointNext=host.scene.physics->nextJointId();
+  calls=releases=0;reserveObjectOverlay=[&](int){calls++;return std::string{};};releaseObjectOverlay=[&](int){releases++;};
+  eval("physicsBad(s=>{s.models[0].path='assets/Avocado.glb';s.joints[2].settings.spring.frequency=0;})");
+  assert(calls==1&&releases==1&&host.scene.objects.size()==objectCount&&host.scene.assets.size()==assetCount&&host.scene.nextId==objectNext&&host.scene.nextContainerId==containerNext&&host.scene.physics->nextJointId()==jointNext);
+  assert(host.scene.physics->jointSnapshots().size()==3&&!host.scene.physics->contains(objectNext)&&!host.scene.physics->hasConvexHull(2)&&!host.scene.physics->hasMesh(2));
+  reserveObjectOverlay={};releaseObjectOverlay={};
+  host.scene.physics->hold(2);eval("{const c=restoreSceneContainer(captureSceneContainer(physicsOwner));for(const id of c.objectIds)check(!getObjectPhysics(id).held);disposeSceneContainer(c.containerId);}");host.scene.physics->release(2,false);
+  // Old v1 documents still restore; new captures always use v2.
+  eval("{const s=captureSceneContainer(physicsOwner);s.version=1;delete s.joints;for(const o of s.objects)delete o.physics;const c=restoreSceneContainer(s);check(c.jointIds.length===0&&c.objectIds.every(id=>getObjectPhysics(id)===null));disposeSceneContainer(c.containerId);}");
+  closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('physics');if(c.objectIds.length!==6||c.jointIds.length!==3)throw Error('fresh physics restore');function update(){}";
+  assert(loadScript(host,script.string()));assert(host.scene.physics&&host.scene.physics->jointSnapshots().size()==3);
+  for(const auto &o:host.scene.objects)assert(host.scene.physics->contains(o.id));
+  host.scene.physics->advance(1.0/90);assert(host.scene.physics->jointSnapshots().size()==3);
+  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames and rollback");
 }

@@ -1,0 +1,32 @@
+[
+  {
+    "phase": 0,
+    "objects": 6,
+    "gpuBytes": 58884996
+  },
+  {
+    "phase": 1,
+    "objects": 1,
+    "gpuBytes": 6456196
+  },
+  {
+    "phase": 2,
+    "objects": 6,
+    "gpuBytes": 58884996
+  },
+  {
+    "phase": 3,
+    "objects": 1,
+    "gpuBytes": 6456196
+  },
+  {
+    "phase": 4,
+    "objects": 6,
+    "gpuBytes": 58884996
+  },
+  {
+    "phase": 5,
+    "objects": 1,
+    "gpuBytes": 6456196
+  }
+]

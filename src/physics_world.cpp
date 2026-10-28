@@ -28,6 +28,7 @@
 #include <thread>
 #include <chrono>
 #include <stdexcept>
+#include <limits>
 
 namespace physics {
 namespace {
@@ -97,7 +98,7 @@ struct World::Impl : JPH::ContactListener {
     }
   };
   JPH::Ref<JointFilter> jointFilter=new JointFilter;
-  struct Joint {JointState state;JPH::Ref<JPH::TwoBodyConstraint> constraint;JPH::Vec3 localA,localB;};
+  struct Joint {JointState state;JPH::Ref<JPH::TwoBodyConstraint> constraint;JPH::Vec3 localA,localB;Pose referenceA,referenceB;};
   std::map<int,Joint> joints;std::map<int,std::set<int>> connections;int nextJoint=1;
   std::vector<JointBreak> breaks;
   struct Sample {double duration;JPH::Vec3 velocity,angular;};
@@ -286,6 +287,7 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   auto &ra=impl->record(a);auto &rb=impl->record(b);
   if(ra.settings.type!=Type::Dynamic&&rb.settings.type!=Type::Dynamic)throw std::invalid_argument("a joint needs at least one dynamic body");
   JointSettings s=validateJoint(requested);const auto axis=angular(s.axis);
+  if(impl->nextJoint==std::numeric_limits<int>::max())throw std::runtime_error("physics joint ID limit reached");
   if(impl->joints.size()>=512)throw std::runtime_error("physics joint capacity exhausted");
   auto &locks=impl->system.GetBodyLockInterfaceNoLock();
   auto &bodyA=*locks.TryGetBody(ra.body);auto &bodyB=*locks.TryGetBody(rb.body);
@@ -310,7 +312,8 @@ int World::createJoint(int a,int b,const JointSettings &requested){
   }
   const int id=impl->nextJoint++;
   impl->joints.emplace(id,Impl::Joint{{id,a,b,s,pointA,pointB,initialDistance,0},constraint,
-    bodyA.GetInverseCenterOfMassTransform()*linear(pointA),bodyB.GetInverseCenterOfMassTransform()*linear(pointB)});
+    bodyA.GetInverseCenterOfMassTransform()*linear(pointA),bodyB.GetInverseCenterOfMassTransform()*linear(pointB),
+    poseOf(bodyA.GetPosition(),bodyA.GetRotation()),poseOf(bodyB.GetPosition(),bodyB.GetRotation())});
   impl->connections[a].insert(id);impl->connections[b].insert(id);
   if(!s.collideConnected)++impl->jointFilter->blocked[std::minmax(a,b)];
   impl->system.AddConstraint(constraint);
@@ -329,6 +332,35 @@ JointState World::joint(int id)const{
   state.distance=(linear(state.anchorA)-linear(state.anchorB)).Length();
   if(state.settings.type==JointType::Hinge)state.angle=static_cast<const JPH::HingeConstraint*>(j.constraint.GetPtr())->GetCurrentAngle();
   return state;
+}
+std::vector<JointSnapshot> World::jointSnapshots()const{
+  std::vector<JointSnapshot> result;result.reserve(impl->joints.size());
+  for(const auto &[id,j]:impl->joints)result.push_back({joint(id),j.referenceA,j.referenceB});return result;
+}
+int World::nextJointId()const{return impl->nextJoint;}
+void World::appendSnapshot(const std::vector<BodyRestore> &bodies,const std::vector<JointSnapshot> &joints){
+  if(impl->joints.size()+joints.size()>512||joints.size()>size_t(std::numeric_limits<int>::max()-impl->nextJoint))throw std::runtime_error("physics joint capacity exhausted");
+  std::set<int> ids,hulls,meshes;for(const auto &b:bodies)if(contains(b.id)||!ids.insert(b.id).second)throw std::invalid_argument("restore requires fresh body IDs");
+  for(const auto &j:joints)if(!ids.contains(j.state.objectA)||!ids.contains(j.state.objectB))throw std::invalid_argument("restored joints require two restored bodies");
+  for(const auto &[key,shape]:impl->hulls)hulls.insert(key);for(const auto &[key,shape]:impl->meshes)meshes.insert(key);
+  const int next=impl->nextJoint;
+  try{
+    for(const auto &b:bodies){set(b.id,b.state.settings,b.state.pose,b.low,b.high,b.geometry);}
+    for(const auto &j:joints){
+      finite(j.referenceA);finite(j.referenceB);
+      const auto a=get(j.state.objectA).pose,b=get(j.state.objectB).pose;
+      pose(j.state.objectA,j.referenceA);pose(j.state.objectB,j.referenceB);
+      const int id=createJoint(j.state.objectA,j.state.objectB,j.state.settings);
+      pose(j.state.objectA,a);pose(j.state.objectB,b);
+      if(j.state.settings.type==JointType::Hinge)jointMotor(id,j.state.motor);
+    }
+    for(const auto &b:bodies)if(b.state.settings.type==Type::Dynamic){velocity(b.id,b.state.velocity);angularVelocity(b.id,b.state.angularVelocity);}
+  }catch(...){
+    for(const auto &b:bodies)remove(b.id);impl->nextJoint=next;
+    std::erase_if(impl->hulls,[&](const auto &entry){return !hulls.contains(entry.first);});
+    std::erase_if(impl->meshes,[&](const auto &entry){return !meshes.contains(entry.first);});
+    throw;
+  }
 }
 void World::updateJoint(int id,const JointSettings &requested){
   auto it=impl->joints.find(id);if(it==impl->joints.end())throw std::invalid_argument("unknown physics joint");

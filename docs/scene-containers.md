@@ -85,4 +85,5 @@ containers. See [scene lifecycle](lifecycle.md) and the
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v1 schema, storage paths, fresh ID/group mappings, limits, and unsupported resources.
+v2 schema (including v1 compatibility), physics bodies/joints, storage paths,
+fresh object/joint/group mappings, limits, and unsupported resources.

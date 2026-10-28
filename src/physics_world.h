@@ -52,6 +52,10 @@ struct JointMotor {
   float targetAngle=0,targetVelocity=0,maxTorque=1,frequency=2,damping=1;
 };
 struct JointState {int id,objectA,objectB;JointSettings settings;Vec3 anchorA,anchorB;float distance=0,angle=0;JointMotor motor;};
+// Portable joint construction frames: recreating a joint at its current pose
+// would change the hinge zero angle and fixed-joint reference orientation.
+struct JointSnapshot {JointState state;Pose referenceA,referenceB;};
+struct BodyRestore {int id;State state;Vec3 low,high;GeometrySource geometry;};
 struct JointBreak {int jointId,objectA,objectB;float force,torque;};
 struct PoseUpdate {int objectId;Pose pose;};
 struct Performance {double advanceMs=0,solverMs=0;unsigned steps=0,activeBodies=0,workers=0;};
@@ -71,6 +75,11 @@ public:
   Performance performance() const;
   int createJoint(int objectA,int objectB,const JointSettings&);
   bool containsJoint(int id) const;
+  std::vector<JointSnapshot> jointSnapshots() const;
+  int nextJointId() const;
+  // Adds only new, mutually connected bodies/joints. Failure rolls back the
+  // batch, including the joint ID counter and newly cached shapes.
+  void appendSnapshot(const std::vector<BodyRestore>&,const std::vector<JointSnapshot>&);
   bool hasJoints(int objectId) const;
   JointState joint(int id) const;
   void removeJoint(int id);
