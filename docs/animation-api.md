@@ -73,5 +73,5 @@ index zero.
 Scene snapshots save each instance's selected clip, playback time, speed, looping,
 playing/paused state and finished flag. Restore rebuilds independent skeletal or
 rigid-node poses and picking geometry; it does not share mutable poses between
-instances. See the [v3 save/restore format](scene-persistence.md#animation-playback-v3)
+instances. See the [animation save/restore format](scene-persistence.md#animation-playback-v3)
 and [animation save example](../scripts/animation-save.js).

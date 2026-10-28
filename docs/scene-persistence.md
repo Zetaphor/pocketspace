@@ -85,7 +85,7 @@ The `format` string is `sf-overlay-engine.scene-container`.
 New captures use `version: 4`. Existing v1 static-instance, v2 physics and v3
 animation documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
-have no animation field; non-null animation requires v3. Older saves restore
+have no animation field; non-null animation requires v3. V1/v2 saves restore
 models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
 requires v4.
 
@@ -111,7 +111,7 @@ requires v4.
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |
 | `physics` (v2+) | `null`, or `{settings, velocity, angularVelocity}` as described below |
-| `animation` (v3) | `null`, or the playback object described below |
+| `animation` (v3+) | `null`, or the playback object described below |
 
 `interactive` records membership in the engine's interaction registry;
 `autoManipulate` preserves the distinction between legacy script-controlled grabs
