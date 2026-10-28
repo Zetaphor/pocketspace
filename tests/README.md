@@ -340,3 +340,40 @@ models, and fixed Avocados. The two-group case is also selectable through
 `tests/fast-motion.py --case 128-models-two-groups`; it keeps stable membership
 and moves both groups rapidly through overlapping regions without automatic
 regrouping. See the [results and adoption decision](results/cluster-visibility.md).
+
+## Ordered GPU instancing
+
+The production API is `loadModel(path, eyePixels, {gpuInstancing: true})`;
+see the [API contract](../docs/javascript-api.md#ordered-gpu-instancing).
+`instancing-pixels` uses the actual renderer and batching implementation to
+compare original and instanced pixels, including material modes, coplanar
+ownership, rotated anchors, indexed/nonindexed geometry, deformation fallback,
+256-instance batches, asset-order barriers, attribute state, and buffer cleanup.
+`lifecycle-script-regression` runs `instancing-api-smoke.js` for option validation
+and cache behavior without a graphics context.
+
+```sh
+cmake --build build --target instancing-pixels lifecycle-script-regression gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/instancing-pixels
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-instancing.py --case 128-avocados-fixed --output /tmp/instancing
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/instancing-lifecycle.py --engine build/sf-overlay-engine --output /tmp/instancing-reload
+```
+
+Only the excluded profiling executable accepts `SF_GPU_INSTANCING=0|1`, forcing
+original or instanced submission for opted-in assets. It prewarms the shader and
+buffer in both modes to match owned storage. The runner disables other geometry
+experiments and checks timings/errors, counts, buffer estimates, and actual
+saved draws in eligible scenes. Default cases include fixed Avocados, two-group
+Avocados, and a mixed-model fallback control. Rejected allocation pairs retain
+logs and are not throughput evidence. The `gpuInstancing` summary field is the
+API request; `instancing` is the benchmark's forced path selection.
+
+`tests/fast-motion.py --instancing` selects the API option for a normal production
+run; `--case 128-avocados-two-groups` selects the controlled two-group workload.
+The lifecycle runner uses one production process for four ten-second phases,
+alternating sixteen instanced models and empty scenes. It checks three committed
+reloads, stable counts, and zero owned GPU allocation estimates in empty phases.
+No persistent demo is left running. See [recorded measurements](results/instancing.md).

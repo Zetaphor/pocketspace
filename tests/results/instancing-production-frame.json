@@ -1,0 +1,24 @@
+{
+  "off": {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "gpuInstancing": false,
+    "samples": 7,
+    "fpsMedian": 76.97891678333463,
+    "gpuEstimateMiBMedian": 466.01164627075195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2
+  },
+  "on": {
+    "name": "128-avocados-fixed",
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 7,
+    "fpsMedian": 86.70788469149763,
+    "gpuEstimateMiBMedian": 466.01848220825195,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2
+  }
+}

@@ -16,6 +16,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--seconds', type=int, default=20)
 parser.add_argument('--case', action='append', help='Run only this named case; repeat to select several')
 parser.add_argument('--vertex-cache', action='store_true', help='Opt loaded assets into GPU triangle reordering')
+parser.add_argument('--instancing', action='store_true', help='Opt loaded assets into ordered GPU instancing')
 args = parser.parse_args()
 for process_name in {'sf-overlay-engi', args.engine.name[:15], 'gpu-sync-experi'}:
     if subprocess.run(['pgrep', '-x', process_name], capture_output=True).returncode == 0:
@@ -26,17 +27,19 @@ results = []
 configurations = [(128, False, True, False), (240, False, True, False), (128, True, True, False), (128, True, False, False), (240, False, False, False), (128, True, True, True), (128, True, False, True)]
 if args.case and '128-models-two-groups' in args.case:
     configurations.append((128, True, False, False, 2))
+if args.case and '128-avocados-two-groups' in args.case:
+    configurations.append((128, True, False, True, 2))
 for configuration in configurations:
     count, models, adaptive, simple = configuration[:4]
     groups = configuration[4] if len(configuration) > 4 else 0
     name = f'{count}-' + ('avocados' if simple else 'models' if models else 'boxes') + ('-adaptive' if adaptive else '-fixed')
     if groups:
-        name = f'{count}-models-two-groups'
+        name = f'{count}-' + ('avocados' if simple else 'models') + '-two-groups'
     if args.case and name not in args.case:
         continue
     with tempfile.TemporaryDirectory(prefix='sf-motion-') as temp:
         path = Path(temp) / 'scene.js'
-        path.write_text(f'globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};\n' + source)
+        path.write_text(f'globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};globalThis.motionInstancing={json.dumps(args.instancing)};\n' + source)
         env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
         error_path = args.output / f'{name}.stderr.log'
         with error_path.open('w') as errors:
@@ -61,7 +64,7 @@ for configuration in configurations:
     late = [s for s in samples if s['seconds'] >= 5 and s['fps'] is not None]
     if len(late) < 3 or any(s['objectCount'] != count for s in samples):
         raise RuntimeError(f'{name}: missing samples or changing object count')
-    result = dict(name=name, vertexCache=args.vertex_cache, samples=len(late), fpsMedian=statistics.median(s['fps'] for s in late),
+    result = dict(name=name, vertexCache=args.vertex_cache, gpuInstancing=args.instancing, samples=len(late), fpsMedian=statistics.median(s['fps'] for s in late),
                   gpuEstimateMiBMedian=statistics.median(s['gpuAllocatedEstimateBytes'] / 1048576 for s in late),
                   groupBufferPeakMiB=int(memory[2]) / 1048576,
                   deferredAllocations=log.count('deferred;'),
