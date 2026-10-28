@@ -39,8 +39,13 @@ thresholds, cache rules, fallback and memory accounting.
 - The normal binary excludes `SF_GPU_MODEL_LOD`; that override still belongs only
   to the separate fixed-detail harness.
 
-These are native/automated checks. Interactive headset acceptance of default LOD
-transitions, close inspection and grabbing remains on the roadmap.
+The user accepted the interactive default-LOD headset check on 2026-10-27
+using the 16-car `scripts/lod.js` scene, after instructions to inspect distance
+transitions, move closer, grab/rotate, release and move objects. The run completed
+7,006 frames with sampled GL errors zero; grouped budget charges returned to
+zero at shutdown (peak 511,705,088 bytes, limit 536,870,912). This is acceptance
+of that scene, not a universal visual-quality or sustained-load guarantee.
+The demo is stopped; its raw Frame log is `/tmp/sf-auto-lod-headset.log`.
 
 ## Production Frame performance
 

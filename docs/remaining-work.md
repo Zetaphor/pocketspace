@@ -32,9 +32,8 @@ This roadmap contains future work, without prescribing an implementation order.
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The
   [bounded-error GPU LOD investigation](../tests/results/lod.md) improves
-  both measured model workloads. Validate the implemented automatic LOD
-  policy in the headset during close inspection, movement and level transitions.
-  Further investigate repeated occluder draws; object count alone is not a
+  both measured model workloads; the default automatic LOD headset check
+  is accepted. Further investigate repeated occluder draws; object count alone is not a
   sufficient workload budget. Validate larger detailed-model counts after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
