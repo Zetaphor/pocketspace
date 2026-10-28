@@ -1,13 +1,13 @@
 # Scene save and restore
 
-Scene containers can capture model instances, physics bodies and joints into
-versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
+Scene containers can capture model instances, animation playback, physics bodies
+and joints into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
 and load it in a later run. Positions use the current scene anchor: a save does
 not preserve an absolute room location across launches or recentering.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v2
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v3
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap}`. `objectIds` follows snapshot
@@ -56,13 +56,12 @@ semantics; asset files are referenced, not embedded. Keep them available when
 loading on another device. Exact cached paths reuse the shared asset only when
 all saved loading options match. Cached assets remain scene-owned after disposal.
 
-An owned panel or animated/deformed object pose causes capture
-and save to throw. This prevents an incomplete save from silently losing those
-resources. Static instances of animation-capable assets are supported when they
-have no per-instance animation pose. An empty container is supported.
+An owned panel causes capture and save to throw, preventing an incomplete save
+from silently losing its UI. Animated model instances are supported. An empty
+container is supported.
 
-Callbacks, functions, script variables, panel UI, animation
-playback, hover/grab state, and tracking state are not serialized. Scripts recreate
+Callbacks, functions, script variables, panel UI, hover/grab state, and tracking
+state are not serialized. Scripts recreate
 their own behavior after loading. Scene-wide render-group auto-split policies are
 not saved; reapply them using `renderGroups` if needed. Runtime tiles and chosen
 LOD levels are recomputed. Fresh groups avoid accidentally merging a restored
@@ -79,9 +78,11 @@ script reload, like calibration writes.
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`.
-New captures use `version: 2`; existing `version: 1` static-instance documents
-remain readable. V1 has no physics fields or joints; a v1 document containing
-non-null physics or a nonempty joints array is rejected.
+New captures use `version: 3`. Existing v1 static-instance and v2 physics
+documents remain readable. V1 has no physics fields or joints; a v1 document
+containing non-null physics or a nonempty joints array is rejected. V1 and v2
+have no animation field; non-null animation requires v3. Older saves restore
+models with stopped playback.
 
 `models` is an array of at most 32 entries with required fields:
 
@@ -104,7 +105,8 @@ non-null physics or a nonempty joints array is rejected.
 | `visible`, `interactive`, `laserPassThrough`, `grabbable`, `directGrab`, `autoManipulate` | Booleans |
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |
-| `physics` (v2) | `null`, or `{settings, velocity, angularVelocity}` as described below |
+| `physics` (v2+) | `null`, or `{settings, velocity, angularVelocity}` as described below |
+| `animation` (v3) | `null`, or the playback object described below |
 
 `interactive` records membership in the engine's interaction registry;
 `autoManipulate` preserves the distinction between legacy script-controlled grabs
@@ -116,7 +118,7 @@ unknown format versions are rejected. JSON documents are limited to 1 MiB.
 See [scene containers](scene-containers.md), [JavaScript API](javascript-api.md),
 and the runnable [save/restore example](../scripts/scene-save.js).
 
-## Physics state (v2)
+## Physics state (v2 and later)
 
 Each object's `physics.settings` contains the complete authored body configuration:
 `type` (`static`, `dynamic`, `kinematic`), `shape` (`box`, `sphere`, `convex`, `mesh`),
@@ -134,7 +136,7 @@ and unheld, including a body saved while grabbed. Controller ownership, throw
 history, sleep timers, accumulated solver impulses and contact queues are not
 saved. This is a portable scene snapshot, not deterministic solver replay.
 
-V2 also requires a `joints` array (at most 512). Each entry has:
+V2 and later also require a `joints` array (at most 512). Each entry has:
 
 | Field | Value |
 | --- | --- |
@@ -171,3 +173,45 @@ The [physics save example](../scripts/physics-save.js) preserves a hinge motor,
 a spring, and a throwable box; bumper saves and A/X restores them. Simulation
 continues immediately after restore, so moving objects will leave their saved
 positions again according to their saved velocities and current gravity.
+
+## Animation playback (v3)
+
+Each object's `animation` is `null` for stopped/default-pose instances. Otherwise
+it contains the complete selected playback state:
+
+| Field | Value |
+| --- | --- |
+| `clip` | Nonnegative integer clip index in the referenced model |
+| `name`, `duration` | Exact clip name and duration from the model, for validation |
+| `time` | Finite seconds from 0 through `duration` |
+| `speed` | Finite playback multiplier greater than 0 and at most 100 |
+| `loop`, `playing`, `finished` | Booleans matching the selected playback state |
+
+Clip index, name and duration must match a supported clip in the loaded model;
+a missing/unsupported clip or changed metadata makes restore throw. Asset files
+are still external references: matching metadata does not verify identical model
+contents. Keep the saved assets available and compatible.
+
+Restore evaluates a separate CPU pose for each animated instance before committing
+any scene changes. Skeletal and rigid-node animation, deformed geometry, bounds
+and picking resume through the existing animation path. Poses and GPU buffers
+are rebuilt from the model and playback values; raw vertex arrays, skeletons and
+GPU resources are not embedded in JSON. Invalid playback or pose-construction
+failure leaves the current scene intact.
+
+Playing clips advance from the saved time once the engine resumes its frame loop.
+Paused clips stay at the saved pose. Finished clips retain their final pose and
+finished status; stopped instances remain at their default pose without a
+per-instance animation allocation. `finished` requires non-playing playback at
+the clip duration, with looping disabled (a zero-duration clip can finish while
+looping is enabled). A selected clip may also be paused at its endpoint without
+being marked finished, as allowed by `seekAnimation`.
+
+Animated objects can also have physics. Collider construction follows the
+[existing rigid collider rules](physics-api.md): saved animation poses do not
+deform collision shapes. Playback flags and dynamic-body motion restore
+independently. This does not add morph animation, blending, or deforming physics.
+
+The [animation save example](../scripts/animation-save.js) uses independent
+skeletal and rigid-node playback. Bumper saves, A/X restores, and B/Y toggles
+playing/paused state; interaction remains available after restoring.
