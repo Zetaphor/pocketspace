@@ -1,0 +1,50 @@
+[
+  {
+    "phase": 0,
+    "active": true,
+    "samples": 4,
+    "objects": 9,
+    "panels": 2,
+    "gpuBytes": 52468972
+  },
+  {
+    "phase": 1,
+    "active": false,
+    "samples": 4,
+    "objects": 1,
+    "panels": 1,
+    "gpuBytes": 8412396
+  },
+  {
+    "phase": 2,
+    "active": true,
+    "samples": 4,
+    "objects": 9,
+    "panels": 2,
+    "gpuBytes": 52468972
+  },
+  {
+    "phase": 3,
+    "active": false,
+    "samples": 4,
+    "objects": 1,
+    "panels": 1,
+    "gpuBytes": 8412396
+  },
+  {
+    "phase": 4,
+    "active": true,
+    "samples": 4,
+    "objects": 9,
+    "panels": 2,
+    "gpuBytes": 52468972
+  },
+  {
+    "phase": 5,
+    "active": false,
+    "samples": 6,
+    "objects": 1,
+    "panels": 1,
+    "gpuBytes": 8412396
+  }
+]

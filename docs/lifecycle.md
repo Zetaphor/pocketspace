@@ -20,6 +20,11 @@ successful reload. Removing a panel defers resource release until its native
 overlay has detached. Scene assets live until scene
 replacement or shutdown, even if their last object is removed.
 
+[Scene containers](scene-containers.md) provide explicit cleanup scopes inside
+a scene. Disposal reuses individual object/panel cleanup, including attached
+physics and optionally owned input callbacks, while retaining shared assets.
+Callback ownership is isolated with the candidate scene during reload.
+
 Controller disconnection invalidates raw hand/pointer state and cancels held
 objects. Temporary pose loss preserves a hold while an allowed button remains
 down. Loss of the raw vrserver connection clears cached values and queued input

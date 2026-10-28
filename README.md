@@ -53,6 +53,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
+| [containers.js](scripts/containers.js) | Bumper opens/closes a tool containing grabbable objects and a panel |
 | [lod.js](scripts/lod.js) | Sixteen detailed grabbable cars with automatic LOD and full detail while held |
 | [instances.js](scripts/instances.js) | Sixteen grabbable Avocados sharing a surface with ordered GPU instancing |
 | [grouped-stress.js](scripts/grouped-stress.js) | Adaptive stereo groups with splitting, merging, and rebalancing; up to 240 grabbable physics boxes |
@@ -76,6 +77,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
 - [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.
+- [Scene containers](docs/scene-containers.md): own and dispose related objects, panels and callbacks together.
 - [Automatic model LOD](docs/javascript-api.md#automatic-model-lod): bounded geometry reduction with full detail nearby and while grabbed.
 - [GPU instancing](docs/javascript-api.md#ordered-gpu-instancing): automatic batching for repeated static models without reducing detail.
 - [Tracking](docs/tracking-api.md): gaze, foveation centers, and finger sensors.

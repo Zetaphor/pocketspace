@@ -51,6 +51,11 @@ It uses the normal 768-pixel-per-eye object surfaces. The HUD refreshes twice pe
 second; the underlying statistics sample once per second. When measured GPU
 memory is unavailable it explicitly displays the allocation estimate instead.
 
+## Scene ownership
+
+[Scene containers](scene-containers.md) group objects, panels and an optionally
+owned input callback for cleanup. Ownership is independent of render grouping.
+
 ## Coordinates and models
 
 Scene coordinates are meters: +X right, +Y up, +Z forward. The fixed standing-space
@@ -62,7 +67,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | Function | Behavior |
 | --- | --- |
 | `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
-| `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
+| `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
@@ -546,7 +551,9 @@ still depends on native action bindings. All hand arguments use `'left'` or
 
 ## Events
 
-`onInputEvent(callback)` replaces the single callback. `pollInputEvents()`
+`onInputEvent(callback, options = {})` replaces the single callback. Optional
+`{container: id}` gives it [container lifetime](scene-containers.md); omission
+keeps root lifetime. `pollInputEvents()`
 drains an independent queue, so polling does not consume callback delivery.
 Delivery happens in the host loop. The bounded queue evicts the oldest 1024
 entries when it exceeds 4096; consumers should drain it regularly.

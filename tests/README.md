@@ -465,3 +465,27 @@ estimate differences equal the generated shared index-buffer bytes. It records
 actual FPS, not the fixed-detail GPU-query measurements. `fast-motion.py --no-lod` selects explicit opt-out. Other isolated optimization comparison runners
 use that opt-out to keep LOD from confounding their measurements; the fixed-detail
 LOD harness still applies its test override. No interactive demo is left running.
+
+## Scene ownership containers
+
+`scene-container-regression` exercises real bindings for container ownership,
+transfers to other containers/root, strict IDs and throwing/reentrant getters,
+the active-container limit, idempotent disposal, attached physics/joint cleanup,
+shared surfaces, pointer/hover cleanup, self-disposing callbacks and failed-reload
+callback ownership. Individual removals and repeated container/scene lifetimes
+use the same cleanup paths. The fixture is `scene-container-api-smoke.js`.
+
+```sh
+cmake --build build --target scene-container-regression sf-overlay-engine -j2
+./build/scene-container-regression
+python3 tests/container-lifecycle.py --output /tmp/scene-container-lifecycle
+```
+
+The bounded production runner opens/closes a tool three times without reloading
+its script. A root object survives in the same render group; tool panels and
+physics bodies/joints must disappear while root resources remain usable.
+Per-phase state/count assertions, clean native logs and final grouped-budget
+release are required. Cached model GPU memory deliberately remains allocated
+between tool lifetimes; this is not an asset-unload or allocator/RSS test.
+See the [public API](../docs/scene-containers.md) and final
+[example](../scripts/containers.js).

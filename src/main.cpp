@@ -73,10 +73,10 @@ struct Object {
   animation::Playback animation;
   std::shared_ptr<ModelPose> animationPose;
   int renderGroup=0,renderTile=0;
-  int lodLevel=0;
+  int lodLevel=0,container=0;
 };
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 #include "model_instancing.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
@@ -94,8 +94,8 @@ static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHo
 static std::chrono::steady_clock::time_point meshLastHit[2]{};
 struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
 static std::map<int,PointerSnapshot> pointerStates;
-static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;
-static void clearInputCallback(JSContext *ctx){if(inputCallbackCtx==ctx){JS_FreeValue(ctx,inputCallback);inputCallback=JS_UNDEFINED;inputCallbackCtx=nullptr;}}
+static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;static int inputCallbackContainer=0;
+static void clearInputCallback(JSContext *ctx){if(inputCallbackCtx==ctx){JS_FreeValue(ctx,inputCallback);inputCallback=JS_UNDEFINED;inputCallbackCtx=nullptr;inputCallbackContainer=0;}}
 static void stop(int){running=false;}
 static JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));if(event.type=="physics.jointBreak"){
   JS_SetPropertyStr(ctx,item,"jointId",JS_NewInt32(ctx,event.jointId));JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
@@ -296,7 +296,32 @@ static JSValue jsGetControllerInput(JSContext *ctx,JSValueConst,int argc,JSValue
   JSValue analog=JS_NewObject(ctx);JS_SetPropertyStr(ctx,analog,"trigger",JS_NewFloat64(ctx,rawValue("/input/trigger/value")));JS_SetPropertyStr(ctx,analog,"grip",JS_NewFloat64(ctx,rawValue("/input/grip/value")));JSValue stick=JS_NewObject(ctx);JS_SetPropertyStr(ctx,stick,"x",JS_NewFloat64(ctx,rawValue("/input/thumbstick/x")));JS_SetPropertyStr(ctx,stick,"y",JS_NewFloat64(ctx,rawValue("/input/thumbstick/y")));JS_SetPropertyStr(ctx,analog,"thumbstick",stick);JS_SetPropertyStr(ctx,object,"analog",analog);
   JSValue capacitive=JS_NewObject(ctx);for(const char *name:controls){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}for(const char *name:{"ring","pinky","thumbrest","dpad"}){std::string path=std::string("/input/capsense/")+name;JS_SetPropertyStr(ctx,capacitive,name,JS_NewFloat64(ctx,rawValue(path.c_str())));}JS_SetPropertyStr(ctx,object,"capacitive",capacitive);return object;
 }
-static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1||!JS_IsFunction(ctx,argv[0]))return JS_ThrowTypeError(ctx,"onInputEvent(callback)");if(inputCallbackCtx&&inputCallbackCtx!=ctx)clearInputCallback(inputCallbackCtx);else clearInputCallback(ctx);inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);return JS_UNDEFINED;}
+static bool containerId(JSContext *ctx,JSValueConst value,int &id,bool issued=false){
+  double n=0;
+  if(!currentScene||!JS_IsNumber(value)||JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n)||n<0||n>=std::numeric_limits<int>::max()||n!=std::floor(n)){JS_ThrowRangeError(ctx,"container must be an integer scene container ID");return false;}
+  id=int(n);
+  if(id&&(issued?id>=currentScene->nextContainerId:!currentScene->containers.count(id))){JS_ThrowRangeError(ctx,"unknown or disposed scene container");return false;}
+  return true;
+}
+static bool containerOption(JSContext *ctx,JSValueConst options,int &id){
+  JSValue value=JS_GetPropertyStr(ctx,options,"container");if(JS_IsException(value))return false;
+  const bool valid=JS_IsUndefined(value)||containerId(ctx,value,id);JS_FreeValue(ctx,value);return valid;
+}
+static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1||!JS_IsFunction(ctx,argv[0]))return JS_ThrowTypeError(ctx,"onInputEvent(callback, options)");
+  int owner=0;
+  if(argc>1&&!JS_IsUndefined(argv[1])){if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"callback options must be an object");if(!containerOption(ctx,argv[1],owner))return JS_EXCEPTION;}
+  if(inputCallbackCtx&&inputCallbackCtx!=ctx)clearInputCallback(inputCallbackCtx);else clearInputCallback(ctx);
+  inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);inputCallbackContainer=owner;return JS_UNDEFINED;
+}
+static void dispatchInputCallbacks(){
+  if(inputCallbackCtx){auto events=frameInput.takeCallbackEvents();for(const auto &event:events){
+      if(!inputCallbackCtx)break;
+      JSContext *ctx=inputCallbackCtx;JSValue callback=JS_DupValue(ctx,inputCallback),value=inputEventValue(ctx,event);
+      JSValue result=JS_Call(ctx,callback,JS_UNDEFINED,1,&value);JS_FreeValue(ctx,value);JS_FreeValue(ctx,callback);
+      if(JS_IsException(result))JS_FreeValue(ctx,JS_GetException(ctx));else JS_FreeValue(ctx,result);
+    }}
+}
 static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
   JSValue array=JS_NewArray(ctx);if(currentScene!=liveScene)return array;
   auto events=frameInput.takeEvents();uint32_t i=0;
@@ -370,7 +395,19 @@ static JSValue jsPanelMethodImage(JSContext *ctx,JSValueConst thisVal,int argc,J
 static JSValue jsPanelMethodPresent(JSContext *ctx,JSValueConst thisVal,int,JSValueConst*){JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JSValue args[1]={idv};auto result=jsPanelPresent(ctx,JS_UNDEFINED,1,args);JS_FreeValue(ctx,idv);return result;}
 static int panelArgumentId(JSContext *ctx,JSValueConst value){int id=0;if(JS_IsObject(value)){JSValue field=JS_GetPropertyStr(ctx,value,"id");JS_ToInt32(ctx,&id,field);JS_FreeValue(ctx,field);}else JS_ToInt32(ctx,&id,value);return id;}
 static int colorPart(JSContext *ctx,JSValueConst value,int fallback){if(JS_IsNumber(value)){int n=0;JS_ToInt32(ctx,&n,value);return std::clamp(n,0,255);}return fallback;}
-static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(!currentScene||argc<1)return JS_ThrowTypeError(ctx,"createPanel(options)");if(!JS_IsObject(argv[0]))return JS_ThrowTypeError(ctx,"createPanel options must be an object");int w=1024,h=512;double wm=1.2;JSValue f=JS_GetPropertyStr(ctx,argv[0],"widthPixels");if(!JS_IsUndefined(f))JS_ToInt32(ctx,&w,f);JS_FreeValue(ctx,f);f=JS_GetPropertyStr(ctx,argv[0],"heightPixels");if(!JS_IsUndefined(f))JS_ToInt32(ctx,&h,f);JS_FreeValue(ctx,f);f=JS_GetPropertyStr(ctx,argv[0],"widthMeters");if(!JS_IsUndefined(f))JS_ToFloat64(ctx,&wm,f);JS_FreeValue(ctx,f);Panel panel;if(w<1||h<1||w>4096||h>4096||wm<=0||wm>10)return JS_ThrowRangeError(ctx,"invalid panel dimensions");if(!panelInit(panel,currentScene->nextPanelId++,w,h,(float)wm,(float)(wm*h/w),""))return JS_ThrowInternalError(ctx,"panel initialization failed");JSValue interactive=JS_GetPropertyStr(ctx,argv[0],"interactive");panel.interactive=JS_ToBool(ctx,interactive)>0;JS_FreeValue(ctx,interactive);currentScene->panels.push_back(std::move(panel));int id=currentScene->panels.back().id;JSValue object=panelObject(ctx,id);JSValue canvas=JS_NewObject(ctx);JS_SetPropertyStr(ctx,canvas,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,canvas,"clear",JS_NewCFunction(ctx,jsPanelMethodClear,"clear",5));JS_SetPropertyStr(ctx,canvas,"text",JS_NewCFunction(ctx,jsPanelMethodText,"text",8));JS_SetPropertyStr(ctx,canvas,"rect",JS_NewCFunction(ctx,jsPanelMethodRect,"rect",9));JS_SetPropertyStr(ctx,canvas,"line",JS_NewCFunction(ctx,jsPanelMethodLine,"line",8));JS_SetPropertyStr(ctx,canvas,"circle",JS_NewCFunction(ctx,jsPanelMethodCircle,"circle",8));JS_SetPropertyStr(ctx,canvas,"image",JS_NewCFunction(ctx,jsPanelMethodImage,"image",3));JS_SetPropertyStr(ctx,canvas,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));JS_SetPropertyStr(ctx,object,"canvas",canvas);JS_SetPropertyStr(ctx,object,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));return object;}
+static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<1||!JS_IsObject(argv[0])||JS_IsNull(argv[0]))return JS_ThrowTypeError(ctx,"createPanel(options) requires an object");
+  int owner=0,w=1024,h=512;double wm=1.2;if(!containerOption(ctx,argv[0],owner))return JS_EXCEPTION;
+  for(auto [name,target]:{std::pair{"widthPixels",&w},std::pair{"heightPixels",&h}}){JSValue value=JS_GetPropertyStr(ctx,argv[0],name);if(JS_IsException(value))return value;const bool ok=JS_IsUndefined(value)||JS_ToInt32(ctx,target,value)==0;JS_FreeValue(ctx,value);if(!ok)return JS_EXCEPTION;}
+  JSValue value=JS_GetPropertyStr(ctx,argv[0],"widthMeters");if(JS_IsException(value))return value;const bool ok=JS_IsUndefined(value)||JS_ToFloat64(ctx,&wm,value)==0;JS_FreeValue(ctx,value);if(!ok)return JS_EXCEPTION;
+  if(w<1||h<1||w>4096||h>4096||!std::isfinite(wm)||wm<=0||wm>10)return JS_ThrowRangeError(ctx,"invalid panel dimensions");
+  JSValue interactive=JS_GetPropertyStr(ctx,argv[0],"interactive");if(JS_IsException(interactive))return interactive;const bool enabled=JS_ToBool(ctx,interactive)>0;JS_FreeValue(ctx,interactive);
+  if(owner&&!currentScene->containers.count(owner))return JS_ThrowRangeError(ctx,"scene container was disposed during panel option evaluation");
+  Panel panel;
+  if(!panelInit(panel,currentScene->nextPanelId++,w,h,(float)wm,(float)(wm*h/w),""))return JS_ThrowInternalError(ctx,"panel initialization failed");
+  panel.container=owner;panel.interactive=enabled;
+  currentScene->panels.push_back(std::move(panel));int id=currentScene->panels.back().id;
+  JSValue object=panelObject(ctx,id);JSValue canvas=JS_NewObject(ctx);JS_SetPropertyStr(ctx,canvas,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,canvas,"clear",JS_NewCFunction(ctx,jsPanelMethodClear,"clear",5));JS_SetPropertyStr(ctx,canvas,"text",JS_NewCFunction(ctx,jsPanelMethodText,"text",8));JS_SetPropertyStr(ctx,canvas,"rect",JS_NewCFunction(ctx,jsPanelMethodRect,"rect",9));JS_SetPropertyStr(ctx,canvas,"line",JS_NewCFunction(ctx,jsPanelMethodLine,"line",8));JS_SetPropertyStr(ctx,canvas,"circle",JS_NewCFunction(ctx,jsPanelMethodCircle,"circle",8));JS_SetPropertyStr(ctx,canvas,"image",JS_NewCFunction(ctx,jsPanelMethodImage,"image",3));JS_SetPropertyStr(ctx,canvas,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));JS_SetPropertyStr(ctx,object,"canvas",canvas);JS_SetPropertyStr(ctx,object,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));return object;}
 static JSValue jsPanelClear(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<1)return JS_ThrowTypeError(ctx,"panel.clear(id,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");int r=argc>1?colorPart(ctx,argv[1],0):0,g=argc>2?colorPart(ctx,argv[2],0):0,b=argc>3?colorPart(ctx,argv[3],0):0,a=argc>4?colorPart(ctx,argv[4],255):255;panelClear(*p,r,g,b,a);return JS_UNDEFINED;}
 static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelLoadFont(panel,path,pixels)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;if(argc>2)JS_ToInt32(ctx,&p->fontPixels,argv[2]);JS_FreeCString(ctx,path);return JS_UNDEFINED;}
 static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED),x=0,y=0;if(argc<4||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=panelText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],p->fontPixels):p->fontPixels);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
@@ -577,13 +614,15 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   float values[4]={0,0,0,.55f};
   for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
   if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
-  int group=0;
+  int group=0,owner=0;
   if(argc>5&&!JS_IsUndefined(argv[5])){
     if(!JS_IsObject(argv[5])||JS_IsNull(argv[5]))return JS_ThrowTypeError(ctx,"createObject options must be an object");
+    if(!containerOption(ctx,argv[5],owner))return JS_EXCEPTION;
     JSValue value=JS_GetPropertyStr(ctx,argv[5],"renderGroup");if(JS_IsException(value))return value;
     double number=0;const bool valid=JS_IsUndefined(value)||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&number,value)==0&&std::isfinite(number)&&number>=0&&number<=256&&number==std::floor(number));
     JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"renderGroup must be an integer from 0 to 256");group=int(number);
   }
+  if(owner&&!currentScene->containers.count(owner))return JS_ThrowRangeError(ctx,"scene container was disposed during object option evaluation");
   int tile=0;double nearest=INFINITY;
   if(group)for(const auto &other:currentScene->objects)if(other.renderGroup==group){
     const double dx=double(other.x)-values[0],dy=double(other.y)-values[1],dz=double(other.z)-values[2],distance=dx*dx+dy*dy+dz*dz;
@@ -592,7 +631,7 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   int id=currentScene->nextId++;
   if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(group?-(group+256*tile):id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
   currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
-  currentScene->objects.back().renderGroup=group;currentScene->objects.back().renderTile=tile;
+  currentScene->objects.back().renderGroup=group;currentScene->objects.back().renderTile=tile;currentScene->objects.back().container=owner;
   return JS_NewInt32(ctx,id);
 }
 static physics::Pose physicsPose(const Object &o){return {{o.x,o.y,o.z},o.pitch,o.yaw,o.roll};}
@@ -915,9 +954,8 @@ static void forgetObjectInteraction(int id){
     if(meshCurrentObject[h]==id){meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};}
   }
 }
-static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
-  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+static void removeSceneObject(int id){
+  auto *object=findObject(id);if(!object)return;
   if(currentScene->physics)currentScene->physics->remove(id);
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
@@ -927,8 +965,48 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
     if(!shared&&releaseObjectOverlay)releaseObjectOverlay(key);
   }
   currentScene->objects.erase(std::remove_if(currentScene->objects.begin(),currentScene->objects.end(),[id](const Object &entry){return entry.id==id;}),currentScene->objects.end());
+}
+static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
+  if(!findObject(id))return JS_ThrowRangeError(ctx,"unknown object id");removeSceneObject(id);return JS_UNDEFINED;
+}
+static JSValue jsCreateSceneContainer(JSContext *ctx,JSValueConst,int,JSValueConst*){
+  if(currentScene->containers.size()>=256||currentScene->nextContainerId==std::numeric_limits<int>::max())return JS_ThrowRangeError(ctx,"scene container limit reached");
+  const int id=currentScene->nextContainerId++;currentScene->containers.insert(id);return JS_NewInt32(ctx,id);
+}
+static JSValue jsGetSceneContainerState(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"getSceneContainerState(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
+  if(!id)return JS_ThrowRangeError(ctx,"root is not a disposable scene container");
+  JSValue state=JS_NewObject(ctx),objects=JS_NewArray(ctx),panels=JS_NewArray(ctx);uint32_t n=0;
+  for(const auto &object:currentScene->objects)if(object.container==id)JS_SetPropertyUint32(ctx,objects,n++,JS_NewInt32(ctx,object.id));n=0;
+  for(const auto &panel:currentScene->panels)if(panel.container==id)JS_SetPropertyUint32(ctx,panels,n++,JS_NewInt32(ctx,panel.id));
+  JS_SetPropertyStr(ctx,state,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,state,"disposed",JS_NewBool(ctx,!currentScene->containers.count(id)));
+  JS_SetPropertyStr(ctx,state,"objectIds",objects);JS_SetPropertyStr(ctx,state,"panelIds",panels);
+  JS_SetPropertyStr(ctx,state,"inputCallback",JS_NewBool(ctx,inputCallbackCtx==ctx&&inputCallbackContainer==id));return state;
+}
+static JSValue jsDisposeSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"disposeSceneContainer(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
+  if(!id)return JS_ThrowRangeError(ctx,"root is not a disposable scene container");
+  if(!currentScene->containers.erase(id))return JS_UNDEFINED;
+  if(inputCallbackCtx==ctx&&inputCallbackContainer==id)clearInputCallback(ctx);
+  std::vector<int> objects;for(const auto &object:currentScene->objects)if(object.container==id)objects.push_back(object.id);
+  for(int object:objects)removeSceneObject(object);
+  auto &panels=currentScene->panels;
+  for(auto it=panels.begin();it!=panels.end();)if(it->container==id){currentScene->retiredPanels.push_back(std::move(*it));it=panels.erase(it);}else ++it;
   return JS_UNDEFINED;
 }
+static JSValue jsSetObjectContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int object=0,owner=0;if(argc<2||JS_ToInt32(ctx,&object,argv[0])<0)return JS_ThrowTypeError(ctx,"setObjectContainer(objectId, containerId)");
+  if(!containerId(ctx,argv[1],owner))return JS_EXCEPTION;auto *entry=findObject(object);if(!entry)return JS_ThrowRangeError(ctx,"unknown object id");entry->container=owner;return JS_UNDEFINED;
+}
+static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<2)return JS_ThrowTypeError(ctx,"setPanelContainer(panel, containerId)");
+  JSValue value=JS_IsObject(argv[0])?JS_GetPropertyStr(ctx,argv[0],"id"):JS_DupValue(ctx,argv[0]);if(JS_IsException(value))return value;
+  int id=0;const bool ok=JS_ToInt32(ctx,&id,value)==0;JS_FreeValue(ctx,value);if(!ok)return JS_EXCEPTION;
+  int owner=0;if(!containerId(ctx,argv[1],owner))return JS_EXCEPTION;
+  auto *panel=findPanel(id);if(!panel)return JS_ThrowRangeError(ctx,"unknown panel");panel->container=owner;return JS_UNDEFINED;
+}
+
 struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};Scene scene;};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
@@ -949,7 +1027,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   JS_SetMemoryLimit(candidate.rt,128*1024*1024);
   candidate.ctx=JS_NewContext(candidate.rt);if(!candidate.ctx){closeScript(candidate);return false;}
   currentScene=&candidate.scene;
-  JSContext *previousCallbackCtx=inputCallbackCtx;JSValue previousCallback=inputCallback;inputCallbackCtx=nullptr;inputCallback=JS_UNDEFINED;
+  JSContext *previousCallbackCtx=inputCallbackCtx;JSValue previousCallback=inputCallback;const int previousCallbackContainer=inputCallbackContainer;inputCallbackCtx=nullptr;inputCallback=JS_UNDEFINED;inputCallbackContainer=0;
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
   bind(candidate.ctx,"getControllerInput",jsGetControllerInput,1);
@@ -1010,11 +1088,16 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"setObjectScale",jsSetObjectScale,2);
   bind(candidate.ctx,"setObjectVisible",jsSetObjectVisible,2);
   bind(candidate.ctx,"removeObject",jsRemoveObject,1);
+  bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,0);
+  bind(candidate.ctx,"disposeSceneContainer",jsDisposeSceneContainer,1);
+  bind(candidate.ctx,"getSceneContainerState",jsGetSceneContainerState,1);
+  bind(candidate.ctx,"setObjectContainer",jsSetObjectContainer,2);
+  bind(candidate.ctx,"setPanelContainer",jsSetPanelContainer,2);
   JSValue result=JS_Eval(candidate.ctx,source.c_str(),source.size(),path.c_str(),JS_EVAL_TYPE_GLOBAL);
   if(JS_IsException(result)){
     JSValue exception=JS_GetException(candidate.ctx);const char *message=JS_ToCString(candidate.ctx,exception);
     fprintf(stderr,"[js] load error: %s\n",message?message:"unknown");if(message)JS_FreeCString(candidate.ctx,message);
-    JS_FreeValue(candidate.ctx,exception);JS_FreeValue(candidate.ctx,result);closeScript(candidate);inputCallbackCtx=previousCallbackCtx;inputCallback=previousCallback;currentScene=&active.scene;return false;
+    JS_FreeValue(candidate.ctx,exception);JS_FreeValue(candidate.ctx,result);closeScript(candidate);inputCallbackCtx=previousCallbackCtx;inputCallback=previousCallback;inputCallbackContainer=previousCallbackContainer;currentScene=&active.scene;return false;
   }
   JS_FreeValue(candidate.ctx,result);
   JSValue global=JS_GetGlobalObject(candidate.ctx);candidate.update=JS_GetPropertyStr(candidate.ctx,global,"update");JS_FreeValue(candidate.ctx,global);
@@ -2090,7 +2173,7 @@ int main(int argc,char **argv) {
     pickingMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
     const auto reconnectNow=std::chrono::steady_clock::now();
     if(!frameInput.started()&&reconnectNow>=reconnectAt){frameInput.reconnect();reconnectAt=reconnectNow+std::chrono::seconds(1);}
-    if(inputCallbackCtx){auto events=frameInput.takeCallbackEvents();for(const auto &event:events){JSValue value=inputEventValue(inputCallbackCtx,event);JSValue result=JS_Call(inputCallbackCtx,inputCallback,JS_UNDEFINED,1,&value);JS_FreeValue(inputCallbackCtx,value);if(JS_IsException(result))JS_FreeValue(inputCallbackCtx,JS_GetException(inputCallbackCtx));else JS_FreeValue(inputCallbackCtx,result);}}
+    dispatchInputCallbacks();
     updateManipulation(script.scene,grabs,1.f/90.f);
     for(int hand=0;hand<2;hand++)if(grabs[hand].objectId)meshHitDistance[hand]=grabs[hand].laserDistance;
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){

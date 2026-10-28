@@ -2,6 +2,8 @@
 
 `createPanel(options)` returns `{id, canvas, present}`. Options default to
 `{widthPixels: 1024, heightPixels: 512, widthMeters: 1.2, interactive: false}`.
+Optional `container` assigns the panel to an active [scene container](scene-containers.md);
+omission or 0 keeps root-scene ownership. `setPanelContainer` transfers it later.
 Pixel dimensions must be 1–4096; width must be greater than zero and at most
 10 meters. Physical height follows the pixel aspect ratio.
 

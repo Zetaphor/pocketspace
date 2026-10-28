@@ -73,6 +73,12 @@ Instancing runs must match both asset and selected level. The separate
 production LOD generation when its environment override is present. See the
 [API contract](javascript-api.md#automatic-model-lod).
 
+Flat [scene containers](scene-containers.md) own objects/panels and optionally
+the single input callback. Keep root ID 0 separate from disposable positive IDs.
+Disposal must reuse object/physics/interaction and deferred-panel cleanup, retain
+shared surfaces/assets, and preserve callback ownership on failed reloads. Hold
+a JS reference while dispatching a callback that may dispose its own owner.
+
 Physics uses single-threaded stepping for small scenes and a bounded worker pool
 for larger active scenes; scripts can override with `setPhysicsWorkers`.
 Contact aggregation must remain synchronized when workers run, with all script
