@@ -21,7 +21,8 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Extend [rigid-body physics](physics-api.md) with deforming collider policies
   as scripted experiences require them.
-- Define persistence and save/restore APIs for scene state.
+- Extend [scene save/restore](scene-persistence.md) beyond static model instances
+  when needed: panel UI, animation playback, and physics bodies/joints.
 - Extend the implemented [scene containers](scene-containers.md) with nested
   ownership or explicit shared-asset lifetime controls if larger experiences
   require them.

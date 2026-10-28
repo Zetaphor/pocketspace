@@ -1,0 +1,19 @@
+[picking] nodes=3 triangles=12 build_ms=0.002 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[model] parse failed /missing-model.glb: 6
+[js] loaded /tmp/sf-persistence-166093/test.js objects=3 assets=1
+[picking] nodes=255 triangles=682 build_ms=0.136 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[model] parse failed /missing-last.glb: 6
+[picking] nodes=255 triangles=682 build_ms=0.158 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=2047 triangles=4672 build_ms=1.227 reserved_bytes=159016
+[model] loaded assets/samples/CesiumMan/CesiumMan.glb parts=1 triangles=4672 skin=1 morph=0 animation=1
+[picking] nodes=3 triangles=12 build_ms=0.004 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[js] loaded /tmp/sf-persistence-166093/test.js objects=2 assets=1
+PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files and atomic replacement cleanup
+[js] PERSISTENCE_SAMPLE {"fps":89.98986723093967,"cpuPercent":4.999437068385538,"ramBytes":65540096,"vramBytes":null,"gpuAllocatedEstimateBytes":2120940,"sampleSeconds":1.000112599,"sampleId":18,"objectCount":1,"panelCount":1,"physicsAdvanceMs":0,"physicsSolverMs":0,"physicsSteps":0,"physicsActiveBodies":0,"physicsWorkers":0,"phase":5,"age":3.8590000000000018,"owner":{"id":4,"disposed":true,"objectIds":[],"panelIds":[],"inputCallback":false}}
+completed frames=1674
+[surface] grouped_buffer_bytes=0 peak=18874368 limit=536870912
+
