@@ -1,0 +1,8 @@
+[input] hand=0 device=none
+[input] hand=1 device=1 pose=1
+[profile] picking_ms=0.002 render_submit_ms=0.024 gpu_wait_ms=2.331 physics_ms=0.000
+frames=6300 fps=89.9 surfaces=1 ready=1 gl_error=0 laser_left=2.00 laser_right=2.00 held_left=0 held_right=0
+[input] hand=0 device=none
+[input] hand=1 device=2 pose=1
+completed frames=6473
+[surface] grouped_buffer_bytes=0 peak=312475648 limit=536870912
