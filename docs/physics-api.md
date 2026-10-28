@@ -550,3 +550,14 @@ physics advance, not the one-second process sample. Solver time includes waiting
 for worker completion; advance time also includes targets, contact reconciliation,
 and joint breaking inside the physics world (excluding host pose synchronization).
 A frame without a fixed step reports zero solver time, steps, and workers.
+
+## Saving a physics tool
+
+Scene container snapshots preserve body/collider settings, transforms, dynamic
+velocities, joint connections, limits, springs, break thresholds and hinge
+motors. Use `saveSceneContainer(containerId, name)` and `loadSceneContainer(name)`;
+restores return fresh object and joint ID maps. Both joint endpoints must belong
+to the saved container. Restored bodies start awake and unheld; world gravity,
+workers, callbacks and collision subscriptions remain script-owned. See the
+[complete persistence contract](scene-persistence.md) and
+[physics save example](../scripts/physics-save.js).

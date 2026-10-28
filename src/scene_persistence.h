@@ -46,15 +46,17 @@ static std::string json(JSContext *ctx,JSValueConst value){
   if(JS_IsException(encoded))throw std::runtime_error("snapshot cannot be encoded as JSON");
   auto data=string(ctx,encoded);require(data.size()<=maxBytes,"snapshot exceeds 1 MiB");return data;
 }
+#include "scene_physics_snapshot.h"
 static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
-  for(const auto &p:currentScene->panels)require(p.container!=owner,"v1 snapshots do not support owned panels");
-  Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
+  for(const auto &p:currentScene->panels)require(p.container!=owner,"snapshots do not support owned panels");
+  Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,1));
-  for(const auto &o:currentScene->objects)if(o.container==owner){
-    require(!o.animationPose,"v1 snapshots do not support animated poses");
-    require(!currentScene->physics||!currentScene->physics->contains(o.id),"v1 snapshots do not support physics bodies");
+  put(ctx,result,"version",JS_NewInt32(ctx,2));
+  for(auto o:currentScene->objects)if(o.container==owner){
+    require(!o.animationPose,"snapshots do not support animated poses");
+    const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
+    std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
     if(!modelIds.count(o.asset)){
       const auto &a=currentScene->assets.at(o.asset-1);const int i=int(modelIds.size());modelIds[o.asset]=i;
       JSValue m=JS_NewObject(ctx);put(ctx,m,"path",JS_NewString(ctx,a.path.c_str()));put(ctx,m,"eyePixels",JS_NewInt32(ctx,a.eyePixels));
@@ -67,8 +69,15 @@ static JSValue capture(JSContext *ctx,int owner){
     for(auto [key,member]:flags)put(ctx,item,key,JS_NewBool(ctx,o.*member));
     put(ctx,item,"grabButton",JS_NewString(ctx,o.grabButton==GrabButton::Both?"both":o.grabButton==GrabButton::Grip?"grip":"trigger"));
     put(ctx,item,"interactive",JS_NewBool(ctx,std::find(currentScene->interactiveIds.begin(),currentScene->interactiveIds.end(),o.id)!=currentScene->interactiveIds.end()));
+    put(ctx,item,"physics",state?bodyValue(ctx,*state):JS_NULL);
     putIndex(ctx,objects,index++,item);
   }
+  uint32_t jointIndex=0;if(currentScene->physics)for(const auto &j:currentScene->physics->jointSnapshots()){
+    const auto *a=findObject(j.state.objectA),*b=findObject(j.state.objectB);const bool ownA=a&&a->container==owner,ownB=b&&b->container==owner;
+    require(ownA==ownB,"joint crosses scene container boundary; save both endpoints in one container");
+    if(ownA)putIndex(ctx,joints,jointIndex++,jointValue(ctx,j));
+  }
+  put(ctx,result,"joints",JS_DupValue(ctx,joints));
   put(ctx,result,"models",JS_DupValue(ctx,models));put(ctx,result,"objects",JS_DupValue(ctx,objects));
   json(ctx,result);return JS_DupValue(ctx,result);
 }
@@ -77,7 +86,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  require(number(ctx,root,"version",1,1,true)==1,"unsupported snapshot version");
+  const int version=int(number(ctx,root,"version",1,2,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -93,6 +102,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);
   for(const auto &[id,policy]:scene.renderGroupSplits)occupied.insert(id);
   std::map<int,int> groups;std::vector<Object> restored;std::vector<int> interactive;
+  std::map<int,int> bodyMap;std::vector<physics::BodyRestore> bodies;std::vector<std::vector<physics::Vec3>> geometry;
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));Object o{};
     const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(sourceIds.insert(source).second,"duplicate source object id");
@@ -106,27 +116,52 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     for(auto [key,member]:flags)o.*member=boolean(ctx,item,key);
     auto button=field(ctx,item,"grabButton");auto name=string(ctx,button);require(name=="both"||name=="trigger"||name=="grip","invalid grabButton");o.grabButton=name=="both"?GrabButton::Both:name=="grip"?GrabButton::Grip:GrabButton::Trigger;
     if(boolean(ctx,item,"interactive"))interactive.push_back(o.id);
+    auto body=field(ctx,item,"physics");
+    if(version==2){require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}}
+    else require(JS_IsUndefined(body)||JS_IsNull(body),"physics requires snapshot version 2");
     restored.push_back(std::move(o));
   }
+  std::vector<physics::JointSnapshot> jointBatch;std::set<int> jointSources;
+  auto jointArray=field(ctx,root,"joints");
+  const uint32_t nj=version==2?length(ctx,jointArray,512):0;
+  if(version==1&&!JS_IsUndefined(jointArray))require(length(ctx,jointArray,512)==0,"joints require snapshot version 2");
+  for(uint32_t i=0;i<nj;i++){Value item(ctx,JS_GetPropertyUint32(ctx,jointArray,i));auto j=jointRead(ctx,item,bodyMap);require(jointSources.insert(j.state.id).second,"duplicate source joint ID");jointBatch.push_back(std::move(j));}
+  const int firstJoint=scene.physics?scene.physics->nextJointId():1;require(nj<=uint32_t(INT_MAX-firstJoint),"joint ID limit reached");
   // Load CPU data only after the entire schema has passed. No shared cache or
   // native overlays change until every asset is available.
   for(auto &a:pending){const auto path=a.path;require(loadModelFile(path,a),"could not load snapshot model");}
+  geometry.reserve(bodies.size());
+  for(auto &body:bodies){
+    const auto &o=*std::find_if(restored.begin(),restored.end(),[&](const Object &o){return o.id==body.id;});
+    const auto &a=o.asset<=int(scene.assets.size())?scene.assets[o.asset-1]:pending[o.asset-int(scene.assets.size())-1];
+    body.low={a.low[0]*o.scale,a.low[1]*o.scale,a.low[2]*o.scale};body.high={a.high[0]*o.scale,a.high[1]*o.scale,a.high[2]*o.scale};
+    geometry.emplace_back();auto &vertices=geometry.back();
+    if(body.state.settings.shape==physics::Shape::Convex||body.state.settings.shape==physics::Shape::Mesh)for(const auto &part:a.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
+    body.geometry={o.asset,o.scale,vertices};
+  }
   scene.assets.reserve(scene.assets.size()+pending.size());scene.objects.reserve(scene.objects.size()+no);scene.interactiveIds.reserve(scene.interactiveIds.size()+interactive.size());
-  Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx));
+  Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx)),jointIds(ctx,JS_NewArray(ctx)),jointMap(ctx,JS_NewObject(ctx));
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));auto source=std::to_string(int(number(ctx,item,"id",1,INT_MAX-1,true)));
     putIndex(ctx,ids,i,JS_NewInt32(ctx,restored[i].id));put(ctx,mapping,source.c_str(),JS_NewInt32(ctx,restored[i].id));
   }
   for(auto [from,to]:groups)put(ctx,groupMap,std::to_string(from).c_str(),JS_NewInt32(ctx,to));
   put(ctx,result,"containerId",JS_NewInt32(ctx,scene.nextContainerId));put(ctx,result,"objectIds",JS_DupValue(ctx,ids));put(ctx,result,"objectMap",JS_DupValue(ctx,mapping));put(ctx,result,"renderGroups",JS_DupValue(ctx,groupMap));
+  for(uint32_t i=0;i<nj;i++){putIndex(ctx,jointIds,i,JS_NewInt32(ctx,firstJoint+int(i)));put(ctx,jointMap,std::to_string(jointBatch[i].state.id).c_str(),JS_NewInt32(ctx,firstJoint+int(i)));}
+  put(ctx,result,"jointIds",JS_DupValue(ctx,jointIds));put(ctx,result,"jointMap",JS_DupValue(ctx,jointMap));
   // This also detects JS allocation failures before committing native state.
   if(JS_HasException(ctx))throw std::runtime_error("snapshot result allocation failed");
   std::set<int> reserved;bool committed=false;
   ScopeExit rollback{[&]{if(!committed&&releaseObjectOverlay)for(int key:reserved)releaseObjectOverlay(key);}};
   if(currentScene==liveScene&&reserveObjectOverlay)for(const auto &o:restored){int key=objectSurfaceKey(o);if(!reserved.count(key)){auto error=reserveObjectOverlay(key);require(error.empty(),error.c_str());reserved.insert(key);}}
+  std::unique_ptr<physics::World> newWorld;
+  if(!bodies.empty()){
+    auto *world=scene.physics.get();if(!world){newWorld=std::make_unique<physics::World>();world=newWorld.get();}
+    world->appendSnapshot(bodies,jointBatch);
+  }
   scene.containers.insert(scene.nextContainerId);scene.nextContainerId++;
   for(auto &a:pending)scene.assets.push_back(std::move(a));for(auto &o:restored)scene.objects.push_back(std::move(o));
-  scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);committed=true;
+  scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
 static std::filesystem::path slot(JSContext *ctx,JSValueConst name){
