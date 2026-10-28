@@ -26,7 +26,7 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(1024*1024));
-    bad(s=>s.version=3);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.version=4);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));
@@ -58,7 +58,7 @@ int main(){
   eval("{const s=JSON.parse(JSON.stringify(snap));s.models[0].path='assets/Avocado.glb';const c=restoreSceneContainer(s);const a=captureSceneContainer(c.containerId).models[0];check(a.eyePixels===512&&!a.lod&&!a.gpuInstancing&&a.optimizeVertexCache);disposeSceneContainer(c.containerId);}");
   eval("for(let i=0;i<40;i++){const c=loadSceneContainer('roundtrip');disposeSceneContainer(c.containerId);}");
   assert(host.scene.objects.size()==3&&host.scene.containers.size()==1);
-  eval("{const a=loadModel('assets/samples/CesiumMan/CesiumMan.glb');const c=createSceneContainer();const id=createObject(a,0,0,0,.1,{container:c});check(captureSceneContainer(c).objects.length===1);playAnimation(id,0);fails(()=>captureSceneContainer(c));disposeSceneContainer(c);}");
+  eval("{const a=loadModel('assets/samples/CesiumMan/CesiumMan.glb');const c=createSceneContainer();const id=createObject(a,0,0,0,.1,{container:c});check(captureSceneContainer(c).objects.length===1);playAnimation(id,0);check(captureSceneContainer(c).objects[0].animation.clip===0);disposeSceneContainer(c);}");
   // File validation, symlink refusal, failed replacement cleanup, original intact.
   std::ofstream(dir/"future.json")<<"{\"version\":2}";eval("loadSceneContainer('future')",false);
   std::ofstream(dir/"huge.json")<<std::string(scenePersistence::maxBytes+1,'x');eval("loadSceneContainer('huge')",false);
@@ -79,11 +79,30 @@ int main(){
   assert(host.scene.physics->jointSnapshots().size()==3&&!host.scene.physics->contains(objectNext)&&!host.scene.physics->hasConvexHull(2)&&!host.scene.physics->hasMesh(2));
   reserveObjectOverlay={};releaseObjectOverlay={};
   host.scene.physics->hold(2);eval("{const c=restoreSceneContainer(captureSceneContainer(physicsOwner));for(const id of c.objectIds)check(!getObjectPhysics(id).held);disposeSceneContainer(c.containerId);}");host.scene.physics->release(2,false);
-  // Old v1 documents still restore; new captures always use v2.
+  // Old v1 documents still restore; new captures always use v3.
   eval("{const s=captureSceneContainer(physicsOwner);s.version=1;delete s.joints;for(const o of s.objects)delete o.physics;const c=restoreSceneContainer(s);check(c.jointIds.length===0&&c.objectIds.every(id=>getObjectPhysics(id)===null));disposeSceneContainer(c.containerId);}");
   closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('physics');if(c.objectIds.length!==6||c.jointIds.length!==3)throw Error('fresh physics restore');function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.physics&&host.scene.physics->jointSnapshots().size()==3);
   for(const auto &o:host.scene.objects)assert(host.scene.physics->contains(o.id));
   host.scene.physics->advance(1.0/90);assert(host.scene.physics->jointSnapshots().size()==3);
-  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames and rollback");
+  closeScript(host);assert(loadScript(host,"tests/animation-persistence-api-smoke.js"));ctx=host.ctx;
+  auto *finished=findObject(3);const auto &clip=host.scene.assets[finished->asset-1].animations[finished->animation.clip];animation::advance(finished->animation,clip,1.0/90);assert(finished->animation.finished);
+  eval("saveAndCheck()");
+  assert(host.scene.objects.size()==8&&host.scene.assets.size()==2);
+  for(size_t i=0;i<4;i++){
+    auto &a=host.scene.objects[i],&b=host.scene.objects[i+4];assert(bool(a.animationPose)==bool(b.animationPose));
+    if(!a.animationPose)continue;assert(a.animationPose!=b.animationPose);
+    assert(a.animationPose->radius==b.animationPose->radius);
+    for(size_t p=0;p<a.animationPose->geometry.primitives.size();p++)assert(a.animationPose->geometry.primitives[p].vertices==b.animationPose->geometry.primitives[p].vertices);
+    for(int axis=0;axis<3;axis++){assert(a.animationPose->geometry.low[axis]==b.animationPose->geometry.low[axis]);assert(a.animationPose->geometry.high[axis]==b.animationPose->geometry.high[axis]);}
+  }
+  liveScene=currentScene=&host.scene;calls=releases=0;const int beforeObjects=host.scene.nextId,beforeOwner=host.scene.nextContainerId;
+  reserveObjectOverlay=[&](int){calls++;return std::string("EXPECTED animation reservation failure");};releaseObjectOverlay=[&](int){releases++;};
+  eval("restoreSceneContainer(animationSnapshot)",false);assert(calls==1&&releases==0&&host.scene.nextId==beforeObjects&&host.scene.nextContainerId==beforeOwner&&host.scene.objects.size()==8);
+  reserveObjectOverlay={};releaseObjectOverlay={};
+  eval("for(let i=0;i<20;i++){const c=restoreSceneContainer(animationSnapshot);disposeSceneContainer(c.containerId);}");
+  assert(host.scene.objects.size()==8&&host.scene.containers.size()==2);
+  closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('animations');if(c.objectIds.length!==4||getAnimationState(c.objectIds[0]).speed!==.75||getAnimationState(c.objectIds[1]).status!=='paused'||getAnimationState(c.objectIds[2]).status!=='finished'||getAnimationState(c.objectIds[3]).status!=='stopped')throw Error('fresh animation restore');function update(){}";
+  assert(loadScript(host,script.string()));assert(host.scene.objects[0].animationPose&&host.scene.objects[1].animationPose&&host.scene.objects[2].animationPose&&!host.scene.objects[3].animationPose);
+  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states and rollback");
 }

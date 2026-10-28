@@ -1,0 +1,46 @@
+[picking] nodes=3 triangles=12 build_ms=0.005 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[model] parse failed /missing-model.glb: 6
+[js] loaded /tmp/sf-persistence-192620/test.js objects=3 assets=1
+[picking] nodes=255 triangles=682 build_ms=0.165 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[model] parse failed /missing-last.glb: 6
+[picking] nodes=255 triangles=682 build_ms=0.150 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=2047 triangles=4672 build_ms=1.700 reserved_bytes=159016
+[model] loaded assets/samples/CesiumMan/CesiumMan.glb parts=1 triangles=4672 skin=1 morph=0 animation=1
+[picking] nodes=3 triangles=12 build_ms=0.002 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[js] loaded /tmp/sf-persistence-192620/test.js objects=2 assets=1
+[picking] nodes=3 triangles=12 build_ms=0.001 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[js] loaded tests/physics-persistence-api-smoke.js objects=6 assets=1
+[picking] nodes=255 triangles=682 build_ms=0.167 reserved_bytes=21872
+[model] loaded assets/Avocado.glb parts=1 triangles=682 skin=0 morph=0 animation=0
+[picking] nodes=3 triangles=12 build_ms=0.002 reserved_bytes=408
+[model] loaded assets/samples/Box/Box.glb parts=1 triangles=12 skin=0 morph=0 animation=0
+[js] loaded /tmp/sf-persistence-192620/test.js objects=6 assets=1
+[picking] nodes=2047 triangles=4672 build_ms=1.358 reserved_bytes=159016
+[model] loaded assets/samples/CesiumMan/CesiumMan.glb parts=1 triangles=4672 skin=1 morph=0 animation=1
+[picking] nodes=31 triangles=110 build_ms=0.042 reserved_bytes=3264
+[model] loaded assets/samples/InterpolationTest/InterpolationTest.glb parts=10 triangles=110 skin=0 morph=0 animation=1
+[js] loaded tests/animation-persistence-api-smoke.js objects=4 assets=2
+[picking] nodes=7 triangles=32 build_ms=0.004 reserved_bytes=936
+[model] loaded assets/samples/MorphPrimitivesTest/MorphPrimitivesTest.glb parts=2 triangles=32 skin=0 morph=1 animation=0
+[picking] nodes=2047 triangles=4672 build_ms=1.440 reserved_bytes=159016
+[model] loaded assets/samples/CesiumMan/CesiumMan.glb parts=1 triangles=4672 skin=1 morph=0 animation=1
+[picking] nodes=31 triangles=110 build_ms=0.019 reserved_bytes=3264
+[model] loaded assets/samples/InterpolationTest/InterpolationTest.glb parts=10 triangles=110 skin=0 morph=0 animation=1
+[js] loaded /tmp/sf-persistence-192620/test.js objects=4 assets=2
+PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states and rollback
+PASS animation integration: bind pose, nine clips and endpoints, finite bounds, 5400 BVH/triangle comparisons, independent geometry, actual QuickJS API and removal cleanup
+PASS scene containers: objects/panels/physics/joints, ownership transfer, callback self-disposal, reentrant options, rollback, shared surfaces, interaction cleanup and repeated disposal/reload
+PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing/LOD option validation and cache inheritance
+[js] PERSISTENCE_SAMPLE {"fps":89.97149253259106,"cpuPercent":4.998416251810614,"ramBytes":70840320,"vramBytes":null,"gpuAllocatedEstimateBytes":5873060,"sampleSeconds":1.00031685,"sampleId":18,"objectCount":1,"panelCount":1,"physicsAdvanceMs":0,"physicsSolverMs":0,"physicsSteps":0,"physicsActiveBodies":0,"physicsWorkers":0,"phase":5,"age":3.5599999999999987,"owner":{"id":4,"disposed":true,"objectIds":[],"panelIds":[],"inputCallback":false}}
+completed frames=1677
+[surface] grouped_buffer_bytes=0 peak=41943040 limit=536870912
+
+[js] PERSISTENCE_SAMPLE {"fps":90.20814594883389,"cpuPercent":5.9477898427802565,"ramBytes":67153920,"vramBytes":null,"gpuAllocatedEstimateBytes":6456196,"sampleSeconds":1.008778077,"sampleId":18,"objectCount":1,"panelCount":1,"physicsAdvanceMs":0.03328,"physicsSolverMs":0.003021,"physicsSteps":1,"physicsActiveBodies":0,"physicsWorkers":0,"phase":5,"age":3.812000000000001,"owner":{"id":4,"disposed":true,"objectIds":[],"panelIds":[],"inputCallback":false},"jointCount":0}
+completed frames=1682
+[surface] grouped_buffer_bytes=0 peak=60817408 limit=536870912
+

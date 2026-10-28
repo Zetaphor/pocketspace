@@ -19,7 +19,7 @@ these guides; implementation history belongs in Git.
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
-| `src/scene_persistence.h`, `src/scene_physics_snapshot.h` | Versioned model/physics snapshots, staged restore, named bounded JSON files and atomic replacement. |
+| `src/scene_persistence.h`, `src/scene_physics_snapshot.h` | Versioned model/animation/physics snapshots, staged restore, named bounded JSON files and atomic replacement. |
 | `src/scene_lookup.h` | Object/panel ID lookup over sorted scene storage. |
 | `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |
 | `src/group_buffer_budget.h` | Admission and peak accounting for grouped surface buffers and retained generations. |
@@ -80,15 +80,16 @@ Disposal must reuse object/physics/interaction and deferred-panel cleanup, retai
 shared surfaces/assets, and preserve callback ownership on failed reloads. Hold
 a JS reference while dispatching a callback that may dispose its own owner.
 
-[Scene persistence](scene-persistence.md) v2 preserves model instances, interaction
-flags, physics bodies and joints
-with original construction frames; v1 static saves remain readable. Reject
-owned panels, animation poses and joints crossing ownership boundaries rather
+[Scene persistence](scene-persistence.md) v3 preserves model instances, independent
+animation playback/poses, interaction flags, physics bodies and joints with
+original construction frames; v1/v2 saves remain readable. Reject owned panels
+and joints crossing ownership boundaries rather
 than losing state silently. Validate detached JSON and stage assets/overlay
 reservations before committing; reserve fresh render groups so restores cannot
 merge with current surfaces or inherit split policies. `World::appendSnapshot`
 rolls back new bodies/joints, shape caches and joint IDs on native failure; use
-fresh object IDs and never attach to existing bodies. Keep named runtime saves
+fresh object IDs and never attach to existing bodies. Rebuild animated poses before committing scene mutations; validate saved clip
+index/name/duration against supported model clips. Keep named runtime saves
 outside Git. Script file writes survive a later failed reload.
 
 Physics uses single-threaded stepping for small scenes and a bounded worker pool
