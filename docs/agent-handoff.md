@@ -62,12 +62,16 @@ successful reload. Instance attributes/divisors must be disabled/reset before
 normal draws or panel work. Count the owned instance buffer in GPU estimates,
 while leaving driver streaming overhead outside the estimate.
 
-GPU model simplification remains test-only (`SF_MODEL_LOD_EXPERIMENT`); the
-production renderer keeps full geometry. `modelDrawVertexCount` returns the full
-count in production and an experimental active index count in LOD builds. Test
-LOD uploads retain original allocation capacities and CPU geometry; do not
-confuse the fixed-detail measurements with a distance-based API. See the
-[LOD investigation](../tests/results/lod.md) for the pending adoption requirements.
+Automatic LOD defaults on in `loadModel`; `{lod: false}` opts out. Preserve the
+full CPU and GPU mesh; `PrimitiveAsset::lod` owns up to two reduced index buffers.
+Only indexed opaque static primitives qualify. Count those buffers in GPU
+estimates and delete them with the asset. `Object::lodLevel` is selected once
+per frame after mutations and shared by eyes/surfaces/depth passes. Grabbed and
+nearby objects restore full detail; preserve projection and distance hysteresis.
+Instancing runs must match both asset and selected level. The separate
+`SF_MODEL_LOD_EXPERIMENT` fixed-detail harness remains test-only and disables
+production LOD generation when its environment override is present. See the
+[API contract](javascript-api.md#automatic-model-lod).
 
 Physics uses single-threaded stepping for small scenes and a bounded worker pool
 for larger active scenes; scripts can override with `setPhysicsWorkers`.

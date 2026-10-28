@@ -63,6 +63,7 @@ static PFNEGLDESTROYIMAGEKHRPROC destroyImage=nullptr;
 static PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC imageRenderbuffer=nullptr;
 static std::atomic<bool> running{true};
 enum class GrabButton { Trigger, Grip, Both };
+#include "model_lod.h"
 struct Object {
   int id,asset;float x,y,z,scale,yaw,pitch=0,roll=0;
   bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true,autoManipulate=false;
@@ -72,6 +73,7 @@ struct Object {
   animation::Playback animation;
   std::shared_ptr<ModelPose> animationPose;
   int renderGroup=0,renderTile=0;
+  int lodLevel=0;
 };
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
 struct Scene {std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
@@ -517,7 +519,7 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   int eyePixels=kDefaultEyePixels;
   if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
   if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
-  bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=true,explicitInstancing=false;
+  bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=true,explicitInstancing=false,lod=true,explicitLod=false;
   if(argc>2&&!JS_IsUndefined(argv[2])){
     if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"model options must be an object");
     JSValue option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;
@@ -528,17 +530,22 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
     explicitInstancing=!JS_IsUndefined(option);
     if(explicitInstancing&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"gpuInstancing must be a boolean");}
     if(explicitInstancing)gpuInstancing=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
+    option=JS_GetPropertyStr(ctx,argv[2],"lod");if(JS_IsException(option))return option;
+    explicitLod=!JS_IsUndefined(option);
+    if(explicitLod&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"lod must be a boolean");}
+    if(explicitLod)lod=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
   }
   for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name){
     if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
     if(explicitCache&&currentScene->assets[i].optimizeVertexCache!=optimizeVertexCache)return JS_ThrowRangeError(ctx,"model already loaded with different optimizeVertexCache options");
     if(explicitInstancing&&currentScene->assets[i].gpuInstancing!=gpuInstancing)return JS_ThrowRangeError(ctx,"model already loaded with different gpuInstancing options");
+    if(explicitLod&&currentScene->assets[i].lod!=lod)return JS_ThrowRangeError(ctx,"model already loaded with different lod options");
     return JS_NewInt32(ctx,(int)i+1);
   }
   ModelAsset asset;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
   asset.eyePixels=eyePixels;
-  asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;
+  asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;asset.lod=lod;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
@@ -2114,6 +2121,20 @@ int main(int argc,char **argv) {
         const auto eyeTransform=system->GetEyeToHeadTransform((vr::EVREye)i);
         for(int r=0;r<3;r++)eyes[i][r]=head.m[r][3]+head.m[r][0]*eyeTransform.m[0][3]+head.m[r][1]*eyeTransform.m[1][3]+head.m[r][2]*eyeTransform.m[2][3];
       }
+      static float focal=0;
+      if(focal==0||frame%90==0){uint32_t viewWidth=0,viewHeight=0;system->GetRecommendedRenderTargetSize(&viewWidth,&viewHeight);focal=0;
+        for(int eye=0;eye<2;eye++){float l,r,t,b;system->GetProjectionRaw(vr::EVREye(eye),&l,&r,&t,&b);focal=std::max(focal,std::max(float(viewWidth)/std::abs(r-l),float(viewHeight)/std::abs(b-t)));}
+      }
+      for(auto &object:script.scene.objects){
+        const auto &asset=script.scene.assets[size_t(object.asset)-1];
+        const bool available=asset.lod&&!object.animationPose&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[](const auto &p){return p.lod[0].indexBuffer||p.lod[1].indexBuffer;});
+        if(!available||grabs[0].objectId==object.id||grabs[1].objectId==object.id){object.lodLevel=0;continue;}
+        float center[3];for(int row=0;row<3;row++)center[row]=anchor.m[row][3]+anchor.m[row][0]*object.x+anchor.m[row][1]*object.y-anchor.m[row][2]*object.z;
+        float extent=0;for(int axis=0;axis<3;axis++){const float e=asset.high[axis]-asset.low[axis];extent+=e*e;}
+        const float radius=.5f*std::abs(object.scale)*std::sqrt(extent);float nearest=std::numeric_limits<float>::infinity(),pixels=0;
+        for(const auto &eye:eyes){float squared=0,depth=0;for(int axis=0;axis<3;axis++){const float d=center[axis]-eye[axis];squared+=d*d;depth-=d*head.m[axis][2];}nearest=std::min(nearest,std::sqrt(squared)-radius);pixels=std::max(pixels,modelLod::projectedDiameter(radius,focal,squared,depth));}
+        object.lodLevel=modelLod::select(pixels,nearest,object.lodLevel);
+      }
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
 #ifdef SF_GPU_SYNC_EXPERIMENT
@@ -2316,9 +2337,9 @@ int main(int argc,char **argv) {
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
-                gpuSync.draw(modelDrawVertexCount(part));
+                gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
 #endif
-                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
+                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);
               }
             };
             if(useInstancing){
@@ -2388,7 +2409,7 @@ int main(int argc,char **argv) {
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
         if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
+      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);for(const auto &lod:part.lod)if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;

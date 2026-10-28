@@ -68,6 +68,9 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-primitive-visibility.py](compare-primitive-visibility.py) | Matched object-only versus primitive occluder rejection, with skipped-work and preparation-cost counters. |
 | [compare-cluster-visibility.py](compare-cluster-visibility.py) | Compares original, full spatial-cluster, and culled spatial-cluster occluder draws with CPU/GPU and memory counters. |
 | [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
+| [lod-api-smoke.js](lod-api-smoke.js) | Default-on LOD, explicit opt-out, strict booleans, getter failures and cached-path conflicts. |
+| [auto-lod-regression.cpp](auto-lod-regression.cpp) | Production LOD selection/hysteresis, exact reduced-index reference pixels, mixed-level instancing and buffer cleanup. |
+| [compare-auto-lod.py](compare-auto-lod.py) | Production default-on versus opt-out FPS, with grouped storage matched plus accounted LOD buffers. |
 | [lod-pixels.cpp](lod-pixels.cpp), [lod-experiment.h](lod-experiment.h) | Test-only bounded-error GPU simplification, stereo image metrics, unchanged CPU meshes, fallback and cleanup. |
 | [compare-lod.py](compare-lod.py) | Matched original versus simplified-model FPS/GPU timing with identical allocation capacities. |
 | [multipart-instancing-pixels.cpp](multipart-instancing-pixels.cpp), [multipart-instancing-experiment.h](multipart-instancing-experiment.h) | Test-only combined multi-material geometry, exact stereo/order/material comparisons, singleton batching, and cleanup. |
@@ -143,6 +146,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [results/opaque-shaders.md](results/opaque-shaders.md) | Pixel validation and native timing of shader specialization; not adopted as the default. |
 | [results/primitive-visibility.md](results/primitive-visibility.md) | Primitive rejection correctness and throughput evidence; not adopted as the default. |
 | [results/cluster-visibility.md](results/cluster-visibility.md) | Spatial-cluster correctness, matched three-mode timing, and rejected adaptive measurements; not adopted. |
+| [results/auto-lod.md](results/auto-lod.md) | Default automatic LOD contract, production comparisons, API/rendering and reload validation. |
 | [results/lod.md](results/lod.md) | Bounded-error model detail reduction, image comparisons, native timing and adoption requirements. |
 | [results/multipart-instancing.md](results/multipart-instancing.md) | Exact multi-material batching validation and matched native results; not adopted. |
 | [results/instancing.md](results/instancing.md) | Ordered instancing correctness, matched performance, production measurements, and reload validation. |

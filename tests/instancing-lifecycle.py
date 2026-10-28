@@ -13,6 +13,7 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--lod', action='store_true', help='Exercise generated LOD buffer lifetime with ToyCar')
 args = parser.parse_args()
 for name in {'sf-overlay-engi', 'gpu-sync-experi', args.engine.name[:15]}:
     if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
@@ -23,6 +24,8 @@ def scene(phase):
 const asset=loadModel('assets/Avocado.glb',768,{gpuInstancing:true});
 for(let n=0;n<16;n++)createObject(asset,(n%4-1.5)*.16,(Math.floor(n/4)-1.5)*.16,0,.12,{renderGroup:1});
 """
+    if args.lod:
+        content = content.replace('assets/Avocado.glb', 'assets/samples/ToyCar/ToyCar.glb')
     return content + f"""
 const phase={phase},started=Date.now();let next=0;
 function update(){{if(Date.now()>=next){{next=Date.now()+1000;print('INSTANCE_LIFECYCLE '+JSON.stringify({{...getEngineStats(),phase,seconds:(Date.now()-started)/1000}}));}}}}

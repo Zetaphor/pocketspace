@@ -24,7 +24,7 @@ for round_index in range(args.rounds):
         pair = []
         for enabled in ((False, True) if (round_index + case_index) % 2 == 0 else (True, False)):
             directory = args.output / f'r{round_index}-{case}-cache-{int(enabled)}'
-            command = [sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()), '--output', str(directory), '--seconds', str(args.seconds), '--case', case]
+            command = [sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()), '--output', str(directory), '--seconds', str(args.seconds), '--case', case, '--no-lod']
             if enabled:
                 command.append('--vertex-cache')
             subprocess.run(command, check=True)

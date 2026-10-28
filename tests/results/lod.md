@@ -1,9 +1,10 @@
 # Bounded-error model detail investigation
 
 Fixed-detail GPU simplification improves both native moving-model workloads.
-It remains a test-only experiment pending headset visual acceptance and a
-production API/selection design. Production continues rendering full geometry;
-this work changes no public API or quality default.
+These fixed-detail measurements informed the production
+[automatic LOD implementation](../../docs/javascript-api.md#automatic-model-lod).
+The fixed-detail environment override remains test-only; these results do not
+measure automatic distance/size selection.
 
 ## Geometry and visual validation
 
@@ -78,13 +79,13 @@ The same reduced draw counts feed the profiling counters.
 
 ## Remaining implementation requirements
 
-A production feature needs an explicit script policy, retained full-detail
-geometry for nearby inspection, bounded screen-space selection with hysteresis,
-and one coherent detail choice per object/frame across eyes and all surfaces.
+The production implementation now provides a script opt-out, retained full-detail
+geometry, size/distance selection with hysteresis, and a coherent detail choice
+per object/frame across eyes and all surfaces.
 Headset validation must cover close inspection, motion, level transitions,
 mask/occlusion edges, grabbing and physics. This fixed-detail experiment tests
-neither automatic selection nor transition quality. Do not enable a lossy
-quality default on this evidence alone.
+neither automatic selection nor transition quality. The user subsequently requested automatic LOD as the default; headset
+transition quality remains a separate validation item.
 
 ## Artifacts and reproduction
 

@@ -94,7 +94,7 @@ struct Renderer {
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
-          drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);if(special)glUseProgram(program);
+          drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);if(special)glUseProgram(program);
         }
       };
       if(instanceExperiment.mode!=ModelInstancing::Off){

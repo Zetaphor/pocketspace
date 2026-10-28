@@ -1,0 +1,30 @@
+[
+  {
+    "phase": 0,
+    "objects": 16,
+    "samples": 6,
+    "gpuBytesMin": 83341344,
+    "gpuBytesMax": 83341344
+  },
+  {
+    "phase": 1,
+    "objects": 0,
+    "samples": 6,
+    "gpuBytesMin": 0,
+    "gpuBytesMax": 0
+  },
+  {
+    "phase": 2,
+    "objects": 16,
+    "samples": 6,
+    "gpuBytesMin": 83341344,
+    "gpuBytesMax": 83341344
+  },
+  {
+    "phase": 3,
+    "objects": 0,
+    "samples": 6,
+    "gpuBytesMin": 0,
+    "gpuBytesMax": 0
+  }
+]

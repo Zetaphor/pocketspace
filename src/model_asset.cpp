@@ -206,6 +206,26 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   std::fflush(stdout);
   return true;
 }
+static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::Indexed &indexed){
+  if(!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300)return;
+#ifdef SF_MODEL_LOD_EXPERIMENT
+  if(std::getenv("SF_GPU_MODEL_LOD"))return;
+#endif
+  const float weights[2]={.1f,.1f};const size_t vertices=indexed.vertices.size()/5;
+  for(int level=0;level<2;level++){
+    std::vector<uint32_t> reduced(indexed.indices.size());float error=0;const size_t target=indexed.indices.size()/(level==0?2:4)/3*3;
+    const size_t count=meshopt_simplifyWithAttributes(reduced.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),vertices,5*sizeof(float),indexed.vertices.data()+3,5*sizeof(float),weights,2,nullptr,target,.001f,meshopt_SimplifyLockBorder,&error);
+    if(!count||count%3||count>indexed.indices.size()*4/5||!std::isfinite(error)||error>.001001f)continue;
+    if(level==1&&count==size_t(part.lod[0].count))continue;
+    reduced.resize(count);meshopt_optimizeVertexCache(reduced.data(),reduced.data(),count,vertices);
+    auto &lod=part.lod[level];glGenBuffers(1,&lod.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,lod.indexBuffer);
+    const size_t bytes=count*(part.indexType==GL_UNSIGNED_SHORT?2:4);
+    if(part.indexType==GL_UNSIGNED_SHORT){std::vector<uint16_t> packed(reduced.begin(),reduced.end());glBufferData(GL_ELEMENT_ARRAY_BUFFER,bytes,packed.data(),GL_STATIC_DRAW);}else glBufferData(GL_ELEMENT_ARRAY_BUFFER,bytes,reduced.data(),GL_STATIC_DRAW);
+    GLint allocated=0;glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER,GL_BUFFER_SIZE,&allocated);
+    if(size_t(allocated)!=bytes){glDeleteBuffers(1,&lod.indexBuffer);lod={};continue;}
+    lod.count=GLsizei(count);lod.error=error;
+  }
+}
 void uploadModel(ModelAsset &asset){
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
@@ -233,6 +253,7 @@ void uploadModel(ModelAsset &asset){
       glGenBuffers(1,&part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);
       if(part.indexType==GL_UNSIGNED_SHORT){std::vector<uint16_t> indices(indexed.indices.begin(),indexed.indices.end());glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(uint16_t),indices.data(),GL_STATIC_DRAW);}
       else glBufferData(GL_ELEMENT_ARRAY_BUFFER,indexed.indices.size()*sizeof(uint32_t),indexed.indices.data(),GL_STATIC_DRAW);
+      uploadLod(asset,part,indexed);
     }else{
       glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);part.gpuVertexCount=part.vertexCount;
     }
@@ -245,6 +266,8 @@ void uploadModel(ModelAsset &asset){
     glGenerateMipmap(GL_TEXTURE_2D);
     part.rgba.clear();
   }
+  uint64_t lodBytes=0;for(const auto &part:asset.primitives)for(const auto &lod:part.lod)if(lod.indexBuffer)lodBytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);
+  if(lodBytes){std::printf("[model] lod path=%s index_bytes=%llu\n",asset.path.c_str(),(unsigned long long)lodBytes);std::fflush(stdout);}
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
@@ -252,15 +275,16 @@ void deleteModel(ModelAsset &asset){
 #ifdef SF_MODEL_LOD_EXPERIMENT
     lodExperiment::results.erase(&part);
 #endif
+    for(auto &lod:part.lod){if(lod.indexBuffer)glDeleteBuffers(1,&lod.indexBuffer);lod={};}
     if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
   asset.uploaded=false;
 }
 
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo){
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel){
   glBindBuffer(GL_ARRAY_BUFFER,expandedVbo?expandedVbo:part.vbo);
   glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-  if(!expandedVbo&&part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);glDrawElements(GL_TRIANGLES,modelDrawVertexCount(part),part.indexType,nullptr);}
+  if(!expandedVbo&&part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,modelIndexBuffer(part,lodLevel));glDrawElements(GL_TRIANGLES,modelDrawVertexCount(part,lodLevel),part.indexType,nullptr);}
   else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
 }
 

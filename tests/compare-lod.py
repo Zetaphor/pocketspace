@@ -33,7 +33,7 @@ for round_index in range(args.rounds):
                 env.pop(name, None)
             subprocess.run([sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                             '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
-                            '--vertex-cache'], env=env, check=True)
+                            '--vertex-cache', '--no-lod'], env=env, check=True)
             result = json.loads((directory / 'summary.json').read_text())[0]
             log = (directory / f'{case}.log').read_text()
             samples = [json.loads(line.split('GPU_SYNC_SAMPLE ', 1)[1]) for line in log.splitlines() if line.startswith('GPU_SYNC_SAMPLE ')]

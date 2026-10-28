@@ -34,7 +34,7 @@ for round_index in range(args.rounds):
                 env['SF_GPU_MULTIPART_INSTANCING'] = '1'
             subprocess.run([sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                             '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
-                            '--vertex-cache', '--instancing'], env=env, check=True)
+                            '--vertex-cache', '--instancing', '--no-lod'], env=env, check=True)
             result = json.loads((directory / 'summary.json').read_text())[0]
             log = (directory / f'{case}.log').read_text()
             samples = [json.loads(line.split('GPU_SYNC_SAMPLE ', 1)[1]) for line in log.splitlines() if line.startswith('GPU_SYNC_SAMPLE ')]

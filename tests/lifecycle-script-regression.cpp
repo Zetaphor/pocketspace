@@ -37,5 +37,7 @@ int main(){
   }
   assert(loadScript(host,"tests/instancing-api-smoke.js"));
   assert(host.scene.assets.size()==2&&host.scene.assets[0].gpuInstancing&&!host.scene.assets[1].gpuInstancing);
-  puts("PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing option validation and cache inheritance");
+  assert(loadScript(host,"tests/lod-api-smoke.js"));
+  assert(host.scene.assets.size()==2&&host.scene.assets[0].lod&&!host.scene.assets[1].lod);
+  puts("PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing/LOD option validation and cache inheritance");
 }
