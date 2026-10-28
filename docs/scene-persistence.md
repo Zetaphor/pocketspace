@@ -1,20 +1,25 @@
 # Scene save and restore
 
-Scene containers can capture model instances, animation playback, physics bodies
-and joints into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
+Scene containers can capture model instances, panels, animation playback, physics
+bodies and joints into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
 and load it in a later run. Positions use the current scene anchor: a save does
 not preserve an absolute room location across launches or recentering.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v3
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v4
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
-  `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap}`. `objectIds` follows snapshot
+  `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
+  panelIds, panelMap, panels}`. `objectIds` follows snapshot
   order. `objectMap` maps source object IDs to fresh IDs, and `renderGroups` maps
   positive source groups to available positive groups. `jointIds` follows snapshot
   joint order; `jointMap` maps source joint IDs to fresh IDs. Keys are strings, as in
-  ordinary JSON objects. Group `0` stays independent and has no map entry.
+  ordinary JSON objects. `panelIds` and `panels` follow saved panel order;
+  `panelMap` maps source panel IDs to fresh IDs. `panels` contains normal
+  `{id, canvas, present}` handles ready for editing and input matching. Object
+  and panel IDs occupy separate namespaces. Group `0` stays independent and
+  has no map entry.
 - `saveSceneContainer(containerId, name)` captures and atomically replaces the
   named JSON file, returning its path. The previous file survives a failed write.
 - `loadSceneContainer(name)` reads a named JSON file and returns the same result
@@ -56,12 +61,11 @@ semantics; asset files are referenced, not embedded. Keep them available when
 loading on another device. Exact cached paths reuse the shared asset only when
 all saved loading options match. Cached assets remain scene-owned after disposal.
 
-An owned panel causes capture and save to throw, preventing an incomplete save
-from silently losing its UI. Animated model instances are supported. An empty
-container is supported.
+Owned panels preserve their retained RGBA canvas and layout. Animated model
+instances and empty containers are supported.
 
-Callbacks, functions, script variables, panel UI, hover/grab state, and tracking
-state are not serialized. Scripts recreate
+Callbacks, functions, script variables, widget/business state, hover/grab state,
+and tracking state are not serialized. Scripts recreate
 their own behavior after loading. Scene-wide render-group auto-split policies are
 not saved; reapply them using `renderGroups` if needed. Runtime tiles and chosen
 LOD levels are recomputed. Fresh groups avoid accidentally merging a restored
@@ -78,11 +82,12 @@ script reload, like calibration writes.
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`.
-New captures use `version: 3`. Existing v1 static-instance and v2 physics
-documents remain readable. V1 has no physics fields or joints; a v1 document
+New captures use `version: 4`. Existing v1 static-instance, v2 physics and v3
+animation documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. Older saves restore
-models with stopped playback.
+models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
+requires v4.
 
 `models` is an array of at most 32 entries with required fields:
 
@@ -113,7 +118,7 @@ models with stopped playback.
 and the automatic manipulation helper. These are snapshot fields, not additional
 `setObjectInteraction` options. Prefer editing snapshots obtained through capture.
 Required fields are validated without coercion. Unknown fields are ignored;
-unknown format versions are rejected. JSON documents are limited to 1 MiB.
+unknown format versions are rejected. JSON documents are limited to 16 MiB, including encoded panel pixels.
 
 See [scene containers](scene-containers.md), [JavaScript API](javascript-api.md),
 and the runnable [save/restore example](../scripts/scene-save.js).
@@ -215,3 +220,67 @@ independently. This does not add morph animation, blending, or deforming physics
 The [animation save example](../scripts/animation-save.js) uses independent
 skeletal and rigid-node playback. Bumper saves, A/X restores, and B/Y toggles
 playing/paused state; interaction remains available after restoring.
+
+## Panels and UI pixels (v4)
+
+V4 requires a `panels` array, including when it is empty. Snapshots contain at
+most 32 panels and at most 64 MiB of decoded RGBA panel pixels in total. Pixel
+and physical dimensions retain their normal creation limits. The overall 16 MiB
+JSON limit also applies: highly detailed large images can exceed the file limit
+and make capture/save throw. A failed save leaves the previous file intact.
+
+Each panel entry contains:
+
+| Field | Value |
+| --- | --- |
+| `id` | Unique positive source panel ID less than `2147483647` |
+| `widthPixels`, `heightPixels` | Integer pixel dimensions from 1 to 4096 |
+| `widthMeters` | Finite physical width greater than 0 and at most 10 |
+| `heightMeters` | Finite positive physical height matching the pixel aspect ratio within float precision |
+| `position` | Finite float-range `{x,y,z}` |
+| `mode` | `world`, `viewerFacing`, `headLocked`, or `arbitrary` |
+| `rotation` | Nine finite float-range numbers, row-major 3×3 |
+| `visible`, `interactive` | Booleans |
+| `fontPath` | Stored font path string, possibly empty |
+| `fontPixels` | Integer legacy text size from 1 to 4096 |
+| `pixels` | `{encoding, data}` as described below |
+
+The pixels represent the latest retained canvas, including pending edits, with
+all RGBA bytes preserved. Text, shapes, images and transparent pixels do not
+need to be redrawn to restore their appearance. Image/font source files are not
+needed to display the saved pixels. Future text draws use the saved font path
+and therefore still need that font installed or a new `panelLoadFont` choice.
+Callbacks and application variables remain script-owned; reconnect them using
+the returned handles or `panelMap`. For example:
+
+```js
+const loaded = loadSceneContainer('tool');
+const button = loaded.panels[0];
+onInputEvent(event => {
+  if (event.type === 'panel.pointerDown' && event.objectId === button.id) {
+    button.canvas.rect(0, 0, 100, 40, 0, 120, 200, 255, true);
+    button.present();
+  }
+});
+```
+
+`pixels.encoding` is `rgba8-base64` (row-major raw RGBA bytes) or
+`rgba8-rle-base64` (pixel runs). RLE packets are eight bytes: an unsigned 32-bit
+little-endian positive pixel count followed by four RGBA bytes. Counts must
+expand to exactly `widthPixels * heightPixels` pixels. Base64 uses the standard
+alphabet and canonical padding. Capture chooses RLE only when smaller than raw
+pixels; decoding rejects malformed encodings, lengths and oversized runs before
+committing. The decoded budget applies independently of compression.
+
+Restored panels get independent pixel storage, fresh native overlays and new
+textures on the normal next upload. Visibility, pointer input scaling, placement
+mode, physical size and arbitrary rotation retain their existing panel behavior.
+Live overlay reservation failures roll back the restore, including already
+reserved object and panel overlays. Original panels, callbacks and ID counters
+remain intact. Normal deferred removal still detaches a panel before freeing
+its texture. Texture upload and compositor submission follow the usual frame
+loop, as they do for newly created panels.
+
+The [panel save example](../scripts/panel-save.js) uses bumper to save, B/Y to
+change the pixels and placement, and A/X to restore. Clicking the restored panel
+shows that its new handle still supports pointer callbacks and canvas edits.

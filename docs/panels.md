@@ -64,3 +64,14 @@ Compatibility globals remain available:
 `panelText(panel, x, y, text, r, g, b, a, pixels)`, and
 `panelPresent(panel)`. `panelCanvasClear` and `panelCanvasText` are aliases of
 `panelClear` and `panelText`.
+
+## Saving and restoring panels
+
+Scene snapshots preserve owned panels, including their lossless retained pixels,
+size, placement, rotation, visibility, input configuration and font settings.
+`loadSceneContainer` / `restoreSceneContainer` return `panels` with normal canvas
+handles, plus `panelIds` and `panelMap` for reconnecting script callbacks. See the
+[complete v4 persistence contract](scene-persistence.md#panels-and-ui-pixels-v4)
+for pixel encodings, file/decoded-memory limits and legacy save compatibility.
+The [panel save example](../scripts/panel-save.js) demonstrates editing and
+clicking a restored panel.

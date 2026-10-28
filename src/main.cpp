@@ -84,6 +84,8 @@ static Scene *currentScene=nullptr,*liveScene=nullptr;
 // Installed only by the VR host; candidate scripts never reserve live resources.
 static std::function<std::string(int)> reserveObjectOverlay;
 static std::function<void(int)> releaseObjectOverlay;
+static std::function<std::string(const Panel&)> reservePanelOverlay;
+static std::function<void(int)> releasePanelOverlay;
 static diagnostics::Sampler engineStats;
 struct ControllerSnapshot {bool valid=false,connected=false;float x=0,y=0,z=0;float rotation[9]{};};
 static ControllerSnapshot controllers[2];
@@ -384,7 +386,8 @@ static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *a
 }
 static JSValue jsPanelClear(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelText(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelPresent(JSContext *,JSValueConst,int,JSValueConst*);
 static Panel *findPanel(int id){return currentScene?findSceneItem(currentScene->panels,id):nullptr;}
-static JSValue panelObject(JSContext *ctx,int id){JSValue object=JS_NewObject(ctx);JS_SetPropertyStr(ctx,object,"id",JS_NewInt32(ctx,id));return object;}
+static void panelHandleProperty(JSContext *ctx,JSValueConst object,const char *key,JSValue value){JS_DefinePropertyValueStr(ctx,object,key,value,JS_PROP_C_W_E);}
+static JSValue panelObject(JSContext *ctx,int id){JSValue object=JS_NewObject(ctx);panelHandleProperty(ctx,object,"id",JS_NewInt32(ctx,id));return object;}
 static JSValue jsPanelMethodClear(JSContext *ctx,JSValueConst thisVal,int argc,JSValueConst *argv){int32_t id=0;JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JS_ToInt32(ctx,&id,idv);JS_FreeValue(ctx,idv);JSValue args[5]={JS_NewInt32(ctx,id),argc>0?argv[0]:JS_NewInt32(ctx,0),argc>1?argv[1]:JS_NewInt32(ctx,0),argc>2?argv[2]:JS_NewInt32(ctx,0),argc>3?argv[3]:JS_NewInt32(ctx,255)};auto result=jsPanelClear(ctx,JS_UNDEFINED,5,args);for(int i=0;i<5;i++)if(i==0||i>argc)JS_FreeValue(ctx,args[i]);return result;}
 static JSValue jsPanelMethodText(JSContext *ctx,JSValueConst thisVal,int argc,JSValueConst *argv){int32_t id=0;JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JS_ToInt32(ctx,&id,idv);JS_FreeValue(ctx,idv);if(argc<3)return JS_ThrowTypeError(ctx,"panel.canvas.text(x,y,text,...)");JSValue args[9]={JS_NewInt32(ctx,id),argv[0],argv[1],argv[2],argc>3?argv[3]:JS_NewInt32(ctx,255),argc>4?argv[4]:JS_NewInt32(ctx,255),argc>5?argv[5]:JS_NewInt32(ctx,255),argc>6?argv[6]:JS_NewInt32(ctx,255),argc>7?argv[7]:JS_NewInt32(ctx,32)};auto result=jsPanelText(ctx,JS_UNDEFINED,9,args);for(int i=4;i<9;i++)if(i>argc)JS_FreeValue(ctx,args[i]);JS_FreeValue(ctx,args[0]);return result;}
 static int colorPart(JSContext *,JSValueConst,int);
@@ -395,6 +398,8 @@ static JSValue jsPanelMethodImage(JSContext *ctx,JSValueConst thisVal,int argc,J
 static JSValue jsPanelMethodPresent(JSContext *ctx,JSValueConst thisVal,int,JSValueConst*){JSValue idv=JS_GetPropertyStr(ctx,thisVal,"id");JSValue args[1]={idv};auto result=jsPanelPresent(ctx,JS_UNDEFINED,1,args);JS_FreeValue(ctx,idv);return result;}
 static int panelArgumentId(JSContext *ctx,JSValueConst value){int id=0;if(JS_IsObject(value)){JSValue field=JS_GetPropertyStr(ctx,value,"id");JS_ToInt32(ctx,&id,field);JS_FreeValue(ctx,field);}else JS_ToInt32(ctx,&id,value);return id;}
 static int colorPart(JSContext *ctx,JSValueConst value,int fallback){if(JS_IsNumber(value)){int n=0;JS_ToInt32(ctx,&n,value);return std::clamp(n,0,255);}return fallback;}
+static JSValue panelHandle(JSContext *ctx,int id){
+  JSValue object=panelObject(ctx,id);JSValue canvas=JS_NewObject(ctx);panelHandleProperty(ctx,canvas,"id",JS_NewInt32(ctx,id));panelHandleProperty(ctx,canvas,"clear",JS_NewCFunction(ctx,jsPanelMethodClear,"clear",5));panelHandleProperty(ctx,canvas,"text",JS_NewCFunction(ctx,jsPanelMethodText,"text",8));panelHandleProperty(ctx,canvas,"rect",JS_NewCFunction(ctx,jsPanelMethodRect,"rect",9));panelHandleProperty(ctx,canvas,"line",JS_NewCFunction(ctx,jsPanelMethodLine,"line",8));panelHandleProperty(ctx,canvas,"circle",JS_NewCFunction(ctx,jsPanelMethodCircle,"circle",8));panelHandleProperty(ctx,canvas,"image",JS_NewCFunction(ctx,jsPanelMethodImage,"image",3));panelHandleProperty(ctx,canvas,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));panelHandleProperty(ctx,object,"canvas",canvas);panelHandleProperty(ctx,object,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));return object;}
 static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<1||!JS_IsObject(argv[0])||JS_IsNull(argv[0]))return JS_ThrowTypeError(ctx,"createPanel(options) requires an object");
   int owner=0,w=1024,h=512;double wm=1.2;if(!containerOption(ctx,argv[0],owner))return JS_EXCEPTION;
@@ -407,7 +412,7 @@ static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *
   if(!panelInit(panel,currentScene->nextPanelId++,w,h,(float)wm,(float)(wm*h/w),""))return JS_ThrowInternalError(ctx,"panel initialization failed");
   panel.container=owner;panel.interactive=enabled;
   currentScene->panels.push_back(std::move(panel));int id=currentScene->panels.back().id;
-  JSValue object=panelObject(ctx,id);JSValue canvas=JS_NewObject(ctx);JS_SetPropertyStr(ctx,canvas,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,canvas,"clear",JS_NewCFunction(ctx,jsPanelMethodClear,"clear",5));JS_SetPropertyStr(ctx,canvas,"text",JS_NewCFunction(ctx,jsPanelMethodText,"text",8));JS_SetPropertyStr(ctx,canvas,"rect",JS_NewCFunction(ctx,jsPanelMethodRect,"rect",9));JS_SetPropertyStr(ctx,canvas,"line",JS_NewCFunction(ctx,jsPanelMethodLine,"line",8));JS_SetPropertyStr(ctx,canvas,"circle",JS_NewCFunction(ctx,jsPanelMethodCircle,"circle",8));JS_SetPropertyStr(ctx,canvas,"image",JS_NewCFunction(ctx,jsPanelMethodImage,"image",3));JS_SetPropertyStr(ctx,canvas,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));JS_SetPropertyStr(ctx,object,"canvas",canvas);JS_SetPropertyStr(ctx,object,"present",JS_NewCFunction(ctx,jsPanelMethodPresent,"present",0));return object;}
+  return panelHandle(ctx,id);}
 static JSValue jsPanelClear(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<1)return JS_ThrowTypeError(ctx,"panel.clear(id,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");int r=argc>1?colorPart(ctx,argv[1],0):0,g=argc>2?colorPart(ctx,argv[2],0):0,b=argc>3?colorPart(ctx,argv[3],0):0,a=argc>4?colorPart(ctx,argv[4],255):255;panelClear(*p,r,g,b,a);return JS_UNDEFINED;}
 static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelLoadFont(panel,path,pixels)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;if(argc>2)JS_ToInt32(ctx,&p->fontPixels,argv[2]);JS_FreeCString(ctx,path);return JS_UNDEFINED;}
 static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED),x=0,y=0;if(argc<4||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=panelText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],p->fontPixels):p->fontPixels);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
@@ -1964,6 +1969,19 @@ int main(int argc,char **argv) {
   ScopeExit objectOverlayHooksCleanup{[]{reserveObjectOverlay={};releaseObjectOverlay={};}};
 
   int panelHovered[2]={0,0};float panelCursorX[2]={0,0},panelCursorY[2]={0,0};
+  reservePanelOverlay=[&](const Panel &panel)->std::string{
+    if(panelOverlays.count(panel.id))return {};
+    vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
+    std::string key="sf_overlay_engine.panel."+std::to_string(panel.id);
+    const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&handle);if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
+    overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);
+    vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&bounds);
+    if(panel.interactive){overlays->SetOverlayInputMethod(handle,vr::VROverlayInputMethod_Mouse);overlays->SetOverlayFlag(handle,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);vr::HmdVector2_t scale{{(float)panel.width,(float)panel.height}};overlays->SetOverlayMouseScale(handle,&scale);}
+    panelOverlays.emplace(panel.id,handle);
+    return {};
+  };
+  releasePanelOverlay=[&](int id){auto it=panelOverlays.find(id);if(it==panelOverlays.end())return;overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);panelOverlays.erase(it);panelSubmissions.erase(id);};
+  ScopeExit panelOverlayHooksCleanup{[]{reservePanelOverlay={};releasePanelOverlay={};}};
   auto syncPanels=[&](){
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
       const int id=it->first;
@@ -1980,13 +1998,7 @@ int main(int argc,char **argv) {
       if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){frameInput.addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
-      vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
-      std::string key="sf_overlay_engine.panel."+std::to_string(panel.id);
-      if(overlays->CreateOverlay(key.c_str(),key.c_str(),&handle)!=vr::VROverlayError_None)continue;
-      overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);
-      vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&bounds);
-      if(panel.interactive){overlays->SetOverlayInputMethod(handle,vr::VROverlayInputMethod_Mouse);overlays->SetOverlayFlag(handle,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);vr::HmdVector2_t scale{{(float)panel.width,(float)panel.height}};overlays->SetOverlayMouseScale(handle,&scale);}
-      panelOverlays.emplace(panel.id,handle);
+      reservePanelOverlay(panel);
     }
   };
   syncPanels();

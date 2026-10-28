@@ -18,7 +18,7 @@ setPhysicsJoint(spring,{maxDistance:.35,spring:{frequency:3,damping:.7}});
 setObjectRotation(b,0,0,.65);setObjectPosition(b,-.5+.25*Math.cos(.65),.25*Math.sin(.65),0);
 setObjectVelocity(b,.12,.23,.34);setObjectAngularVelocity(b,.3,.2,.1);
 const sourceAngle=getPhysicsJoint(hinge).angle;check(Math.abs(sourceAngle)>.5,'hinge must be away from zero');
-const snap=captureSceneContainer(owner);check(snap.version===3&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
+const snap=captureSceneContainer(owner);check(snap.version===4&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
 saveSceneContainer(owner,'physics');
 const copy=loadSceneContainer('physics');check(copy.jointIds.length===3&&copy.objectIds.length===6);
 const restored=captureSceneContainer(copy.containerId);
