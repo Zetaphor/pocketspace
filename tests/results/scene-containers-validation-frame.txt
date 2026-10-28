@@ -1,0 +1,9 @@
+PASS scene containers: objects/panels/physics/joints, ownership transfer, callback self-disposal, reentrant options, rollback, shared surfaces, interaction cleanup and repeated disposal/reload
+PASS script lifecycle: failed candidate isolation, live pointer/queue/callback rollback, commit hook, deferred panels, repeated context teardown, instancing/LOD option validation and cache inheritance
+PASS 24 final examples
+PASS no demo remains running
+641dd1a5d9f14aecee0cdfad7f682ba011c89413335fa11b61822c42c4ad55f3  src/main.cpp
+2cf14436e71273eab1c79628cbd030f943d319eff705175588a9a48cce7f5c68  src/panel.h
+fbd3aa8251c856c3458a60b7ad941480e87b683df89692a76520c41ea7b0af06  tests/scene-container-regression.cpp
+c5f911237f3982c13fb0913d6ac0acd4b493480dd4931b4e64817371b80a27d3  tests/scene-container-api-smoke.js
+4b3dc58bf055b916fa1adb9e3d20e9199e3ca5e4265ae8956971095c6d518fb2  build/sf-overlay-engine
