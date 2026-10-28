@@ -1,0 +1,13 @@
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS multipart ownership: coplanar material order oracle, singleton/repeated batches, mixed blended fallback
+PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release
+PASS production excludes multi-part experiment flag
+PASS no demo remains running
+f942137662028f87123d87290ee7e7d2fa81ac350ca5e473e31e431dad0f9cf3  src/main.cpp
+cb3c2f1b0858b778c4b3ac4d645fd2c0a44ab703e89beeb6b03e419b6cbc709e  src/model_instancing.h
+baa136865d926630a07e6ee1cf07d9ba1c12926317be94abe767bd660e3204b3  tests/multipart-instancing-experiment.h
+01500540e380ff87634d89535f694dc9cc9b5d7894e71c2c4a88c2bc155757f7  tests/instancing-pixels.cpp
+3beb3b7fae4ef5aa6432aa6fdb8886ae0d00c1e60afb3a1b656c9113d9a0f818  build/gpu-sync-experiment
+5b6d2784c434721d2c056b946741b1117721d805fd7e5c06bdd7e6d8dded9870  build/sf-overlay-engine

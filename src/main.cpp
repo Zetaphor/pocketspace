@@ -1914,6 +1914,7 @@ int main(int argc,char **argv) {
   ModelInstancing instanceExperiment(ModelInstancing::Instanced);
 #ifdef SF_GPU_SYNC_EXPERIMENT
   GpuSyncExperiment gpuSync;
+  if(std::getenv("SF_GPU_MULTIPART_INSTANCING"))instanceExperiment.enableMultipartExperiment();
   const char *instanceMode=std::getenv("SF_GPU_INSTANCING");
   if(instanceMode){instanceExperiment.mode=std::strcmp(instanceMode,"1")==0?ModelInstancing::Instanced:ModelInstancing::Original;instanceExperiment.prewarm();}
   const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
