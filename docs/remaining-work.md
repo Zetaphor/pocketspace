@@ -31,8 +31,7 @@ This roadmap contains future work, without prescribing an implementation order.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. Compare geometry
-  finer spatial geometry clusters, repeated occluder draws, batching/instancing
-  and model LOD before
+  repeated occluder draws, batching/instancing and model LOD before
   choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
@@ -48,6 +47,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 These are deferred investigations, not unimplemented fixes ready to enable.
 
+- Revisit spatial occluder clusters only if a workload offers substantially more
+  selective rejection or cheaper bounds processing. The
+  [completed 4,096-triangle cluster comparison](../tests/results/cluster-visibility.md)
+  preserved geometry and pixels, but did not improve net throughput consistently.
 - Revisit material-primitive occluder rejection only for workloads with more
   spatially separated parts. The [completed comparison](../tests/results/primitive-visibility.md)
   preserved pixels and skipped triangles, but did not show a consistent

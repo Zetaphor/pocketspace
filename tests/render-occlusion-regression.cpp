@@ -7,6 +7,7 @@
 #include "../src/mesh_index.h"
 #include "opaque-shader-experiment.h"
 #include "primitive-visibility-experiment.h"
+#include "cluster-visibility-experiment.h"
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
@@ -19,6 +20,7 @@ struct Renderer {
   bool specialize=false;
   bool primitiveVisibility=false;
   PrimitiveVisibilityExperiment primitiveBounds;
+  ClusterVisibilityExperiment clusterBounds;
   std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
   Renderer(bool specialization=false):specialize(specialization){
     if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
@@ -62,6 +64,7 @@ struct Renderer {
     }
     ScissorRegion region{};if(cull)region=projectedScissor(combined,planeCenter,eyePosition,r,u,f,1.2f*gridScale,pixels);
     if(primitiveVisibility){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);primitiveBounds.update(scene,anchor,head,eyes);}
+    if(clusterBounds.mode!=ClusterVisibilityExperiment::Off){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);clusterBounds.update(scene,anchor,head,eyes);}
     auto draw=[&](int key,int pass){
       for(const auto &object:scene.objects){
         if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))continue;
@@ -75,6 +78,7 @@ struct Renderer {
           if(primitiveVisibility&&pass<0&&!primitiveBounds.mayDraw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels))continue;
           glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
+          if(pass<0&&clusterBounds.draw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels,[](unsigned){}))continue;
           const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
           if(special){
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);

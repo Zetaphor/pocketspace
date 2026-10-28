@@ -65,6 +65,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-overlays.py](compare-overlays.py) | Single versus grouped rendering with matched box/model layouts and telemetry. |
 | [compare-opaque-shaders.py](compare-opaque-shaders.py) | Matched general versus specialized opaque/depth shader timing on moving models. |
 | [compare-primitive-visibility.py](compare-primitive-visibility.py) | Matched object-only versus primitive occluder rejection, with skipped-work and preparation-cost counters. |
+| [compare-cluster-visibility.py](compare-cluster-visibility.py) | Compares original, full spatial-cluster, and culled spatial-cluster occluder draws with CPU/GPU and memory counters. |
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
 | [compare-vertex-cache.py](compare-vertex-cache.py) | Alternating mesh cache optimization off/on with matched instrumentation and allocation checks. |
 | [fast-motion.py](fast-motion.py) | Bounded continuously moving box/model workloads with throughput and error checks. |
@@ -79,6 +80,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [opaque-shader-experiment.h](opaque-shader-experiment.h) | Test-only specialized shader programs and uniform setup; excluded from production builds. |
 | [primitive-visibility-pixels.cpp](primitive-visibility-pixels.cpp) | Exact occlusion pixels, actual rejection, near-plane/invalid-data fallback, and deforming-asset fallback checks. |
 | [primitive-visibility-experiment.h](primitive-visibility-experiment.h) | Test-only static primitive bounds cache and conservative nonmember occluder rejection. |
+| [cluster-visibility-pixels.cpp](cluster-visibility-pixels.cpp) | Exact full/culled cluster pixels, within-primitive rejection, near-plane views, material modes, and deforming fallback. |
+| [cluster-visibility-experiment.h](cluster-visibility-experiment.h) | Test-only spatial triangle partitioning, verified occluder index buffers, conservative bounds, and merged draw ranges. |
 | [gpu-sync-experiment.h](gpu-sync-experiment.h) | Test-only GPU timing and completion-wait instrumentation used by the excluded gpu-sync-experiment target. |
 | [shared-depth-prototype.cpp](shared-depth-prototype.cpp) | Offscreen feasibility and timing experiment for sharing a scene depth prepass; not an adopted renderer. |
 | [memory-sampler.c](memory-sampler.c) | Test-only glibc heap and process RSS sampler preloaded into a native run. |
@@ -132,6 +135,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [results/overlay-comparison.md](results/overlay-comparison.md) | Single/grouped rendering measurements and resolution caveats. |
 | [results/opaque-shaders.md](results/opaque-shaders.md) | Pixel validation and native timing of shader specialization; not adopted as the default. |
 | [results/primitive-visibility.md](results/primitive-visibility.md) | Primitive rejection correctness and throughput evidence; not adopted as the default. |
+| [results/cluster-visibility.md](results/cluster-visibility.md) | Spatial-cluster correctness, matched three-mode timing, and rejected adaptive measurements; not adopted. |
 | [results/regroup.md](results/regroup.md) | Tile merging/rebalancing measurements and lifecycle validation. |
 | [results/render-passes.md](results/render-passes.md) | GPU draw-pass attribution for dense moving models and instrumentation comparisons. |
 | [results/shared-depth-prototype.md](results/shared-depth-prototype.md) | Shared-depth prototype findings and requirements for any future adoption. |

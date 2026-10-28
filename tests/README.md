@@ -299,3 +299,44 @@ and rejects invalid timing or mismatched buffer estimates. It retains GPU/FPS
 metrics and skipped draws/triangles per stereo frame, plus bounds preparation
 wall time. Whole-render GPU timing starts after preparation; FPS includes its
 cost. See [measurements and adoption decision](results/primitive-visibility.md).
+
+## Spatial occluder cluster experiment
+
+`cluster-visibility-pixels` checks original depth draws against full and culled
+spatial-cluster draws. Color draws keep their original buffers and ordering.
+The test checks 216 views in each mode, including stereo, material alpha modes,
+near-plane views, and dense separated islands within one material primitive.
+Uploaded cluster indices are read back and checked for exact preservation of
+oriented triangles and duplicates.
+
+```sh
+cmake --build build --target cluster-visibility-pixels gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/cluster-visibility-pixels
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/compare-cluster-visibility.py --output /tmp/cluster-visibility
+```
+
+The excluded `gpu-sync-experiment` accepts `SF_GPU_CLUSTER_MODE=original`,
+`full`, or `cull`. Every selected mode creates the same extra index buffers,
+leaving source vertex/color buffers unchanged. `original` draws existing depth
+indices, `full` draws reordered cluster indices in one range per primitive, and
+`cull` rejects padded off-tile/deeper clusters and merges contiguous surviving
+ranges. Comparing all three separates index-layout effects from rejection costs.
+Clusters contain at most 4,096 triangles, partitioned along centroid bounds.
+Animated/skinned/morph assets and per-instance deformations retain the original
+path. Invalid/near-plane projections retain draws. Reload releases cached buffers.
+
+The bounded runner alternates/reverses modes and cases over two rounds, enables
+mesh cache optimization, disables other experiments, rejects invalid GPU timings,
+and checks matching buffer estimates and experimental index bytes across each
+three-mode set. Statistics report eligible/skipped triangles, submitted ranges,
+and preparation wall time. Preparation precedes the whole-render GPU timer; FPS
+includes its cost. Experimental index bytes are additional to the normal engine
+GPU allocation estimate and are reported separately. No production option or
+script API enables cluster rendering.
+The cluster runner defaults to fixed mixed models, controlled two-group mixed
+models, and fixed Avocados. The two-group case is also selectable through
+`tests/fast-motion.py --case 128-models-two-groups`; it keeps stable membership
+and moves both groups rapidly through overlapping regions without automatic
+regrouping. See the [results and adoption decision](results/cluster-visibility.md).
