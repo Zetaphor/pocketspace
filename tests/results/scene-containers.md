@@ -47,7 +47,13 @@ Closed phases retain the root resources and cached shared model, as intended.
 The consistent sampled estimates are evidence for this bounded scenario, not
 an allocator/RSS leak audit or a claim that driver caches return to zero.
 Shutdown releases all grouped-budget charges. No demo remains running.
-Interactive headset disposal/reopening while grabbing remains a validation item.
+The user accepted the interactive headset check on 2026-10-27 using
+`scripts/containers.js`: bumper disposal/reopening, disposal while holding an
+owned box, and normal grabbing after release/reopening. The run completed 4,345
+frames with sampled GL errors zero and final grouped-budget charges zero
+(peak 155,189,248 bytes, limit 536,870,912). The demo is stopped; its raw Frame
+log is `/tmp/sf-containers-headset.log`. This acceptance covers that interaction
+scenario rather than every possible scripted ownership arrangement.
 
 ## Artifacts and reproduction
 
