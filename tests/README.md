@@ -343,7 +343,8 @@ regrouping. See the [results and adoption decision](results/cluster-visibility.m
 
 ## Ordered GPU instancing
 
-The production API is `loadModel(path, eyePixels, {gpuInstancing: true})`;
+The production API defaults to ordered instancing with `loadModel(path, eyePixels)`;
+pass `{gpuInstancing: false}` to opt out. Explicit `{gpuInstancing: true}` remains supported;
 see the [API contract](../docs/javascript-api.md#ordered-gpu-instancing).
 `instancing-pixels` uses the actual renderer and batching implementation to
 compare original and instanced pixels, including material modes, coplanar

@@ -52,7 +52,8 @@ attachment shared by their FBOs. Only color is imported by the compositor; keep
 the shared depth IDs. Depth occluders are scissored to padded, conservative target
 bounds per eye, with full-viewport fallback for near-plane/invalid bounds.
 
-`loadModel(..., {gpuInstancing: true})` permits consecutive same-asset batches
+`loadModel` defaults to ordered GPU instancing; `{gpuInstancing: false}` opts out.
+It permits consecutive same-asset batches
 only for static single-primitive opaque/masked geometry. Preserve draw order;
 never sort assets or split multi-part object ordering for batching. Deforming
 and blended geometry retains the original path. Refresh instance transforms
