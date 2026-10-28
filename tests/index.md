@@ -160,3 +160,11 @@ performance experiments are separate from correctness and visual acceptance.
 
 The JSON, CSV, and TXT files in [results/](results/) are raw measurements or
 validation output associated with those reports, rather than additional tests.
+
+## Scene persistence
+
+| File | Purpose |
+| --- | --- |
+| [scene-persistence-regression.cpp](scene-persistence-regression.cpp) | JSON/disk roundtrips, transform and model options, ID/group remapping, unsupported resources, malformed input, staged rollback, repeated cleanup, and bounded atomic file I/O. |
+| [scene-persistence.py](scene-persistence.py), [scenes/scene-persistence.js](scenes/scene-persistence.js) | Live production save/restore/dispose cycles, root object/HUD survival, resource counts, GL errors and grouped-buffer release using temporary storage. |
+| [results/scene-persistence.md](results/scene-persistence.md) | Native roundtrip/rollback and live Frame save/restore resource evidence; interactive acceptance remains pending. |

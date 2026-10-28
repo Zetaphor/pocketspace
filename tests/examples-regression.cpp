@@ -8,6 +8,9 @@
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
 int main() {
+  const auto state=std::filesystem::temp_directory_path()/("sf-example-state-"+std::to_string(getpid()));
+  scenePersistence::directory=state.string();
+  ScopeExit removeState{[&]{std::filesystem::remove_all(state);}};
   calibrationOutput = "/unused-example-calibration.json";
   std::vector<std::filesystem::directory_entry> scenes;
   for(const auto &entry:std::filesystem::directory_iterator("scripts"))scenes.push_back(entry);

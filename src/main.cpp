@@ -1007,6 +1007,8 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
   auto *panel=findPanel(id);if(!panel)return JS_ThrowRangeError(ctx,"unknown panel");panel->container=owner;return JS_UNDEFINED;
 }
 
+#include "scene_persistence.h"
+
 struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};Scene scene;};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
@@ -1088,6 +1090,10 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"setObjectScale",jsSetObjectScale,2);
   bind(candidate.ctx,"setObjectVisible",jsSetObjectVisible,2);
   bind(candidate.ctx,"removeObject",jsRemoveObject,1);
+  bind(candidate.ctx,"captureSceneContainer",jsCaptureSceneContainer,1);
+  bind(candidate.ctx,"restoreSceneContainer",jsRestoreSceneContainer,1);
+  bind(candidate.ctx,"saveSceneContainer",jsSaveSceneContainer,2);
+  bind(candidate.ctx,"loadSceneContainer",jsLoadSceneContainer,1);
   bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,0);
   bind(candidate.ctx,"disposeSceneContainer",jsDisposeSceneContainer,1);
   bind(candidate.ctx,"getSceneContainerState",jsGetSceneContainerState,1);
@@ -1844,6 +1850,9 @@ int main(int argc,char **argv) {
     if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
       if(i+1==argc){fprintf(stderr,"%s requires a file path\n",arg.c_str());return 13;}
       (arg=="--eye-calibration"?calibrationPath:calibrationOutput)=argv[++i];
+    }else if(arg=="--scene-state-dir"){
+      if(i+1==argc){fprintf(stderr,"--scene-state-dir requires a directory\n");return 13;}
+      scenePersistence::directory=argv[++i];
     }else if(!arg.empty()&&arg[0]!='-'&&!hasScript){scriptPath=arg;hasScript=true;}
     else{fprintf(stderr,"Unknown argument: %s\n",arg.c_str());return 13;}
   }

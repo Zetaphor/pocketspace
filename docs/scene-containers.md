@@ -79,3 +79,10 @@ Failed script reloads preserve the active containers, callback ownership and
 resources. Successful replacement discards the entire old scene, including all
 containers. See [scene lifecycle](lifecycle.md) and the
 [containers.js example](../scripts/containers.js).
+
+## Scene persistence
+
+Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
+JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
+named files. See [scene save and restore](scene-persistence.md) for the complete
+v1 schema, storage paths, fresh ID/group mappings, limits, and unsupported resources.
