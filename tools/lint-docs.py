@@ -41,7 +41,8 @@ examples = re.search(r'^## Examples\n(.*?)(?=^## |\Z)', readme, re.M | re.S)
 if not examples or '| Script | Demonstrates |' not in examples[1]:
     errors.append('README.md: missing examples table')
 else:
-    table = examples[1].split('| Script | Demonstrates |', 1)[1].strip().splitlines()
+    example_text = re.sub(r'^<!-- #(?:end)?region [\w-]+ -->\n?', '', examples[1], flags=re.M)
+    table = example_text.split('| Script | Demonstrates |', 1)[1].strip().splitlines()
     for row in table:
         if not re.fullmatch(r'\|[^|\n]+\|[^|\n]+\|', row):
             errors.append('README.md: interrupted or malformed examples table')

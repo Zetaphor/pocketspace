@@ -5,6 +5,10 @@ Start with the [README](../README.md) for build/run commands and examples, the
 [remaining work](remaining-work.md) for future scope. Keep current contracts in
 these guides; implementation history belongs in Git.
 
+The [documentation site guide](documentation-site.md) explains VitePress, the
+Markdown source layout and GitHub Pages deployment. Run `npm run docs:build`
+after changing guide links, navigation or site configuration.
+
 ## Source map
 
 | File | Responsibility |

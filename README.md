@@ -1,5 +1,7 @@
 # Steam Frame overlay engine
 
+[Documentation website](https://zetaphor.github.io/sf-overlay-engine/)
+
 A Linux/OpenVR engine for scripted stereo overlays alongside a VR application.
 QuickJS scripts place GLB models, play node and skeletal animations, grab objects
 with either controller, simulate rigid-body physics and connected mechanisms,
@@ -7,6 +9,8 @@ draw interactive panels, and read controller and eye data.
 Each object has its own stereo surface with three DMA-BUF color buffers
 and one shared depth attachment. Transparent margins are cropped while preserving
 the requested pixel density on the model.
+
+<!-- #region quickstart -->
 
 ## Build and run
 
@@ -39,7 +43,11 @@ Inspect a model without opening VR:
 ./run-overlay-engine.sh --inspect assets/samples/Box/Box.glb
 ```
 
+<!-- #endregion quickstart -->
+
 ## Examples
+
+<!-- #region examples -->
 
 Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
@@ -72,7 +80,9 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [colliders.js](scripts/colliders.js) | Explicit box and sphere dimensions, a thin floor, and rotated walls |
 | [physics.js](scripts/physics.js) | Gravity, grabbable boxes, throwing, and a collision event display; bumper resets unheld boxes |
 | [tracking.js](scripts/tracking.js) | Corrected gaze display and raw finger sensor values |
-| [eye-calibration.js](scripts/eye-calibration.js) | Personal calibration generator; requires an output path as described below |
+| [eye-calibration.js](scripts/eye-calibration.js) | Personal calibration generator; requires an output path |
+
+<!-- #endregion examples -->
 
 ## Documentation
 
@@ -91,6 +101,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Input architecture](docs/input-architecture.md): native data sources and delivery.
 - [Remaining work](docs/remaining-work.md): unimplemented and deferred features.
 - [Maintainer handoff](docs/agent-handoff.md): source map and maintenance entry points.
+- [Documentation site](docs/documentation-site.md): local preview, Markdown sources, and GitHub Pages publishing.
 - [Test index](tests/index.md): regression checks, API fixtures, headset scenes, profiling tools, and recorded results.
 
 The model renderer supports embedded base-color textures, material factors,
