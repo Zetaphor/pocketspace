@@ -1,6 +1,7 @@
 # Panel scene persistence validation
 
-Validated on Steam Frame, 2026-10-27. Interactive headset acceptance is pending.
+Validated on Steam Frame, 2026-10-27. The user accepted the interactive headset
+check for saved panel appearance, placement and pointer input after restoration.
 New captures use v4; v1–v3 documents remain readable.
 
 ## Native API and rollback
@@ -63,3 +64,12 @@ For headset acceptance, run `scripts/panel-save.js`: click the panel, bumper-sav
 use B/Y to change its text/colors and position, then A/X-restore. Check the saved
 appearance and placement return and the restored panel still responds to clicks.
 Repeat after saving different content.
+
+## Headset acceptance
+
+The user confirmed `scripts/panel-save.js` worked after the requested click,
+save, change and restore checks. The demo then stopped cleanly after 5,249
+frames. The final sampled GL error was zero and sampled FPS was 90.0. This
+panel-only scene allocated no grouped model buffers; final and peak grouped
+allocation were both zero. See the
+[headset shutdown output](panel-persistence/headset-frame.txt).

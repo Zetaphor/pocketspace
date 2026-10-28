@@ -170,4 +170,4 @@ validation output associated with those reports, rather than additional tests.
 | [results/scene-persistence.md](results/scene-persistence.md) | Native roundtrip/rollback, live Frame save/restore resource evidence, and accepted headset check. |
 | [results/physics-persistence.md](results/physics-persistence.md) | V2 body/joint/motor roundtrips, construction frame preservation, native rollback, v1 compatibility, live simulation cleanup and accepted headset check. |
 | [results/animation-persistence.md](results/animation-persistence.md) | V3 skin/rigid playback and independent-pose roundtrips, legacy compatibility, rollback, live resource cleanup and accepted headset check. |
-| [results/panel-persistence.md](results/panel-persistence.md) | V4 lossless pixels/layout/handles, raw/RLE bounds, pointer reconnection, native rollback, legacy compatibility and live mixed-scene cleanup; headset acceptance pending. |
+| [results/panel-persistence.md](results/panel-persistence.md) | V4 lossless pixels/layout/handles, raw/RLE bounds, pointer reconnection, native rollback, legacy compatibility, live mixed-scene cleanup and accepted headset check. |
