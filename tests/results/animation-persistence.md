@@ -1,6 +1,7 @@
 # Animation scene persistence validation
 
-Validated on Steam Frame, 2026-10-27. Interactive headset acceptance is pending.
+Validated on Steam Frame, 2026-10-27. The user accepted the interactive headset
+check for saved positions, animation poses, playback states and restored grabbing.
 New captures use v3; v1 static and v2 physics documents remain readable.
 
 ## Native checks
@@ -60,3 +61,12 @@ For headset acceptance, run `scripts/animation-save.js`: bumper-save, use B/Y to
 change playing/paused states and move the models, then A/X-restore. Check the
 saved positions/poses and playback states return, then grab restored models.
 Repeat a save/restore with different states.
+
+## Headset acceptance
+
+The user confirmed `scripts/animation-save.js` worked after the requested
+save/restore, playback toggle and grabbing checks. The demo then stopped cleanly
+after 6,473 frames. The final sampled GL error was zero and sampled FPS was 89.9.
+Grouped buffer allocation returned to zero at shutdown, with a 312,475,648-byte
+peak against the 536,870,912-byte budget. See the
+[headset shutdown output](animation-persistence/headset-frame.txt).
