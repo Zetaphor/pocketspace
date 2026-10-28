@@ -378,3 +378,31 @@ The lifecycle runner uses one production process for four ten-second phases,
 alternating sixteen instanced models and empty scenes. It checks three committed
 reloads, stable counts, and zero owned GPU allocation estimates in empty phases.
 No persistent demo is left running. See [recorded measurements](results/instancing.md).
+
+## Multi-part instancing experiment
+
+The excluded `gpu-sync-experiment` binary accepts
+`SF_GPU_MULTIPART_INSTANCING=1` with `SF_GPU_INSTANCING=0|1` to compare original
+versus combined multi-material indexed draws. Both paths retain identical
+combined geometry storage, including the additional per-vertex material slot,
+so timing comparisons reject mismatched allocations. Production does not expose
+this flag or batch multi-part assets.
+
+The prototype preserves primitive and object order, original textures and index
+order, and supports up to eight opaque/masked material primitives. It uses
+explicit texture gradients outside material selection. Blended, animated,
+skinned, morph and CPU-deformed geometry retains original draws. Original GPU
+buffers remain allocated alongside the test-only combined copy. This is an
+investigation, not a memory optimization.
+
+```sh
+cmake --build build --target multipart-instancing-pixels gpu-sync-experiment -j2
+DISPLAY=:0 EGL_PLATFORM=x11 ./build/multipart-instancing-pixels
+python3 tests/compare-instancing.py --multipart --case 32-cars-fixed \
+  --case 128-models-fixed --rounds 2 --seconds 16 --output /tmp/sf-multipart
+```
+
+`32-cars-fixed` is an optional repeated ToyCar workload; the existing mixed case
+interleaves ToyCar and Avocado to measure isolated combined draws without sorting.
+The pixel target also verifies that reversing coplanar material order changes
+the reference image, then checks the prototype against the original order.

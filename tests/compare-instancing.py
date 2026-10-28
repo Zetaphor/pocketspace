@@ -14,6 +14,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=2)
 parser.add_argument('--seconds', type=int, default=16)
 parser.add_argument('--case', action='append')
+parser.add_argument('--multipart', action='store_true', help='Test combined multi-material streams in both matched-storage paths')
 args = parser.parse_args()
 if args.rounds < 1 or args.seconds < 12:
     parser.error('require positive rounds and at least twelve seconds per run')
@@ -28,6 +29,9 @@ for round_index in range(args.rounds):
             env = {**os.environ, 'SF_GPU_INSTANCING': str(int(enabled)), 'SF_GPU_PRIMITIVE_VISIBILITY': '0', 'SF_GPU_OPAQUE_SHADER': '0',
                    'SF_GPU_PROFILE_PASSES': '0', 'SF_GPU_SYNC_MODE': 'finish'}
             env.pop('SF_GPU_CLUSTER_MODE', None)
+            env.pop('SF_GPU_MULTIPART_INSTANCING', None)
+            if args.multipart:
+                env['SF_GPU_MULTIPART_INSTANCING'] = '1'
             subprocess.run([sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                             '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
                             '--vertex-cache', '--instancing'], env=env, check=True)
@@ -39,7 +43,7 @@ for round_index in range(args.rounds):
             samples = [s for s in samples if s['seconds'] >= 6]
             if len(samples) < 3 or any(s['glError'] or s['fenceFailures'] or s['disjointSamples'] or s['gpuMs'] is None for s in samples):
                 raise RuntimeError(f'{directory}: missing or invalid GPU timing')
-            result.update(round=round_index, instancing=enabled, profileSamples=len(samples),
+            result.update(round=round_index, instancing=enabled, multipart=args.multipart, profileSamples=len(samples),
                           **{key: statistics.median(s[key] for s in samples)
                              for key in ['gpuMs', 'enqueueMs', 'waitMs', 'submitMs']})
             culls = [json.loads(line.split('INSTANCING_SAMPLE ', 1)[1]) for line in log.splitlines() if line.startswith('INSTANCING_SAMPLE ')]
@@ -50,7 +54,7 @@ for round_index in range(args.rounds):
                           instancesPerFrame=statistics.median(s['instances']/s['frames'] for s in culls),
                           savedDrawsPerFrame=statistics.median(s['savedDraws']/s['frames'] for s in culls),
                           instanceBytes=max(s['instanceBytes'] for s in culls))
-            if enabled and 'avocados' in case and result['savedDrawsPerFrame'] < 1:
+            if enabled and ('avocados' in case or args.multipart) and result['savedDrawsPerFrame'] < 1:
                 raise RuntimeError(f'{directory}: eligible scene did not produce GPU batches')
             pair.append(result);results.append(result)
             (args.output / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')

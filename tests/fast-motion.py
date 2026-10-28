@@ -29,17 +29,22 @@ if args.case and '128-models-two-groups' in args.case:
     configurations.append((128, True, False, False, 2))
 if args.case and '128-avocados-two-groups' in args.case:
     configurations.append((128, True, False, True, 2))
+if args.case and '32-cars-fixed' in args.case:
+    configurations.append((32, True, False, False, 0, True))
 for configuration in configurations:
     count, models, adaptive, simple = configuration[:4]
+    cars = len(configuration) > 5 and configuration[5]
     groups = configuration[4] if len(configuration) > 4 else 0
     name = f'{count}-' + ('avocados' if simple else 'models' if models else 'boxes') + ('-adaptive' if adaptive else '-fixed')
     if groups:
         name = f'{count}-' + ('avocados' if simple else 'models') + '-two-groups'
+    if cars:
+        name = f'{count}-cars-fixed'
     if args.case and name not in args.case:
         continue
     with tempfile.TemporaryDirectory(prefix='sf-motion-') as temp:
         path = Path(temp) / 'scene.js'
-        path.write_text(f'globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};globalThis.motionInstancing={json.dumps(args.instancing)};\n' + source)
+        path.write_text(f'globalThis.motionCarsOnly={json.dumps(cars)};globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};globalThis.motionInstancing={json.dumps(args.instancing)};\n' + source)
         env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
         error_path = args.output / f'{name}.stderr.log'
         with error_path.open('w') as errors:

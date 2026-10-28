@@ -30,10 +30,7 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
-  fall below headset frame rates. Compare geometry
-  repeated occluder draws, order-preserving batching for multi-part models,
-  and model LOD before
-  choosing an implementation; object count alone is not a sufficient workload
+  fall below headset frame rates. Compare repeated occluder draws and model LOD before choosing an implementation; object count alone is not a sufficient workload
   budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
@@ -47,6 +44,12 @@ This roadmap contains future work, without prescribing an implementation order.
 ## Conditional performance investigations
 
 These are deferred investigations, not unimplemented fixes ready to enable.
+
+- Revisit multi-part batching only with evidence that lower submission overhead
+  outweighs material selection and additional geometry-buffer costs. The
+  [combined multi-material stream experiment](../tests/results/multipart-instancing.md)
+  preserved exact pixels but slowed the interleaved detailed-model scene.
+  Production keeps ordered instancing limited to eligible single-part models.
 
 - Revisit spatial occluder clusters only if a workload offers substantially more
   selective rejection or cheaper bounds processing. The
