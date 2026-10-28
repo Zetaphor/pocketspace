@@ -23,13 +23,20 @@ for process_name in {'sf-overlay-engi', args.engine.name[:15], 'gpu-sync-experi'
 args.output.mkdir(parents=True, exist_ok=True)
 source = Path('tests/scenes/fast-motion.js').read_text()
 results = []
-for count, models, adaptive, simple in [(128, False, True, False), (240, False, True, False), (128, True, True, False), (128, True, False, False), (240, False, False, False), (128, True, True, True), (128, True, False, True)]:
+configurations = [(128, False, True, False), (240, False, True, False), (128, True, True, False), (128, True, False, False), (240, False, False, False), (128, True, True, True), (128, True, False, True)]
+if args.case and '128-models-two-groups' in args.case:
+    configurations.append((128, True, False, False, 2))
+for configuration in configurations:
+    count, models, adaptive, simple = configuration[:4]
+    groups = configuration[4] if len(configuration) > 4 else 0
     name = f'{count}-' + ('avocados' if simple else 'models' if models else 'boxes') + ('-adaptive' if adaptive else '-fixed')
+    if groups:
+        name = f'{count}-models-two-groups'
     if args.case and name not in args.case:
         continue
     with tempfile.TemporaryDirectory(prefix='sf-motion-') as temp:
         path = Path(temp) / 'scene.js'
-        path.write_text(f'globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};\n' + source)
+        path.write_text(f'globalThis.motionCount={count};globalThis.motionModels={json.dumps(models)};globalThis.motionAdaptive={json.dumps(adaptive)};globalThis.motionSimpleModels={json.dumps(simple)};globalThis.motionCache={json.dumps(args.vertex_cache)};globalThis.motionGroups={groups};\n' + source)
         env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
         error_path = args.output / f'{name}.stderr.log'
         with error_path.open('w') as errors:
@@ -45,7 +52,7 @@ for count, models, adaptive, simple in [(128, False, True, False), (240, False, 
                     process.kill(); process.communicate(); raise RuntimeError(f'{name}: shutdown timed out')
         log += '\n' + error_path.read_text()
     (args.output / f'{name}.log').write_text(log)
-    if process.returncode or re.search(r'\[js\].*(?:update|load) error|buffer id=.*failed|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+', log):
+    if process.returncode or re.search(r'\[js\].*(?:update|load) error|buffer id=.*failed|\[(?:surface|panel)\].*error=|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+', log):
         raise RuntimeError(f'{name}: native failure, inspect log')
     memory = re.search(r'grouped_buffer_bytes=(\d+) peak=(\d+) limit=(\d+)', log)
     if not memory or int(memory[1]) or int(memory[2]) > int(memory[3]):

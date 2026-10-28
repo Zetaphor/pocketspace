@@ -1455,6 +1455,7 @@ static bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &ta
 struct ScissorRegion {int x=0,y=0,width=0,height=0;};
 #ifdef SF_GPU_SYNC_EXPERIMENT
 #include "../tests/primitive-visibility-experiment.h"
+#include "../tests/cluster-visibility-experiment.h"
 #endif
 // Convert the target's conservative angular bounds to its overlay pixels.
 // Invalid/near-plane bounds retain the full viewport. Padding covers raster edges.
@@ -1908,6 +1909,8 @@ int main(int argc,char **argv) {
   const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
   const bool primitiveVisibility=primitiveMode&&std::strcmp(primitiveMode,"1")==0;
   PrimitiveVisibilityExperiment primitiveExperiment;
+  const char *clusterMode=std::getenv("SF_GPU_CLUSTER_MODE");
+  ClusterVisibilityExperiment clusterExperiment(clusterMode?(std::strcmp(clusterMode,"cull")==0?ClusterVisibilityExperiment::Cull:std::strcmp(clusterMode,"full")==0?ClusterVisibilityExperiment::Full:ClusterVisibilityExperiment::Original):ClusterVisibilityExperiment::Off);
   const char *opaqueMode=std::getenv("SF_GPU_OPAQUE_SHADER");
   const bool specializeOpaque=opaqueMode&&std::strcmp(opaqueMode,"1")==0;
   std::unique_ptr<OpaqueExperimentProgram> opaqueExperiment,depthExperiment;
@@ -1955,6 +1958,7 @@ int main(int argc,char **argv) {
           fprintf(stdout,"[lifecycle] scene state reset\n");
 #ifdef SF_GPU_SYNC_EXPERIMENT
           primitiveExperiment.reset();
+          clusterExperiment.reset();
 #endif
         });
         if(!loaded)script.mtime=modified;
@@ -2101,6 +2105,7 @@ int main(int argc,char **argv) {
       frameBounds.update(script.scene,anchor,head,eyes);
 #ifdef SF_GPU_SYNC_EXPERIMENT
       if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
+      if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.update(script.scene,anchor,head,eyes);
 #endif
       if(!pendingTileChange&&std::chrono::steady_clock::now()>=nextAdaptationCheck){
         const auto now=std::chrono::steady_clock::now();nextAdaptationCheck=now+std::chrono::milliseconds(500);
@@ -2290,6 +2295,7 @@ int main(int argc,char **argv) {
                 glUniform3fv(sheenLocation,1,part.sheen);}
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
+                if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
                 gpuSync.draw(part.vertexCount);
 #endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
@@ -2304,6 +2310,7 @@ int main(int argc,char **argv) {
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.complete();
       if(primitiveVisibility)primitiveExperiment.report();
+      if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.report();
 #else
       glFinish();
 #endif
