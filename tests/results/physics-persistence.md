@@ -1,6 +1,7 @@
 # Physics scene persistence validation
 
-Validated on Steam Frame, 2026-10-27. Interactive headset acceptance is pending.
+Validated on Steam Frame, 2026-10-27. The user accepted the interactive headset
+save/restore check for the hinged panel, spring ball and box.
 The production executable supports v2 physics snapshots and v1 static saves.
 
 ## Native API and rollback
@@ -60,3 +61,12 @@ For headset acceptance, run `scripts/physics-save.js`: move the green hinged
 panel and yellow spring ball, throw the blue box, bumper-save, change the
 arrangement, then A/X-restore. Check attachments, motor behavior, resumed motion,
 and grabbing restored objects. Repeat a save/restore cycle.
+
+## Headset acceptance
+
+The user confirmed `scripts/physics-save.js` worked after the requested
+save/restore and grabbing checks. The demo then stopped cleanly after 6,537
+frames. The final sampled GL error was zero and sampled FPS was 90.0. Grouped
+buffer allocation returned to zero at shutdown, with a 387,973,120-byte peak
+against the 536,870,912-byte budget. See the
+[headset shutdown output](physics-persistence/headset-frame.txt).
