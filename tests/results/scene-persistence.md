@@ -1,7 +1,8 @@
 # Scene persistence validation
 
 Validated on Steam Frame with the production renderer, 2026-10-27.
-No interactive headset acceptance has been recorded for this feature yet.
+Interactive headset acceptance passed: the user confirmed the save/restore demo
+worked, including moving, saving, restoring, and grabbing restored boxes.
 
 ## Native checks
 
@@ -47,3 +48,10 @@ resource/lifecycle evidence, not a frame-rate benchmark or visual acceptance.
 [native/shutdown output](scene-persistence/validation-frame.txt).
 Interactive follow-up: move boxes, bumper-save, move again, A/X-restore; verify
 the saved arrangement returns and grip/trigger grabs still work after restoring.
+
+## Headset acceptance
+
+The user accepted `scripts/scene-save.js` on 2026-10-27. The demo was then
+stopped cleanly after 7,459 frames. The final sampled GL error was zero;
+grouped-buffer accounting returned to zero at shutdown, with a peak of
+511,705,088 bytes against the 536,870,912-byte limit.
