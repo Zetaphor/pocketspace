@@ -30,8 +30,13 @@ This roadmap contains future work, without prescribing an implementation order.
 
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
-  fall below headset frame rates. Compare repeated occluder draws and model LOD before choosing an implementation; object count alone is not a sufficient workload
-  budget. Validate larger detailed-model counts in the headset after reducing
+  fall below headset frame rates. The
+  [bounded-error GPU LOD investigation](../tests/results/lod.md) improves
+  both measured model workloads. Implement a script-controlled production LOD
+  policy with full detail for close inspection, screen-space selection,
+  hysteresis and coherent choices across eyes/depth surfaces; validate quality
+  in the headset before adoption. Further investigate repeated occluder draws;
+  object count alone is not a sufficient workload budget. Validate larger detailed-model counts in the headset after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
   Consider wider regrouping searches or changed cost thresholds only if further

@@ -1,0 +1,18 @@
+PASS LOD: 144 stereo views, unchanged CPU/picking geometry, bounded simplifier metric, blend/mask/deformation fallback, reduced GPU counts and metadata cleanup
+PASS vertex cache: 162 exact stereo model/material/rotation views, oriented triangle preservation, blend/deformation order and CPU geometry
+PASS common group planes: stereo color/cutout alignment through lateral head motion, different object depths, and tile scene transforms
+PASS subdivided GLES: runtime tile keys preserve cross-tile floor/body occlusion and exact stereo pixels on a matching grid
+PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, resolution ceiling and near-plane fallback
+PASS object alpha: blended and masked framebuffer colors match premultiplied compositor input
+PASS GLES occlusion: 16 stereo floor/wall lean-back views, foreground preserved, bounded/unbounded equality, alpha-mask holes, blended/hidden models, per-eye scissors, near-plane fallback, shared depth lifetime, cropped model pixels, indexed/expanded equality, UV seams, 16/32-bit indices and cleanup
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release
+PASS production excludes model LOD experiment flag
+PASS no demo remains running
+dc909413060f11fca5ff9908cca66046b8ad0070f7c2380101ca9194a582a028  src/main.cpp
+4f99687f95d5a3a8594033c712c0bcb7cf71cf296a555910fc0f5e2280a2355a  src/model_asset.h
+7b3ec5c67a63333f5a53b63bc4c47e29214f957a6ccd579f8b299cdd74b2384d  src/model_asset.cpp
+8c9523af898eba0928a3efecd33d73770c921c50bd87fc38583d081c25af532a  tests/lod-experiment.h
+f1ef13b4222ecf2c1018537d6440f1c080e8c8d01842ab6d4224a023ddbf547b  tests/lod-pixels.cpp
+c367449c7bf5f3e26cd87a8b3f74920bd6aa981f5be02ba0966e9362d938991e  build/gpu-sync-experiment
+b374952760164eef4a0290bba50ece5bc25f1d7760f0d98917f301a52ee3ffc9  build/sf-overlay-engine

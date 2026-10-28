@@ -214,13 +214,20 @@ void uploadModel(ModelAsset &asset){
     const size_t unique=indexed.vertices.size()/5;
     part.indexType=unique<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
     const size_t indexSize=part.indexType==GL_UNSIGNED_SHORT?sizeof(uint16_t):sizeof(uint32_t);
-    if(indexed.vertices.size()*sizeof(float)+indexed.indices.size()*indexSize<part.vertices.size()*sizeof(float)){
+    if(indexed.vertices.size()*sizeof(float)+size_t(part.vertexCount)*indexSize<part.vertices.size()*sizeof(float)){
+#ifdef SF_MODEL_LOD_EXPERIMENT
+      lodExperiment::simplify(asset,part,indexed);
+#endif
       // Reorder complete oriented triangles only. Blend order and CPU-deformed
       // streams keep their original order; all CPU geometry remains unchanged.
       if(asset.optimizeVertexCache&&!asset.hasAnimation&&!asset.hasSkin&&part.alphaMode!=2&&indexed.indices.size()%3==0){
         meshopt_optimizeVertexCache(indexed.indices.data(),indexed.indices.data(),indexed.indices.size(),unique);
         meshopt_optimizeVertexFetch(indexed.vertices.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,5*sizeof(float));
       }
+#ifdef SF_MODEL_LOD_EXPERIMENT
+      // Retain the original index capacity for matched allocation comparisons.
+      indexed.indices.resize(size_t(part.vertexCount),0);
+#endif
       glBufferData(GL_ARRAY_BUFFER,indexed.vertices.size()*sizeof(float),indexed.vertices.data(),GL_STATIC_DRAW);
       part.gpuVertexCount=GLsizei(unique);
       glGenBuffers(1,&part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);
@@ -241,7 +248,11 @@ void uploadModel(ModelAsset &asset){
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
-  for(auto &part:asset.primitives){if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
+  for(auto &part:asset.primitives){
+#ifdef SF_MODEL_LOD_EXPERIMENT
+    lodExperiment::results.erase(&part);
+#endif
+    if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
   asset.uploaded=false;
 }
 
@@ -249,7 +260,7 @@ void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo){
   glBindBuffer(GL_ARRAY_BUFFER,expandedVbo?expandedVbo:part.vbo);
   glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-  if(!expandedVbo&&part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);glDrawElements(GL_TRIANGLES,part.vertexCount,part.indexType,nullptr);}
+  if(!expandedVbo&&part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);glDrawElements(GL_TRIANGLES,modelDrawVertexCount(part),part.indexType,nullptr);}
   else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
 }
 

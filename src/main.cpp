@@ -2117,6 +2117,9 @@ int main(int argc,char **argv) {
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
 #ifdef SF_GPU_SYNC_EXPERIMENT
+#ifdef SF_MODEL_LOD_EXPERIMENT
+      if(lodExperiment::ratio()!=1&&(useInstancing||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque||std::getenv("SF_GPU_MULTIPART_INSTANCING"))){fprintf(stderr,"LOD comparison requires original object draws without other geometry/shader experiments\n");return 13;}
+#endif
       if(useInstancing&&(primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque)){fprintf(stderr,"instancing cannot combine with other geometry/shader experiments\n");return 13;}
       if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
       if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.update(script.scene,anchor,head,eyes);
@@ -2313,7 +2316,7 @@ int main(int argc,char **argv) {
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
-                gpuSync.draw(part.vertexCount);
+                gpuSync.draw(modelDrawVertexCount(part));
 #endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0);
               }

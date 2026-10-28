@@ -62,6 +62,13 @@ successful reload. Instance attributes/divisors must be disabled/reset before
 normal draws or panel work. Count the owned instance buffer in GPU estimates,
 while leaving driver streaming overhead outside the estimate.
 
+GPU model simplification remains test-only (`SF_MODEL_LOD_EXPERIMENT`); the
+production renderer keeps full geometry. `modelDrawVertexCount` returns the full
+count in production and an experimental active index count in LOD builds. Test
+LOD uploads retain original allocation capacities and CPU geometry; do not
+confuse the fixed-detail measurements with a distance-based API. See the
+[LOD investigation](../tests/results/lod.md) for the pending adoption requirements.
+
 Physics uses single-threaded stepping for small scenes and a bounded worker pool
 for larger active scenes; scripts can override with `setPhysicsWorkers`.
 Contact aggregation must remain synchronized when workers run, with all script
