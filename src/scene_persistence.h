@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 namespace scenePersistence {
-constexpr size_t maxBytes=1024*1024;
+constexpr size_t maxBytes=16*1024*1024;
 static std::string directory;
 struct Value {
   JSContext *ctx;JSValue value;
@@ -44,7 +44,7 @@ static constexpr std::pair<const char*,float Object::*> transforms[]={
 static std::string json(JSContext *ctx,JSValueConst value){
   Value encoded(ctx,JS_JSONStringify(ctx,value,JS_UNDEFINED,JS_UNDEFINED));
   if(JS_IsException(encoded))throw std::runtime_error("snapshot cannot be encoded as JSON");
-  auto data=string(ctx,encoded);require(data.size()<=maxBytes,"snapshot exceeds 1 MiB");return data;
+  auto data=string(ctx,encoded);require(data.size()<=maxBytes,"snapshot exceeds 16 MiB");return data;
 }
 #include "scene_physics_snapshot.h"
 static JSValue animationValue(JSContext *ctx,const Object &o,const ModelAsset &asset){
@@ -61,12 +61,12 @@ static SavedAnimation animationRead(JSContext *ctx,JSValueConst value){
   s.loop=boolean(ctx,value,"loop");s.playing=boolean(ctx,value,"playing");s.finished=boolean(ctx,value,"finished");
   require(!s.finished||(!s.playing&&s.time==saved.duration&&(!s.loop||saved.duration==0)),"inconsistent finished animation state");return saved;
 }
+#include "scene_panel_snapshot.h"
 static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
-  for(const auto &p:currentScene->panels)require(p.container!=owner,"snapshots do not support owned panels");
-  Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
+  Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,3));
+  put(ctx,result,"version",JS_NewInt32(ctx,4));
   for(auto o:currentScene->objects)if(o.container==owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
@@ -91,6 +91,8 @@ static JSValue capture(JSContext *ctx,int owner){
     require(ownA==ownB,"joint crosses scene container boundary; save both endpoints in one container");
     if(ownA)putIndex(ctx,joints,jointIndex++,jointValue(ctx,j));
   }
+  uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels)if(p.container==owner){require(panelIndex<maxPanels,"snapshot panel limit is 32");putIndex(ctx,panels,panelIndex++,panelValue(ctx,p,panelBytes));}
+  put(ctx,result,"panels",JS_DupValue(ctx,panels));
   put(ctx,result,"joints",JS_DupValue(ctx,joints));
   put(ctx,result,"models",JS_DupValue(ctx,models));put(ctx,result,"objects",JS_DupValue(ctx,objects));
   json(ctx,result);return JS_DupValue(ctx,result);
@@ -100,7 +102,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,3,true));
+  const int version=int(number(ctx,root,"version",1,4,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -144,6 +146,10 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   if(version==1&&!JS_IsUndefined(jointArray))require(length(ctx,jointArray,512)==0,"joints require snapshot version 2");
   for(uint32_t i=0;i<nj;i++){Value item(ctx,JS_GetPropertyUint32(ctx,jointArray,i));auto j=jointRead(ctx,item,bodyMap);require(jointSources.insert(j.state.id).second,"duplicate source joint ID");jointBatch.push_back(std::move(j));}
   const int firstJoint=scene.physics?scene.physics->nextJointId():1;require(nj<=uint32_t(INT_MAX-firstJoint),"joint ID limit reached");
+  auto panelArray=field(ctx,root,"panels");const uint32_t np=version>=4?length(ctx,panelArray,maxPanels):0;
+  if(version<4&&!JS_IsUndefined(panelArray))require(length(ctx,panelArray,maxPanels)==0,"panels require snapshot version 4");
+  require(scene.nextPanelId<=INT_MAX-int(np),"panel ID limit reached");std::vector<Panel> restoredPanels;std::vector<int> panelSources;std::set<int> uniquePanels;size_t pixelBytes=0;
+  for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),scene.nextContainerId,pixelBytes));}
   // Load CPU data only after the entire schema has passed. No shared cache or
   // native overlays change until every asset is available.
   for(auto &a:pending){const auto path=a.path;require(loadModelFile(path,a),"could not load snapshot model");}
@@ -162,8 +168,9 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     if(body.state.settings.shape==physics::Shape::Convex||body.state.settings.shape==physics::Shape::Mesh)for(const auto &part:a.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
     body.geometry={o.asset,o.scale,vertices};
   }
+  scene.panels.reserve(scene.panels.size()+np);
   scene.assets.reserve(scene.assets.size()+pending.size());scene.objects.reserve(scene.objects.size()+no);scene.interactiveIds.reserve(scene.interactiveIds.size()+interactive.size());
-  Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx)),jointIds(ctx,JS_NewArray(ctx)),jointMap(ctx,JS_NewObject(ctx));
+  Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx)),jointIds(ctx,JS_NewArray(ctx)),jointMap(ctx,JS_NewObject(ctx)),panelIds(ctx,JS_NewArray(ctx)),panelMap(ctx,JS_NewObject(ctx)),panelHandles(ctx,JS_NewArray(ctx));
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));auto source=std::to_string(int(number(ctx,item,"id",1,INT_MAX-1,true)));
     putIndex(ctx,ids,i,JS_NewInt32(ctx,restored[i].id));put(ctx,mapping,source.c_str(),JS_NewInt32(ctx,restored[i].id));
@@ -172,11 +179,14 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   put(ctx,result,"containerId",JS_NewInt32(ctx,scene.nextContainerId));put(ctx,result,"objectIds",JS_DupValue(ctx,ids));put(ctx,result,"objectMap",JS_DupValue(ctx,mapping));put(ctx,result,"renderGroups",JS_DupValue(ctx,groupMap));
   for(uint32_t i=0;i<nj;i++){putIndex(ctx,jointIds,i,JS_NewInt32(ctx,firstJoint+int(i)));put(ctx,jointMap,std::to_string(jointBatch[i].state.id).c_str(),JS_NewInt32(ctx,firstJoint+int(i)));}
   put(ctx,result,"jointIds",JS_DupValue(ctx,jointIds));put(ctx,result,"jointMap",JS_DupValue(ctx,jointMap));
+  for(uint32_t i=0;i<np;i++){const int id=restoredPanels[i].id;putIndex(ctx,panelIds,i,JS_NewInt32(ctx,id));put(ctx,panelMap,std::to_string(panelSources[i]).c_str(),JS_NewInt32(ctx,id));putIndex(ctx,panelHandles,i,panelHandle(ctx,id));}
+  put(ctx,result,"panelIds",JS_DupValue(ctx,panelIds));put(ctx,result,"panelMap",JS_DupValue(ctx,panelMap));put(ctx,result,"panels",JS_DupValue(ctx,panelHandles));
   // This also detects JS allocation failures before committing native state.
   if(JS_HasException(ctx))throw std::runtime_error("snapshot result allocation failed");
-  std::set<int> reserved;bool committed=false;
-  ScopeExit rollback{[&]{if(!committed&&releaseObjectOverlay)for(int key:reserved)releaseObjectOverlay(key);}};
+  std::set<int> reserved;std::vector<int> reservedPanels;reservedPanels.reserve(np);bool committed=false;
+  ScopeExit rollback{[&]{if(!committed){if(releaseObjectOverlay)for(int key:reserved)releaseObjectOverlay(key);if(releasePanelOverlay)for(int id:reservedPanels)releasePanelOverlay(id);}}};
   if(currentScene==liveScene&&reserveObjectOverlay)for(const auto &o:restored){int key=objectSurfaceKey(o);if(!reserved.count(key)){auto error=reserveObjectOverlay(key);require(error.empty(),error.c_str());reserved.insert(key);}}
+  if(currentScene==liveScene&&reservePanelOverlay)for(const auto &p:restoredPanels){const auto error=reservePanelOverlay(p);require(error.empty(),error.c_str());reservedPanels.push_back(p.id);}
   std::unique_ptr<physics::World> newWorld;
   if(!bodies.empty()){
     auto *world=scene.physics.get();if(!world){newWorld=std::make_unique<physics::World>();world=newWorld.get();}
@@ -184,6 +194,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   }
   scene.containers.insert(scene.nextContainerId);scene.nextContainerId++;
   for(auto &a:pending)scene.assets.push_back(std::move(a));for(auto &o:restored)scene.objects.push_back(std::move(o));
+  for(auto &p:restoredPanels)scene.panels.push_back(std::move(p));scene.nextPanelId+=int(np);
   scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
@@ -202,8 +213,8 @@ static void write(const std::filesystem::path &path,const std::string &data){
 }
 static std::string read(const std::filesystem::path &path){
   const int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);require(fd>=0,"could not open scene file");ScopeExit cleanup{[&]{close(fd);}};
-  struct stat st{};require(fstat(fd,&st)==0&&S_ISREG(st.st_mode)&&st.st_size>=0&&uint64_t(st.st_size)<=maxBytes,"scene file must be a regular file of at most 1 MiB");
-  std::string data;char buffer[4096];for(;;){auto n=::read(fd,buffer,sizeof(buffer));if(n<0&&errno==EINTR)continue;require(n>=0,"could not read scene file");if(!n)break;require(data.size()+size_t(n)<=maxBytes,"scene exceeds 1 MiB");data.append(buffer,size_t(n));}return data;
+  struct stat st{};require(fstat(fd,&st)==0&&S_ISREG(st.st_mode)&&st.st_size>=0&&uint64_t(st.st_size)<=maxBytes,"scene file must be a regular file of at most 16 MiB");
+  std::string data;char buffer[4096];for(;;){auto n=::read(fd,buffer,sizeof(buffer));if(n<0&&errno==EINTR)continue;require(n>=0,"could not read scene file");if(!n)break;require(data.size()+size_t(n)<=maxBytes,"scene exceeds 16 MiB");data.append(buffer,size_t(n));}return data;
 }
 }
 static JSValue jsCaptureSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){

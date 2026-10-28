@@ -604,6 +604,6 @@ Panel IDs and object IDs are separate numeric namespaces; distinguish them by
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v3 schema (including v1/v2 compatibility), animation playback, physics
-bodies/joints, storage paths,
+v4 schema (including v1–v3 compatibility), panels and pixels, animation
+playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.

@@ -57,6 +57,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Scene save/restore](scripts/scene-save.js): save model arrangements with bumper and restore with A/X.
 - [Physics save/restore](scripts/physics-save.js): save and restore bodies, hinge motors, springs and motion.
 - [Animation save/restore](scripts/animation-save.js): preserve independent animated poses and playback state.
+- [Panel save/restore](scripts/panel-save.js): preserve panel pixels and layout, then edit and click the restored UI.
 | [lod.js](scripts/lod.js) | Sixteen detailed grabbable cars with automatic LOD and full detail while held |
 | [instances.js](scripts/instances.js) | Sixteen grabbable Avocados sharing a surface with ordered GPU instancing |
 | [grouped-stress.js](scripts/grouped-stress.js) | Adaptive stereo groups with splitting, merging, and rebalancing; up to 240 grabbable physics boxes |
@@ -81,7 +82,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.
 - [Scene containers](docs/scene-containers.md): own and dispose related objects, panels and callbacks together.
-- [Scene save/restore](docs/scene-persistence.md): versioned model/animation/physics scenes and named JSON saves.
+- [Scene save/restore](docs/scene-persistence.md): versioned model/panel/animation/physics scenes and named JSON saves.
 - [Automatic model LOD](docs/javascript-api.md#automatic-model-lod): bounded geometry reduction with full detail nearby and while grabbed.
 - [GPU instancing](docs/javascript-api.md#ordered-gpu-instancing): automatic batching for repeated static models without reducing detail.
 - [Tracking](docs/tracking-api.md): gaze, foveation centers, and finger sensors.

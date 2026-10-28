@@ -6,7 +6,7 @@
 int main(){
   const auto dir=std::filesystem::temp_directory_path()/("sf-persistence-"+std::to_string(getpid()));std::filesystem::create_directory(dir);
   scenePersistence::directory=dir.string();auto script=dir/"test.js";
-  ScriptHost host;ScopeExit cleanup{[&]{reserveObjectOverlay={};releaseObjectOverlay={};closeScript(host);std::filesystem::remove_all(dir);}};
+  ScriptHost host;ScopeExit cleanup{[&]{reserveObjectOverlay={};releaseObjectOverlay={};reservePanelOverlay={};releasePanelOverlay={};closeScript(host);std::filesystem::remove_all(dir);}};
   std::ofstream(script)<<R"JS(
     const a=loadModel('assets/samples/Box/Box.glb',512,{lod:false,gpuInstancing:false,optimizeVertexCache:true});
     const owner=createSceneContainer();
@@ -25,15 +25,15 @@ int main(){
     function bad(edit){const s=JSON.parse(JSON.stringify(snap));edit(s);fails(()=>restoreSceneContainer(s));}
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
-    bad(s=>s.note="x".repeat(1024*1024));
-    bad(s=>s.version=4);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.note="x".repeat(16*1024*1024));
+    bad(s=>s.version=5);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));
     bad(s=>s.objects=Array(257).fill(s.objects[0]));
     fails(()=>restoreSceneContainer({toJSON(){throw Error('getter');}}));
     fails(()=>captureSceneContainer(0));fails(()=>saveSceneContainer(owner,'../escape'));fails(()=>saveSceneContainer(owner,''));
-    const p=createPanel({widthPixels:8,heightPixels:8,widthMeters:.1,container:owner});fails(()=>captureSceneContainer(owner));removePanel(p);
+    const p=createPanel({widthPixels:8,heightPixels:8,widthMeters:.1,container:owner});check(captureSceneContainer(owner).panels.length===1);removePanel(p);
     setObjectPhysics(o);check(captureSceneContainer(owner).objects[0].physics.settings.type==='dynamic');removeObjectPhysics(o);
     saveSceneContainer(owner,'roundtrip');const disk=loadSceneContainer('roundtrip');check(disk.objectIds.length===2);disposeSceneContainer(disk.containerId);
     fails(()=>loadSceneContainer('missing'));
@@ -104,5 +104,28 @@ int main(){
   assert(host.scene.objects.size()==8&&host.scene.containers.size()==2);
   closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('animations');if(c.objectIds.length!==4||getAnimationState(c.objectIds[0]).speed!==.75||getAnimationState(c.objectIds[1]).status!=='paused'||getAnimationState(c.objectIds[2]).status!=='finished'||getAnimationState(c.objectIds[3]).status!=='stopped')throw Error('fresh animation restore');function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.objects[0].animationPose&&host.scene.objects[1].animationPose&&host.scene.objects[2].animationPose&&!host.scene.objects[3].animationPose);
-  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states and rollback");
+  closeScript(host);assert(loadScript(host,"tests/panel-persistence-api-smoke.js"));ctx=host.ctx;liveScene=currentScene=&host.scene;
+  assert(host.scene.panels.size()==8&&host.scene.objects.size()==2);
+  for(size_t i=0;i<4;i++){const auto &a=host.scene.panels[i],&b=host.scene.panels[i+4];if(i!=1)assert(a.rgba==b.rgba);assert(a.rgba.data()!=b.rgba.data()&&b.texture==0&&b.dirty&&b.container!=a.container);}
+  const int panelNext=host.scene.nextPanelId,objectIdNext=host.scene.nextId,ownerIdNext=host.scene.nextContainerId;int panelCalls=0,panelReleases=0;calls=releases=0;
+  reserveObjectOverlay=[&](int){calls++;return std::string{};};releaseObjectOverlay=[&](int){releases++;};
+  reservePanelOverlay=[&](const Panel &){return ++panelCalls==2?std::string("EXPECTED panel overlay failure"):std::string{};};releasePanelOverlay=[&](int){panelReleases++;};
+  eval("restoreSceneContainer(panelSnapshot)",false);
+  assert(panelCalls==2&&panelReleases==1&&calls==1&&releases==1&&host.scene.nextPanelId==panelNext&&host.scene.nextId==objectIdNext&&host.scene.nextContainerId==ownerIdNext&&host.scene.panels.size()==8);
+  reserveObjectOverlay={};releaseObjectOverlay={};reservePanelOverlay={};releasePanelOverlay={};
+  calls=releases=panelCalls=panelReleases=0;
+  reserveObjectOverlay=[&](int){calls++;return std::string{};};releaseObjectOverlay=[&](int){releases++;};
+  reservePanelOverlay=[&](const Panel &){panelCalls++;return std::string{};};releasePanelOverlay=[&](int){panelReleases++;};
+  eval("setObjectPhysics(object);{const s=captureSceneContainer(panelOwner);s.objects[0].physics.settings.mass=0;fails(()=>restoreSceneContainer(s));}");
+  assert(calls==1&&releases==1&&panelCalls==4&&panelReleases==4&&host.scene.nextPanelId==panelNext&&host.scene.nextId==objectIdNext&&host.scene.nextContainerId==ownerIdNext&&host.scene.panels.size()==8&&host.scene.physics->contains(1)&&!host.scene.physics->contains(objectIdNext));
+  reserveObjectOverlay={};releaseObjectOverlay={};reservePanelOverlay={};releasePanelOverlay={};
+  // Budget rejection happens before allocating decoded pixel storage.
+  size_t fullBudget=scenePersistence::maxPanelBytes;bool rejected=false;
+  try{scenePersistence::Value v(ctx,scenePersistence::panelValue(ctx,host.scene.panels[0],fullBudget));}catch(const std::exception&){rejected=true;}assert(rejected&&fullBudget==scenePersistence::maxPanelBytes);
+  frameInput.addOverlayEvent("panel.pointerDown",5,0);dispatchInputCallbacks();eval("check(clicks===1)");
+  assert(host.scene.panels[4].rgba!=host.scene.panels[0].rgba);
+  eval("disposeSceneContainer(panelCopy.containerId)");assert(host.scene.panels.size()==4);
+  closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('panels');if(c.panels.length!==4)throw Error('fresh panel restore');c.panels[0].canvas.text(1,1,'New text');c.panels[0].present();function update(){}";
+  assert(loadScript(host,script.string()));assert(host.scene.panels.size()==4&&host.scene.panels[0].interactive&&!host.scene.panels[2].visible);
+  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback");
 }

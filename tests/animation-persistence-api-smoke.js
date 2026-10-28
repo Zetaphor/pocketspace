@@ -16,13 +16,13 @@ setObjectPhysics(playing,{type:'kinematic'});
 // The native harness advances finished playback once before capturing.
 globalThis.animationOwner=owner;globalThis.animationFinished=finished;
 function saveAndCheck(){
-  const snapshot=captureSceneContainer(owner);check(snapshot.version===3&&snapshot.objects[3].animation===null);
+  const snapshot=captureSceneContainer(owner);check(snapshot.version===4&&snapshot.objects[3].animation===null);
   saveSceneContainer(owner,'animations');const copy=loadSceneContainer('animations');
   for(const source of [playing,paused,finished,stopped])check(JSON.stringify(getAnimationState(source))===JSON.stringify(getAnimationState(copy.objectMap[source])),'playback roundtrip');
   check(getObjectPhysics(copy.objectMap[playing]).type==='kinematic');
   globalThis.animationSnapshot=snapshot;globalThis.animationCopy=copy;
   function bad(edit){const s=JSON.parse(JSON.stringify(snapshot));edit(s);fails(()=>restoreSceneContainer(s));}
-  bad(s=>s.version=4);bad(s=>s.version=2);bad(s=>delete s.objects[0].animation);
+  bad(s=>s.version=5);bad(s=>s.version=2);bad(s=>delete s.objects[0].animation);
   bad(s=>s.objects[0].animation.clip=9999);bad(s=>s.objects[0].animation.clip=1.5);
   bad(s=>s.objects[0].animation.name='changed');bad(s=>s.objects[0].animation.duration+=1);
   bad(s=>s.objects[0].animation.time=-1);bad(s=>s.objects[0].animation.time=Infinity);
