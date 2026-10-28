@@ -75,7 +75,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
 - [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
 - [Animation](docs/animation-api.md): clip controls and skeletal model support.
-- [GPU instancing](docs/javascript-api.md#ordered-gpu-instancing): opt-in batching for repeated static models without reducing detail.
+- [GPU instancing](docs/javascript-api.md#ordered-gpu-instancing): automatic batching for repeated static models without reducing detail.
 - [Tracking](docs/tracking-api.md): gaze, foveation centers, and finger sensors.
 - [Eye calibration](docs/eye-calibration.md): generate, load, and interpret correction files.
 - [Lifecycle](docs/lifecycle.md): reload, removal, disconnect, and shutdown behavior.

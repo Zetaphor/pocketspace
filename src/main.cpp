@@ -517,7 +517,7 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   int eyePixels=kDefaultEyePixels;
   if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
   if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
-  bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=false,explicitInstancing=false;
+  bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=true,explicitInstancing=false;
   if(argc>2&&!JS_IsUndefined(argv[2])){
     if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"model options must be an object");
     JSValue option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;

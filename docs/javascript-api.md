@@ -61,7 +61,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean options `optimizeVertexCache` and `gpuInstancing` both default to `false`; see shared geometry and ordered GPU instancing below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` defaults to `true`; see shared geometry and ordered GPU instancing below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -370,10 +370,10 @@ are supported. [Animation](animation-api.md) covers skinning and clip limits.
 
 ### Ordered GPU instancing
 
-Opt repeated static models into instancing on their first load:
+Repeated static models use ordered GPU instancing by default:
 
 ```js
-const asset = loadModel('assets/Avocado.glb', 768, {gpuInstancing: true});
+const asset = loadModel('assets/Avocado.glb', 768);
 for (let i = 0; i < 16; i++) {
   createObject(asset, (i % 4 - 1.5) * .16, (Math.floor(i / 4) - 1.5) * .16,
     0, .12, {renderGroup: 1});
@@ -394,14 +394,15 @@ original drawing path. The renderer preserves object and triangle order; it
 does not sort objects by asset to manufacture batches. Interleaving different
 assets can therefore prevent batching. Masked holes use the same material shader.
 
-`gpuInstancing` must be a boolean and defaults to `false`. A cached path inherits
+`gpuInstancing` must be a boolean and defaults to `true`. Pass
+`{gpuInstancing: false}` on first load to use individual draws. A cached path inherits
 its first-load setting when the option is omitted; an explicitly conflicting
 setting throws. Reload the script to change the setting. Unsupported geometry
 falls back normally rather than causing a load error. `optimizeVertexCache` is
 independent and can be combined with this option.
 
 Instancing primarily reduces CPU draw submission; GPU-bound workloads may see
-little FPS improvement. Measure the actual scene before enabling it broadly.
+little FPS improvement. Measure the actual scene when evaluating its performance benefit.
 The renderer lazily creates a shared shader and a reusable 7 KiB instance buffer;
 the buffer is included in `gpuAllocatedEstimateBytes`. Driver streaming copies
 remain outside that estimate. Initialization failure retains original draws,

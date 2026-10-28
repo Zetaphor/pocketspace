@@ -1,7 +1,8 @@
 # Ordered model GPU instancing
 
-Ordered instancing is implemented as the opt-in `loadModel` option
-`gpuInstancing: true`; the default remains false. It batches consecutive eligible
+Ordered instancing is enabled by default in `loadModel`;
+`gpuInstancing: false` opts out. The measurements below predate the default
+change and explicitly select each path. It batches consecutive eligible
 copies of the same static single-primitive opaque/masked asset within an eye/pass.
 It preserves triangle/object order, model detail, UVs, material behavior, reference
 resolution, and surface membership. Multi-part models, blended materials,
@@ -26,7 +27,7 @@ They verify restored attribute/divisor/program state and GL buffer release.
 No object sorting or multi-part reordering is used to manufacture batches.
 
 API checks run through the real QuickJS loader: strict boolean parsing, getter
-exceptions, false defaults, cached-path inheritance, explicit conflicts and
+exceptions, default-on behavior, explicit opt-out, cached-path inheritance, explicit conflicts and
 stored native flags. Existing lifecycle, GLES occlusion and all 22 published
 examples pass. Shader/buffer initialization failure retains original draws;
 resources are reset on successful scene replacement and destroyed on shutdown.
