@@ -2,3 +2,6 @@ build/
 *.o
 *.a
 *.so
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
