@@ -54,10 +54,10 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
 | [containers.js](scripts/containers.js) | Bumper opens/closes a tool containing grabbable objects and a panel |
-- [Scene save/restore](scripts/scene-save.js): save model arrangements with bumper and restore with A/X.
-- [Physics save/restore](scripts/physics-save.js): save and restore bodies, hinge motors, springs and motion.
-- [Animation save/restore](scripts/animation-save.js): preserve independent animated poses and playback state.
-- [Panel save/restore](scripts/panel-save.js): preserve panel pixels and layout, then edit and click the restored UI.
+| [scene-save.js](scripts/scene-save.js) | Save model arrangements with bumper and restore with A/X |
+| [physics-save.js](scripts/physics-save.js) | Save and restore bodies, hinge motors, springs, and motion |
+| [animation-save.js](scripts/animation-save.js) | Preserve independent animated poses and playback state |
+| [panel-save.js](scripts/panel-save.js) | Preserve panel pixels and layout, then edit and click the restored UI |
 | [lod.js](scripts/lod.js) | Sixteen detailed grabbable cars with automatic LOD and full detail while held |
 | [instances.js](scripts/instances.js) | Sixteen grabbable Avocados sharing a surface with ordered GPU instancing |
 | [grouped-stress.js](scripts/grouped-stress.js) | Adaptive stereo groups with splitting, merging, and rebalancing; up to 240 grabbable physics boxes |

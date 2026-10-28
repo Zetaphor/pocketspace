@@ -36,6 +36,16 @@ for name in bindings:
     if not re.search(r'\b' + re.escape(name) + r'\b', combined):
         errors.append(f'undocumented global: {name}')
 readme = (ROOT / 'README.md').read_text()
+# Every example belongs to one uninterrupted two-column GFM table.
+examples = re.search(r'^## Examples\n(.*?)(?=^## |\Z)', readme, re.M | re.S)
+if not examples or '| Script | Demonstrates |' not in examples[1]:
+    errors.append('README.md: missing examples table')
+else:
+    table = examples[1].split('| Script | Demonstrates |', 1)[1].strip().splitlines()
+    for row in table:
+        if not re.fullmatch(r'\|[^|\n]+\|[^|\n]+\|', row):
+            errors.append('README.md: interrupted or malformed examples table')
+            break
 for script in sorted((ROOT / 'scripts').glob('*')):
     if script.suffix != '.js':
         errors.append(f'non-example file in scripts/: {script.name}')
