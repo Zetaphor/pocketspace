@@ -1,7 +1,7 @@
 # Documentation site
 
 The documentation is published at
-[zetaphor.github.io/sf-overlay-engine](https://zetaphor.github.io/sf-overlay-engine/).
+[zetaphor.github.io/pocketspace](https://zetaphor.github.io/pocketspace/).
 [VitePress](https://vitepress.dev/) builds a static site directly from the Markdown
 files in `docs/`. Those files remain readable and editable in the repository.
 The site adds a navigation sidebar, local full-text search, syntax highlighting,
@@ -25,7 +25,7 @@ npm run docs:build
 npm run docs:preview
 ```
 
-Open the URL printed by the command, including `/sf-overlay-engine/`. Generated
+Open the URL printed by the command, including `/pocketspace/`. Generated
 HTML and search assets live in `docs/.vitepress/dist/`; build output, caches and
 `node_modules/` stay out of Git. Commit `package-lock.json` with dependency changes.
 
@@ -60,7 +60,7 @@ Only the generated static site is uploaded, rather than the engine binaries or
 model assets. No custom domain is required.
 
 The workflow grants Pages deployment permissions only to its deployment job and
-never deploys pull requests. The project base path is `/sf-overlay-engine/`; if
+never deploys pull requests. The project base path is `/pocketspace/`; if
 the repository name or hosting location changes, update that setting and the
 published links here and in the README. Native engine code is unaffected by the
 documentation build.

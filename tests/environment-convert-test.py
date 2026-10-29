@@ -25,11 +25,11 @@ with tempfile.TemporaryDirectory() as directory:
         expected = ((128/255+.055)/1.055)**2.4 if space == 'srgb' else value
         assert pixels.shape == (8, 16, 3)
         assert np.allclose(pixels, expected, atol=.005)
-    bake = folder/'custom.sfenv'
+    bake = folder/'custom.psenv'
     subprocess.run([sys.executable, str(root/'tools/generate-environment.py'),
                     str(bake), '--input', str(folder/'hdr.npy'), '--size', '16',
                     '--lut-size', '16', '--samples', '64'], check=True)
-    assert bake.read_bytes()[:8] == b'SFENV001'
+    assert bake.read_bytes()[:8] == b'PSENV001'
     rejected = subprocess.run([sys.executable, str(root/'tools/convert-environment.py'),
                               str(folder/'source.exr'), str(folder/'invalid.npy'),
                               '--color-space', 'srgb'], capture_output=True)

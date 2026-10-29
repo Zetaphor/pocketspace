@@ -14,7 +14,7 @@ int main(int argc,char **argv){
  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
  GLint current=0;glUseProgram(r.program);assert(r.depthPbrProgram.init(true));glGetIntegerv(GL_CURRENT_PROGRAM,&current);assert(GLuint(current)==r.program);
  for(const char *path:{"tests/fixtures/pbr/MissingNormals.glb","tests/fixtures/pbr/MissingNormalsMirrored.glb"}){
-  r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment);
+  r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
   auto &p=a.primitives[0];const unsigned char pixels2x2[]={255,255,255,0,255,255,255,127,255,255,255,128,255,255,255,255};
   glBindTexture(GL_TEXTURE_2D,p.texture);glTexImage2D(GL_TEXTURE_2D,0,GL_SRGB8_ALPHA8,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels2x2);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
   Object target{};target.id=1;target.asset=3;target.scale=.9f;target.z=.7f;Object occluder=target;occluder.id=2;occluder.asset=int(r.scene.assets.size());occluder.scale=.7f;occluder.z=-.1f;Object second=occluder;second.id=3;second.x=.18f;second.y=.08f;second.z=.02f;r.scene.objects={target,occluder,second};
@@ -32,7 +32,7 @@ int main(int argc,char **argv){
   }
  }
  for(const char *name:{"ToyCar","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","Fox","RiggedSimple","AnimatedMorphCube","InterpolationTest"}){
-  r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");
+  r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");
   Object target{};target.id=1;target.asset=3;target.scale=.8f;target.z=.7f;Object o=target;o.id=2;o.asset=int(r.scene.assets.size());o.scale=.45f;o.z=-.1f;o.pitch=.2f;o.yaw=.3f;r.scene.objects={target,o};
   for(int phase=0;phase<3;phase++)for(int eye=0;eye<2;eye++){
    auto &object=r.scene.objects[1];object.lodLevel=phase;object.yaw=.3f+phase*.4f;
@@ -47,7 +47,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{4,16})for(bool depthWork:{true,false}){
-   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
+   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
 
    assert(r.pbrProgram.init(false)&&r.depthPbrProgram.init(true));
    std::vector<int> members;

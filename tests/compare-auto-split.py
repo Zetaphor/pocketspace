@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--seconds', type=float, default=12)
 parser.add_argument('--warmup', type=float, default=5)
 parser.add_argument('--output', type=Path, required=True)

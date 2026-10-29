@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sf_overlay_engine CXX)
+project(pocketspace CXX)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
@@ -58,7 +58,13 @@ add_executable(culling-regression EXCLUDE_FROM_ALL tests/culling-regression.cpp 
 target_compile_options(culling-regression PRIVATE -UNDEBUG)
 add_executable(pbr-regression EXCLUDE_FROM_ALL tests/pbr-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_options(pbr-regression PRIVATE -UNDEBUG)
-add_executable(sf-overlay-engine src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
+add_executable(pocketspace src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
+# Preserve old build commands and direct executable paths during the rename.
+add_custom_target(sf-overlay-engine DEPENDS pocketspace)
+add_custom_command(TARGET pocketspace POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:pocketspace>" "$<TARGET_FILE_DIR:pocketspace>/sf-overlay-engine"
+  VERBATIM)
+
 # Explicit regression target: uses the actual QuickJS loader without starting VR.
 add_executable(lifecycle-script-regression EXCLUDE_FROM_ALL tests/lifecycle-script-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 add_executable(scene-persistence-regression EXCLUDE_FROM_ALL tests/scene-persistence-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
@@ -124,7 +130,7 @@ target_compile_options(instancing-pixels PRIVATE -UNDEBUG)
 target_compile_options(cluster-visibility-pixels PRIVATE -UNDEBUG)
 target_compile_options(primitive-visibility-pixels PRIVATE -UNDEBUG)
 target_compile_options(opaque-shader-pixels PRIVATE -UNDEBUG)
-foreach(engine_target pbr-index-production-regression pbr-depth-demo pbr-depth-regression pbr-lod-demo pbr-lod-regression pbr-index-demo pbr-index-regression environment-regression culling-regression pbr-regression group-occluder-regression ordinary-program-regression static-vertex-pixels rigid-batch-experiment rigid-batch-pixels vertex-array-experiment vertex-array-pixels draw-submit-experiment draw-uniform-pixels rigid-pose-experiment gpu-skinning-regression gpu-skinning-experiment animation-profile-experiment animation-blend-regression morph-regression scene-persistence-regression scene-container-regression auto-lod-regression lod-pixels multipart-instancing-pixels instancing-pixels cluster-visibility-pixels primitive-visibility-pixels opaque-shader-pixels gpu-sync-pixels gpu-sync-experiment render-group-split-regression shared-depth-prototype projected-bounds-regression panel-submission-regression render-stress-benchmark render-occlusion-regression sf-overlay-engine lifecycle-script-regression animation-regression examples-regression physics-api-regression)
+foreach(engine_target pbr-index-production-regression pbr-depth-demo pbr-depth-regression pbr-lod-demo pbr-lod-regression pbr-index-demo pbr-index-regression environment-regression culling-regression pbr-regression group-occluder-regression ordinary-program-regression static-vertex-pixels rigid-batch-experiment rigid-batch-pixels vertex-array-experiment vertex-array-pixels draw-submit-experiment draw-uniform-pixels rigid-pose-experiment gpu-skinning-regression gpu-skinning-experiment animation-profile-experiment animation-blend-regression morph-regression scene-persistence-regression scene-container-regression auto-lod-regression lod-pixels multipart-instancing-pixels instancing-pixels cluster-visibility-pixels primitive-visibility-pixels opaque-shader-pixels gpu-sync-pixels gpu-sync-experiment render-group-split-regression shared-depth-prototype projected-bounds-regression panel-submission-regression render-stress-benchmark render-occlusion-regression pocketspace lifecycle-script-regression animation-regression examples-regression physics-api-regression)
   target_include_directories(${engine_target} PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${DRM_INCLUDE})
   target_link_directories(${engine_target} PRIVATE ${STEAMVR_BIN})
   target_link_libraries(${engine_target} PRIVATE sf-physics meshoptimizer mikktspace sf-environment openvr_api ${QJS_LIB} Freetype::Freetype pthread EGL GLESv2 gbm drm m)

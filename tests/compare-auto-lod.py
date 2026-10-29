@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 p = argparse.ArgumentParser(description=__doc__)
-p.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+p.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 p.add_argument('--output', type=Path, required=True)
 p.add_argument('--rounds', type=int, default=2)
 p.add_argument('--seconds', type=int, default=16)

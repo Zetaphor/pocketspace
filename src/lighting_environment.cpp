@@ -12,14 +12,14 @@ bool dimension(uint32_t n){return n>=16&&n<=256&&(n&(n-1))==0;}
 bool halfValid(uint16_t n){return (n&0x7c00)!=0x7c00&&(!(n&0x8000)||(n&0x7fff)==0);}
 }
 std::shared_ptr<LightingEnvironment> loadLightingEnvironment(const std::string &path){
-  static_assert(std::endian::native==std::endian::little,"SFENV001 data requires a little-endian host");
+  static_assert(std::endian::native==std::endian::little,"PSENV001 data requires a little-endian host");
   for(auto it=cache.begin();it!=cache.end();)if(it->second.expired())it=cache.erase(it);else ++it;
   if(auto it=cache.find(path);it!=cache.end())if(auto asset=it->second.lock())return asset;
   if(path.empty()||path.size()>4096||path.find('\0')!=std::string::npos)return {};
   std::ifstream file(path,std::ios::binary|std::ios::ate);if(!file)return {};
   const auto bytes=file.tellg();if(bytes<128||bytes>8*1024*1024)return {};file.seekg(0);
   auto asset=std::make_shared<LightingEnvironment>();asset->path=path;
-  char magic[8];file.read(magic,8);if(std::memcmp(magic,"SFENV001",8))return {};
+  char magic[8];file.read(magic,8);if(std::memcmp(magic,"PSENV001",8)&&std::memcmp(magic,"SFENV001",8))return {};
   file.read(reinterpret_cast<char*>(&asset->size),4);file.read(reinterpret_cast<char*>(&asset->levels),4);file.read(reinterpret_cast<char*>(&asset->lutSize),4);
   if(!file||!dimension(asset->size)||!dimension(asset->lutSize)||asset->levels!=std::bit_width(asset->size))return {};
   size_t elements=0;for(uint32_t s=asset->size;s;s/=2)elements+=size_t(s)*s*6*3;

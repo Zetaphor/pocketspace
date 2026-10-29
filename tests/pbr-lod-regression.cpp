@@ -29,7 +29,7 @@ int main(int argc,char **argv){
     for(size_t v=0;v<size_t(lod.count);v++){Key k;for(int c=0;c<5;c++)k[c]=std::bit_cast<uint32_t>(vertices[v*5+c]);for(int c=0;c<9;c++)k[c+5]=std::bit_cast<uint32_t>(frames[v*9+c]);assert(original.count(k));}
    }
   }
-  a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment);
+  a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.3f;o.pitch=.2f;o.yaw=.3f;Object other=o;other.id=2;other.asset=3;other.x=.1f;other.z=-.1f;other.scale=.2f;r.scene.objects={o,other};
   // Independently route the reduced streams through the ordinary full-detail
   // draw path, then require identical color/depth/overlap pixels in both eyes.
@@ -125,7 +125,7 @@ int main(int argc,char **argv){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{1,16}){
    Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
-   setenv("SF_PBR_LOD","1",1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
+   setenv("SF_PBR_LOD","1",1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
 
    std::vector<int> members;
    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}

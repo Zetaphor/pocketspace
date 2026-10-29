@@ -11,7 +11,7 @@ import tempfile
 import time
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--lod', action='store_true', help='Exercise generated LOD buffer lifetime with ToyCar')
 args = parser.parse_args()

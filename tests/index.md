@@ -308,7 +308,7 @@ the bounded non-interactive
 
 - [environment-convert-test.py](environment-convert-test.py): real HDR/EXR and
   sRGB PNG conversion, HDR range preservation, invalid encoding rejection and
-  an end-to-end custom `.sfenv` bake. Requires the offline tool dependencies.
+  an end-to-end custom `.psenv` bake. Requires the offline tool dependencies.
 - [environment-bake-test.py](environment-bake-test.py): constant-radiance and
   diffuse SH normalization, cube orientation, BRDF energy, equirectangular
   sampling, and GGX broadening checks for the offline baker.

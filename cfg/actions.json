@@ -148,7 +148,7 @@
   "localization": [
     {
       "language_tag": "en_US",
-      "/actions/hands": "Steam Frame overlay input",
+      "/actions/hands": "Pocketspace controller input",
       "/actions/hands/in/grip_click": "Grip Click",
       "/actions/hands/in/grip_touch": "Grip Touch",
       "/actions/hands/in/grip_value": "Grip Value",

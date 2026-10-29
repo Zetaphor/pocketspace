@@ -83,7 +83,9 @@ script reload, like calibration writes.
 
 ## Format and compatibility
 
-The `format` string is `sf-overlay-engine.scene-container`.
+The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
+this identifier and its legacy default save directory for compatibility with
+existing snapshots and named saves.
 New captures use `version: 7`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2

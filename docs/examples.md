@@ -4,7 +4,7 @@ Start with [build and run](getting-started.md) if you have not set up the engine
 Each script is a complete scene you can run, read and adapt. Try grabbing for
 interaction, panels for UI, physics for simulation, or PBR for lit models.
 
-Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
+Run any example with `./run-pocketspace.sh scripts/<name>.js`.
 
 | Script | Demonstrates |
 | --- | --- |

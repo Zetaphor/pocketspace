@@ -258,7 +258,7 @@ sheen tint. Opt-in PBR assets use `src/pbr_asset.h`, `src/surface_frame.h` and
 `src/pbr_program.h`: retained normals/tangents and morph deltas, MikkTSpace tangent
 generation, a separate expanded surface-frame VBO, sRGB color/emissive textures,
 linear data textures, and a directional-light GGX metallic/roughness shader with optional baked image-based
-lighting. `src/lighting_environment.cpp` validates SFENV001 resources, shares them
+lighting. `src/lighting_environment.cpp` validates PSENV001 resources, shares them
 by exact path through weak cache entries, and lazily uploads an HDR prefiltered
 cubemap and BRDF lookup. The [split-sum IBL design](https://google.github.io/filament/Filament.html)
 separates roughness-filtered radiance from the integrated BRDF.
@@ -458,3 +458,14 @@ production default. Keep exact implementation invariants in the
 [handoff](agent-handoff.md), public options in API guides, and benchmark histories
 in [recorded results](../tests/index.md). Follow [AGENTS.md](../AGENTS.md) for
 verification and resource-lifetime rules.
+
+## Pocketspace compatibility identifiers
+
+The public executable, launcher and documentation use Pocketspace. The legacy
+`sf-overlay-engine` build/executable aliases and launcher still resolve to the
+same runtime. Keep the existing SteamVR application key, overlay/mailbox keys,
+scene-container format string and default state directory stable across this
+branding change so bindings, input and named saves remain compatible.
+Lighting-environment writers emit `PSENV001` (`.psenv`); readers also accept the
+legacy `SFENV001` payload with unchanged size/value validation. The bundled old
+environment path is an alias rather than a second GPU-owned resource format.

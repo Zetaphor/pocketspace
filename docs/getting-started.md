@@ -26,7 +26,7 @@ for an offline meshoptimizer 1.0 checkout at commit
 Start SteamVR, then run the grabbing example:
 
 ```sh
-./run-overlay-engine.sh scripts/grabbing.js
+./run-pocketspace.sh scripts/grabbing.js
 ```
 
 The box can be grabbed with either controller using grip or trigger. The wrapper sets the runtime library
@@ -38,8 +38,19 @@ automatically; a failed reload preserves the existing scene.
 Inspect a model without opening VR:
 
 ```sh
-./run-overlay-engine.sh --inspect assets/samples/Box/Box.glb
+./run-pocketspace.sh --inspect assets/samples/Box/Box.glb
 ```
+
+## Existing installations
+
+The executable is `build/pocketspace` and the launcher is `run-pocketspace.sh`.
+The previous `run-overlay-engine.sh` launcher, `sf-overlay-engine` build target
+and `build/sf-overlay-engine` executable alias remain supported. Reconfigure and
+rebuild an existing checkout to generate the new executable and alias.
+
+Existing named scene saves retain their storage directory and format identifier;
+see [scene persistence](scene-persistence.md). SteamVR's application identity is
+also retained so existing controller bindings keep working.
 
 ## Create your first scene
 
@@ -54,7 +65,7 @@ setLaserVisible('right', true);
 function update() { pollInputEvents(); }
 ```
 
-Run it with `./run-overlay-engine.sh my-scene.js`. Use either controller's
+Run it with `./run-pocketspace.sh my-scene.js`. Use either controller's
 grip or trigger to grab the model. Edit the file while it runs to reload the scene.
 You can start with any of the [example scripts](examples.md) instead.
 

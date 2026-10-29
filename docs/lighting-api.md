@@ -11,7 +11,7 @@ setModelLighting(car, {
   color: [1, .95, .85],
   intensity: 3,
   ambient: 0,
-  environment: 'assets/environments/studio.sfenv',
+  environment: 'assets/environments/studio.psenv',
   environmentIntensity: 1,
   environmentRotation: 0,
   exposure: 1
@@ -39,7 +39,7 @@ changes are published. Getter side effects remain ordinary script actions.
 | `intensity` | Directional light multiplier | `3`; 0 through 64 |
 | `ambient` | Constant diffuse ambient multiplier | `.15`; 0 through 16 |
 | `exposure` | Exposure before the exponential tone curve | `1`; .001 through 64 |
-| `environment` | Path to a baked `.sfenv` lighting environment; `null` disables it | Disabled; nonempty string up to 4096 bytes, or `null` |
+| `environment` | Path to a baked `.psenv` lighting environment; `null` disables it | Disabled; nonempty string up to 4096 bytes, or `null` |
 | `environmentIntensity` | Diffuse and specular environment multiplier | `1`; 0 through 64 |
 | `environmentRotation` | Rotate the environment around scene +Y, in radians | `0`; −10000 through 10000 |
 
@@ -121,7 +121,7 @@ lighting:
 
 ```sh
 /tmp/sf-environment-venv/bin/python tools/convert-environment.py /path/to/panorama.hdr /tmp/lighting.npy --color-space linear
-/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/custom.sfenv --input /tmp/lighting.npy
+/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/custom.psenv --input /tmp/lighting.npy
 ```
 
 Use `--color-space linear` for linear HDR radiance, or `--color-space srgb` for
@@ -146,15 +146,15 @@ Both tools overwrite their output paths; use a new filename to preserve an old
 bake. To generate the original procedural studio without an external image:
 
 ```sh
-/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/my-studio.sfenv
+/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/my-studio.psenv
 ```
 
-Ship the resulting `.sfenv` with your application and select it on a PBR asset:
+Ship the resulting `.psenv` with your application and select it on a PBR asset:
 
 ```js
 const asset = loadModel('assets/samples/ToyCar/ToyCar.glb', 768, {pbr: true});
 setModelLighting(asset, {
-  environment: 'assets/environments/custom.sfenv',
+  environment: 'assets/environments/custom.psenv',
   environmentIntensity: 1,
   environmentRotation: 0,
   ambient: 0,
@@ -222,3 +222,11 @@ See [pbr.js](../scripts/pbr.js) for a concise interactive example. The separate
 [Khronos material test scene](../tests/scenes/pbr-materials.js) covers the lighter
 diagnostic models without capturing controller input. The two high-triangle
 metal/roughness grids stay in offscreen regression checks.
+
+## Environment file compatibility
+
+Pocketspace bakes lighting environments as `.psenv` files with the `PSENV001`
+header. The payload layout and lighting data are unchanged. The loader also
+accepts legacy `SFENV001` files, so existing `.sfenv` environments remain usable.
+New bakes and examples use `.psenv`. The bundled `studio.sfenv` path remains a
+compatibility alias for existing scene saves; new scenes should use `studio.psenv`.

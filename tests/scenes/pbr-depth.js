@@ -5,7 +5,7 @@ setObjectRotation(back, Math.PI / 2, 0, 0);
 setObjectInteraction(back, {laserPassThrough: true, grabbable: false});
 for (const [name, x, group] of [['ToyCar', -.24, 2], ['AlphaBlendModeTest', .24, 3]]) {
   const asset = loadModel(`assets/samples/${name}/${name}.glb`, 768, {pbr: true});
-  setModelLighting(asset, {environment: 'assets/environments/studio.sfenv', ambient: 0});
+  setModelLighting(asset, {environment: 'assets/environments/studio.psenv', ambient: 0});
   const object = createObject(asset, x, 0, 0, .32, {renderGroup: group});
   enableObjectInteraction(object, {grabButton: 'both'});
   setObjectInteraction(object, {handRotationAxes: {pitch: true, yaw: true, roll: true}});

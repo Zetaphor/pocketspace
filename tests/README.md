@@ -6,7 +6,7 @@ This experiment leaves the published examples and engine defaults unchanged.
 Run from the repository root on the VR runtime host:
 
 ```sh
-./run-overlay-engine.sh tests/scenes/overlay-comparison.js
+./run-pocketspace.sh tests/scenes/overlay-comparison.js
 ```
 
 The HUD names the current renderer, geometry, body count, FPS, CPU, process RAM,
@@ -45,7 +45,7 @@ DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
   --output /tmp/overlay-comparison
 ```
 
-Use `--engine /absolute/path/to/sf-overlay-engine` to test an isolated build.
+Use `--engine /absolute/path/to/pocketspace` to test an isolated build.
 The runner refuses to start if another engine process is running. It tests both
 renderers with boxes and detailed models, retaining the same asset cache,
 positions, scales, HUD, and object count. Kinematic bodies, hidden lasers, and
@@ -112,7 +112,7 @@ logs report logical group IDs, new tile counts, and planned allocation savings.
 
 ```sh
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
-  python3 tests/compare-auto-split.py --engine build/sf-overlay-engine \
+  python3 tests/compare-auto-split.py --engine build/pocketspace \
   --output /tmp/auto-split-comparison
 ```
 
@@ -185,7 +185,7 @@ grid at stereo/lateral viewpoints.
 
 ```sh
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
-  python3 tests/compare-regroup.py --engine build/sf-overlay-engine \
+  python3 tests/compare-regroup.py --engine build/pocketspace \
   --output /tmp/regroup-comparison
 ```
 
@@ -206,7 +206,7 @@ allocation threshold. No persistent demo is left running. Visual headset
 acceptance is separate from these bounded checks.
 
 
-`tests/regroup-lifecycle.py --engine build/sf-overlay-engine --output /tmp/regroup-lifecycle.log`
+`tests/regroup-lifecycle.py --engine build/pocketspace --output /tmp/regroup-lifecycle.log`
 adds a bounded native lifecycle run: split/rebalance/merge, hide/show, partial/full
 body removal, and live script replacement from boxes to models. It checks that
 reload commits, removal leaves only the floor, structural operations occurred,
@@ -364,7 +364,7 @@ DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
   python3 tests/compare-instancing.py --case 128-avocados-fixed --output /tmp/instancing
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
-  python3 tests/instancing-lifecycle.py --engine build/sf-overlay-engine --output /tmp/instancing-reload
+  python3 tests/instancing-lifecycle.py --engine build/pocketspace --output /tmp/instancing-reload
 ```
 
 Only the excluded profiling executable accepts `SF_GPU_INSTANCING=0|1`, forcing
@@ -456,7 +456,7 @@ at every level, mixed-level barriers and actual buffer deletion. The lifecycle
 API harness runs `lod-api-smoke.js` for strict boolean parsing and cache rules.
 
 ```sh
-cmake --build build --target auto-lod-regression sf-overlay-engine -j2
+cmake --build build --target auto-lod-regression pocketspace -j2
 DISPLAY=:0 EGL_PLATFORM=x11 ./build/auto-lod-regression
 python3 tests/instancing-lifecycle.py --lod --output /tmp/auto-lod-reload
 python3 tests/compare-auto-lod.py --output /tmp/auto-lod-performance
@@ -480,7 +480,7 @@ callback ownership. Individual removals and repeated container/scene lifetimes
 use the same cleanup paths. The fixture is `scene-container-api-smoke.js`.
 
 ```sh
-cmake --build build --target scene-container-regression sf-overlay-engine -j2
+cmake --build build --target scene-container-regression pocketspace -j2
 ./build/scene-container-regression
 python3 tests/container-lifecycle.py --output /tmp/scene-container-lifecycle
 ```
@@ -507,7 +507,7 @@ The generator supplies five-target STEP/LINEAR/CUBICSPLINE clips, node/mesh/zero
 weights, combined skinning, and malformed models. The native harness checks
 positions, animated picking/bounds, independent poses, the bundled Khronos cube,
 real JavaScript controls, and restored morph poses. No VR session is needed.
-Run `./run-overlay-engine.sh scripts/morph.js` for headset visual acceptance.
+Run `./run-pocketspace.sh scripts/morph.js` for headset visual acceptance.
 
 ## Raw controller subscription recovery
 
@@ -708,7 +708,7 @@ to an installed TTF when running panel persistence checks.
 
 ### Normal-engine mixed backend acceptance
 
-Run `./build/sf-overlay-engine tests/scenes/gpu-skinning-production.js` on Frame
+Run `./build/pocketspace tests/scenes/gpu-skinning-production.js` on Frame
 with the normal display/library environment. No GPU experiment variable is used.
 Twelve instances mix Fox, CesiumMan, RiggedFigure, RiggedSimple, rigid-node
 InterpolationTest and AnimatedMorphCube. Grab with either hand using grip or
@@ -1102,7 +1102,7 @@ and the [prototype results](results/pbr-lod.md) for quality and memory tradeoffs
 For the interactive headset check, run:
 
 ```sh
-DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/sf-overlay-engine tests/scenes/pbr-lod.js
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pocketspace tests/scenes/pbr-lod.js
 ```
 
 Approach and move away from the car and normal-map fixture. Grip or trigger grabs
