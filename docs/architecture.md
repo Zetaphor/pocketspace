@@ -284,7 +284,8 @@ verified, and failed staging releases partial buffers and falls back to expanded
 uploads. The existing uploaded-vertex/index counts account for compact storage;
 shared asset deletion releases each buffer once. The excluded diagnostic builds
 alone allow plain indexing or `SF_PBR_INDEXED` overrides. See
-[production validation](../tests/results/pbr-index-production.md).
+[production validation](../tests/results/pbr-index-production.md) and the
+[broader material/default assessment](../tests/results/pbr-cache-materials.md).
 Production surface-aware PBR LOD in `src/pbr_lod.h` uses full-input CPU indexing
 while simplifying. It locks coincident surface seams and primitive borders,
 then stores selected original inputs in owned position/surface VBOs. With
