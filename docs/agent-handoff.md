@@ -394,6 +394,7 @@ refreshes pass attribution with automatic LOD and ordered instancing. The
 `gpu-sync-experiment` alone accepts `SF_GPU_STATIC_VERTEX=1`, replacing ordinary
 vertex skin selection with `p`; its instancing program remains unchanged and it
 rejects skinned assets. Exact static pixels pass, with modest bounded FPS gains;
-this is not a production policy. Any adoption needs separate program routing for
+the 16-car LOD headset visual check was accepted on 2026-10-29 and the prototype
+was stopped. This is not a production policy. Any adoption needs separate program routing for
 mixed CPU/GPU poses, full uniform rebinding and normal reload/resource cleanup.
 Never enable the whole-program experiment for a mixed production scene.
