@@ -1,5 +1,5 @@
-// Test-only automatic PBR LOD. Approach for full detail; grabbing forces it too.
-// Run with pbr-lod-demo and SF_PBR_LOD=1, not the production executable.
+// Automatic PBR LOD. Approach for full detail; grabbing forces it too.
+// Run with the normal engine; pbr-lod-demo additionally logs transitions.
 const names = ['ToyCar', 'NormalTangentTest'];
 for (let i = 0; i < names.length; i++) {
   const name = names[i];

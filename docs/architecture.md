@@ -150,8 +150,9 @@ static opaque/masked triangles only when explicitly requested; default triangle
 order remains unchanged. Animated and blended geometry retain their required
 order and paths.
 
-Automatic LOD retains the full mesh and adds up to two reduced index buffers for
-eligible indexed opaque static primitives. One projected-size/distance decision
+Automatic LOD retains the full mesh and adds up to two reduced levels for
+eligible opaque static primitives: index buffers for unlit indexed meshes, and
+expanded position/surface pairs for PBR meshes. One projected-size/distance decision
 per object is reused by both eyes, surfaces, and depth passes. Hysteresis limits
 switching; nearby or grabbed models use full detail. Picking and physics continue
 to use full CPU geometry. `lod: false` disables this quality/performance policy.
@@ -277,18 +278,27 @@ triangles and animated uploads stay expanded. These variants are excluded from
 the production engine: [native comparisons](../tests/results/pbr-index.md) found
 lower geometry storage but worse GPU throughput. See the
 [test instructions](../tests/README.md#static-pbr-indexing-experiment).
-The separate [surface-aware PBR LOD experiment](../tests/results/pbr-lod.md)
-uses full-input CPU indexing only while simplifying. It locks coincident surface
-seams and primitive borders, then expands selected original vertices into owned
-position/surface VBO pairs. Full streams stay resident for near and held objects;
-this trades additional shared geometry storage for less distant draw work. The
-existing object-level selector supplies the same detail choice to color/depth
-passes and both eyes. The bake path remains test-only pending a production adoption decision that
-accounts for additional shared geometry storage.
+Production surface-aware PBR LOD in `src/pbr_lod.h` uses full-input CPU indexing
+only while simplifying. It locks coincident surface seams and primitive borders,
+then expands selected original vertices into owned position/surface VBO pairs.
+Full streams stay resident for near and held objects. The existing object-level
+selector supplies the same detail choice to color/depth passes and both eyes.
+[Budgeted production validation](../tests/results/pbr-lod-production.md) records the quality,
+throughput and extra-memory tradeoff.
+
+`src/pbr_lod_budget.h` admits optional PBR pairs under one 32 MiB payload limit
+across assets. Each exact pair reservation precedes GPU allocation/publication;
+failed allocation or CPU staging exceptions release staged buffers and the
+reservation. Missing levels fall back to a finer level or full geometry without
+rejecting an asset or restore. Admission follows upload order, with no eviction
+or retry for already uploaded assets. Asset destruction returns the charge;
+object instances and their held state do not own separate charges. The budget
+excludes full geometry, textures, unlit LOD indices and surfaces. Derived levels
+and reservations are rebuilt rather than serialized.
 Material UV0 transforms and sampler settings are independent. Surface frames use
 inverse-transpose normals and orthogonalized tangents, including mirrored node
 handedness. PBR CPU poses update surface buffers alongside positions and bounds;
-shared textures remain asset-owned. PBR currently bypasses legacy indexing, LOD,
+shared textures remain asset-owned. PBR currently bypasses legacy indexing,
 instancing, rigid batching and GPU skinning to preserve seams and deformation.
 All model paths share a per-pass `ModelCulling` owner: it applies `doubleSided`
 and node-transform winding consistently to member-color, alpha and external-depth
@@ -367,7 +377,8 @@ engine FPS, scene counts, allocation estimates, and latest physics timings.
 Process samples update roughly once a second; getters do not synchronize the GPU.
 Shared memory means RAM and GPU values can overlap. The allocation estimate counts
 owned buffers/textures, deduplicates shared depth, and includes retained surface
-generations, pose streams, palette textures, LOD indices, and instance data. It
+generations, pose streams, palette textures, unlit LOD indices, PBR LOD pairs,
+and instance data. It
 excludes driver/compositor overhead and is not measured GPU residency.
 
 The production optimizations and their controls are:
@@ -378,7 +389,7 @@ The production optimizations and their controls are:
 | Grouped rendering and adaptive tiles | Script-selected groups; subdivision/merge/rebalance opt-in | [Overlay comparison](../tests/results/overlay-comparison.md), [subdivision](../tests/results/auto-split.md), [regrouping](../tests/results/regroup.md) |
 | Exact indexed geometry | Automatic for supported shared geometry | [Maintainer contracts](agent-handoff.md) |
 | Vertex-cache reordering | Explicit asset opt-in | [Vertex cache](../tests/results/vertex-cache.md) |
-| Automatic static-model LOD | Default on; asset opt-out | [Automatic LOD](../tests/results/auto-lod.md) |
+| Automatic static-model LOD | Default on; asset opt-out; PBR extras capped at 32 MiB | [Unlit LOD](../tests/results/auto-lod.md), [PBR LOD](../tests/results/pbr-lod.md) |
 | Ordered static instancing | Default on; asset opt-out | [Instancing](../tests/results/instancing.md) |
 | GPU skinning and lazy exact picking | Automatic when eligible; CPU fallback | [Skinning](../tests/results/gpu-skinning.md) |
 | Rigid pose caching | Automatic for rigid non-morph parts | [Pose cache](../tests/results/rigid-pose-cache.md) |
@@ -410,13 +421,13 @@ deferred until a workload establishes sufficient CPU cost.
 | --- | --- |
 | Host loop, scene bindings, surfaces, layout, passes | `src/main.cpp` |
 | Import, CPU geometry, animation evaluation, pose upload | `src/model_asset.cpp`, `src/model_asset.h`, `src/animation.h` |
-| GPU skinning, rigid batching, indexing, LOD, instancing | `src/gpu_skinning.h`, `src/gpu_skinning_asset.h`, `src/rigid_batching.h`, `src/mesh_index.h`, `src/model_lod.h`, `src/model_instancing.h` |
+| GPU skinning, rigid batching, indexing, LOD, instancing | `src/gpu_skinning.h`, `src/gpu_skinning_asset.h`, `src/rigid_batching.h`, `src/mesh_index.h`, `src/model_lod.h`, `src/pbr_lod.h`, `src/model_instancing.h` |
 | Projection/material shaders and picking | `src/model_shaders.h`, `src/picking_bvh.h` |
 | Tracking and input | `src/controller_input.cpp`, `src/frame_input.cpp`, `src/tracking_state.h`, `src/eye_calibration.h`, `cfg/` |
 | Physics | `src/physics_world.cpp`, `src/physics_world.h` |
 | Panels | `src/panel.cpp`, `src/panel_submission.h` |
 | Snapshots and ownership lookup | `src/scene_persistence.h`, `src/scene_*_snapshot.h`, `src/scene_lookup.h` |
-| Statistics and buffer admission | `src/runtime_stats.h`, `src/group_buffer_budget.h` |
+| Statistics and buffer admission | `src/runtime_stats.h`, `src/group_buffer_budget.h`, `src/pbr_lod_budget.h` |
 
 Keep this guide aligned with shipped behavior when changing a pipeline stage or
 production default. Keep exact implementation invariants in the

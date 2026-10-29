@@ -6,6 +6,7 @@
 #include "animation.h"
 #include "surface_frame.h"
 #include "lighting_environment.h"
+#include "pbr_lod_budget.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
 #include "rigid_batching.h"
@@ -13,7 +14,7 @@
 #include "../tests/vertex-array-experiment.h"
 #endif
 
-struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;};
+struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;uint64_t budgetBytes=0;};
 struct MaterialMap {
   std::vector<unsigned char> rgba;
   int width=1,height=1;

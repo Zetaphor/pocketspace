@@ -36,12 +36,12 @@ int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  // Boundary coverage for both index widths and exact shader-input identity.
  for(size_t unique:{65536u,65538u}){
-  ModelAsset a;a.pbr=true;a.primitives.emplace_back();auto &p=a.primitives[0];p.vertexCount=GLsizei(unique*3);p.rgba={255,255,255,255};
+  ModelAsset a;a.pbr=true;a.lod=false;a.primitives.emplace_back();auto &p=a.primitives[0];p.vertexCount=GLsizei(unique*3);p.rgba={255,255,255,255};
   for(int repeat=0;repeat<3;repeat++)for(size_t v=0;v<unique;v++){
    p.vertices.insert(p.vertices.end(),{float(v),0,0,0,0});
    p.surface.insert(p.surface.end(),{0,0,1,1,0,0,1,0,0});
   }
-  setenv("SF_PBR_INDEXED","1",1);uploadModel(a);assert(p.indexBuffer&&p.gpuVertexCount==GLsizei(unique));assert(p.indexType==(unique==65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT));verifyStream(p);
+  setenv("SF_PBR_INDEXED","1",1);uploadModel(a);assert(p.indexBuffer&&p.gpuVertexCount==GLsizei(unique));assert(p.indexType==(unique==65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT));verifyStream(p);deleteModel(a);
  }
  {
   std::vector<float> tuples(15*14,0);
@@ -55,7 +55,7 @@ int main(int argc,char **argv){
   const std::string path=std::string(name)=="Avocado"?"assets/Avocado.glb":std::string("assets/samples/")+name+"/"+name+".glb";
   int ids[3];
   for(int mode=0;mode<3;mode++){
-   setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));uploadModel(a);ids[mode]=int(r.scene.assets.size());
+   setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.lod=false;assert(loadModelFile(path,a));uploadModel(a);ids[mode]=int(r.scene.assets.size());
    a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");a.lighting.environment="assets/environments/studio.sfenv";assert(a.environment);
    for(const auto &p:a.primitives){if(!mode||a.hasAnimation||a.hasSkin||a.hasMorph)assert(!p.indexBuffer);if(p.indexBuffer){++indexed;verifyStream(p,mode==2);}for(GLuint b:{p.vbo,p.surfaceVbo,p.indexBuffer})if(b)buffers.push_back(b);assert(!p.lod[0].indexBuffer&&!p.lod[1].indexBuffer);}
   }
@@ -82,7 +82,7 @@ int main(int argc,char **argv){
    Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
    int ids[3];
    for(int mode=0;mode<3;mode++){
-    setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(asset.environment&&asset.environment->upload());ids[mode]=int(r.scene.assets.size());
+    setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(asset.environment&&asset.environment->upload());ids[mode]=int(r.scene.assets.size());
    }
    std::vector<int> members;
    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}

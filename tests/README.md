@@ -1071,10 +1071,9 @@ triangles for the vertex cache and vertex fetch. Use the same environment as the
 normal engine and pass a script such as `scripts/pbr.js`. This switch is not a
 public API and is absent from the production executable.
 
-## Surface-aware PBR LOD experiment
+## Surface-aware PBR LOD checks
 
-Reconfigure CMake and build the excluded `pbr-lod-regression` and `pbr-lod-demo`
-targets. Run the regression from the repository root with the normal GLES
+Reconfigure CMake and build the excluded `pbr-lod-regression` target. Run it from the repository root with the normal GLES
 runtime environment. It creates no OpenVR session, overlays or pointer input.
 `SF_PBR_LOD_IMAGES=/tmp/pbr-lod-images` saves bounded full/reduced PPM previews;
 `--benchmark` adds fixed-level full/reduced/reduced/full comparisons for one and
@@ -1087,20 +1086,25 @@ The simplifier includes all position/UV/surface attributes, locks seams and
 primitive borders, and retains full CPU meshes. Reduced streams remain expanded
 on the GPU. The regression checks exact source shader-input tuples, exact
 reduced-stream routing across stereo/depth/overlap passes, lossy image differences,
-material/deformation/opt-out guards and resource release. See
-[the measured results](results/pbr-lod.md) for quality and memory tradeoffs.
+material/deformation/opt-out guards and resource release. It additionally checks
+32 MiB budget admission/exhaustion, arithmetic overflow, partial upload failure,
+full-detail fallback, pressure during restore and failed reload preservation.
+Failure injection is compiled only into this excluded test target. See
+[the production results](results/pbr-lod-production.md) for budgeted native cost
+and the [prototype results](results/pbr-lod.md) for quality and memory tradeoffs.
 
 For the interactive headset check, run:
 
 ```sh
-DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 SF_PBR_LOD=1 ./build/pbr-lod-demo tests/scenes/pbr-lod.js
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/sf-overlay-engine tests/scenes/pbr-lod.js
 ```
 
 Approach and move away from the car and normal-map fixture. Grip or trigger grabs
 must restore full detail; rotate and release them, then inspect silhouettes,
 reflections, normal-map orientation, overlaps and transitions while moving your
-head. The prototype logs detail transitions with triangle counts and held state.
-It uses the existing automatic selection and hysteresis, with one object choice
+head. The excluded `pbr-lod-demo` target additionally logs detail transitions with
+triangle counts and held state. The normal engine uses the existing automatic selection and hysteresis, with one object choice
 for both eyes and all passes. Unsupported or ineffective reductions retain full
-detail. Production does not compile the bake path or expose this environment
-switch; the accepted headset car check and production adoption remain separate.
+detail. Production enables the same generation by default under `lod: true`,
+with the shared payload budget. Only the excluded diagnostic targets recognize
+`SF_PBR_LOD=0` to force a full-detail baseline; the production engine ignores it.
