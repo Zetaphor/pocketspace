@@ -175,3 +175,35 @@ Run the documented `gpu-skinning-regression` fixture command to reproduce the
 full matrix. Further work concerns production integration with CPU fallback and
 longer mixed-scene/reload coverage, rather than collecting more of the same
 single-skin examples.
+
+
+## Production integration
+
+At `ea490de`, eligible GPU skinning is automatic in the normal engine; unsupported
+influence/morph/mixed-part combinations retain CPU fallback. The comparison
+executable alone retains environment mode selection and matching CPU-reference
+bounds. Normal builds have no profiling timers or skinning environment switch.
+The production shader contains the skin transform directly rather than building
+shader text through experimental string replacements.
+
+On 2026-10-28, workstation and Frame production regressions passed 21,000 exact
+picking comparisons and all real-model vertex/image/bounds checks. The regression
+is built without `SF_GPU_SKIN_EXPERIMENT`. Thirty mixed-scene cycles combine Fox,
+RiggedFigure, RiggedSimple, rigid InterpolationTest, AnimatedMorphCube and Box.
+Each checks successful reload teardown, failed reload rollback, live/frozen
+transition snapshots, independent restored poses, correct backend fallback,
+container removal and palette texture deletion. Shared skin buffers and repeated
+pose texture lifetime checks also pass.
+
+Frame scene persistence checks passed, including panels and physics rollback.
+Local CPU-reference animation, crossfade and phase accounting checks and static
+instancing pixel comparisons also passed. Local panel persistence required
+`SF_FONT=/usr/share/fonts/google-noto/NotoSansMono-Regular.ttf`, since that host's
+installed font is outside the engine's default search paths. No panel code change
+was needed. Documentation lint, site build and whitespace checks passed.
+
+[Frame production evidence](gpu-skinning/production-frame.txt) records correctness,
+not a new performance comparison. The final normal-engine mixed scene is
+[documented here](../README.md#normal-engine-mixed-backend-acceptance); user
+acceptance of this final integration remains pending. Earlier prototype visual
+and grabbing acceptance still apply to their recorded workloads.

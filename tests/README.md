@@ -700,3 +700,15 @@ live/frozen snapshot restoration, independent poses, restored CPU fallbacks,
 container disposal and deletion of old palette textures after reload/close.
 On hosts whose default font is outside the engine search paths, set `SF_FONT`
 to an installed TTF when running panel persistence checks.
+
+
+### Normal-engine mixed backend acceptance
+
+Run `./build/sf-overlay-engine tests/scenes/gpu-skinning-production.js` on Frame
+with the normal display/library environment. No GPU experiment variable is used.
+Twelve instances mix Fox, CesiumMan, RiggedFigure, RiggedSimple, rigid-node
+InterpolationTest and AnimatedMorphCube. Grab with either hand using grip or
+trigger; A/X pauses/resumes, bumper captures/restores the container in place,
+and B/Y clears it. Cleanup also runs after five minutes. Check pose continuity,
+selection after restore, and coherent overlap while moving your head. The HUD
+shows live FPS/CPU; this manual scene is not a matched performance benchmark.
