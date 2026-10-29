@@ -796,3 +796,28 @@ animation analyzer; compare allocation estimates before attributing FPS changes.
 calls for one frame. The toggle and counters are excluded from normal builds;
 normal rendering retains direct full uniform writes. The
 [completed comparison](results/draw-uniforms.md) did not justify adoption.
+
+## Vertex array submission comparison
+
+Build excluded targets `vertex-array-experiment` and `vertex-array-pixels`.
+`EGL_PLATFORM=surfaceless ./build/vertex-array-pixels` compares 864 exact stereo
+views covering opaque/masked/blended materials, static/rigid/morph/GPU skin,
+instancing, LOD levels, resource deletion and return to default VAO 0. Both
+comparison modes allocate the same VAOs during asset/CPU-pose upload. GPU skin
+retains its existing draw path. Asset/pose teardown deletes owned VAOs before
+buffers; no global GL-name cache survives deletion, reload or context changes.
+
+On Frame with its normal display/library environment, compare:
+
+```sh
+SF_VERTEX_ARRAY_CACHE=0 ./build/vertex-array-experiment tests/scenes/rigid-pose-profile.js > /tmp/vao-full.log 2>&1
+SF_VERTEX_ARRAY_CACHE=1 ./build/vertex-array-experiment tests/scenes/rigid-pose-profile.js > /tmp/vao-cache.log 2>&1
+```
+
+Each mode runs 256 Linear Scale actors for 20 seconds animated and 20 paused.
+Keep looking at the models; B/Y aborts. Stop after the completion marker and use
+`tests/analyze-animation-profile.py`. Require matching surface allocations and
+unchanged pixels before attributing a throughput change. VAOs retain vertex
+attribute/index bindings; no geometry buffers, draw order, shader, material or
+quality setting changes. Driver VAO metadata is outside the engine's buffer
+allocation estimate. Normal builds compile out this experiment and its switch.

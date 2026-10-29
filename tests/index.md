@@ -216,3 +216,8 @@ buffer contents and geometry over all rigid clips.
 `draw-submit-experiment` measures full/cached uniforms on
 [scenes/rigid-pose-profile.js](scenes/rigid-pose-profile.js) using the documented
 `SF_DRAW_UNIFORM_CACHE` switch.
+
+[vertex-array-pixels.cpp](vertex-array-pixels.cpp) compares 864 exact stereo views
+for cached vertex/index attribute setup, CPU/GPU animation, LOD and instancing,
+with VAO ownership/deletion checks. `vertex-array-experiment` profiles the same
+[256-actor scene](scenes/rigid-pose-profile.js) using `SF_VERTEX_ARRAY_CACHE=0/1`.

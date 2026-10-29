@@ -256,6 +256,20 @@ static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::I
     lod.count=GLsizei(count);lod.error=error;
   }
 }
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+static void prepareVertexArrays(const PrimitiveAsset &part){
+ if(part.vertexArrays[0]||!part.vbo)return;
+ GLint previous=0,arrayBuffer=0;glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&previous);glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&arrayBuffer);
+ for(int level=0;level<3;level++){
+  if(level&&!part.lod[level-1].indexBuffer)continue;
+  glGenVertexArrays(1,&part.vertexArrays[level]);glBindVertexArray(part.vertexArrays[level]);
+  glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer?modelIndexBuffer(part,level):0);
+ }
+ glBindVertexArray(GLuint(previous));glBindBuffer(GL_ARRAY_BUFFER,GLuint(arrayBuffer));
+}
+#endif
 void uploadModel(ModelAsset &asset){
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
@@ -302,10 +316,16 @@ void uploadModel(ModelAsset &asset){
     glGenBuffers(1,&part.skinVbo);glBindBuffer(GL_ARRAY_BUFFER,part.skinVbo);glBufferData(GL_ARRAY_BUFFER,part.skinVertices.size()*sizeof(float),part.skinVertices.data(),GL_STATIC_DRAW);
     glGenBuffers(1,&part.skinIbo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,part.skinIndices.size()*sizeof(uint32_t),part.skinIndices.data(),GL_STATIC_DRAW);
   }
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+  for(const auto &part:asset.primitives)prepareVertexArrays(part);
+#endif
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
   for(auto &part:asset.primitives){
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+    glDeleteVertexArrays(3,part.vertexArrays);std::fill_n(part.vertexArrays,3,0);
+#endif
     if(part.skinVbo)glDeleteBuffers(1,&part.skinVbo);if(part.skinIbo)glDeleteBuffers(1,&part.skinIbo);part.skinVbo=part.skinIbo=0;
 #ifdef SF_MODEL_LOD_EXPERIMENT
     lodExperiment::results.erase(&part);
@@ -315,7 +335,17 @@ void deleteModel(ModelAsset &asset){
   asset.uploaded=false;
 }
 
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel){
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel,const PrimitiveAsset *deformed){
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+  const auto *owner=expandedVbo?deformed:&part;
+  const int level=!expandedVbo&&modelLodLevel(part,lodLevel)?lodLevel:0;
+  if(vertexArrayCachingEnabled&&owner&&owner->vertexArrays[level]&&(!expandedVbo||owner->vbo==expandedVbo)){
+    glBindVertexArray(owner->vertexArrays[level]);
+    if(!expandedVbo&&part.indexBuffer)glDrawElements(GL_TRIANGLES,modelDrawVertexCount(part,lodLevel),part.indexType,nullptr);
+    else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
+    glBindVertexArray(0);return;
+  }
+#endif
   glBindBuffer(GL_ARRAY_BUFFER,expandedVbo?expandedVbo:part.vbo);
   glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
@@ -416,6 +446,9 @@ void uploadModelPose(ModelPose &pose){
     part.gpuVertexCount=part.vertexCount;
     if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
     else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+    prepareVertexArrays(part);
+#endif
     cache.uploadDirty=false;
   }
   pose.dirty=false;
