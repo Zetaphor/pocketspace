@@ -340,3 +340,13 @@ costs dominate its vertex arithmetic; tiny morph cubes do not establish a GPU
 morph bottleneck. The 256-rigid animated/paused allocation estimates differ, so
 do not treat their FPS delta as a controlled optimization comparison. Preserve
 production defaults while testing bounded submission improvements.
+
+
+Rigid primitive caching is currently opt-in inside the excluded
+`rigid-pose-experiment`; production retains full updates pending visual acceptance.
+Per-pose caches own exact world matrices, bounds/radius and pending upload bits.
+Never clear pending dirtiness merely because a later evaluation is unchanged.
+Only rigid non-morph parts may reuse geometry; skin/morph parts still update.
+Refit the whole BVH when any part changes. See the
+[Frame comparison](../tests/results/rigid-pose-cache.md) before adopting or
+extending this optimization.

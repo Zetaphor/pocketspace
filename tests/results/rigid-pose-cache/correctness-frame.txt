@@ -1,0 +1,2 @@
+PASS rigid primitive cache: all clips, frozen transitions, repeated/pre-upload evaluations, exact vertices/bounds/BVH and GPU buffer contents
+PASS animation profiling: real rigid/skin/morph evaluation and uploads, exact counters, clean-pose skip, aggregation and workload/epoch boundaries
