@@ -744,8 +744,8 @@ checked by `node tests/animation-profile-scene.cjs`.
 ## Rigid primitive update comparison
 
 The excluded `rigid-pose-experiment` target compares full CPU primitive updates
-with transform-cached rigid updates. Normal builds retain the full-update default
-until this comparison is accepted. Only rigid, non-morph primitives can skip work;
+with transform-cached rigid updates. Normal builds enable rigid caching by
+default; only the excluded target exposes the environment comparison switch. Only rigid, non-morph primitives can skip work;
 exact world-matrix equality includes parent animation. Cached per-part bounds and
 radius preserve global bounds; BVH refitting skips only when no part changed.
 Pending upload dirtiness survives repeated evaluations before rendering.
