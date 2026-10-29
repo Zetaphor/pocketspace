@@ -5,9 +5,16 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Profile larger rigid-node and morph workloads before moving their vertex
-  deformation to the GPU; the completed workload establishes a skeletal cost,
-  not a bottleneck for every animation path.
+- Reduce upload and draw submission overhead in dense multi-part rigid animation
+  scenes. The [completed 64/256-actor profile](../tests/results/rigid-morph-profile.md)
+  measured 256 rigid actors at 5.75 ms upload submission and 20.84 ms render
+  submission, versus 1.54 ms deformation/refits. Investigate unchanged-primitive
+  update skipping and bounded submission reductions while preserving draw order,
+  exact picking, independent transitions and matched surface density. The prior
+  combined multi-part stream did not justify general adoption.
+- Revisit GPU morph deformation only when a higher-detail workload establishes
+  meaningful CPU cost. The completed feature-sample profile measured only
+  0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.
 - Full material lighting/PBR, including normal/tangent support and a physical
   replacement for the current approximate sheen tint.
 

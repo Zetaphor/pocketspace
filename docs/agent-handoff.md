@@ -332,3 +332,11 @@ deformation beside the GPU path. Common shaders apply the same skin transform
 to color/depth passes; reset skin attributes and uniform state after draws.
 Reload/restore must preserve independent backend state and use normal resource
 teardown. See the [Frame comparison](../tests/results/gpu-skinning.md) for evidence.
+
+
+The [rigid/morph profile](../tests/results/rigid-morph-profile.md) completes the
+bundled 64/256-actor investigation. Dense multi-part rigid submission/upload
+costs dominate its vertex arithmetic; tiny morph cubes do not establish a GPU
+morph bottleneck. The 256-rigid animated/paused allocation estimates differ, so
+do not treat their FPS delta as a controlled optimization comparison. Preserve
+production defaults while testing bounded submission improvements.
