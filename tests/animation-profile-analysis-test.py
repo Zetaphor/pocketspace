@@ -17,3 +17,5 @@ try:analyzer.summarize(bad)
 except ValueError:pass
 else:raise AssertionError('mixed workload accepted')
 print('PASS animation profile analysis: warmup exclusion, weighted FPS, completion and boundary rejection')
+
+assert analyzer.summarize(['[js] '+line if line.startswith(('ANIMATION_STAGE ','ANIMATION_PROFILE_DONE')) else line for line in lines])[0]['frames']==240

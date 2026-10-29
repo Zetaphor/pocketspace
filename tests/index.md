@@ -183,3 +183,5 @@ validation output associated with those reports, rather than additional tests.
 ## Animated-model profiling
 
 [scenes/animation-profile.js](scenes/animation-profile.js) runs bounded animated/paused character stages with a HUD. The excluded `animation-profile-experiment` target adds phase timers to the real engine. [analyze-animation-profile.py](analyze-animation-profile.py) summarizes steady windows; see [the profiling instructions](README.md#animated-model-performance-profiling).
+
+The [Frame animation profile](results/animation-profile.md) records the completed skeletal workload, steady phase timings, and GPU design constraints.

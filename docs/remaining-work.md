@@ -5,13 +5,18 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- GPU skeletal skinning and rigid-node vertex deformation for larger animated
-  scenes. First profile an animated-model stress workload, separating CPU pose
-  evaluation, per-vertex deformation, bounds/BVH refits and dynamic mesh uploads.
-  Design accurate picking and conservative bounds alongside GPU deformation;
-  retaining the complete CPU deformation path would duplicate much of the work.
-  Preserve supported animation influences, per-instance poses and coherent
-  color/depth rendering.
+- GPU skeletal skinning for larger animated scenes. The
+  [completed Frame profile](../tests/results/animation-profile.md) measured
+  32 CesiumMan instances at 51.5 FPS animated versus 89.8 FPS paused, with
+  10.98 ms/frame in CPU deformation/bounds and BVH refits. Design conservative
+  joint-influence bounds and accurate ray-candidate picking alongside GPU
+  deformation; retaining complete CPU deformation/refitting would preserve most
+  of that cost. Measure indexed deformed rendering and shader cost before
+  adoption. Preserve all supported influences, morph order, transitions,
+  per-instance poses and coherent stereo color/depth rendering.
+- Profile larger rigid-node and morph workloads before moving their vertex
+  deformation to the GPU; the completed workload establishes a skeletal cost,
+  not a bottleneck for every animation path.
 - Full material lighting/PBR, including normal/tangent support and a physical
   replacement for the current approximate sheen tint.
 

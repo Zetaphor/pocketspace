@@ -302,3 +302,10 @@ whole retained chain in resource estimates and destroy it on handoff or teardown
 Default policies keep `merge` and `rebalance` false; examples that enable them do
 so explicitly. The shared projection plane, premultiplied alpha, and GPU producer
 completion rules are unchanged.
+
+Animation phase profiling is isolated behind `SF_ANIMATION_PROFILE` in the
+excluded `animation-profile-experiment` and `animation-profile-regression`
+targets. Normal builds have no phase timers. Keep deformation/bounds fused;
+separating their loops for timing would change the workload. See the
+[Frame results and next design constraints](../tests/results/animation-profile.md)
+before implementing GPU skinning or duplicating CPU picking geometry work.
