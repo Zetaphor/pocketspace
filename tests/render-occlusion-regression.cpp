@@ -99,11 +99,16 @@ struct Renderer {
           }
           if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
-          }else drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel
+          }else {
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+            if(!special&&object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
+#endif
+          drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
                   ,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr
 #endif
                 );
+          }
           if(special)glUseProgram(program);
         }
       };

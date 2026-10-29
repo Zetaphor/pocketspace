@@ -221,3 +221,8 @@ buffer contents and geometry over all rigid clips.
 for cached vertex/index attribute setup, CPU/GPU animation, LOD and instancing,
 with VAO ownership/deletion checks. `vertex-array-experiment` profiles the same
 [256-actor scene](scenes/rigid-pose-profile.js) using `SF_VERTEX_ARRAY_CACHE=0/1`.
+
+[rigid-batch-pixels.cpp](rigid-batch-pixels.cpp) compares 864 exact stereo views
+for adjacent same-material CPU rigid parts, material barriers, changed stream
+ranges, clip changes and buffer lifetime. `rigid-batch-experiment` profiles the
+[256-actor scene](scenes/rigid-pose-profile.js) with `SF_RIGID_BATCH=0/1`.
