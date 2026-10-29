@@ -2,7 +2,8 @@
 
 Measured on Steam Frame on **2026-10-29**, based on `590ce5c` plus the isolated
 profiling changes in this report. Production defaults remain unchanged. This is
-GPU attribution and a candidate comparison, not new headset visual acceptance.
+GPU attribution, a candidate comparison, and a separate bounded headset visual
+check are recorded below.
 
 ## Workload and controls
 
@@ -98,9 +99,9 @@ GPU reduction or solve the detailed-scene bottleneck. Do not pool the first cold
 baseline with later runs to claim a larger gain.
 
 **Decision:** retain this as a promising, modest ordinary-draw specialization
-prototype, not a production default. Next verify it visually in the 16-car LOD
-scene, then evaluate mixed CPU/GPU animation routing and lifecycle if proceeding
-with production integration. General occluder optimization remains open; do not
+prototype, not a production default. The 16-car LOD visual check is accepted;
+evaluate mixed CPU/GPU animation routing and lifecycle before production
+integration. General occluder optimization remains open; do not
 re-enable the rejected shared-depth, cluster, or material-specialization paths
 based on these results.
 
@@ -119,4 +120,13 @@ with code 13 and releases grouped charges to zero.
 
 Every completed timing run retained its expected object count, checked clean
 GL/disjoint/fence/native status, exited normally, and released grouped budget
-charges to zero. Visual acceptance of the candidate remains separate and pending.
+charges to zero.
+
+## Headset visual acceptance
+
+On **2026-10-29**, the user confirmed “Everything looks correct” with the
+static-only ordinary vertex shader running `scripts/lod.js` (16 ToyCars). The
+requested checks covered head movement, approach/distance and LOD transitions,
+grip/trigger grabbing, rotation, and overlaps. This validates that static scene;
+it does not establish mixed skeletal/rigid/morph program routing or production
+lifecycle behavior. The prototype process was stopped and its exit verified.
