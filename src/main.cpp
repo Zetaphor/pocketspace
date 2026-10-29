@@ -2050,10 +2050,11 @@ int main(int argc,char **argv) {
       auto &snapshot=controllers[hand];snapshot={};
       auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
       auto device=system->GetTrackedDeviceIndexForControllerRole(role);
-      if(device==vr::k_unTrackedDeviceIndexInvalid){if(frame%900==0)fprintf(stdout,"[input] hand=%d device=none\n",hand);continue;}
+      if(device==vr::k_unTrackedDeviceIndexInvalid){frameInput.setTrackedDevice(hand,-1);if(frame%900==0)fprintf(stdout,"[input] hand=%d device=none\n",hand);continue;}
       const auto &pose=poses[device];
       if(frame%900==0){fprintf(stdout,"[input] hand=%d device=%u pose=%d\n",hand,device,pose.bPoseIsValid);fflush(stdout);}
       snapshot.connected=pose.bDeviceIsConnected;
+      frameInput.setTrackedDevice(hand,snapshot.connected?int(device):-1);
       if(!snapshot.connected||!pose.bPoseIsValid)continue;
       snapshot.valid=true;
       float relative[3];for(int i=0;i<3;i++)relative[i]=pose.mDeviceToAbsoluteTracking.m[i][3]-anchor.m[i][3];

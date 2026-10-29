@@ -30,6 +30,13 @@ objects. Temporary pose loss preserves a hold while an allowed button remains
 down. Loss of the raw vrserver connection clears cached values and queued input
 while preserving pending physics collision and joint-break events;
 reconnect attempts use a one-second interval with a bounded 200 ms handshake.
+Changes to a hand's connected OpenVR device index renew the raw subscriptions,
+including connection, removal and replacement. This uses the same input/grab
+cleanup as connection loss, while preserving physics events and the scene.
+A connected controller that sends no initial raw state within five seconds
+also triggers a retry. Once initial state arrives, an idle delta stream alone
+is not a reason to reconnect. Temporary pose loss without device disconnection
+keeps the current subscription.
 
 Ctrl-C, SIGTERM, and native shutdown unwind overlay, GPU/EGL, input, and OpenVR
 resources. A SteamVR quit event is acknowledged and exits the process. Relaunch

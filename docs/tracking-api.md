@@ -96,6 +96,9 @@ native action, input focus, or stream subscription is required.
   `updateAgeMs` measures receipt of that individual field; neither is a hardware
   capture timestamp. An unchanged field can have an old `updateAgeMs` while
   remaining valid because vrserver sends deltas and other fields prove liveness.
+- Controller connection/removal/device-index changes renew raw subscriptions.
+  Missing initial state for a connected controller retries after five seconds;
+  an idle stream with previously received state does not. See [lifecycle](lifecycle.md).
 - Disconnect/reconnect clears cached fields and timestamps. Unsupported JSON
   values invalidate the affected field rather than becoming synthetic zeroes.
 

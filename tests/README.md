@@ -504,3 +504,18 @@ weights, combined skinning, and malformed models. The native harness checks
 positions, animated picking/bounds, independent poses, the bundled Khronos cube,
 real JavaScript controls, and restored morph poses. No VR session is needed.
 Run `./run-overlay-engine.sh scripts/morph.js` for headset visual acceptance.
+
+## Raw controller subscription recovery
+
+```sh
+cmake --build build --target lifecycle-input-regression -j2
+./build/lifecycle-input-regression
+```
+
+This local socket harness keeps the old connection alive while replacing the
+controller identity, and simulates a replacement subscription with no initial
+state. It checks that a new connection restores button callbacks, preserves
+physics events, and avoids retrying valid idle streams or absent controllers.
+No VR session is needed. In the headset, use `scripts/morph.js` to verify A/X
+pause/resume after controller reconnection; do not hold an object during this
+check because connection recovery cancels existing holds.

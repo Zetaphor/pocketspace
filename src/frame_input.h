@@ -15,7 +15,9 @@ public:
   ~Monitor();
   bool start();
   bool started() const { return started_; }
-  void poll();
+  void poll(tracking::Clock::time_point now=tracking::Clock::now());
+  // OpenVR device index, or -1 for an absent/disconnected controller.
+  void setTrackedDevice(int hand,int device);
   const HandState &hand(int index) const { return hands_[index]; }
   std::vector<Event> takeEvents();
   std::vector<Event> takeCallbackEvents();
@@ -30,6 +32,9 @@ public:
   void resetScene();
   void invalidateHand(int hand);
 private:
+  int devices_[2]={-1,-1};
+  bool refreshRequested_=false;
+  tracking::Clock::time_point subscribedAt_{};
   uint16_t port_;
   int fd_=-1; std::string buffer_,fragment_; bool started_=false;
   HandState hands_[2]; int hovered_[2]={0,0}; std::vector<Event> events_,callbackEvents_;
