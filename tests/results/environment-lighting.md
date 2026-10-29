@@ -80,3 +80,36 @@ This is one short ABBA comparison. GPU clocks, scheduling and thermal state are
 not locked; it is not a sustained-performance guarantee. It measures the added
 cube/LUT/SH work at this coverage, not the cost of every possible environment or
 scene. PBR geometry fast paths remain a separate backlog item.
+
+## External HDR conversion and bake
+
+On 2026-10-29, the tools from `555606b` were exercised with the 1K Radiance HDR
+version of [Studio Small 01 by Greg Zaal](https://polyhaven.com/a/studio_small_01),
+provided by Poly Haven under CC0. Download URL:
+`https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_01_1k.hdr`.
+The source and generated files were kept under `/tmp/sf-real-hdr`, outside Git.
+
+```sh
+curl --fail --location --output /tmp/sf-real-hdr/studio_small_01_1k.hdr https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/studio_small_01_1k.hdr
+/tmp/sf-environment-venv/bin/python tools/convert-environment.py /tmp/sf-real-hdr/studio_small_01_1k.hdr /tmp/sf-real-hdr/studio_small_01.npy --color-space linear
+/tmp/sf-environment-venv/bin/python tools/generate-environment.py /tmp/sf-real-hdr/studio_small_01.sfenv --input /tmp/sf-real-hdr/studio_small_01.npy
+```
+
+- Input: 1024×512 RGB, 1,701,440 bytes; decoded linear range
+  0.000011920929 through 604, including 7,982 channel values above 1.
+- Output: 852,084 bytes; 128-pixel cube, eight roughness levels, 128×128 LUT.
+  SH coefficients were finite; cube/LUT values were finite and nonnegative,
+  with maximum 591.
+- A temporary C++ smoke program linked the actual `src/lighting_environment.cpp`
+  on the desktop. `loadLightingEnvironment` accepted the bake and `upload`
+  succeeded in a surfaceless EGL GLES3 context. Upload and resource deletion
+  produced no GL errors; estimated GPU allocation was 1,114,096 bytes.
+- Source SHA-256:
+  `a2d308672f077b0872686a439d76dc3ace91274380ae2e5f02c653c3ccbc8407`.
+- Bake SHA-256:
+  `de2bd1f134a314545ca8c0ef1a64ad7c90ebb66b25349cc1df8410c21d936da0`.
+
+This verifies a real downloaded HDR through conversion, precomputation and native
+loading/upload. It is not a headset visual acceptance or performance measurement
+for this particular environment. The headset acceptance above used the procedural
+studio bake.
