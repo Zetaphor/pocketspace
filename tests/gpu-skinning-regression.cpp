@@ -14,7 +14,7 @@ static void profilePicking(){
   auto &hand=hands[h];hand.valid=true;hand.rotation[0]=1;hand.rotation[4]=c;hand.rotation[5]=-s;hand.rotation[7]=s;hand.rotation[8]=c;
   hand.x=h==0?-.012694f:.012694f;hand.y=c*.02522f+s*.020687f;hand.z=1+s*.02522f-c*.020687f;
  }
- // Reverse mode order on alternating cases to reduce a fixed ordering bias.
+ // Reverse mode order for the single-candidate case to vary ordering.
  for(int candidates:{0,1,4,32})for(int order=0;order<2;order++){
   gpuSkinningEnabled=(order+(candidates%2))%2;
   scene.objects.clear();
@@ -141,5 +141,5 @@ int main(int argc,char **argv){
  }
  if(argc>2&&std::string(argv[2])=="--profile-picking")profilePicking();
  eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
- puts("PASS GPU skinning: transform-feedback vertices, conservative bounds, stereo color/depth pixels, 3000 exact picking comparisons, lazy per-pose cache, palette uploads and CPU fallback");
+ printf("PASS GPU skinning: %zu assets, %zu exact picking comparisons, transform-feedback vertices, conservative bounds, stereo/material pixels, pose cache, palette uploads, resource cleanup and CPU fallback\n",paths.size(),paths.size()*3000);
 }

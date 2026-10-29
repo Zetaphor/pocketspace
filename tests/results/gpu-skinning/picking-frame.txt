@@ -1,0 +1,37 @@
+SKIN_PIXELS time=0.00 eye=-0.032 differing_pixels=0 visible=3145
+SKIN_PIXELS time=0.00 eye=0.032 differing_pixels=0 visible=3128
+SKIN_PIXELS time=0.20 eye=-0.032 differing_pixels=0 visible=3313
+SKIN_PIXELS time=0.20 eye=0.032 differing_pixels=0 visible=3250
+SKIN_PIXELS time=0.70 eye=-0.032 differing_pixels=0 visible=3337
+SKIN_PIXELS time=0.70 eye=0.032 differing_pixels=0 visible=3311
+SKIN_PIXELS time=1.20 eye=-0.032 differing_pixels=0 visible=3346
+SKIN_PIXELS time=1.20 eye=0.032 differing_pixels=0 visible=3310
+SKIN_PIXELS time=1.80 eye=-0.032 differing_pixels=0 visible=3270
+SKIN_PIXELS time=1.80 eye=0.032 differing_pixels=0 visible=3271
+SKIN_PIXELS time=0.00 eye=-0.032 differing_pixels=0 visible=3969
+SKIN_PIXELS time=0.00 eye=0.032 differing_pixels=0 visible=4025
+SKIN_PIXELS time=0.20 eye=-0.032 differing_pixels=0 visible=3942
+SKIN_PIXELS time=0.20 eye=0.032 differing_pixels=0 visible=4001
+SKIN_PIXELS time=0.70 eye=-0.032 differing_pixels=0 visible=3914
+SKIN_PIXELS time=0.70 eye=0.032 differing_pixels=0 visible=3973
+SKIN_PIXELS time=1.20 eye=-0.032 differing_pixels=0 visible=3899
+SKIN_PIXELS time=1.20 eye=0.032 differing_pixels=0 visible=3954
+SKIN_PIXELS time=1.80 eye=-0.032 differing_pixels=0 visible=3852
+SKIN_PIXELS time=1.80 eye=0.032 differing_pixels=0 visible=3917
+SKIN_PICK_PROFILE {"gpu":false,"playing":true,"objects":32,"candidates":0,"hands":2,"frames":120,"cpuWorkMs":10.480959,"p95Ms":13.831374,"deformBoundsMs":7.432117,"bvhMs":2.839507,"vertices":448512,"hits":0}
+SKIN_PICK_PROFILE {"gpu":false,"playing":false,"objects":32,"candidates":0,"hands":2,"frames":120,"cpuWorkMs":0.002664,"p95Ms":0.002604,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":0}
+SKIN_PICK_PROFILE {"gpu":true,"playing":true,"objects":32,"candidates":0,"hands":2,"frames":120,"cpuWorkMs":0.115472,"p95Ms":0.150411,"deformBoundsMs":0.030289,"bvhMs":0.000000,"vertices":0,"hits":0}
+SKIN_PICK_PROFILE {"gpu":true,"playing":false,"objects":32,"candidates":0,"hands":2,"frames":120,"cpuWorkMs":0.002490,"p95Ms":0.002500,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":0}
+SKIN_PICK_PROFILE {"gpu":true,"playing":true,"objects":32,"candidates":1,"hands":2,"frames":120,"cpuWorkMs":0.418330,"p95Ms":0.567687,"deformBoundsMs":0.258424,"bvhMs":0.063859,"vertices":14016,"hits":280}
+SKIN_PICK_PROFILE {"gpu":true,"playing":false,"objects":32,"candidates":1,"hands":2,"frames":120,"cpuWorkMs":0.003137,"p95Ms":0.003125,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":280}
+SKIN_PICK_PROFILE {"gpu":false,"playing":true,"objects":32,"candidates":1,"hands":2,"frames":120,"cpuWorkMs":10.540331,"p95Ms":13.435868,"deformBoundsMs":7.515295,"bvhMs":2.817733,"vertices":448512,"hits":280}
+SKIN_PICK_PROFILE {"gpu":false,"playing":false,"objects":32,"candidates":1,"hands":2,"frames":120,"cpuWorkMs":0.003341,"p95Ms":0.003229,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":280}
+SKIN_PICK_PROFILE {"gpu":false,"playing":true,"objects":32,"candidates":4,"hands":2,"frames":120,"cpuWorkMs":10.577421,"p95Ms":13.861582,"deformBoundsMs":7.546118,"bvhMs":2.814497,"vertices":448512,"hits":1120}
+SKIN_PICK_PROFILE {"gpu":false,"playing":false,"objects":32,"candidates":4,"hands":2,"frames":120,"cpuWorkMs":0.005509,"p95Ms":0.005521,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":1120}
+SKIN_PICK_PROFILE {"gpu":true,"playing":true,"objects":32,"candidates":4,"hands":2,"frames":120,"cpuWorkMs":1.437778,"p95Ms":2.240492,"deformBoundsMs":0.982270,"bvhMs":0.336183,"vertices":56064,"hits":1120}
+SKIN_PICK_PROFILE {"gpu":true,"playing":false,"objects":32,"candidates":4,"hands":2,"frames":120,"cpuWorkMs":0.003059,"p95Ms":0.003073,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":1120}
+SKIN_PICK_PROFILE {"gpu":false,"playing":true,"objects":32,"candidates":32,"hands":2,"frames":120,"cpuWorkMs":10.246106,"p95Ms":12.520588,"deformBoundsMs":7.321562,"bvhMs":2.619110,"vertices":448512,"hits":8960}
+SKIN_PICK_PROFILE {"gpu":false,"playing":false,"objects":32,"candidates":32,"hands":2,"frames":120,"cpuWorkMs":0.027574,"p95Ms":0.029842,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":8960}
+SKIN_PICK_PROFILE {"gpu":true,"playing":true,"objects":32,"candidates":32,"hands":2,"frames":120,"cpuWorkMs":10.680059,"p95Ms":14.256256,"deformBoundsMs":7.576329,"bvhMs":2.825382,"vertices":448512,"hits":8960}
+SKIN_PICK_PROFILE {"gpu":true,"playing":false,"objects":32,"candidates":32,"hands":2,"frames":120,"cpuWorkMs":0.023732,"p95Ms":0.024739,"deformBoundsMs":0.000000,"bvhMs":0.000000,"vertices":0,"hits":8960}
+PASS GPU skinning: transform-feedback vertices, conservative bounds, stereo color/depth pixels, 3000 exact picking comparisons, lazy per-pose cache, palette uploads and CPU fallback

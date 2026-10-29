@@ -85,3 +85,44 @@ both completion markers and verified absent.
 - [Frame correctness output](gpu-skinning/correctness-frame.txt)
 
 Regenerate summaries with `python3 tests/analyze-animation-profile.py <log>`.
+
+
+## Expanded coverage and candidate picking cost
+
+Follow-up on Frame using `3dff9ca`: generated six-part geometry with two distinct
+skin palettes and opaque/masked/blended materials, including an alpha-cutout
+checker. All five pose/transition times passed both-eye images and individual
+part comparisons; the latter ensure every material part is visible in its own
+check. Both assets together passed 6,000 exact picking comparisons. Repeated
+pose create/upload/pick/destruction checks verify palette texture deletion;
+shared skin buffers are checked after asset deletion. This is synthetic coverage,
+not an additional real-world asset or compositor acceptance claim.
+
+The deterministic picking benchmark measures **CPU animation plus mesh picking**,
+without uploads, rendering, compositor pacing or physics. There are 32 independent
+CesiumMan poses and two synthetic controller rays. Each case forces the listed
+number of conservative-bound candidates; candidate actors overlap deliberately.
+It uses 20 warmup iterations and 120 timed iterations per mode/playback case.
+Mode order reverses for the one-candidate case. Means are milliseconds/iteration.
+
+| Candidates | CPU mean | GPU-path mean | CPU p95 | GPU-path p95 | GPU-path CPU vertices |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 10.481 | 0.115 | 13.831 | 0.150 | 0 |
+| 1 | 10.540 | 0.418 | 13.436 | 0.568 | 14,016 |
+| 4 | 10.577 | 1.438 | 13.862 | 2.240 | 56,064 |
+| 32 | 10.246 | 10.680 | 12.521 | 14.256 | 448,512 |
+
+Assertions verify one exact deformation per candidate per evaluated pose, shared
+between hands. Paused steady cases perform zero deformations; GPU-path mean
+picking cost ranges from 0.0025 to 0.024 ms across these candidate counts. The
+all-overlap case restores the full CPU geometry cost and provides no speedup.
+This validates the cache behavior and bounds the measured candidate cost; it
+does not establish end-to-end FPS during actual controller grabbing. Dense ray
+stacks may justify nearest-first candidate processing later, with correctness
+checks before skipping farther objects.
+
+Evidence: [Frame follow-up output](gpu-skinning/picking-frame.txt) and
+[machine-readable picking summary](gpu-skinning/picking-summary.json). User
+accepted the earlier 32-model scene visually. Active-controller grabbing
+acceptance remains separate, using the
+[interaction scene](../scenes/gpu-skinning-interaction.js).

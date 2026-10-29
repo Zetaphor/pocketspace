@@ -667,3 +667,13 @@ and measures 120 iterations. `SKIN_PICK_PROFILE` reports mean/p95 CPU work,
 deformation/bounds, BVH time and processed vertices. Assertions verify the exact
 candidate deformation count. No uploads, drawing, compositor pacing or physics
 are timed, so these durations are not headset FPS or end-to-end grabbing results.
+
+
+For manual grabbing acceptance, run the experimental executable with
+`SF_GPU_SKINNING=1` and `tests/scenes/gpu-skinning-interaction.js`. Point at models
+with both hands, grab with grip or trigger, and move/rotate a model while it
+animates. A/X pauses/resumes all actors; repeat grabs while paused. B/Y removes
+all actors and hides lasers; the same cleanup runs after five minutes. Stop the
+engine process after collecting feedback. Watch for selection misses, pose
+jumps, stale geometry after release, and color/depth disagreement when models
+overlap. This check uses the 32-actor workload and reports live FPS/CPU on its HUD.
