@@ -52,7 +52,7 @@ strong_image = view(normal_png)
 primitive = {'attributes': {'POSITION': position, 'NORMAL': normal, 'TANGENT': tangent,
                              'TEXCOORD_0': uv}, 'material': 0,
              'targets': [{'POSITION': dp, 'NORMAL': dn, 'TANGENT': dt}]}
-doc = {'asset': {'version': '2.0', 'generator': 'sf-overlay-engine PBR fixtures'},
+doc = {'asset': {'version': '2.0', 'generator': 'Pocketspace PBR fixtures'},
        'buffers': [{'byteLength': len(binary)}], 'bufferViews': views, 'accessors': accessors,
        'images': [{'bufferView': image, 'mimeType': 'image/png'}], 'textures': [{'source': 0}],
        'materials': [{'pbrMetallicRoughness': {'metallicFactor': 0, 'roughnessFactor': .5},

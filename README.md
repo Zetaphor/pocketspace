@@ -1,12 +1,12 @@
-# Steam Frame Overlay Engine
+# Pocketspace
 
 **Build interactive tools that live alongside your VR apps.**
 
 Create a VR workspace, a floating control panel, or a scene full of objects you
-can pick up and play with—all in JavaScript. Steam Frame Overlay Engine runs
+can pick up and play with—all in JavaScript. Pocketspace runs
 alongside your existing SteamVR application, so your tools can stay with you in VR.
 
-[Documentation](https://zetaphor.github.io/sf-overlay-engine/) ·
+[Documentation](https://zetaphor.github.io/pocketspace/) ·
 [Getting started](docs/getting-started.md) · [Examples](docs/examples.md)
 
 ## What you can build
@@ -38,7 +38,7 @@ With the dependencies installed and SteamVR running:
 ```sh
 cmake -S . -B build
 cmake --build build -j2
-./run-overlay-engine.sh scripts/grabbing.js
+./run-pocketspace.sh scripts/grabbing.js
 ```
 
 You’ll get a box you can grab using either controller. Start with

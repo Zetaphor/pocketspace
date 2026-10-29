@@ -27,7 +27,7 @@ bool Input::init(const std::string &root,const std::string &executable){
   if(!app)return false;
   app<<"{\"source\":\"user\",\"applications\":[{\"app_key\":\"com.sf_overlay_engine.app\",\"launch_type\":\"binary\",\"binary_path_linux_arm\":\""
      <<fs::absolute(executable).string()<<"\",\"action_manifest_path\":\""<<actionPath
-     <<"\",\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Steam Frame Overlay Engine\"}}}]}\n";
+     <<"\",\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Pocketspace\"}}}]}\n";
   app.close();
   auto *apps=vr::VRApplications();auto *input=vr::VRInput();
   if(!apps||!input)return false;

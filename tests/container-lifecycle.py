@@ -9,7 +9,7 @@ import signal
 import subprocess
 
 p=argparse.ArgumentParser(description=__doc__)
-p.add_argument('--engine',type=Path,default=Path('build/sf-overlay-engine'))
+p.add_argument('--engine',type=Path,default=Path('build/pocketspace'))
 p.add_argument('--output',type=Path,required=True)
 a=p.parse_args()
 for name in {'sf-overlay-engi','gpu-sync-experi',a.engine.name[:15]}:

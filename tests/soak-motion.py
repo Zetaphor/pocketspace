@@ -12,7 +12,7 @@ import tempfile
 import time
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--phases', type=int, default=5)
 parser.add_argument('--phase-seconds', type=int, default=60)

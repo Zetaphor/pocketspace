@@ -14,7 +14,7 @@ static void benchmarkMaterials(){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.lod=false;a.optimizeVertexCache=mode;
    assert(loadModelFile(name=="Avocado"?"assets/Avocado.glb":"assets/samples/"+name+"/"+name+".glb",a));uploadModel(a);
    for(const auto &p:a.primitives){assert(p.alphaMode==0);if(p.indexBuffer)verifyStream(p,true);}
-   a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());
+   a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());
   }
   assert(r.pbrProgram.init()&&r.depthPbrProgram.init(true));
   const uint64_t work=triangles(r.scene.assets[ids[0]-1],0)*count,draws=r.scene.assets[ids[0]-1].primitives.size()*count;
@@ -57,7 +57,7 @@ int main(int argc,char **argv){
      if(lod.indexBuffer)assert(lod.indexType==(lod.gpuVertexCount<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT));}
    }
    if(mode&&std::string(name)=="ToyCar")assert(reordered);
-   a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment);
+   a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
   }
   for(size_t i=0;i<r.scene.assets[ids[1]-1].primitives.size();i++)for(int level:{1,2}){
    const auto &source=r.scene.assets[ids[0]-1].primitives[i];const auto &part=r.scene.assets[ids[1]-1].primitives[i];
@@ -155,7 +155,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[3];
-  for(int mode=0;mode<3;mode++){setenv("SF_PBR_LOD_INDEXED",mode==2?"0":"1",1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());}
+  for(int mode=0;mode<3;mode++){setenv("SF_PBR_LOD_INDEXED",mode==2?"0":"1",1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());}
   unsetenv("SF_PBR_LOD_INDEXED");
   assert(r.pbrProgram.init()&&r.depthPbrProgram.init(true));
   for(bool depthOnly:{false,true})for(int level:{0,1,2}){

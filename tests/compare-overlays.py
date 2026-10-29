@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--counts', type=int, nargs='+', default=[48, 96])
 parser.add_argument('--geometries', choices=['boxes', 'models'], nargs='+', default=['boxes', 'models'])
 parser.add_argument('--reverse-order', action='store_true')

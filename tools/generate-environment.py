@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake a linear-HDR studio or equirectangular NumPy image into SFENV001.
+"""Bake a linear-HDR studio or equirectangular NumPy image into PSENV001.
 
 Requires NumPy. All integrations happen offline; the runtime only uploads textures.
 The studio is original procedural content under the repository's MIT license.
@@ -128,7 +128,7 @@ def brdf_lut(size, samples):
 def bake(source, size=128, lut_size=128, samples=256):
     levels = size.bit_length()
     sh = diffuse_sh(source)
-    payload = bytearray(b'SFENV001'+struct.pack('<III', size, levels, lut_size))
+    payload = bytearray(b'PSENV001'+struct.pack('<III', size, levels, lut_size))
     payload.extend(np.asarray(sh, dtype='<f4').tobytes())
     for level in range(levels):
         width = max(1, size >> level)

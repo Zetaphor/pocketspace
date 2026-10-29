@@ -298,7 +298,7 @@
   "category": "steamvr_input",
   "controller_type": "frame_controller",
   "description": "Default input for Steam Frame AR-in-VR overlays",
-  "name": "Steam Frame Overlay Engine",
+  "name": "Pocketspace",
   "options": {},
   "simulated_actions": []
 }

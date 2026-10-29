@@ -18,8 +18,8 @@ front of you. Choose a persistent output path whose parent directory exists,
 then run:
 
 ```sh
-mkdir -p "$HOME/.config/sf-overlay-engine"
-./run-overlay-engine.sh scripts/eye-calibration.js --eye-calibration-output "$HOME/.config/sf-overlay-engine/eye-calibration.json"
+mkdir -p "$HOME/.config/pocketspace"
+./run-pocketspace.sh scripts/eye-calibration.js --eye-calibration-output "$HOME/.config/pocketspace/eye-calibration.json"
 ```
 
 Look at each gold circle and tap either trigger. Keep your head and eyes steady
@@ -52,7 +52,7 @@ file and renamed; a successful run replaces an existing file at the chosen path.
 ## Load and consume
 
 ```sh
-./run-overlay-engine.sh scripts/tracking.js --eye-calibration "$HOME/.config/sf-overlay-engine/eye-calibration.json"
+./run-pocketspace.sh scripts/tracking.js --eye-calibration "$HOME/.config/pocketspace/eye-calibration.json"
 ```
 
 ```js
@@ -101,7 +101,7 @@ restarting the engine. Invalid or missing input files fail startup explicitly.
 Options can appear before or after the script path. With no script path, the
 engine uses `scripts/avocado.js`. The launcher forwards all options and changes
 to the repository root; relative file paths therefore resolve from that root.
-When invoking `build/sf-overlay-engine` directly, they resolve from your current
+When invoking `build/pocketspace` directly, they resolve from your current
 directory. There is no automatic default file, directory scan, or file watcher.
 Keep personal files outside the repository or explicitly exclude them locally.
 

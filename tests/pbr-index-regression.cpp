@@ -59,7 +59,7 @@ int main(int argc,char **argv){
   int ids[3];bool reordered=false;
   for(int mode=0;mode<3;mode++){
    setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.lod=false;a.optimizeVertexCache=mode==2;assert(loadModelFile(path,a));for(auto &p:a.primitives){p.alphaMode=alpha;p.factor[3]=alpha==2?.6f:1;}uploadModel(a);ids[mode]=int(r.scene.assets.size());
-   a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");a.lighting.environment="assets/environments/studio.sfenv";assert(a.environment);
+   a.environment=loadLightingEnvironment("assets/environments/studio.psenv");a.lighting.environment="assets/environments/studio.psenv";assert(a.environment);
    for(const auto &p:a.primitives){if(!mode||a.hasAnimation||a.hasSkin||a.hasMorph)assert(!p.indexBuffer);if(p.indexBuffer){++indexed;reordered|=verifyStream(p,mode==2&&alpha!=2);}for(GLuint b:{p.vbo,p.surfaceVbo,p.indexBuffer})if(b)buffers.push_back(b);assert(!p.lod[0].indexBuffer&&!p.lod[1].indexBuffer);}
   }
   assert(geometryBytes(r.scene.assets[ids[1]-1])<=geometryBytes(r.scene.assets[ids[0]-1]));
@@ -87,7 +87,7 @@ int main(int argc,char **argv){
    Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
    int ids[3];
    for(int mode=0;mode<3;mode++){
-    setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=mode==2;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(asset.environment&&asset.environment->upload());ids[mode]=int(r.scene.assets.size());
+    setenv("SF_PBR_INDEXED",std::to_string(mode).c_str(),1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=mode==2;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());ids[mode]=int(r.scene.assets.size());
    }
    std::vector<int> members;
    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}

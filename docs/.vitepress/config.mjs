@@ -1,15 +1,15 @@
 import { defineConfig } from 'vitepress'
 import { posix } from 'node:path'
 
-const repository = 'https://github.com/Zetaphor/sf-overlay-engine'
+const repository = 'https://github.com/Zetaphor/pocketspace'
 export default defineConfig({
-  title: 'Steam Frame Overlay Engine',
+  title: 'Pocketspace',
   description: 'Build interactive VR tools in JavaScript: workspaces, control panels and hands-on scenes alongside your SteamVR apps.',
-  base: '/sf-overlay-engine/',
+  base: '/pocketspace/',
   lang: 'en-US',
   lastUpdated: true,
   themeConfig: {
-    siteTitle: 'Frame Overlay Engine',
+    siteTitle: 'Pocketspace',
     nav: [
       { text: 'Get started', link: '/getting-started' },
       { text: 'Examples', link: '/examples' },

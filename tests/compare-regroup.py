@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--engine', type=Path, default=Path('build/sf-overlay-engine'))
+parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 if subprocess.run(['pgrep', '-x', 'sf-overlay-engi'], capture_output=True).returncode == 0:

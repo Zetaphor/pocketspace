@@ -58,7 +58,7 @@ indices_bytes = struct.pack('<' + 'H' * len(indices), *indices)
 binary = positions_bytes + normals_bytes + indices_bytes
 count = len(positions) // 3
 document = {
-    'asset': {'version': '2.0', 'generator': 'sf-overlay-engine physics shapes'},
+    'asset': {'version': '2.0', 'generator': 'Pocketspace physics shapes'},
     'buffers': [{'byteLength': len(binary)}],
     'bufferViews': [
         {'buffer': 0, 'byteOffset': 0, 'byteLength': len(positions_bytes)},
@@ -100,7 +100,7 @@ for x0, x1, z0, z1, back_height in [
 positions_bytes = struct.pack('<' + 'f' * len(positions), *positions)
 normals_bytes = struct.pack('<' + 'f' * len(normals), *normals)
 document = {
-    'asset': {'version': '2.0', 'generator': 'sf-overlay-engine physics shapes'},
+    'asset': {'version': '2.0', 'generator': 'Pocketspace physics shapes'},
     'buffers': [{'byteLength': len(positions_bytes) + len(normals_bytes)}],
     'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(positions_bytes)},
                     {'buffer': 0, 'byteOffset': len(positions_bytes), 'byteLength': len(normals_bytes)}],

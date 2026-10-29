@@ -1,5 +1,5 @@
 {
-  "name": "sf-overlay-engine-docs",
+  "name": "pocketspace-docs",
   "private": true,
   "scripts": {
     "docs:dev": "vitepress dev docs",

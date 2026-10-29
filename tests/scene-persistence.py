@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 p=argparse.ArgumentParser(description=__doc__)
-p.add_argument('--engine',type=Path,default=Path('build/sf-overlay-engine'))
+p.add_argument('--engine',type=Path,default=Path('build/pocketspace'))
 p.add_argument('--output',type=Path,required=True)
 mode=p.add_mutually_exclusive_group()
 mode.add_argument('--physics',action='store_true',help='exercise physics bodies, joints, motors and moving simulation')

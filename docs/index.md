@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: Steam Frame Overlay Engine
+  name: Pocketspace
   text: Build interactive tools for VR.
   tagline: Create workspaces, control panels and hands-on scenes in JavaScript. Run them alongside the SteamVR apps you already use.
   actions:
@@ -49,7 +49,7 @@ With the [dependencies installed](getting-started.md) and SteamVR running:
 ```sh
 cmake -S . -B build
 cmake --build build -j2
-./run-overlay-engine.sh scripts/grabbing.js
+./run-pocketspace.sh scripts/grabbing.js
 ```
 
 You’ll get a box you can grab with either controller. The engine targets Steam
