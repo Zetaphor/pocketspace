@@ -53,7 +53,7 @@ Configure lighting on a shared asset and rotate a lit model: [pbr.js](../scripts
 
 ## Dynamic point lights
 
-Create up to eight scene-wide point lights. They illuminate every PBR model,
+Create scene-wide point lights, sharing a limit of eight lights with spotlights. They illuminate every PBR model,
 including animated models, in addition to its existing per-asset directional,
 ambient and environment lighting. Unlit assets, `KHR_materials_unlit` materials,
 panels and laser geometry ignore them. Lights do not draw visible bulbs or cast
@@ -79,9 +79,9 @@ change its color, toggle it, and capture/restore the lit tool.
 
 | Function | Behavior |
 | --- | --- |
-| `createPointLight(options = {})` | Return a fresh positive light ID. Up to eight live lights per scene, including disabled lights. |
+| `createPointLight(options = {})` | Return a fresh positive light ID. Up to eight live point/spot lights combined per scene, including disabled lights. |
 | `setPointLight(id, options)` | Update only supplied fields. Invalid options throw before publishing the update. |
-| `getPointLight(id)` | Return a detached snapshot `{id, position, color, intensity, range, enabled, objectId, container}`. |
+| `getPointLight(id)` | Return a detached snapshot `{id, type: 'point', position, color, intensity, range, enabled, objectId, container}`. |
 | `removePointLight(id)` | Remove a live light; unknown or removed IDs throw. |
 
 | Option | Default | Meaning and limits |
@@ -109,7 +109,7 @@ inside the range, and zero outside. The minimum denominator avoids a singularity
 at the light position. Lighting and exposure can saturate near bright lights;
 reduce intensity rather than relying on the range to control nearby brightness.
 
-Snapshots v8 save owned lights and return fresh `lightIds`/`lightMap` on restore.
+Snapshots v8 and later save owned lights and return fresh `lightIds`/`lightMap` on restore.
 An attached light and its object must belong to the captured container; crossing
 that boundary throws rather than saving a dangling reference. Light attachments
 remap to restored object IDs. Root lights are not captured. Older v1–v7 snapshots
@@ -121,6 +121,66 @@ lights for each lit fragment. More lights and more screen coverage increase GPU
 work; there is no tiled-light system, shadow pass, or automatic light selection.
 The external-depth pass skips point-light setup. Start with one or two lights
 and profile your intended scene before using all eight.
+
+## Dynamic spotlights
+
+Spotlights illuminate a cone rather than all directions. They share the same
+PBR receivers, intensity/range behavior, attachments, container cleanup and
+eight-light scene budget as point lights. Neither type casts shadows or draws a
+visible beam through empty space. A cone appears where it illuminates geometry.
+
+```js
+const flashlight = createSpotLight({
+  position: [0, .1, -.5], direction: [0, 0, 1],
+  color: [1, .95, .85], intensity: .3, range: 2,
+  innerConeAngle: .25, outerConeAngle: .45
+});
+setSpotLight(flashlight, {direction: [.2, -.1, 1]});
+print(JSON.stringify(getSpotLight(flashlight)));
+// removeSpotLight(flashlight);
+```
+
+| Function | Behavior |
+| --- | --- |
+| `createSpotLight(options = {})` | Create a spotlight and return its fresh light ID. |
+| `setSpotLight(id, options)` | Stage supplied fields and publish only after validation succeeds. |
+| `getSpotLight(id)` | Return the common light fields with `type: 'spot'`, plus `direction`, `innerConeAngle` and `outerConeAngle`. |
+| `removeSpotLight(id)` | Remove a live spotlight, leaving its marker/attachment object intact. |
+
+These functions accept spotlight IDs only; the point-light functions accept
+point-light IDs only. Passing the wrong type throws without changing the light.
+Type is fixed at creation. All common point-light options apply, with these
+additional spotlight fields:
+
+| Option | Default | Meaning and limits |
+| --- | --- | --- |
+| `direction` | `[0, 0, 1]` | Direction **away from** the light. Three finite components from −64 through 64; vector length at least .000001. Normalized for rendering; the getter retains the supplied components. |
+| `innerConeAngle` | `.35` | Fully illuminated half-angle in radians, from zero through `outerConeAngle`. |
+| `outerConeAngle` | `.6` | Outer half-angle in radians, from .001 through pi/2. Illumination is zero beyond this angle. |
+
+For unattached lights, direction uses scene axes (+Z forward). When `objectId` is
+set, both position and direction use object-local axes and rotate with the object;
+direction is unaffected by object translation or scale. Detaching keeps both
+stored vectors, now interpreted in scene axes. Update them in the same call if
+needed. A partial cone update must leave `innerConeAngle <= outerConeAngle`.
+Equal angles produce a hard edge.
+
+Within the cone, angular attenuation is
+`clamp((cosAngle - cosOuter) / (cosInner - cosOuter), 0, 1)^2`, multiplied by the
+point light's distance attenuation. The equal-angle case uses a step instead of
+dividing by zero. Cone width does not renormalize intensity: narrowing the beam
+keeps the center brightness unchanged.
+
+Snapshot v9 stores a `type` for every light and the spotlight direction/cones.
+Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
+V8 snapshots retain their point-light behavior; v1–v7 restore without scene
+lights. Ownership and cross-container snapshot rules are identical for both types.
+
+Run [spotlights.js](../scripts/spotlights.js): grip/trigger grabs the blue handle,
+bumper switches cone width, A/X toggles the light, and B/Y captures then restores
+the tool. Rotate the handle to aim the beam across the car. Cone rejection can
+avoid BRDF work outside the beam, but adds direction/cone math; profile the
+intended scene rather than assuming a spotlight is faster than a point light.
 
 ## Imported materials and surface geometry
 

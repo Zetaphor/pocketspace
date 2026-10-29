@@ -1242,3 +1242,32 @@ small marker with grip or trigger and move it around the car. Check that the lit
 area follows it while moving your head; bumper cycles colors, A/X toggles light,
 and B/Y captures then restores the lit tool. Verify fresh attachments after
 restoring. Stop the demo immediately after the user verifies it.
+
+## Spotlights
+
+Build `spotlight-regression` explicitly after reconfiguring CMake. Run from the
+repository root with the same EGL/SteamVR library environment as the point-light
+regression. It opens no OpenVR session and captures no pointer input:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target spotlight-regression point-light-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/spotlight-regression
+```
+
+Checks cover narrow/wide/reversed cones in both eyes, normalization, equal-angle
+edges, full-hemisphere point-light equivalence, unlit/depth invariance, attachment
+rotation, type-safe APIs, cone validation, getter mutations, mixed capacity,
+named-file restoration, invalid mixed-snapshot rollback and legacy point lights.
+
+With the headset awake and worn, run `point-light-regression --profile-spots` for
+matched point/spotlight timings. It retains the Box/16-car workload and measured
+frame counts described above. Broad spotlight cones (inner 1.2, outer 1.4 radians)
+fully illuminate the targets to avoid crediting a narrower illuminated workload
+as a cheaper BRDF. Each type uses the forward/reverse count sequence independently.
+
+Run `./run-pocketspace.sh scripts/spotlights.js` for interactive acceptance. Grab
+the blue handle with grip/trigger and rotate it to aim across the car. Bumper
+switches width, A/X toggles, and B/Y captures then restores. Check head motion,
+cone falloff and restored attachment behavior. Stop the demo immediately after
+verification.

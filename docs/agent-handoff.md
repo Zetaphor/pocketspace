@@ -546,5 +546,14 @@ scene pointers, update it after removals, and skip light setup for external dept
 Unlit materials must remain invariant. V8 snapshots validate/stage lights and
 attachment maps before native publication; require both attachment endpoints
 inside the captured scope, honor total live capacity and return fresh light IDs.
-Legacy snapshots restore no lights. See the [API](lighting-api.md#dynamic-point-lights)
+V1–v7 snapshots restore no lights. See the [API](lighting-api.md#dynamic-point-lights)
 and [regression](../tests/point-light-regression.cpp).
+
+Spotlights share the eight-entry capacity and monotonically issued ID namespace.
+Keep point/spot APIs type-safe. Direction uses local +Z-forward axes when attached,
+rotates without translation/scale, and normalizes once in the resolved frame.
+Store cone cosines in the uniform payload; keep an explicit equal-angle branch to
+avoid zero division. V9 requires type and spotlight fields; v8 accepts point lights
+only. Invalid mixed sets must leave scene resources and counters intact. See the
+[spotlight regression](../tests/spotlight-regression.cpp) and
+[API](lighting-api.md#dynamic-spotlights).

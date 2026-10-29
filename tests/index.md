@@ -283,6 +283,10 @@ the bounded non-interactive
   verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
   exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
+- [spotlight-regression.cpp](spotlight-regression.cpp): real stereo cone pixels,
+  hard edges, direction/attachment rotation, point-light equivalence, unlit/depth
+  invariance, type-safe APIs, mixed capacity, getter rollback and v9/v8 persistence.
+  See [spotlight measurements and acceptance](results/spotlights.md).
 - [point-light-regression.cpp](point-light-regression.cpp): real GLES point-light
   stereo pixels, intensity/color/range, unlit/depth invariance, attachment transforms,
   API rollback, cleanup and v8/legacy snapshots. `--profile` measures bounded

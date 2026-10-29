@@ -8,7 +8,7 @@ class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
  mutable int pointCount=-1;
- mutable std::array<float,64> pointPayload{};
+ mutable std::array<float,104> pointPayload{};
  mutable std::map<std::string,GLint> locations;
  GLint location(const char *name)const{
   const auto found=locations.find(name);if(found!=locations.end())return found->second;
@@ -57,7 +57,8 @@ uniform vec4 factor;uniform int alphaMode;uniform float alphaCutoff;
 uniform float metallic,roughness,normalScale,occlusionStrength,intensity,ambient,exposure;
 uniform vec3 emissive,lightDirection,lightColor;
 uniform int pointLightCount;
-uniform vec4 pointPositionRange[8],pointColorIntensity[8];
+uniform vec4 pointPositionRange[8],pointColorIntensity[8],spotDirectionOuter[8];
+uniform float spotInner[8];
 out vec4 color;
 const float PI=3.141592653589793;
 vec3 safeUnit(vec3 v,vec3 fallback){float d=dot(v,v);return d>1e-16?v*inversesqrt(d):fallback;}
@@ -95,12 +96,19 @@ void main(){
    float distance2=dot(delta,delta),range=pointPositionRange[i].w;
    if(distance2>=range*range)continue;
    vec3 pl=safeUnit(delta,n),ph=safeUnit(pl+v,n);
+   float cone=1.;
+   if(spotDirectionOuter[i].w>=-1.){
+    float cosine=dot(-pl,spotDirectionOuter[i].xyz),outer=spotDirectionOuter[i].w,inner=spotInner[i];
+    if(cosine<outer)continue;
+    cone=inner>outer?clamp((cosine-outer)/(inner-outer),0.,1.):step(outer,cosine);
+    cone*=cone;
+   }
    float pnl=max(dot(n,pl),0.),pnh=max(dot(n,ph),0.),pvh=max(dot(v,ph),0.);
    float pd=pnh*pnh*(a2-1.)+1.,distributionP=a2/(PI*pd*pd);
    float visibilityP=.5/max(pnl*sqrt(nv*nv*(1.-a2)+a2)+nv*sqrt(pnl*pnl*(1.-a2)+a2),1e-6);
    vec3 pf=f0+(1.-f0)*pow(1.-pvh,5.);
    float window=max(1.-pow(distance2/(range*range),2.),0.);
-   float attenuation=window*window/max(distance2,.0001);
+   float attenuation=cone*window*window/max(distance2,.0001);
    result+=((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
   }
   if(environmentEnabled){
@@ -141,14 +149,15 @@ void main(){
   vector("right",axes[0]);vector("up",axes[1]);vector("forward",axes[2]);integer("skinEnabled",0);integer("material",0);
  }
  void lights(const std::vector<ResolvedPointLight> &lights,float x=0,float y=0,float z=0)const{
-  std::array<float,64> payload{};int count=0;
+  std::array<float,104> payload{};int count=0;
   for(const auto &light:lights){if(count==8)break;const int i=count++*4;
    payload[i]=light.position[0]-x;payload[i+1]=light.position[1]-y;payload[i+2]=-(light.position[2]-z);payload[i+3]=light.range;
    for(int c=0;c<3;c++)payload[32+i+c]=light.color[c];payload[32+i+3]=light.intensity;
+   payload[64+i]=light.direction[0];payload[64+i+1]=light.direction[1];payload[64+i+2]=-light.direction[2];payload[64+i+3]=light.outerCos;payload[96+i/4]=light.innerCos;
   }
   if(pointCount==count&&pointPayload==payload)return;
   integer("pointLightCount",count);
-  if(count){glUniform4fv(location("pointPositionRange"),count,payload.data());glUniform4fv(location("pointColorIntensity"),count,payload.data()+32);}
+  if(count){glUniform4fv(location("pointPositionRange"),count,payload.data());glUniform4fv(location("pointColorIntensity"),count,payload.data()+32);glUniform4fv(location("spotDirectionOuter"),count,payload.data()+64);glUniform1fv(location("spotInner"),count,payload.data()+96);}
   pointCount=count;pointPayload=payload;
  }
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
