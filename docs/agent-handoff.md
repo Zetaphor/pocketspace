@@ -5,7 +5,8 @@ documentation, and headset testing instructions. This handoff covers detailed
 implementation contracts. The [engine architecture](architecture.md) explains
 the complete pipeline and production optimization policies.
 
-Start with the [README](../README.md) for build/run commands and examples, the
+Start with [getting started](getting-started.md) for build/run commands,
+[examples](examples.md) for supported scripts, the
 [JavaScript API](javascript-api.md) for exposed behavior, and
 [remaining work](remaining-work.md) for future scope. Keep current contracts in
 these guides; implementation history belongs in Git.
