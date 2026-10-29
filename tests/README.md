@@ -712,3 +712,31 @@ trigger; A/X pauses/resumes, bumper captures/restores the container in place,
 and B/Y clears it. Cleanup also runs after five minutes. Check pose continuity,
 selection after restore, and coherent overlap while moving your head. The HUD
 shows live FPS/CPU; this manual scene is not a matched performance benchmark.
+
+## Rigid-node and morph profiling
+
+`tests/scenes/rigid-morph-profile.js` uses the current animation backend with
+phase timers in `animation-profile-experiment`. It runs eight 20-second stages:
+64 animated/paused and 256 paused/animated InterpolationTest instances, then
+64 paused/animated and 256 animated/paused AnimatedMorphCube instances. Every
+actor has an independent phase; each workload uses one render group and 768
+reference eye pixels, no physics, and one HUD. Actors use a centered 8x8 or
+16x16 grid. The larger grid uses smaller objects to keep the overall view bounded.
+
+Use Frame's display/library environment and run:
+
+```sh
+cmake --build build --target animation-profile-experiment -j2
+./build/animation-profile-experiment tests/scenes/rigid-morph-profile.js > /tmp/rigid-morph.log 2>&1
+python3 tests/analyze-animation-profile.py /tmp/rigid-morph.log
+```
+
+Keep looking at the models for about three minutes. B/Y aborts and clears actors;
+normal completion clears them and prints `ANIMATION_PROFILE_DONE`. Stop the
+process afterward. Compare animation phases with paused phases at the same count;
+record allocation estimates and any group density caps. Poses/projected bounds
+still differ, so paired FPS alone does not isolate animation CPU cost. These
+bundled models are low-triangle feature samples, not proxies for high-detail
+morph characters. Use the phase measurements to decide what warrants further
+investigation. Scene transitions, actor counts, playback and abort cleanup are
+checked by `node tests/animation-profile-scene.cjs`.

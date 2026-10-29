@@ -199,3 +199,7 @@ fixture invoked by the GPU regression, including failed reload rollback.
 [scenes/gpu-skinning-production.js](scenes/gpu-skinning-production.js) is the
 normal-engine mixed GPU/CPU acceptance scene: grab, A/X pause/resume, bumper
 save/restore, B/Y finish, five-minute cleanup.
+
+[scenes/rigid-morph-profile.js](scenes/rigid-morph-profile.js) profiles 64/256
+rigid-node and morph actors, paired animated/paused, with the excluded phase
+profiling executable. Eight 20-second stages; B/Y aborts.

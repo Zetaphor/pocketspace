@@ -29,3 +29,10 @@ const abort=fixture();abort.abort();assert.equal(abort.actors.size,0);abort.adva
 console.log('PASS animation profiling scene: bounded stages, exact counts/playback, complete cleanup and abort');
 
 const gpu=fixture('tests/scenes/gpu-skinning-profile.js');assert.equal(gpu.actors.size,32);gpu.advance();assert.equal(gpu.actors.size,32);assert([...gpu.actors.values()].every(actor=>!actor.playing));gpu.advance();assert.equal(gpu.actors.size,0);
+
+const mixed=fixture('tests/scenes/rigid-morph-profile.js');
+for(const [count,playing] of [[64,true],[64,false],[256,false],[256,true],[64,false],[64,true],[256,true],[256,false]]){
+  assert.equal(mixed.actors.size,count);assert([...mixed.actors.values()].every(actor=>actor.playing===playing));mixed.advance();
+}
+assert.equal(mixed.actors.size,0);assert(mixed.logs.includes('ANIMATION_PROFILE_DONE'));
+const mixedAbort=fixture('tests/scenes/rigid-morph-profile.js');mixedAbort.abort();mixedAbort.advance();assert.equal(mixedAbort.actors.size,0);
