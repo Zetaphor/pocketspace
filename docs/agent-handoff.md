@@ -427,7 +427,9 @@ on already-visible objects.
 
 PBR retains expanded normals, tangents/handedness and UV0 separately from legacy
 xyz/UV storage. Do not deduplicate PBR geometry using the legacy five-float key:
-normal and tangent seams must survive. MikkTSpace is vendored at upstream commit
+normal and tangent seams must survive. The test-only full-input indexing/cache
+variants are not production policy: [native measurements](../tests/results/pbr-index.md)
+showed lower storage but worse throughput. MikkTSpace is vendored at upstream commit
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 

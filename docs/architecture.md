@@ -270,6 +270,13 @@ for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
 [Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
 are recorded as separate validation evidence.
+A test-only static PBR indexing path compares full 14-float shader-input tuples
+before merging vertices, preserving normal/tangent/UV seams within each material.
+A separate variant reorders non-blend triangles for the vertex cache. Retained CPU
+triangles and animated uploads stay expanded. These variants are excluded from
+the production engine: [native comparisons](../tests/results/pbr-index.md) found
+lower geometry storage but worse GPU throughput. See the
+[test instructions](../tests/README.md#static-pbr-indexing-experiment).
 Material UV0 transforms and sampler settings are independent. Surface frames use
 inverse-transpose normals and orthogonalized tangents, including mirrored node
 handedness. PBR CPU poses update surface buffers alongside positions and bounds;

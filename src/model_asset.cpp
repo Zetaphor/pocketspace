@@ -300,9 +300,45 @@ static void prepareVertexArrays(const PrimitiveAsset &part){
  glBindVertexArray(GLuint(previous));glBindBuffer(GL_ARRAY_BUFFER,GLuint(arrayBuffer));
 }
 #endif
+#ifdef SF_PBR_INDEX_EXPERIMENT
+// Test-only static PBR indexing. Every shader input participates in identity;
+// indexing retains triangle order; variant 2 reorders only non-blend triangles.
+static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part){
+  const char *enabled=std::getenv("SF_PBR_INDEXED");
+  if(!enabled||(std::string(enabled)!="1"&&std::string(enabled)!="2")||!asset.pbr||asset.hasAnimation||asset.hasSkin||asset.hasMorph)return false;
+  std::vector<float> combined;combined.reserve(size_t(part.vertexCount)*14);
+  for(size_t v=0;v<size_t(part.vertexCount);v++){
+    combined.insert(combined.end(),part.vertices.begin()+v*5,part.vertices.begin()+(v+1)*5);
+    combined.insert(combined.end(),part.surface.begin()+v*9,part.surface.begin()+(v+1)*9);
+  }
+  auto indexed=mesh::index<14>(combined);const size_t unique=indexed.vertices.size()/14;
+  const GLenum type=unique<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
+  const size_t indexBytes=type==GL_UNSIGNED_SHORT?2:4;
+  if(indexed.vertices.size()*sizeof(float)+indexed.indices.size()*indexBytes>=combined.size()*sizeof(float))return false;
+  if(std::string(enabled)=="2"&&asset.optimizeVertexCache&&part.alphaMode!=2){
+    meshopt_optimizeVertexCache(indexed.indices.data(),indexed.indices.data(),indexed.indices.size(),unique);
+    meshopt_optimizeVertexFetch(indexed.vertices.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,14*sizeof(float));
+  }
+  std::vector<float> positions,surface;positions.reserve(unique*5);surface.reserve(unique*9);
+  for(size_t v=0;v<unique;v++){
+    positions.insert(positions.end(),indexed.vertices.begin()+v*14,indexed.vertices.begin()+v*14+5);
+    surface.insert(surface.end(),indexed.vertices.begin()+v*14+5,indexed.vertices.begin()+(v+1)*14);
+  }
+  part.gpuVertexCount=GLsizei(unique);part.indexType=type;
+  glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,positions.size()*sizeof(float),positions.data(),GL_STATIC_DRAW);
+  glGenBuffers(1,&part.surfaceVbo);glBindBuffer(GL_ARRAY_BUFFER,part.surfaceVbo);glBufferData(GL_ARRAY_BUFFER,surface.size()*sizeof(float),surface.data(),GL_STATIC_DRAW);
+  glGenBuffers(1,&part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);
+  if(type==GL_UNSIGNED_SHORT){std::vector<uint16_t> packed(indexed.indices.begin(),indexed.indices.end());glBufferData(GL_ELEMENT_ARRAY_BUFFER,packed.size()*sizeof(uint16_t),packed.data(),GL_STATIC_DRAW);}
+  else glBufferData(GL_ELEMENT_ARRAY_BUFFER,indexed.indices.size()*sizeof(uint32_t),indexed.indices.data(),GL_STATIC_DRAW);
+  return true;
+}
+#endif
 void uploadModel(ModelAsset &asset){
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
+#ifdef SF_PBR_INDEX_EXPERIMENT
+    if(!uploadIndexedPbr(asset,part)){
+#endif
     glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
     auto indexed=asset.pbr?mesh::Indexed{}:mesh::index(part.vertices);
     const size_t unique=indexed.vertices.size()/5;
@@ -331,8 +367,11 @@ void uploadModel(ModelAsset &asset){
     }else{
       glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);part.gpuVertexCount=part.vertexCount;
     }
+#ifdef SF_PBR_INDEX_EXPERIMENT
+    }
+#endif
     if(asset.pbr){
-      uploadSurface(part,GL_STATIC_DRAW);
+      if(!part.surfaceVbo)uploadSurface(part,GL_STATIC_DRAW);
       for(size_t i=0;i<4;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
         glGenTextures(1,&map.texture);glBindTexture(GL_TEXTURE_2D,map.texture);
         glTexImage2D(GL_TEXTURE_2D,0,i==3?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());

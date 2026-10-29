@@ -262,6 +262,10 @@ the bounded non-interactive
 
 ## Model lighting
 
+- [pbr-index-regression.cpp](pbr-index-regression.cpp): test-only static PBR
+  indexing and vertex-cache ordering; full-input seam identity, 16/32-bit indices,
+  exact stereo/alpha/overlap pixels, animation fallback, buffer cleanup and an
+  optional native ABBA comparison.
 - [pbr-regression.cpp](pbr-regression.cpp): real GLES tests for opt-in material
   import/rendering, sRGB transfer, linear packed metal/roughness channels, surface
   transforms, static/skeletal/morph poses, unlit invariance, GL cleanup, API
