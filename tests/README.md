@@ -231,11 +231,12 @@ The bounded runner alternates whole-render and per-pass timing runs across two
 rounds of fixed/adaptive 128 mixed models and fixed 128 Avocados, with mesh cache
 optimization enabled. It retains logs, checks object counts and shutdown buffer
 accounting, rejects unavailable/disjoint GPU timings and reported GL errors, and
-rejects paired storage mismatches. Automatic LOD is enabled; add `--instancing`
-to include production ordered instancing (the historical profile omitted it).
+rejects paired storage and geometry mismatches. Actual triangle/LOD counts must
+remain stable and equal, with complete stereo member geometry. Automatic LOD is
+enabled; use `--no-lod` to isolate passes when movement crosses LOD thresholds.
+Add `--instancing` to include production ordered instancing (the historical profile omitted it).
 The runner clears inherited `SF_GPU_*` experiment options before each run.
-Keep the headset awake and the
-view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
+Keep the headset awake and the view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
 
 `RENDER_PASS_SAMPLE` arrays are ordered occluder, opaque, blended. GPU times sum
 the elapsed queries for each category; CPU values measure render-thread CPU time
@@ -937,3 +938,50 @@ and [ordinary-program-mixed.js](scenes/ordinary-program-mixed.js). Grip/trigger
 grabs, A/X pause/resume, bumper save/restore and B/Y finish cover 18 mixed actors
 in two groups. This interactive scene enables grabbing intentionally; timed
 `fast-motion.py` workloads have non-interactive model surfaces and no HUD panels.
+
+## Geometry-aware grouping comparison
+
+The excluded `gpu-sync-experiment` now prints `RENDER_WORK_SAMPLE` once per
+profiling window. Arrays are ordered occluder, opaque, blended. `drawsPerFrame`
+and `trianglesPerFrame` count actual submissions in every rendered frame,
+including indexed/LOD draws, instanced multiplicity, GPU skins and merged rigid
+ranges. These are submitted triangles, not visible fragments or vertex shader
+invocations. `sceneTrianglesPerFrame` counts selected geometry once per visible
+object, independently of repeated surface/eye draws. `lodObjectsPerFrame` counts
+visible objects at selected levels 0, 1 and 2, including objects without reduced
+indices at level 0. `sceneFrames` must equal rendered `frames`.
+
+`SF_GPU_GROUP_POLICY=occluders` tests a tie-break between split/rebalance candidates
+with the same minimum allocated pixel area. The predictor uses both eyes' cached
+bounds and selected opaque/masked triangle counts. It never increases the minimum
+area, changes density/caps, or changes membership/rendering rules outside choosing
+an equal-cost partition. Production keeps the existing planner.
+
+```sh
+cmake --build build --target group-occluder-regression gpu-sync-experiment -j2
+./build/group-occluder-regression
+python3 tests/render-work-analysis-test.py
+python3 tests/compare-group-policy.py --no-lod --case 128-models-adaptive \
+  --seconds 20 --output /tmp/group-policy
+```
+
+The native planner regression compares 256 deterministic layouts and checks
+complete stable membership, unchanged minimum allocation, conservative fallbacks
+and predicted occluder work. The Python analysis rejects malformed counters,
+frame/count mismatches, changing/mismatched scene triangles or LOD distributions,
+and incomplete/mismatched member geometry even when allocation estimates match.
+Draw batching and occluder duplication may intentionally differ; selected member
+triangle geometry must match. The runner also
+requires matching allocation estimates and grouped peaks, reverses per-case pair
+order and clears inherited experiment overrides. Full-detail `--no-lod` isolates
+grouping from moving LOD thresholds; it does not measure automatic LOD throughput.
+Timed overlays are non-interactive and have no HUD or visible controller beams.
+See the [group policy investigation](results/group-occluder-policy.md).
+
+`validate-render-work.py --output /tmp/render-work-validation.log` runs the
+non-interactive [render-work-validation.js](scenes/render-work-validation.js)
+fixture through the excluded executable and checks exact draw/triangle totals
+for instanced Boxes, GPU-skinned Foxes and merged rigid ranges. Each stage lasts
+four seconds; normal completion clears actors and the runner stops the process.
+It verifies frame/LOD coherence, clean GL status and zero grouped budget charges
+at shutdown. No interactive headset feedback is needed for these counting checks.

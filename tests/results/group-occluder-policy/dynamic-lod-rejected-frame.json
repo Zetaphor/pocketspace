@@ -1,0 +1,84 @@
+[
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 15,
+    "fpsMedian": 38.47793355232631,
+    "gpuEstimateMiBMedian": 423.4992218017578,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 9,
+    "surfaceCreations": 3,
+    "workSamples": 14,
+    "stableSceneGeometry": false,
+    "sceneTriangles": 1847168.0,
+    "lodObjects": [
+      64.0,
+      0.0,
+      64.0
+    ],
+    "draws": [
+      278.8589745,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      2020774.025641,
+      3694336.0,
+      0.0
+    ],
+    "round": 0,
+    "occluderTieBreak": false,
+    "profileSamples": 14,
+    "gpuMs": 16.805156,
+    "enqueueMs": 2.0014235,
+    "waitMs": 23.168255000000002,
+    "submitMs": 0.034958,
+    "matchingStorage": true,
+    "matchingGeometry": false,
+    "completeMemberGeometry": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 15,
+    "fpsMedian": 37.99650390367932,
+    "gpuEstimateMiBMedian": 423.4992218017578,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 7,
+    "surfaceCreations": 3,
+    "workSamples": 14,
+    "stableSceneGeometry": false,
+    "sceneTriangles": 1847168.0,
+    "lodObjects": [
+      64.0,
+      0.0,
+      64.0
+    ],
+    "draws": [
+      277.42813750000005,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      2030294.5499324999,
+      3694336.0,
+      0.0
+    ],
+    "round": 0,
+    "occluderTieBreak": true,
+    "profileSamples": 14,
+    "gpuMs": 16.938330999999998,
+    "enqueueMs": 2.006711,
+    "waitMs": 23.2503215,
+    "submitMs": 0.0388845,
+    "matchingStorage": true,
+    "matchingGeometry": false,
+    "completeMemberGeometry": true
+  }
+]

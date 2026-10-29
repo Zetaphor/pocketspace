@@ -404,3 +404,14 @@ view/object/material state, invalidate cached binding after instanced batches, a
 never delete the borrowed program. Host shaders retain no scene/pose pointers.
 Normal builds retain the original general shader; do not infer production adoption
 from the comparison runner's historical `productionRouting` field.
+
+
+[Geometry-aware grouping profiling](../tests/results/group-occluder-policy.md)
+adds all-frame `RENDER_WORK_SAMPLE` counters only to `gpu-sync-experiment`.
+Count actual selected index/skin ranges, full merged rigid ranges and instanced
+multiplicity. Keep one scene-geometry/LOD snapshot per rendered frame. The native
+counter fixture verifies analytic Box/Fox/InterpolationTest totals; rerun it when
+moving draw hooks. Profile analysis rejects geometry/LOD drift and incomplete
+member work, not just allocation mismatch. `SF_GPU_GROUP_POLICY=occluders` is an
+isolated equal-minimum-area partition tie-break; its matched native result does
+not justify adoption. Production planner and thresholds remain unchanged.
