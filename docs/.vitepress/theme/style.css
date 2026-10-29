@@ -1,17 +1,17 @@
 :root {
-  --vp-c-brand-1: #007f87;
-  --vp-c-brand-2: #00949d;
-  --vp-c-brand-3: #007f87;
-  --vp-c-brand-soft: rgba(0, 148, 157, .12);
+  --vp-c-brand-1: #18743b;
+  --vp-c-brand-2: #218448;
+  --vp-c-brand-3: #18743b;
+  --vp-c-brand-soft: rgba(34, 139, 74, .12);
   --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(115deg, #007f87, #7356be);
+  --vp-home-hero-name-background: linear-gradient(115deg, #18743b, #4d7c0f);
 }
 .dark {
-  --vp-c-brand-1: #63dbd5;
-  --vp-c-brand-2: #82e6e0;
-  --vp-c-brand-3: #007f87;
-  --vp-c-brand-soft: rgba(99, 219, 213, .12);
-  --vp-home-hero-name-background: linear-gradient(115deg, #63dbd5, #b8a3f0);
+  --vp-c-brand-1: #86df9d;
+  --vp-c-brand-2: #b0efb8;
+  --vp-c-brand-3: #18743b;
+  --vp-c-brand-soft: rgba(134, 223, 157, .12);
+  --vp-home-hero-name-background: linear-gradient(115deg, #86df9d, #bef264);
 }
 .VPHomeHero .text { max-width: 760px; }
 .vp-doc th { white-space: nowrap; }
