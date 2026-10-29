@@ -26,7 +26,7 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(16*1024*1024));
-    bad(s=>s.version=6);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.version=7);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));

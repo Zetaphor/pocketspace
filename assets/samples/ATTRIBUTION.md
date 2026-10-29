@@ -1,6 +1,6 @@
 # Khronos glTF sample assets
 
-These eleven unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The files provide examples of glTF features; inclusion does not imply the engine supports every feature shown.
+These nineteen unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](https://github.com/KhronosGroup/glTF-Sample-Assets) at commit `edc7c9e67c639d230715049ee31f9a96a6babbbe`. Each `README.upstream.md` is copied from that model's directory and records its credits and license. The files provide examples of glTF features; inclusion does not imply the engine supports every feature shown.
 
 | Model | glTF feature | License summary |
 | --- | --- | --- |
@@ -15,8 +15,16 @@ These eleven unmodified GLB files come from [KhronosGroup/glTF-Sample-Assets](ht
 | AnimatedMorphCube | Two animated morph targets | CC0, Microsoft |
 | MorphPrimitivesTest | Multiple primitives and morph targets | CC BY 4.0, ft-lab and Frank Galligan |
 | InterpolationTest | Translation/rotation/scale clips with STEP, LINEAR, and CUBICSPLINE interpolation | CC0, Khronos |
+| MetalRoughSpheres | Texture-driven metallic/roughness grid | CC BY 4.0, Analytical Graphics, Inc.; Ed Mackey |
+| MetalRoughSpheresNoTextures | Factor-driven metallic/roughness grid | CC0, Krill Gavrilov; Open CASCADE Technology |
+| NormalTangentTest | MikkTSpace tangent generation and normal-map orientation | CC0, Analytical Graphics, Inc.; Ed Mackey |
+| NormalTangentMirrorTest | Imported tangent handedness and mirrored normal maps | CC BY 4.0, Analytical Graphics, Inc.; Ed Mackey |
+| NegativeScaleTest | Mirrored node transforms, culling and normals | CC BY 4.0, Analytical Graphics, Inc.; Ed Mackey |
+| TextureEncodingTest | Linear data versus sRGB color/emission | CC0, lexaknyazev |
+| UnlitTest | KHR_materials_unlit | CC BY 4.0, Analytical Graphics, Inc.; Ed Mackey |
+| EmissiveStrengthTest | KHR_materials_emissive_strength | CC BY 4.0, AGI; Ed Mackey |
 
-All eleven GLBs were checked against the upstream Git blob hashes before inclusion. See the upstream README beside each model for full credit and terms. For `CesiumMan`, the upstream Cesium logo notice is retained in `LICENSES/LicenseRef-LegalMark-Cesium.txt`.
+All nineteen GLBs were checked against the upstream Git blob hashes before inclusion. See the upstream README beside each model for full credit and terms. For `CesiumMan`, the upstream Cesium logo notice is retained in `LICENSES/LicenseRef-LegalMark-Cesium.txt`.
 
 `InterpolationTest/InterpolationTest.glb` is 7,952 bytes; verified upstream Git
 blob `4200fccc95261f36bf8af58e99f3180968333714`, SHA-256 `a86eb331b4a083715e75fe19a1f747eac5692d5b9ff120f1eaa457c23ba72bca`.
@@ -42,3 +50,8 @@ revision. Their byte sizes, upstream Git blob IDs and SHA-256 hashes are recorde
 in [the skinning test inventory](../../tests/results/gpu-skinning/khronos-models.json).
 Upstream READMEs accompany all three models and retain the original credits and
 license links.
+
+The eight PBR diagnostic assets are unmodified files from the same pinned
+revision. Byte sizes, upstream Git blob IDs and SHA-256 hashes, including each
+copied upstream README, are recorded in
+[the PBR fixture inventory](../../tests/fixtures/pbr/khronos-models.json).

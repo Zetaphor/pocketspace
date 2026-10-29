@@ -26,7 +26,8 @@ export default defineConfig({
         { text: 'Save and restore', link: '/scene-persistence' },
         { text: 'Panels and UI', link: '/panels' },
         { text: 'Physics', link: '/physics-api' },
-        { text: 'Animation', link: '/animation-api' }
+        { text: 'Animation', link: '/animation-api' },
+        { text: 'Model lighting', link: '/lighting-api' }
       ] },
       { text: 'Input and runtime', items: [
         { text: 'Tracking', link: '/tracking-api' },

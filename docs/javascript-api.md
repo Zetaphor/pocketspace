@@ -66,7 +66,8 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 
 | Function | Behavior |
 | --- | --- |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
+| `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -374,7 +375,15 @@ first load or reload the script to change it. The value must be a boolean.
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen
-are supported. [Animation](animation-api.md) covers skinning, morph targets and clip limits.
+are supported. Both lit and unlit rendering honor glTF `doubleSided`: single-sided
+materials cull their back faces, with winding corrected for mirrored node
+transforms. The rule also applies to depth occluders, animated objects and ordered
+instancing. Double-sided materials retain both faces. Sidedness controls rendering;
+picking and physics continue using the complete mesh. [Animation](animation-api.md) covers skinning, morph targets and clip limits.
+
+Opt-in `pbr: true` adds [physical model lighting](lighting-api.md), material maps,
+normals and tangents. Legacy rendering remains the default. PBR currently uses
+full expanded meshes and CPU animation instead of the unlit geometry fast paths.
 
 ### Ordered GPU instancing
 

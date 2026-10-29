@@ -53,14 +53,17 @@ static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,5));
+  put(ctx,result,"version",JS_NewInt32(ctx,6));
   for(auto o:currentScene->objects)if(o.container==owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
     if(!modelIds.count(o.asset)){
       const auto &a=currentScene->assets.at(o.asset-1);const int i=int(modelIds.size());modelIds[o.asset]=i;
       JSValue m=JS_NewObject(ctx);put(ctx,m,"path",JS_NewString(ctx,a.path.c_str()));put(ctx,m,"eyePixels",JS_NewInt32(ctx,a.eyePixels));
-      put(ctx,m,"optimizeVertexCache",JS_NewBool(ctx,a.optimizeVertexCache));put(ctx,m,"gpuInstancing",JS_NewBool(ctx,a.gpuInstancing));put(ctx,m,"lod",JS_NewBool(ctx,a.lod));putIndex(ctx,models,i,m);
+      put(ctx,m,"optimizeVertexCache",JS_NewBool(ctx,a.optimizeVertexCache));put(ctx,m,"gpuInstancing",JS_NewBool(ctx,a.gpuInstancing));put(ctx,m,"lod",JS_NewBool(ctx,a.lod));put(ctx,m,"pbr",JS_NewBool(ctx,a.pbr));
+      Value lighting(ctx,JS_NewObject(ctx));
+      for(auto [name,values]:{std::pair{"direction",a.lighting.direction},std::pair{"color",a.lighting.color}}){Value array(ctx,JS_NewArray(ctx));for(int c=0;c<3;c++)putIndex(ctx,array,c,JS_NewFloat64(ctx,values[c]));put(ctx,lighting,name,JS_DupValue(ctx,array));}
+      put(ctx,lighting,"intensity",JS_NewFloat64(ctx,a.lighting.intensity));put(ctx,lighting,"ambient",JS_NewFloat64(ctx,a.lighting.ambient));put(ctx,lighting,"exposure",JS_NewFloat64(ctx,a.lighting.exposure));put(ctx,m,"lighting",JS_DupValue(ctx,lighting));putIndex(ctx,models,i,m);
     }
     for(auto [key,member]:transforms)require(std::isfinite(o.*member),"non-finite object transform");
     JSValue item=JS_NewObject(ctx);put(ctx,item,"id",JS_NewInt32(ctx,o.id));put(ctx,item,"model",JS_NewInt32(ctx,modelIds.at(o.asset)));
@@ -89,7 +92,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,5,true));
+  const int version=int(number(ctx,root,"version",1,6,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -99,7 +102,13 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     Value m(ctx,JS_GetPropertyUint32(ctx,models,i));auto path=field(ctx,m,"path");ModelAsset a;a.path=string(ctx,path);require(!a.path.empty()&&paths.insert(a.path).second,"empty or duplicate model path");
     a.eyePixels=int(number(ctx,m,"eyePixels",256,2048,true));require(a.eyePixels%64==0,"eyePixels must be a multiple of 64");
     a.optimizeVertexCache=boolean(ctx,m,"optimizeVertexCache");a.gpuInstancing=boolean(ctx,m,"gpuInstancing");a.lod=boolean(ctx,m,"lod");
-    int id=0;for(size_t j=0;j<scene.assets.size();j++)if(scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod,"cached model options conflict");id=int(j)+1;break;}
+    if(version>=6){
+      a.pbr=boolean(ctx,m,"pbr");auto lighting=field(ctx,m,"lighting");
+      a.lighting.intensity=float(number(ctx,lighting,"intensity",0,64));a.lighting.ambient=float(number(ctx,lighting,"ambient",0,16));a.lighting.exposure=float(number(ctx,lighting,"exposure",.001,64));
+      for(auto [name,values,isColor]:{std::tuple{"direction",a.lighting.direction,false},std::tuple{"color",a.lighting.color,true}}){auto array=field(ctx,lighting,name);require(length(ctx,array,3)==3,"lighting vectors must have three components");for(int c=0;c<3;c++){Value v(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(v)&&JS_ToFloat64(ctx,&n,v)==0&&std::isfinite(n)&&n>=(isColor?0:-64)&&n<=64,"invalid lighting vector");values[c]=float(n);}}
+      double magnitude=0;for(float v:a.lighting.direction)magnitude+=double(v)*v;require(magnitude>=1e-12,"light direction must be nonzero");
+    }
+    int id=0;for(size_t j=0;j<scene.assets.size();j++)if(scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod&&old.pbr==a.pbr&&(!a.pbr||old.lighting==a.lighting),"cached model options conflict");id=int(j)+1;break;}
     if(!id){require(scene.assets.size()+pending.size()<32,"model asset limit reached");id=int(scene.assets.size()+pending.size())+1;pending.push_back(std::move(a));}assets.push_back(id);
   }
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);

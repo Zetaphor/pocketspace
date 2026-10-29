@@ -415,3 +415,36 @@ moving draw hooks. Profile analysis rejects geometry/LOD drift and incomplete
 member work, not just allocation mismatch. `SF_GPU_GROUP_POLICY=occluders` is an
 isolated equal-minimum-area partition tie-break; its matched native result does
 not justify adoption. Production planner and thresholds remain unchanged.
+
+## Opt-in model lighting
+
+`loadModel(..., {pbr: true})` selects a separate material/surface-frame path.
+`setModelLighting` stages a copy before reading script properties and resolves
+its asset again before publishing. Asset-cache conflicts include explicit PBR
+choice; snapshot v6 also requires matching lighting for cached lit models. Older
+snapshots default to unlit rendering. Failed restores must not change lighting
+on already-visible objects.
+
+PBR retains expanded normals, tangents/handedness and UV0 separately from legacy
+xyz/UV storage. Do not deduplicate PBR geometry using the legacy five-float key:
+normal and tangent seams must survive. MikkTSpace is vendored at upstream commit
+`3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
+upstream C source compiled as C++, with its embedded license preserved.
+
+Lit poses currently use CPU position and surface-frame deformation and disable
+GPU skinning eligibility, ordered instancing, LOD and rigid merging. Preserve
+independent morph/skin state, picking, fixed normalization and shared texture
+ownership when extending these paths. Surface buffers belong to their shared
+asset or individual pose; material maps belong only to the asset. Count and
+release each once. PBR rendering restores program, texture units and enabled surface
+attributes; the shared per-pass culling owner restores culling and winding before subsequent unlit/panel draws. Use the same
+alpha and geometry policy for depth occluders and member-color passes. Public
+behavior and current limitations are in [lighting-api.md](lighting-api.md).
+
+All model paths honor glTF `doubleSided` through `ModelCulling`. One owner spans a
+render pass, including ordinary, CPU/GPU animated, instanced and depth draws.
+Keep direct GL culling mutations out of individual shader wrappers so its cached
+state remains valid. Node reflections change winding without changing object
+Euler rotations. Rigid merging must stop when single-sided animated parts have
+different winding; experimental combined-material instancing must reject
+incompatible sidedness/winding. Do not cull panels or controller laser geometry.

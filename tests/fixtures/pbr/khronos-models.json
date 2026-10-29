@@ -1,0 +1,142 @@
+{
+  "repository": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "revision": "edc7c9e67c639d230715049ee31f9a96a6babbbe",
+  "models": [
+    {
+      "model": "MetalRoughSpheres",
+      "files": [
+        {
+          "path": "assets/samples/MetalRoughSpheres/MetalRoughSpheres.glb",
+          "bytes": 11221356,
+          "gitBlob": "4118e60506529f6470206593dbf6cb49bf566bec",
+          "sha256": "450c05557b0823a10835e32c05caf77a7b175eba94516555c1c9bb084f563f01"
+        },
+        {
+          "path": "assets/samples/MetalRoughSpheres/README.upstream.md",
+          "bytes": 1047,
+          "gitBlob": "9035308a0e26a238633aa938742de7f4353cb85b",
+          "sha256": "eb08e8ff7319411de570831de9a0630d4a748312d12489bbc3667c81f6a72425"
+        }
+      ]
+    },
+    {
+      "model": "MetalRoughSpheresNoTextures",
+      "files": [
+        {
+          "path": "assets/samples/MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.glb",
+          "bytes": 291316,
+          "gitBlob": "278b83ac0ffa12aeb025f7bd963b1a993b91a8d7",
+          "sha256": "5e677f260ec0f366967a6e9545de2f3dab2a160e307b9bcb9d050cd2028f63f8"
+        },
+        {
+          "path": "assets/samples/MetalRoughSpheresNoTextures/README.upstream.md",
+          "bytes": 1218,
+          "gitBlob": "a5f6b034b7210031aa8554bf1678783781df32ab",
+          "sha256": "098845806e1c120cbbdb7c05c0cf4d78d577a1eb62c8eb375cd1218d211bee79"
+        }
+      ]
+    },
+    {
+      "model": "NormalTangentTest",
+      "files": [
+        {
+          "path": "assets/samples/NormalTangentTest/NormalTangentTest.glb",
+          "bytes": 1796996,
+          "gitBlob": "855bad5e79527b68e753b594a728b8054af30969",
+          "sha256": "5ac0932355ae1ea05a7485eeddcc3f1fbe56c678e00b519075feced80e9e9d6a"
+        },
+        {
+          "path": "assets/samples/NormalTangentTest/README.upstream.md",
+          "bytes": 3535,
+          "gitBlob": "a9e72444e2b8a88052a9787b733de63df410cf60",
+          "sha256": "933df94257d7282e55491f3183634fe9c028773585698376f8abcd32bf3f0d1b"
+        }
+      ]
+    },
+    {
+      "model": "NormalTangentMirrorTest",
+      "files": [
+        {
+          "path": "assets/samples/NormalTangentMirrorTest/NormalTangentMirrorTest.glb",
+          "bytes": 1567084,
+          "gitBlob": "fa9aa492a6293172f47577297714809b868ef069",
+          "sha256": "31ce5f3c873fc55531a17ccacf001e3d1d482a508695aa826fa79cc196e0ce78"
+        },
+        {
+          "path": "assets/samples/NormalTangentMirrorTest/README.upstream.md",
+          "bytes": 4436,
+          "gitBlob": "8d89d739fca3e6a7716b4c8065872a05ae4d4fb9",
+          "sha256": "f7a39616f1e33b7b743dbac044a1fff1eb262c8488a718b1a2b7873b381997d8"
+        }
+      ]
+    },
+    {
+      "model": "NegativeScaleTest",
+      "files": [
+        {
+          "path": "assets/samples/NegativeScaleTest/NegativeScaleTest.glb",
+          "bytes": 62568,
+          "gitBlob": "00efdedf73eb7c6bf34191f30599dc4ccae40f03",
+          "sha256": "ea8c41fd0630f03adcf7a5c06bf86d7b850fa510b6f07cc51eb1fccc205a50f2"
+        },
+        {
+          "path": "assets/samples/NegativeScaleTest/README.upstream.md",
+          "bytes": 4035,
+          "gitBlob": "4ecafa4fc5988bd33ad8b44ea19f66106792f209",
+          "sha256": "8263f649b088541b821d58e7fe97eb5924440d831f8706bfc5b799ed443d286f"
+        }
+      ]
+    },
+    {
+      "model": "TextureEncodingTest",
+      "files": [
+        {
+          "path": "assets/samples/TextureEncodingTest/TextureEncodingTest.glb",
+          "bytes": 21612,
+          "gitBlob": "42500d87529f799a1355b1066378b58d233da933",
+          "sha256": "c2f654bdf918e3cce93db3f8d8c1b008b90d3089e756c9b38149e9306b1338f4"
+        },
+        {
+          "path": "assets/samples/TextureEncodingTest/README.upstream.md",
+          "bytes": 2038,
+          "gitBlob": "ee492462e19ef59ec75aa429cfc12f2aa5b89ff7",
+          "sha256": "33c6747d3cc784e2c1dd1cfd3bcd9e4e35ee070f4b1a6f596697f70f0edd36ac"
+        }
+      ]
+    },
+    {
+      "model": "UnlitTest",
+      "files": [
+        {
+          "path": "assets/samples/UnlitTest/UnlitTest.glb",
+          "bytes": 3992,
+          "gitBlob": "6998aea6cf829c962002bee1970226829aa67c2c",
+          "sha256": "e07b68c6fd9fbf73d372c610a681b89d6b013bdd1a506e46a411df82210a2481"
+        },
+        {
+          "path": "assets/samples/UnlitTest/README.upstream.md",
+          "bytes": 3122,
+          "gitBlob": "1131932c9d0b5b9f74026c7efc2ac9b398741a6a",
+          "sha256": "98c16c1530c5adc47bc606a1b52675da572f190ae7a9d5f10130bdc4bb83514e"
+        }
+      ]
+    },
+    {
+      "model": "EmissiveStrengthTest",
+      "files": [
+        {
+          "path": "assets/samples/EmissiveStrengthTest/EmissiveStrengthTest.glb",
+          "bytes": 10668,
+          "gitBlob": "6020aa63ff3e45d5d28be01c11cabc1a6fd06315",
+          "sha256": "074898ec4c3636230faffe0cacac7403c3f6135db61f943da28ffaa88ca2a39f"
+        },
+        {
+          "path": "assets/samples/EmissiveStrengthTest/README.upstream.md",
+          "bytes": 2636,
+          "gitBlob": "d41ff1a488c9fc5472a8995caf61d7e7c7c392b8",
+          "sha256": "9bf3926c75ec145faec3afa3a9ca86cd726feed1f13255a6d01842fe054ca6ab"
+        }
+      ]
+    }
+  ]
+}
