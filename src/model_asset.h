@@ -9,6 +9,7 @@ struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;};
 struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
   std::vector<float> localVertices; // retained for animated or skinned assets
+  std::vector<std::vector<float>> morphPositions; // expanded xyz deltas per target
   int node=-1,skin=-1;
   animation::InfluenceSets influences;
   std::vector<unsigned char> rgba;

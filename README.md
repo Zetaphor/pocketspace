@@ -3,7 +3,7 @@
 [Documentation website](https://zetaphor.github.io/sf-overlay-engine/)
 
 A Linux/OpenVR engine for scripted stereo overlays alongside a VR application.
-QuickJS scripts place GLB models, play node and skeletal animations, grab objects
+QuickJS scripts place GLB models, play node, skeletal and morph animations, grab objects
 with either controller, simulate rigid-body physics and connected mechanisms,
 draw interactive panels, and read controller and eye data.
 Each object has its own stereo surface with three DMA-BUF color buffers
@@ -59,6 +59,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [grabbing.js](scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, and distant yaw/depth controls |
 | [input.js](scripts/input.js) | Controller snapshots and button events; right stick moves the box, right bumper toggles it |
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
+| [morph.js](scripts/morph.js) | Morphing cube; A/X pauses or resumes, bumper restarts |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
 | [containers.js](scripts/containers.js) | Bumper opens/closes a tool containing grabbable objects and a panel |
@@ -90,7 +91,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 - [Automatic group subdivision](docs/javascript-api.md#automatic-render-group-subdivision): split, merge, and rebalance group tiles without lowering sampling density.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
 - [Physics](docs/physics-api.md): bodies, colliders, joints, motors, springs, breaking, and runtime controls.
-- [Animation](docs/animation-api.md): clip controls and skeletal model support.
+- [Animation](docs/animation-api.md): clip controls, skeletal models, and morph targets.
 - [Scene containers](docs/scene-containers.md): own and dispose related objects, panels and callbacks together.
 - [Scene save/restore](docs/scene-persistence.md): versioned model/panel/animation/physics scenes and named JSON saves.
 - [Automatic model LOD](docs/javascript-api.md#automatic-model-lod): bounded geometry reduction with full detail nearby and while grabbed.
@@ -106,7 +107,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 The model renderer supports embedded base-color textures, material factors,
 alpha modes, UV transforms, and an approximate sheen tint. It does not implement
-full PBR lighting or morph animation. Finger sensing exposes controller
+full PBR lighting. Finger sensing exposes controller
 capacitance/contact rather than a hand skeleton. See the linked guides for
 supported data and limits.
 
