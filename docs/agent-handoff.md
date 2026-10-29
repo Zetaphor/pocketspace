@@ -367,3 +367,12 @@ three-argument call and vertex setup. Experimental CPU overrides pass their
 own geometry owner so VAOs are destroyed with the pose, not cached by GL name.
 Restore VAO 0 after each cached draw. Both reference/VAO modes allocate identical
 storage; include driver metadata limits when describing allocation estimates.
+
+
+The [adjacent rigid batch prototype](../tests/results/rigid-batches.md) has a
+measured gain but is not integrated. Keep it behind `SF_RIGID_BATCH_EXPERIMENT`.
+Only adjacent identical-state untextured CPU rigid parts qualify; preserve exact
+expanded triangle order, material/object barriers and existing skin/morph/static
+fallbacks. Both measured modes retain mirrored per-part/combined buffers and
+uploads. Remove that duplication in a production stream design, with ownership,
+allocation accounting and partial-update/restore tests, before adoption.
