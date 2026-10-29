@@ -8,15 +8,16 @@
 
 namespace animation {
 using Matrix=std::array<float,16>;
-enum class Path { Translation, Rotation, Scale };
+enum class Path { Translation, Rotation, Scale, Weights };
 enum class Interpolation { Step, Linear, CubicSpline };
 struct Node {
+ std::vector<float> weights;
  int parent=-1;bool matrixOnly=false;
  std::array<float,3> translation{0,0,0},scale{1,1,1};
  std::array<float,4> rotation{0,0,0,1};
  Matrix matrix{1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1};
 };
-struct Channel {int node=-1;Path path=Path::Translation;Interpolation interpolation=Interpolation::Linear;std::vector<float> times,values;};
+struct Channel {size_t weightCount=0;int node=-1;Path path=Path::Translation;Interpolation interpolation=Interpolation::Linear;std::vector<float> times,values;};
 struct Clip {std::string name,unsupportedReason;double duration=0;std::vector<Channel> channels;bool supported()const{return unsupportedReason.empty()&&!channels.empty();}};
 struct Playback {int clip=-1;double time=0,speed=1;bool playing=false,loop=true,finished=false;};
 inline void normalize(std::array<float,4> &q){double n=0;for(float x:q)n+=double(x)*x;if(n<1e-20){q={0,0,0,1};return;}n=std::sqrt(n);for(float &x:q)x=float(x/n);}
@@ -47,6 +48,21 @@ inline std::array<float,4> sample(const Channel &channel,double time){
  if(channel.path==Path::Rotation)normalize(result);
  return result;
 }
+// Weight tracks have arbitrary width and glTF stores their SCALAR values end-to-end.
+inline void sampleWeights(const Channel &channel,double time,std::vector<float> &result){
+ result.resize(channel.weightCount);
+ const bool cubic=channel.interpolation==Interpolation::CubicSpline;
+ const size_t next=time<=channel.times.front()?0:time>=channel.times.back()?channel.times.size()-1:std::upper_bound(channel.times.begin(),channel.times.end(),time)-channel.times.begin();
+ const bool endpoint=time<=channel.times.front()||time>=channel.times.back();
+ const size_t previous=endpoint?next:next-1;
+ const double dt=endpoint?1:channel.times[next]-channel.times[previous],t=endpoint?0:(time-channel.times[previous])/dt;
+ auto value=[&](size_t key,size_t component,size_t w){return channel.values[(key*(cubic?3:1)+(cubic?component:0))*channel.weightCount+w];};
+ for(size_t w=0;w<result.size();w++){
+  const float a=value(previous,1,w),b=value(next,1,w);
+  if(cubic)result[w]=float((2*t*t*t-3*t*t+1)*a+(t*t*t-2*t*t+t)*dt*value(previous,2,w)+(-2*t*t*t+3*t*t)*b+(t*t*t-t*t)*dt*value(next,0,w));
+  else result[w]=channel.interpolation==Interpolation::Step?a:float((1-t)*a+t*b);
+ }
+}
 inline Matrix multiply(const Matrix &a,const Matrix &b){Matrix m{};for(int c=0;c<4;c++)for(int r=0;r<4;r++)for(int k=0;k<4;k++)m[c*4+r]+=a[k*4+r]*b[c*4+k];return m;}
 inline Matrix local(const Node &node){
  if(node.matrixOnly)return node.matrix;
@@ -71,7 +87,9 @@ inline bool order(const std::vector<Node> &nodes,std::vector<int> &out){
 inline void evaluate(const std::vector<Node> &base,const std::vector<int> &order,const Clip &clip,double time,std::vector<Node> &nodes,std::vector<Matrix> &world){
  nodes=base;world.resize(nodes.size());
  for(const auto &channel:clip.channels){
-  const auto value=sample(channel,time);auto &node=nodes[channel.node];
+  auto &node=nodes[channel.node];
+  if(channel.path==Path::Weights){sampleWeights(channel,time,node.weights);continue;}
+  const auto value=sample(channel,time);
   if(channel.path==Path::Rotation)node.rotation=value;
   else for(int i=0;i<3;i++)(channel.path==Path::Scale?node.scale:node.translation)[i]=value[i];
  }

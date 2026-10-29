@@ -489,3 +489,18 @@ release are required. Cached model GPU memory deliberately remains allocated
 between tool lifetimes; this is not an asset-unload or allocator/RSS test.
 See the [public API](../docs/scene-containers.md) and final
 [example](../scripts/containers.js).
+
+## Morph target regression
+
+Build `morph-regression` with the normal engine dependencies, then run:
+
+```sh
+cmake --build build --target morph-regression -j2
+python3 tests/morph-loader-regression.py ./build/morph-regression
+```
+
+The generator supplies five-target STEP/LINEAR/CUBICSPLINE clips, node/mesh/zero
+weights, combined skinning, and malformed models. The native harness checks
+positions, animated picking/bounds, independent poses, the bundled Khronos cube,
+real JavaScript controls, and restored morph poses. No VR session is needed.
+Run `./run-overlay-engine.sh scripts/morph.js` for headset visual acceptance.

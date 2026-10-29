@@ -40,6 +40,11 @@ example. Run `python3 tools/lint-docs.py` to check local documentation links,
 example inventory, and global binding coverage. Preserve upstream attribution
 and license files when changing bundled assets.
 
+Morph positions and weight clips use the existing CPU animation pose path.
+Apply morph deltas before skinning; preserve node/mesh/zero defaults, independent
+poses, fixed normalization, picking refits, and default-pose restoration on stop.
+See [morph target support](animation-api.md#morph-targets).
+
 ## Physics and performance entry points
 
 The [physics API coverage table](physics-api.md#api-coverage) maps the implemented

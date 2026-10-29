@@ -23,7 +23,7 @@ check(getAnimations(box).length===0,'static asset metadata');rejected(()=>playAn
 const skin=loadModel('assets/samples/CesiumMan/CesiumMan.glb',512),skinObject=createObject(skin,0,0,0,.1);
 check(getAnimations(skin).length>0&&getAnimations(skin).every(c=>c.supported),'skin clips must support playback');playAnimation(skinObject,0);pauseAnimation(skinObject);seekAnimation(skinObject,.5);check(getAnimationState(skinObject).time===.5,'skin seek');stopAnimation(skinObject);
 const morph=loadModel('assets/samples/MorphPrimitivesTest/MorphPrimitivesTest.glb',512),morphObject=createObject(morph,0,0,0,.1);
-check(getAnimations(morph).every(c=>!c.supported),'morph clips must not claim playback support');rejected(()=>playAnimation(morphObject));
+check(getAnimations(morph).length===0,'static morph asset has no clips');rejected(()=>playAnimation(morphObject));
 removeObject(staticObject);removeObject(skinObject);removeObject(morphObject);
 playAnimation(a,'Linear Scale',{loop:false,speed:2});
 let finished=false,removed=false,stoppedAt=0;

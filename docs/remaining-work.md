@@ -5,7 +5,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Morph target geometry and morph-weight animation.
 - Clip blending and transitions between animations.
 - GPU skeletal skinning and rigid-node vertex deformation for larger animated
   scenes. First profile an animated-model stress workload, separating CPU pose

@@ -374,7 +374,7 @@ first load or reload the script to change it. The value must be a boolean.
 
 GLB triangle primitives across mesh nodes, node transforms, embedded base-color
 textures, material factors, alpha modes, UV transforms, and approximate sheen
-are supported. [Animation](animation-api.md) covers skinning and clip limits.
+are supported. [Animation](animation-api.md) covers skinning, morph targets and clip limits.
 
 ### Ordered GPU instancing
 

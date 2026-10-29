@@ -1,7 +1,7 @@
-# Animation and skeletal models
+# Animation, skeletal models and morph targets
 
 Load a GLB, create an object, and explicitly start a clip. Objects without
-playback retain the model's default pose, including default skeletal skinning.
+playback retain the model's default pose, including default skeletal skinning and morph weights.
 See [animation.js](../scripts/animation.js) for clip selection and
 [skinning.js](../scripts/skinning.js) for independent character playback.
 
@@ -46,7 +46,8 @@ CUBICSPLINE. Linear quaternion interpolation uses the shortest path; cubic
 quaternion results are normalized. Cubic tangents scale by keyframe duration.
 Unanimated nodes keep their default transforms. Matrix ancestors are supported,
 but animation channels targeting a node with a matrix are unsupported.
-Morph-weight channels and clip blending are not implemented.
+Morph-weight channels support the same three interpolation modes. Clip blending
+is not implemented.
 
 Each instance owns its clock and pose. Materials/textures remain shared.
 Animated triangles update the instance's picking BVH and surface bounds, so
@@ -68,10 +69,40 @@ feed the current renderer; animated normal/tangent lighting and GPU skinning
 are not implemented. The included CesiumMan has one unnamed clip, selected by
 index zero.
 
+## Morph targets
+
+Morph targets deform positions using weighted vertex offsets. Node weights
+override mesh defaults; omitted defaults are zero. Weights are applied before
+skeletal skinning or the mesh-node transform, and need not sum to one or stay
+within `[0, 1]`. Each primitive retains its own target deltas.
+
+Use the existing playback API for authored morph-weight clips:
+
+```js
+const asset = loadModel('assets/samples/AnimatedMorphCube/AnimatedMorphCube.glb');
+const object = createObject(asset, 0, 0, 0, .55);
+playAnimation(object, 0, {loop: true});
+```
+
+See [morph.js](../scripts/morph.js): A/X pauses or resumes and bumper restarts.
+`getAnimations`, seeking, stopping, independent instance playback and scene
+save/restore work as for transform clips. Stopping restores the model's default
+morph weights. Static morph models render their default shape without playback.
+Direct script assignment of individual weights is not exposed yet.
+
+POSITION deltas use float VEC3 accessors; sparse morph accessors are unsupported.
+Missing POSITION deltas contribute zero. Normal/tangent morph deltas are not
+used by the current renderer. Malformed target counts, defaults and weight-track
+sizes reject the model. Animated geometry updates picking and bounds; physics
+colliders retain their creation shape. CPU deformation retains full detail and
+uses the existing per-instance upload path; this is not a GPU performance feature.
+The weight-stream and default-weight behavior follow the
+[glTF specification](https://github.com/KhronosGroup/glTF/blob/main/specification/2.0/Specification.adoc#morph-targets).
+
 ## Scene persistence
 
 Scene snapshots save each instance's selected clip, playback time, speed, looping,
 playing/paused state and finished flag. Restore rebuilds independent skeletal or
-rigid-node poses and picking geometry; it does not share mutable poses between
+rigid-node/morph poses and picking geometry; it does not share mutable poses between
 instances. See the [animation save/restore format](scene-persistence.md#animation-playback-v3)
 and [animation save example](../scripts/animation-save.js).
