@@ -238,3 +238,11 @@ it rejects unequal storage and invalid GPU samples. The switch exists only in
 The [current dense-model report](results/dense-model-current.md) records refreshed
 pass attribution with production LOD/instancing, rejected allocation-mismatched
 rows, and bounded static-vertex candidate comparisons.
+
+[ordinary-program-regression.cpp](ordinary-program-regression.cpp) checks exact
+mixed ordinary/GPU shader routing, CPU skin/rigid/morph fallbacks, LOD/instancing,
+restored scenes, rollback and shader ownership. The
+[integration report](results/ordinary-program-routing.md) records the completed
+comparison without production adoption. The optional
+[ordinary-program-mixed.js](scenes/ordinary-program-mixed.js) scene exercises
+interactive mixed routing only when enabled in the excluded executable.

@@ -1,0 +1,14 @@
+Steam Frame validation: 2026-10-29
+Base: e6b6a0d plus integrated-routing changes; normal routing remains general shader.
+Measured primary-program executable SHA256: cb19e8e43e24666ccde885d48ad976adf38734baa2bad5fc8065055265d466af
+PASS ordinary program routing: 148 exact mixed stereo/material/occlusion views, GPU/CPU skin, rigid/morph/static paths, restored bindings, program reset, 10 transactional reload/restore cycles
+PASS GPU production lifecycle: 30 mixed-scene reloads, failed reload rollback, independent live/frozen snapshots, CPU fallbacks, independent owned streams and resource cleanup
+PASS GPU skinning: 4 assets, 18000 exact picking comparisons, transform-feedback vertices, conservative bounds, stereo/material pixels, pose cache, palette uploads, resource cleanup and CPU fallback
+PASS rigid adjacent batches: 864 exact stereo views, opaque/masked/blended materials, static/rigid/morph/GPU skin, instancing switches and material barriers, stream ranges, clip changes and cleanup
+PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier
+PASS GPU instancing: 483 exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release
+sf-overlay-engine final SHA256 9b67013b4d5b36c443ed9fe806ce28a7063fc261907ff40abc797775720cf9fc
+gpu-sync-experiment final SHA256 9bc9f62c653bf0cb1a6ef5a2c23419e41e14e914411318e8d320d3e30f6ea43c
+Final integrated native host smoke: 18 actors, 9 assets, two groups, non-interactive objects/HUD, no input callback/lasers.
+[surface] grouped_buffer_bytes=0 peak=438304768 limit=536870912
+All sampled smoke GL/fence status zero; process exited normally.

@@ -1,4 +1,5 @@
 #pragma once
+#include <type_traits>
 // Ordered batching. Never reorder objects/materials to create a batch.
 #if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_MULTIPART_INSTANCING_EXPERIMENT)
 #define SF_HAS_MULTIPART_EXPERIMENT
@@ -112,7 +113,7 @@ public:
 #endif
   GLuint instanceBuffer()const{return buffer;}
   uint64_t submittedBatches()const{return totalBatches;}
-  template<class Fallback,class Count> void draw(const Scene &scene,const std::vector<const Object*> &objects,int pass,GLuint baseline,const vr::HmdMatrix34_t &anchor,const float center[3],const float eye[3],const float r[3],const float u[3],const float f[3],float halfWidth,const float origin[3],Fallback fallback,Count count){
+  template<class Fallback,class Count,class Restored=std::nullptr_t> void draw(const Scene &scene,const std::vector<const Object*> &objects,int pass,GLuint baseline,const vr::HmdMatrix34_t &anchor,const float center[3],const float eye[3],const float r[3],const float u[3],const float f[3],float halfWidth,const float origin[3],Fallback fallback,Count count,Restored restored=nullptr){
     if(mode==Original)ensure();
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
     // Both paths retain identical combined storage in controlled comparisons.
@@ -167,6 +168,7 @@ public:
       if(part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,modelIndexBuffer(part,objects[begin]->lodLevel));glDrawElementsInstanced(GL_TRIANGLES,modelDrawVertexCount(part,objects[begin]->lodLevel),part.indexType,nullptr,end-begin);}
       else glDrawArraysInstanced(GL_TRIANGLES,0,part.vertexCount,end-begin);}
       glVertexAttribDivisor(2,0);glVertexAttribDivisor(3,0);glDisableVertexAttribArray(2);glDisableVertexAttribArray(3);glUseProgram(baseline);
+      if constexpr(!std::is_same_v<Restored,std::nullptr_t>)restored();
       unsigned vertices=modelDrawVertexCount(part,objects[begin]->lodLevel);
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
       if(multi)vertices=mesh->count;

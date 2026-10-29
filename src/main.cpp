@@ -34,6 +34,7 @@
 #include "model_shaders.h"
 #ifdef SF_GPU_SYNC_EXPERIMENT
 #include "../tests/static-vertex-experiment.h"
+#include "../tests/ordinary-program-experiment.h"
 #endif
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
 #include "../tests/draw-uniforms-experiment.h"
@@ -1931,6 +1932,10 @@ int main(int argc,char **argv) {
   destroyImage=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   imageRenderbuffer=(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+  const char *ordinaryMode=std::getenv("SF_GPU_ORDINARY_VERTEX");
+  if(ordinaryMode)ordinaryVertexEnabled=std::strcmp(ordinaryMode,"1")==0;
+#endif
   const char *vertexSource=modelVertexShader;
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const char *staticMode=std::getenv("SF_GPU_STATIC_VERTEX");
@@ -1938,9 +1943,16 @@ int main(int argc,char **argv) {
   const auto staticSource=staticVertexOnly?staticVertexExperiment():std::string{};
   if(staticVertexOnly)vertexSource=staticSource.c_str();
 #endif
-  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
-  ScopeExit shaderCleanup{[&]{glDeleteProgram(program);glDeleteShader(v);glDeleteShader(f);}};
-  glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
+  GLuint generalProgram=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
+  ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
+  glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+  OrdinaryModelProgram ordinaryProgram,skinProgram;
+  const GLuint program=ordinaryProgram.select(false)?ordinaryProgram.id():generalProgram;
+  skinProgram.borrow(generalProgram);
+#else
+  const GLuint program=generalProgram;
+#endif
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
@@ -2312,6 +2324,7 @@ int main(int argc,char **argv) {
 #ifdef SF_MODEL_LOD_EXPERIMENT
       if(lodExperiment::ratio()!=1&&(useInstancing||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque||std::getenv("SF_GPU_MULTIPART_INSTANCING"))){fprintf(stderr,"LOD comparison requires original object draws without other geometry/shader experiments\n");return 13;}
 #endif
+      if(program!=generalProgram&&(staticVertexOnly||specializeOpaque||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off)){fprintf(stderr,"ordinary routing comparison cannot combine with other shader/visibility experiments\n");return 13;}
       if(staticVertexOnly&&std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const auto &asset){return asset.hasSkin;})){fprintf(stderr,"static vertex experiment cannot render skinned assets\n");return 13;}
       if(useInstancing&&(primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque)){fprintf(stderr,"instancing cannot combine with other geometry/shader experiments\n");return 13;}
       if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
@@ -2498,13 +2511,30 @@ int main(int argc,char **argv) {
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))return false;
               return true;
             };
+#ifdef SF_GPU_SYNC_EXPERIMENT
+            bool skinBound=false;
+            ScopeExit restoreSkinProgram{[&]{if(skinBound)glUseProgram(program);}};
+            auto restoredProgram=[&]{skinBound=false;};
+#else
+            auto restoredProgram=[]{};
+#endif
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
+#ifdef SF_GPU_SYNC_EXPERIMENT
+              const bool useSkinProgram=program!=generalProgram&&object.animationPose&&object.animationPose->gpuSkin;
+              if(useSkinProgram){
+                if(!skinBound){skinProgram.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);skinBound=true;}
+                skinProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+              }else if(skinBound){glUseProgram(program);skinBound=false;}
+#endif
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
               if(drawUniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
 #endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
               if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
+#endif
+#ifdef SF_GPU_SYNC_EXPERIMENT
+              if(!useSkinProgram)
 #endif
               {
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
@@ -2523,6 +2553,9 @@ int main(int argc,char **argv) {
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(special)special->material(part);else
 #endif
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                if(useSkinProgram)skinProgram.material(part);else
+#endif
                 {
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
                   drawUniforms.material(part);
@@ -2535,8 +2568,12 @@ int main(int argc,char **argv) {
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
                 gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
 #endif
-                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
-                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
+                GLuint activeProgram=program;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                if(useSkinProgram)activeProgram=generalProgram;
+#endif
+                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
+                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);continue;
                 }
                 if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
                 if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
@@ -2552,7 +2589,7 @@ int main(int argc,char **argv) {
 #else
                 (void)count;
 #endif
-              });return;
+              },restoredProgram);return;
             }
             for(const auto &object:script.scene.objects)if(selected(object))drawObject(object);
           },&region);

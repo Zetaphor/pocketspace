@@ -907,3 +907,33 @@ storage mismatches, retains logs, and verifies normal process/budget cleanup.
 Keep the headset awake and view steady. GPU timer values include scheduling and
 are separate from FPS and compositor latency. See the
 [dense-scene investigation](results/dense-model-current.md) for results.
+
+## Mixed ordinary/GPU vertex routing investigation
+
+`ordinary-program-regression` checks the integrated two-program route with real
+GLES rendering and transactional script/scene lifecycle. It covers GPU skinning,
+CPU skinning fallback, rigid and morph animation, static indexed/LOD geometry,
+actual instanced batches between ordinary/GPU draws, alpha modes and external
+occlusion. It verifies exact images, restored GL state, failed reload rollback,
+rendering restored scenes, and owned/borrowed program cleanup.
+
+```sh
+cmake --build build --target ordinary-program-regression gpu-sync-experiment -j2
+./build/ordinary-program-regression
+python3 tests/compare-static-vertex.py --mixed-routing --output /tmp/ordinary-routing
+```
+
+Only `gpu-sync-experiment` accepts `SF_GPU_ORDINARY_VERTEX=1`. It chooses an ordinary
+primary shader and routes GPU-skinned poses to the general program, restoring
+view/material/attribute state around changes and instancing. The helper and switch
+are experimental; normal builds keep the general shader. Do not combine routing
+with other shader/visibility experiments. The `--production-routing` spelling is
+an alias describing the integration form, not default-on adoption. See the
+[completed integration results](results/ordinary-program-routing.md): correctness
+passes but native performance does not establish a consistent gain.
+
+For an optional interactive check, run the excluded executable with that switch
+and [ordinary-program-mixed.js](scenes/ordinary-program-mixed.js). Grip/trigger
+grabs, A/X pause/resume, bumper save/restore and B/Y finish cover 18 mixed actors
+in two groups. This interactive scene enables grabbing intentionally; timed
+`fast-motion.py` workloads have non-interactive model surfaces and no HUD panels.

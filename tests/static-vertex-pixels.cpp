@@ -5,7 +5,7 @@
 int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
   {
-    Renderer renderer;int compared=0;
+    Renderer renderer;renderer.ordinaryRouting=false;int compared=0;
     const auto vertex=staticVertexExperiment();
     GLuint specialized=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertex.c_str()),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     glAttachShader(specialized,v);glAttachShader(specialized,f);glLinkProgram(specialized);

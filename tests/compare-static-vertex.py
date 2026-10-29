@@ -14,6 +14,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=2)
 parser.add_argument('--seconds', type=int, default=16)
 parser.add_argument('--case', action='append')
+parser.add_argument('--mixed-routing', '--production-routing', dest='production_routing', action='store_true', help='Compare the integrated mixed-backend routing instead of the whole-program prototype')
 parser.add_argument('--reverse', action='store_true', help='Reverse the initial pair order')
 args = parser.parse_args()
 if args.rounds < 1 or args.seconds < 12:
@@ -27,7 +28,8 @@ for round_index in range(args.rounds):
         for enabled in ((False, True) if (round_index + cases.index(case) + args.reverse) % 2 == 0 else (True, False)):
             directory = args.output / f'r{round_index}-{case}-static-{int(enabled)}'
             env = {k: v for k, v in os.environ.items() if not k.startswith('SF_GPU_')}
-            env.update(SF_GPU_STATIC_VERTEX=str(int(enabled)), SF_GPU_PROFILE_PASSES='0', SF_GPU_SYNC_MODE='finish')
+            env.update(SF_GPU_STATIC_VERTEX='0', SF_GPU_ORDINARY_VERTEX='0', SF_GPU_PROFILE_PASSES='0', SF_GPU_SYNC_MODE='finish')
+            env['SF_GPU_ORDINARY_VERTEX' if args.production_routing else 'SF_GPU_STATIC_VERTEX']=str(int(enabled))
             subprocess.run([sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                             '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
                             '--vertex-cache', '--instancing'], env=env, check=True)
@@ -37,7 +39,7 @@ for round_index in range(args.rounds):
             samples = [s for s in samples if s['seconds'] >= 6]
             if len(samples) < 3 or any(s['glError'] or s['fenceFailures'] or s['disjointSamples'] or s['gpuMs'] is None for s in samples):
                 raise RuntimeError(f'{directory}: missing or invalid GPU timing')
-            result.update(round=round_index, staticVertex=enabled, profileSamples=len(samples),
+            result.update(round=round_index, staticVertex=enabled, productionRouting=args.production_routing, profileSamples=len(samples),
                           **{key: statistics.median(s[key] for s in samples)
                              for key in ['gpuMs', 'enqueueMs', 'waitMs', 'submitMs']})
             pair.append(result);results.append(result)

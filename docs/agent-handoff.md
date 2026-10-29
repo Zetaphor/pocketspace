@@ -395,6 +395,12 @@ refreshes pass attribution with automatic LOD and ordered instancing. The
 vertex skin selection with `p`; its instancing program remains unchanged and it
 rejects skinned assets. Exact static pixels pass, with modest bounded FPS gains;
 the 16-car LOD headset visual check was accepted on 2026-10-29 and the prototype
-was stopped. This is not a production policy. Any adoption needs separate program routing for
-mixed CPU/GPU poses, full uniform rebinding and normal reload/resource cleanup.
-Never enable the whole-program experiment for a mixed production scene.
+was stopped. The subsequent [mixed-program integration](../tests/results/ordinary-program-routing.md)
+passes exact rendering and lifecycle checks but does not establish consistent
+native gains; it is not adopted. `SF_GPU_ORDINARY_VERTEX=1` and its helper remain
+inside the excluded `gpu-sync-experiment`. The experiment uses an ordinary primary
+program and borrows the host-owned general program for GPU poses. Restore complete
+view/object/material state, invalidate cached binding after instanced batches, and
+never delete the borrowed program. Host shaders retain no scene/pose pointers.
+Normal builds retain the original general shader; do not infer production adoption
+from the comparison runner's historical `productionRouting` field.

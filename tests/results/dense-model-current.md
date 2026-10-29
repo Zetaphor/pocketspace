@@ -100,8 +100,8 @@ baseline with later runs to claim a larger gain.
 
 **Decision:** retain this as a promising, modest ordinary-draw specialization
 prototype, not a production default. The 16-car LOD visual check is accepted;
-evaluate mixed CPU/GPU animation routing and lifecycle before production
-integration. General occluder optimization remains open; do not
+the subsequent [mixed-program integration](ordinary-program-routing.md) passes
+correctness but does not establish consistent native gains and is not adopted. General occluder optimization remains open; do not
 re-enable the rejected shared-depth, cluster, or material-specialization paths
 based on these results.
 
