@@ -13,7 +13,7 @@
 #include "../tests/vertex-array-experiment.h"
 #endif
 
-struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;};
+struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;};
 struct MaterialMap {
   std::vector<unsigned char> rgba;
   int width=1,height=1;
@@ -127,8 +127,8 @@ void unbindSkinPrimitive(GLuint program);
 #include "../tests/lod-experiment.h"
 #endif
 inline const ModelLodLevel *modelLodLevel(const PrimitiveAsset &part,int level){
-  if(level==2&&part.lod[1].indexBuffer)return &part.lod[1];
-  return level>=1&&level<=2&&part.lod[0].indexBuffer?&part.lod[0]:nullptr;
+  if(level==2&&(part.lod[1].indexBuffer||part.lod[1].vbo))return &part.lod[1];
+  return level>=1&&level<=2&&(part.lod[0].indexBuffer||part.lod[0].vbo)?&part.lod[0]:nullptr;
 }
 inline GLuint modelIndexBuffer(const PrimitiveAsset &part,int level=0){const auto *lod=modelLodLevel(part,level);return lod?lod->indexBuffer:part.indexBuffer;}
 inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part,int level=0){

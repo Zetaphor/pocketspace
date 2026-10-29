@@ -116,8 +116,8 @@ struct Renderer {
           if(asset.pbr){
             assert(pbrProgram.init());pbrProgram.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
-            pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part);
-            if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part);
+            pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel);
+            if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             pbrProgram.release();glUseProgram(program);continue;
           }
           const GLuint activeProgram=skin?generalProgram:program;

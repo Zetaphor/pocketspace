@@ -1070,3 +1070,37 @@ with triangle order retained, and `2` additionally orders static non-blend
 triangles for the vertex cache and vertex fetch. Use the same environment as the
 normal engine and pass a script such as `scripts/pbr.js`. This switch is not a
 public API and is absent from the production executable.
+
+## Surface-aware PBR LOD experiment
+
+Reconfigure CMake and build the excluded `pbr-lod-regression` and `pbr-lod-demo`
+targets. Run the regression from the repository root with the normal GLES
+runtime environment. It creates no OpenVR session, overlays or pointer input.
+`SF_PBR_LOD_IMAGES=/tmp/pbr-lod-images` saves bounded full/reduced PPM previews;
+`--benchmark` adds fixed-level full/reduced/reduced/full comparisons for one and
+sixteen full-detail PBR ToyCars with baked environment lighting, alternating eyes
+and one 768×768 offscreen target. Each stage warms 30 and measures 120 frames.
+GPU-disjoint and GL errors fail the comparison. Keep the headset awake and worn;
+these are offscreen costs, not compositor FPS.
+
+The simplifier includes all position/UV/surface attributes, locks seams and
+primitive borders, and retains full CPU meshes. Reduced streams remain expanded
+on the GPU. The regression checks exact source shader-input tuples, exact
+reduced-stream routing across stereo/depth/overlap passes, lossy image differences,
+material/deformation/opt-out guards and resource release. See
+[the measured results](results/pbr-lod.md) for quality and memory tradeoffs.
+
+For the interactive headset check, run:
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 SF_PBR_LOD=1 ./build/pbr-lod-demo tests/scenes/pbr-lod.js
+```
+
+Approach and move away from the car and normal-map fixture. Grip or trigger grabs
+must restore full detail; rotate and release them, then inspect silhouettes,
+reflections, normal-map orientation, overlaps and transitions while moving your
+head. The prototype logs detail transitions with triangle counts and held state.
+It uses the existing automatic selection and hysteresis, with one object choice
+for both eyes and all passes. Unsupported or ineffective reductions retain full
+detail. Production does not compile the bake path or expose this environment
+switch; the accepted headset car check and production adoption remain separate.

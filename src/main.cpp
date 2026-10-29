@@ -2380,13 +2380,19 @@ int main(int argc,char **argv) {
       }
       for(auto &object:script.scene.objects){
         const auto &asset=script.scene.assets[size_t(object.asset)-1];
-        const bool available=asset.lod&&!object.animationPose&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[](const auto &p){return p.lod[0].indexBuffer||p.lod[1].indexBuffer;});
-        if(!available||grabs[0].objectId==object.id||grabs[1].objectId==object.id){object.lodLevel=0;continue;}
+        auto selectDetail=[&](int level){
+#ifdef SF_PBR_LOD_EXPERIMENT
+          if(asset.pbr&&object.lodLevel!=level){size_t triangles=0;for(const auto &part:asset.primitives)triangles+=modelDrawVertexCount(part,level)/3;fprintf(stdout,"[pbr-lod] object=%d level=%d triangles=%zu held=%d\n",object.id,level,triangles,grabs[0].objectId==object.id||grabs[1].objectId==object.id);fflush(stdout);}
+#endif
+          object.lodLevel=level;
+        };
+        const bool available=asset.lod&&!object.animationPose&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[](const auto &p){return p.lod[0].indexBuffer||p.lod[1].indexBuffer||p.lod[0].vbo||p.lod[1].vbo;});
+        if(!available||grabs[0].objectId==object.id||grabs[1].objectId==object.id){selectDetail(0);continue;}
         float center[3];for(int row=0;row<3;row++)center[row]=anchor.m[row][3]+anchor.m[row][0]*object.x+anchor.m[row][1]*object.y-anchor.m[row][2]*object.z;
         float extent=0;for(int axis=0;axis<3;axis++){const float e=asset.high[axis]-asset.low[axis];extent+=e*e;}
         const float radius=.5f*std::abs(object.scale)*std::sqrt(extent);float nearest=std::numeric_limits<float>::infinity(),pixels=0;
         for(const auto &eye:eyes){float squared=0,depth=0;for(int axis=0;axis<3;axis++){const float d=center[axis]-eye[axis];squared+=d*d;depth-=d*head.m[axis][2];}nearest=std::min(nearest,std::sqrt(squared)-radius);pixels=std::max(pixels,modelLod::projectedDiameter(radius,focal,squared,depth));}
-        object.lodLevel=modelLod::select(pixels,nearest,object.lodLevel);
+        selectDetail(modelLod::select(pixels,nearest,object.lodLevel));
       }
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
@@ -2642,9 +2648,9 @@ int main(int argc,char **argv) {
                 if(asset.pbr){
                   pbrProgram.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-                  pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part);
+                  pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel);
                   ScopeExit restorePbr{[&]{pbrProgram.release();glUseProgram(program);}};
-                  if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part);
+                  if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                   gpuSync.draw(unsigned(part.vertexCount));
 #endif
@@ -2756,7 +2762,7 @@ int main(int argc,char **argv) {
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
         if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);for(const auto &lod:part.lod)if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
+      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);for(const auto &lod:part.lod){if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);if(lod.vbo)bytes+=uint64_t(lod.count)*5*sizeof(float);if(lod.surfaceVbo)bytes+=uint64_t(lod.count)*9*sizeof(float);}if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;

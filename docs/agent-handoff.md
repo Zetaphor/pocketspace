@@ -433,6 +433,12 @@ showed lower storage but worse throughput. MikkTSpace is vendored at upstream co
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 
+The [test-only PBR LOD prototype](../tests/results/pbr-lod.md) retains expanded
+reduced position/surface pairs in each primitive's LOD records. Select both buffers
+and their count together in color and depth passes; never pair a reduced position
+stream with the full surface stream. Release and count each additional pair once
+per shared asset. Its generation remains excluded from production.
+
 Lit poses currently use CPU position and surface-frame deformation and disable
 GPU skinning eligibility, ordered instancing, LOD and rigid merging. Preserve
 independent morph/skin state, picking, fixed normalization and shared texture
