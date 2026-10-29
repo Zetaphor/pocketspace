@@ -29,6 +29,10 @@ This roadmap contains future work, without prescribing an implementation order.
 - Expose additional tracking signals only when a usable backend is available;
   hand skeletons, bare-hand optical tracking, and eye openness are not exposed.
 - Improve personal calibration robustness across head movement and headset refits.
+- Investigate a raw controller stream that remained connected but stopped delivering
+  button callbacks during morph-demo validation after a controller device change.
+  Restarting the engine restored A-button pause; hot reload alone did not.
+  Distinguish device subscription refresh from transport reconnection before fixing.
 - Maintain compatibility with the undocumented vrserver controller stream and
   evaluate documented alternatives that support overlay input requirements.
 
