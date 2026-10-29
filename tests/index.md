@@ -187,4 +187,4 @@ validation output associated with those reports, rather than additional tests.
 
 The [Frame animation profile](results/animation-profile.md) records the completed skeletal workload, steady phase timings, and GPU design constraints.
 
-[scenes/gpu-skinning-profile.js](scenes/gpu-skinning-profile.js) is the bounded, matched 32-actor CPU/GPU skinning workload. See [GPU skinning prototype instructions](README.md#gpu-skinning-prototype).
+[scenes/gpu-skinning-profile.js](scenes/gpu-skinning-profile.js) is the bounded, matched 32-actor CPU/GPU skinning workload. The native GPU regression also supports deterministic two-hand candidate-cost profiling with `--profile-picking`. See [GPU skinning prototype instructions](README.md#gpu-skinning-prototype).

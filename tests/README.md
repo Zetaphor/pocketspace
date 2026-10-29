@@ -643,3 +643,27 @@ each 256x256 image; report actual differences rather than describing that bound
 as exact equality. The CPU production regressions must also pass after changes
 to the shared pose code. No GPU readback is used in normal experiment rendering
 or picking; transform feedback readback is confined to the correctness test.
+
+
+The GPU regression also generates a six-part synthetic asset with two distinct
+skin palettes, opaque/masked/blended materials, and an alpha-cutout checker.
+Individual-part images prevent hidden/coplanar parts from passing untested.
+It checks pose texture destruction and shared buffer deletion over repeated
+pose creation/removal. This fixture broadens coverage without claiming visual
+acceptance of another real-world model.
+
+For a deterministic interaction cost comparison, append `--profile-picking`:
+
+```sh
+EGL_PLATFORM=surfaceless python3 tests/skinning-loader-regression.py   build/native/gpu-skinning-regression --profile-picking
+```
+
+On Frame use `DISPLAY=:0 EGL_PLATFORM=x11` and its normal SteamVR library path.
+This measures CPU animation evaluation plus the real `meshHit` path for 32
+independent animated instances and two synthetic controller rays. Cases force
+0, 1, 4 or 32 conservative-bound candidates; both hands share each candidate
+cache. It also checks paused-cache reuse. Each case discards 20 warmup iterations
+and measures 120 iterations. `SKIN_PICK_PROFILE` reports mean/p95 CPU work,
+deformation/bounds, BVH time and processed vertices. Assertions verify the exact
+candidate deformation count. No uploads, drawing, compositor pacing or physics
+are timed, so these durations are not headset FPS or end-to-end grabbing results.
