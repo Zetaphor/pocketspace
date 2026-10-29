@@ -4,8 +4,8 @@
 #include <meshoptimizer.h>
 #include <map>
 #include <new>
-// Surface-aware static PBR simplification; upload reduced expanded streams to
-// avoid the indexed-draw regression. Full CPU and full-detail GPU data survive.
+// Surface-aware static PBR simplification with independent reduced expanded
+// streams. Full CPU and full-detail (expanded or indexed) GPU data survive.
 #include "scope_exit.h"
 namespace pbrLod {
 #ifdef SF_PBR_LOD_EXPERIMENT

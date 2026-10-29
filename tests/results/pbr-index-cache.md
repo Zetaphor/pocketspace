@@ -1,8 +1,9 @@
 # Cache-ordered PBR indexing
 
 Measured on Steam Frame on 2026-10-29 with the headset awake and worn.
-The prototype remains excluded from production; this comparison establishes a
-candidate for production/LOD integration, rather than changing engine defaults.
+At measurement time the prototype was excluded from production; this comparison establishes a
+candidate for production/LOD integration. See the subsequent
+[production validation](pbr-index-production.md) for the opt-in integration.
 
 ## Verified implementation
 

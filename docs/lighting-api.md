@@ -194,9 +194,20 @@ solid depth, masked parts retain their alpha-cutout holes, and blended parts do
 not act as external depth occluders. This preserves the existing overlap policy
 and does not change material quality or require a script option.
 
+`optimizeVertexCache: true` enables full-input indexing and cache/fetch ordering
+for eligible static opaque/masked lit primitives when compact buffers save space.
+The option defaults to `false`; coplanar overlapping triangles can depend on their
+original order. Position, both UV inputs, normal and tangent/handedness all
+participate in identity, preserving surface seams. Full-detail buffers become
+compact while reduced LOD streams retain their existing quality and ownership.
+Transparent and deforming primitives keep expanded uploads. If optional indexing
+cannot be staged, the mesh keeps its expanded buffers. Reduced levels currently
+remain expanded: a lower triangle count does not guarantee less GPU time than
+cache-indexed full detail. Profile the intended model workload when choosing LOD.
+
 Lit animation still uses CPU position/surface deformation. The legacy position/UV
 indexer, ordered instancing, rigid part batching and GPU skinning do not run on
-lit assets. Loading options for those policies remain stored but do not enable
+lit assets. Loading options for those other policies remain stored but do not enable
 those paths for PBR. Additional surface/LOD buffers and material textures are
 included in the engine's GPU allocation estimate. Dense-scene cost still depends
 on model complexity, materials and overlay layout.

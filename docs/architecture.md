@@ -271,18 +271,20 @@ for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
 [Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
 are recorded as separate validation evidence.
-A test-only static PBR indexing path compares full 14-float shader-input tuples
-before merging vertices, preserving normal/tangent/UV seams within each material.
-A separate variant can reorder non-blend triangles when the cache policy is
-explicitly enabled; the recorded initial run left it disabled. The
-[enabled-cache follow-up](../tests/results/pbr-index-cache.md) verifies changed
-triangle order and measures a substantial gain at full detail. Retained CPU
-triangles and animated uploads stay expanded. These variants are excluded from
-the production engine: [native comparisons](../tests/results/pbr-index.md) found
-lower geometry storage but worse GPU throughput without cache ordering.
-Production integration of the enabled-cache variant with automatic LOD and
-normal scene ownership remains separate work. See the
-[test instructions](../tests/README.md#static-pbr-indexing-experiment).
+Static PBR supports full-input indexing with `optimizeVertexCache: true` (default
+false). Every 14-float shader-input tuple participates in identity, preserving
+position, both UV inputs, normal/tangent seams and material boundaries. Only
+static opaque/masked primitives whose compact buffers save space are eligible;
+blend and deforming uploads remain expanded. Cache/fetch ordering is required in
+production: [plain indexing regressed](../tests/results/pbr-index.md), whereas
+[explicitly enabled ordering](../tests/results/pbr-index-cache.md) improved native
+full-detail throughput. CPU triangles and animated uploads stay expanded.
+Position, surface and element buffers are staged together, allocation sizes are
+verified, and failed staging releases partial buffers and falls back to expanded
+uploads. The existing uploaded-vertex/index counts account for compact storage;
+shared asset deletion releases each buffer once. The excluded diagnostic builds
+alone allow plain indexing or `SF_PBR_INDEXED` overrides. See
+[production validation](../tests/results/pbr-index-production.md).
 Production surface-aware PBR LOD in `src/pbr_lod.h` uses full-input CPU indexing
 only while simplifying. It locks coincident surface seams and primitive borders,
 then expands selected original vertices into owned position/surface VBO pairs.

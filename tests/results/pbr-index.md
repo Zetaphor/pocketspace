@@ -1,7 +1,9 @@
 # Static PBR indexing investigation
 
 Measured on Steam Frame on **2026-10-29** with the headset awake and worn.
-The implementation is test-only; production retains expanded PBR geometry.
+At this initial measurement the implementation was test-only. The subsequent
+[production integration](pbr-index-production.md) uses explicitly enabled cache
+ordering; plain indexing remains diagnostic-only.
 
 ## Implementation and correctness
 
