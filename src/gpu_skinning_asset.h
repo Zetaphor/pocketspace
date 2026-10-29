@@ -1,5 +1,5 @@
 #pragma once
-// Experiment implementation included only by model_asset.cpp.
+// GPU skinning implementation included only by model_asset.cpp.
 static void prepareSkinAsset(ModelAsset &asset){
  asset.skinEligible=asset.hasSkin&&!asset.hasMorph&&!asset.primitives.empty();
  for(const auto &p:asset.primitives)if(p.skin<0||p.influences.size()!=1||asset.skins[p.skin].joints.size()>1024)asset.skinEligible=false;

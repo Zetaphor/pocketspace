@@ -19,7 +19,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [animation-profile-regression.cpp](animation-profile-regression.cpp) | Real GLES animation phase counters, upload byte totals, clean-pose skip and stable sampling windows. |
 | [animation-profile-scene.cjs](animation-profile-scene.cjs) | Automated animated/paused stage counts, completion cleanup and abort behavior. |
 | [animation-profile-analysis-test.py](animation-profile-analysis-test.py) | Warmup filtering, weighted summaries and incomplete/mixed run rejection. |
-| [gpu-skinning-regression.cpp](gpu-skinning-regression.cpp) | CesiumMan, Fox (all clips), RiggedFigure, RiggedSimple and generated multi-part GPU vertex/pixel/picking checks; bounds, resource cleanup, transitions and fallback. |
+| [gpu-skinning-regression.cpp](gpu-skinning-regression.cpp) | CesiumMan, Fox (all clips), RiggedFigure, RiggedSimple and generated multi-part GPU vertex/pixel/picking checks; bounds, resource cleanup, transitions, fallback, and 30 mixed-scene reload/save/restore cycles. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
 | [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes exercised through real script bindings without a VR session. |
@@ -192,3 +192,6 @@ The [Frame animation profile](results/animation-profile.md) records the complete
 [scenes/gpu-skinning-interaction.js](scenes/gpu-skinning-interaction.js) checks
 32 animated models with both-hand grip/trigger grabs and pause/resume in the
 GPU experiment. B/Y finishes; actors also clear after five minutes.
+
+[gpu-skinning-mixed-api.js](gpu-skinning-mixed-api.js) is the mixed backend
+fixture invoked by the GPU regression, including failed reload rollback.

@@ -86,13 +86,14 @@ but animation channels targeting a node with a matrix are unsupported.
 Morph-weight channels support the same three interpolation modes.
 
 Each instance owns its clock and pose. Materials/textures remain shared.
-Animated triangles update the instance's picking BVH and surface bounds, so
-selection follows the current pose. Default-pose normalization remains fixed
+Animated surface bounds follow the current pose. Exact triangle picking uses
+current deformed geometry; eligible GPU skins build/refit that geometry only
+when a controller ray intersects their conservative bounds. Default-pose normalization remains fixed
 through playback.
 
 ## Skeletal skinning
 
-CPU skinning supports skin joint hierarchies, inverse-bind matrices, and
+Skeletal skinning supports skin joint hierarchies, inverse-bind matrices, and
 multiple paired contiguous `JOINTS_n`/`WEIGHTS_n` sets. Joint indices may be
 unsigned bytes or unsigned shorts. Weights may be floats or normalized unsigned
 bytes/shorts and are normalized across sets. Missing inverse-bind matrices use
@@ -101,9 +102,24 @@ identity. Joint transforms include ancestors; skinning applies
 
 Malformed joint indices, weights, attribute pairs, or inverse-bind matrices
 reject the model. Sparse accessors are unsupported. Deformed positions and UVs
-feed the current renderer; animated normal/tangent lighting and GPU skinning
-are not implemented. The included CesiumMan has one unnamed clip, selected by
-index zero.
+feed the current renderer; animated normal/tangent lighting is not implemented.
+The included CesiumMan has one unnamed clip, selected by index zero.
+
+Playback automatically uses GPU skinning when every primitive is skinned, the
+asset has no morph targets, each primitive has exactly one four-lane influence
+set, and each skin has at most 1,024 joints. Other assets automatically use CPU
+deformation, preserving support for extra influence sets, mixed rigid/skinned
+parts and morph-before-skin combinations. Scripts use the same animation API
+and saved scenes; backend selection does not change clip or transition state.
+
+GPU skins retain shared indexed geometry and upload a small joint palette per
+instance. Their surface bounds conservatively enclose the animated mesh using
+joint-influence boxes. Exact CPU picking geometry is generated once per current
+pose only for ray candidates and reused between hands; paused poses retain the
+cache. Color and depth passes use the same GPU deformation at full geometry
+detail. Conservative bounds may include more transparent surface area than tight
+CPU bounds. Many overlapping ray candidates can still require full CPU deformation;
+GPU skinning does not remove that worst-case interaction cost.
 
 ## Morph targets
 
