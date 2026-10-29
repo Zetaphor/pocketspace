@@ -7,6 +7,7 @@ from pathlib import Path
 import statistics
 import subprocess
 import sys
+from render_work_analysis import summarize_work, matching_geometry
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--engine', type=Path, default=Path('build/gpu-sync-experiment'))
@@ -14,6 +15,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=2)
 parser.add_argument('--seconds', type=int, default=16)
 parser.add_argument('--case', action='append')
+parser.add_argument('--no-lod', action='store_true', help='Use full geometry to avoid moving LOD thresholds')
 parser.add_argument('--instancing', action='store_true', help='Enable production ordered instancing in the workload')
 args = parser.parse_args()
 if args.rounds < 1 or args.seconds < 12:
@@ -33,6 +35,8 @@ for round_index in range(args.rounds):
                        '--vertex-cache']
             if args.instancing:
                 command.append('--instancing')
+            if args.no_lod:
+                command.append('--no-lod')
             subprocess.run(command, env=env, check=True)
             result = json.loads((directory / 'summary.json').read_text())[0]
             log = (directory / f'{case}.log').read_text()
@@ -42,6 +46,7 @@ for round_index in range(args.rounds):
             whole = samples('GPU_SYNC_SAMPLE ')
             if len(whole) < 3 or any(s['glError'] or s['fenceFailures'] or s['disjointSamples'] for s in whole):
                 raise RuntimeError(f'{directory}: missing or invalid whole-render samples')
+            result['work']=summarize_work(log, int(case.split('-',1)[0]))
             result.update(round=round_index, passProfiling=passes,
                           **{key: statistics.median(s[key] for s in whole)
                              for key in ['enqueueMs', 'waitMs', 'submitMs']})
@@ -65,7 +70,8 @@ for round_index in range(args.rounds):
         matched = abs(pair[0]['gpuEstimateMiBMedian'] - pair[1]['gpuEstimateMiBMedian']) < .01 and pair[0]['groupBufferPeakMiB'] == pair[1]['groupBufferPeakMiB']
         for result in pair:
             result['matchingStorage'] = matched
+            result['matchingGeometry'] = matching_geometry(pair[0]['work'], pair[1]['work'])
         (args.output / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
 
-        if not matched:
-            raise RuntimeError(f'{case}: storage differs; reject the timing comparison')
+        if not matched or not matching_geometry(pair[0]['work'], pair[1]['work']):
+            raise RuntimeError(f'{case}: storage/geometry differs; reject the timing comparison')

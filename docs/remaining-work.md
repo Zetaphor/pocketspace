@@ -45,8 +45,11 @@ This roadmap contains future work, without prescribing an implementation order.
   Validate larger detailed-model counts after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
-  Consider wider regrouping searches or changed cost thresholds only if further
-  measurements justify them.
+  The [equal-area grouping tie-break investigation](../tests/results/group-occluder-policy.md)
+  is complete without adoption; it adds geometry/LOD validation but did not
+  materially reduce native occluder work. Consider wider searches or memory/draw
+  cost tradeoffs only with equivalent member geometry, verified sampling density,
+  explicit allocation/budget accounting and repeatable gains.
 - Extend bounded stability checks to longer sessions or larger workloads when
   needed. Revisit allocation-site profiling if live heap totals grow or memory
   pressure appears; the completed reload/RSS investigation is recorded in the

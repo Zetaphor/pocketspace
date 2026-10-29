@@ -1,0 +1,12 @@
+Steam Frame validation 2026-10-29; base dae8ca7 plus experiment/work counters
+PASS equal-allocation occluder tie-break: 256 deterministic plans, 32 strictly lower predicted work, equal minimum allocated area, uncapped density, complete IDs and hidden-member fallback
+PASS grouped budget: transactional peaks, rejection without charging, retirement, limit and unclipped fallback
+PASS split planner: stable complete partitions, common plane, >=20% allocated-texel savings, threshold, compact/single-member and near-plane fallbacks
+PASS regroup planner: opt-in defaults, compact merge, spatial rebalance, uncapped density, >=20% steady-allocation savings, complete IDs, one-second stability, hidden/near-plane fallback
+PASS split API: strict validation, defaults, disable without merging, nearest-tile reservation, stable physics/grab IDs and removal
+PASS native render-work counters: instanced Box draws=2/stereo triangles=72; GPU Fox draws=6/stereo triangles=3456; merged rigid draws=12/stereo triangles=660.
+Native scene non-interactive; sceneFrames=frames, LOD histogram=[3,0,0]; normal exit and grouped charge zero.
+sf-overlay-engine SHA256 9b67013b4d5b36c443ed9fe806ce28a7063fc261907ff40abc797775720cf9fc
+gpu-sync-experiment SHA256 f9ca9a0650b3a8b5b123768bfc9d010e3714ebad3e05bf4bafd2e811629a64c2
+group-occluder-regression SHA256 ffe10c1a5461c80a6c241485e42d68743554d1b24bbb38f6a32bfcd408966979
+CPU governor: schedutil

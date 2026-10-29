@@ -246,3 +246,16 @@ restored scenes, rollback and shader ownership. The
 comparison without production adoption. The optional
 [ordinary-program-mixed.js](scenes/ordinary-program-mixed.js) scene exercises
 interactive mixed routing only when enabled in the excluded executable.
+
+[group-occluder-regression.cpp](group-occluder-regression.cpp) checks equal-area
+split tie-breaking against conservative stereo occluder work across 256 layouts.
+[compare-group-policy.py](compare-group-policy.py) compares policies using
+allocation, triangle, member-draw and LOD guards.
+[render-work-analysis-test.py](render-work-analysis-test.py) validates rejection
+of malformed, drifting or inequivalent work samples. The
+[group policy report](results/group-occluder-policy.md) records the investigation.
+
+[validate-render-work.py](validate-render-work.py) checks analytic instanced,
+GPU-skinned and merged-rigid submission totals through the native renderer using
+the bounded non-interactive
+[render-work-validation.js](scenes/render-work-validation.js) scene.

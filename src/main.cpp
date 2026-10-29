@@ -1693,11 +1693,17 @@ static GroupLayout tileLayout(const std::vector<const Object*> &items,const Scen
   const float center[3]={plane.transform.m[0][3],plane.transform.m[1][3],plane.transform.m[2][3]};
   return groupLayout(items,scene,anchor,head,eyes,center,plane.right,plane.up,plane.forward,1,maximum,&cache);
 }
+#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
+#include "../tests/group-occluder-experiment.h"
+#endif
 // Bounded quartile cuts, with deterministic tie-breaking and preserved density.
 static GroupSplitPlan partitionGroup(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache &cache,int maximum,uint64_t baseline){
   GroupSplitPlan best;if(members.size()<2||!finiteGroupBounds(members,cache))return best;
   auto layout=[&](const std::vector<const Object*> &items){return tileLayout(items,scene,anchor,head,eyes,cache,maximum);};
   uint64_t bestCost=baseline*4/5; // Require at least 20% fewer allocated texels.
+#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
+  uint64_t bestOccluders=std::numeric_limits<uint64_t>::max();
+#endif
   for(int axis=0;axis<2;axis++){
     auto ordered=members;
     auto coordinate=[&](const Object *object){const auto &a=cache.common(*object,0),&b=cache.common(*object,1);return axis?(double(a.y0)+a.y1+b.y0+b.y1):(double(a.x0)+a.x1+b.x0+b.x1);};
@@ -1706,12 +1712,28 @@ static GroupSplitPlan partitionGroup(const std::vector<const Object*> &members,c
       const size_t cut=ordered.size()*quarter/4;if(!cut||cut==ordered.size())continue;
       GroupSplitPlan candidate;candidate.members[0].assign(ordered.begin(),ordered.begin()+cut);candidate.members[1].assign(ordered.begin()+cut,ordered.end());
       uint64_t cost=0;bool limited=false;
+#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
+      GroupLayout childLayouts[2];
+#endif
       for(int tile=0;tile<2;tile++){
         const auto child=layout(candidate.members[tile]);limited|=child.limited;
+#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
+        childLayouts[tile]=child;
+#endif
         candidate.pixels[tile]=groupBufferPixels(child.pixels,maximum);candidate.widths[tile]=child.width*float(candidate.pixels[tile])/child.pixels;
         cost+=uint64_t(candidate.pixels[tile])*candidate.pixels[tile];
       }
+#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
+      if(limited||cost>bestCost||(cost==bestCost&&(!groupOccluderTieBreak||!best)))continue;
+      uint64_t occluders=0;
+      if(groupOccluderTieBreak){
+        occluders=groupOccluderPredictedTriangles(candidate,childLayouts,scene,cache);
+        if(cost==bestCost&&occluders>=bestOccluders)continue;
+      }
+      bestOccluders=occluders;
+#else
       if(limited||cost>=bestCost)continue;
+#endif
       candidate.parentPixelsSquared=baseline;candidate.childPixelsSquared=cost;bestCost=cost;best=std::move(candidate);
     }
   }
@@ -2091,6 +2113,8 @@ int main(int argc,char **argv) {
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
   ModelInstancing instanceExperiment(ModelInstancing::Instanced);
 #ifdef SF_GPU_SYNC_EXPERIMENT
+  const char *groupPolicy=std::getenv("SF_GPU_GROUP_POLICY");
+  groupOccluderTieBreak=groupPolicy&&std::strcmp(groupPolicy,"occluders")==0;
   GpuSyncExperiment gpuSync;
   if(std::getenv("SF_GPU_MULTIPART_INSTANCING"))instanceExperiment.enableMultipartExperiment();
   const char *instanceMode=std::getenv("SF_GPU_INSTANCING");
@@ -2404,7 +2428,7 @@ int main(int argc,char **argv) {
       const auto groups=surfaceMembers();
       int shrinkBudget=2;std::set<int> culledSurfaces;
 #ifdef SF_GPU_SYNC_EXPERIMENT
-      gpuSync.begin();
+      gpuSync.scene(script.scene);gpuSync.begin();
       if(specializeOpaque)for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives)if(part.alphaMode!=0){fprintf(stderr,"opaque shader experiment requires opaque-only assets\n");return 13;}
 #endif
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
@@ -2566,16 +2590,30 @@ int main(int argc,char **argv) {
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
-                gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
 #endif
                 GLuint activeProgram=program;
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(useSkinProgram)activeProgram=generalProgram;
 #endif
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
-                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);continue;
+                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                  gpuSync.draw(unsigned(part.skinIndices.size()));
+#endif
+                  continue;
                 }
-                if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                const size_t firstPrimitive=primitive;
+#endif
+                if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive)){
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                  unsigned count=0;for(size_t p=firstPrimitive;p<=primitive;p++)count+=asset.primitives[p].vertexCount;gpuSync.draw(count);
+#endif
+                  continue;
+                }
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
+#endif
                 if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
                 else drawModelPrimitive(part,0,object.lodLevel);
               }

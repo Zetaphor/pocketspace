@@ -336,6 +336,12 @@ The production optimizations and their controls are:
 | Adjacent rigid draws in one owned stream | Automatic when eligible | [Rigid batches](../tests/results/rigid-batches.md) |
 | Panel submission caching, sorted-ID lookup, physics sleeping/workers/caches | Automatic with explicit physics worker override | [Runtime contracts](agent-handoff.md), [physics API](physics-api.md) |
 
+The excluded profiling executable records actual per-pass submission counts,
+selected scene triangles and LOD distributions. Controlled comparisons also
+check complete member geometry; matching allocation estimates alone does not
+establish equivalent work. A [grouping tie-break comparison](../tests/results/group-occluder-policy.md)
+retains these guards and remains experimental after negligible native gains.
+
 Measurements are workload-specific, not FPS guarantees. Tests/results document
 correctness, measured performance, and user headset acceptance separately.
 Normal builds do not enable the rejected uniform-cache, owned-VAO, primitive or
