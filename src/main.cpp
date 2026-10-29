@@ -20,6 +20,7 @@
 #include <map>
 #include <memory>
 #include <csignal>
+#include <climits>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -82,8 +83,9 @@ struct Object {
   int renderGroup=0,renderTile=0;
   int lodLevel=0,container=0;
 };
+#include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 #include "model_instancing.h"
 #include "pbr_program.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
@@ -1025,6 +1027,7 @@ static void forgetObjectInteraction(int id){
 }
 static void removeSceneObject(int id){
   auto *object=findObject(id);if(!object)return;
+  std::erase_if(currentScene->lights,[&](const PointLight &light){return light.objectId==id;});
   if(currentScene->physics)currentScene->physics->remove(id);
   auto &ids=currentScene->interactiveIds;
   ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
@@ -1046,9 +1049,11 @@ static JSValue jsCreateSceneContainer(JSContext *ctx,JSValueConst,int,JSValueCon
 static JSValue jsGetSceneContainerState(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"getSceneContainerState(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
   if(!id)return JS_ThrowRangeError(ctx,"root is not a disposable scene container");
-  JSValue state=JS_NewObject(ctx),objects=JS_NewArray(ctx),panels=JS_NewArray(ctx);uint32_t n=0;
+  JSValue state=JS_NewObject(ctx),objects=JS_NewArray(ctx),panels=JS_NewArray(ctx),lights=JS_NewArray(ctx);uint32_t n=0;
   for(const auto &object:currentScene->objects)if(object.container==id)JS_SetPropertyUint32(ctx,objects,n++,JS_NewInt32(ctx,object.id));n=0;
   for(const auto &panel:currentScene->panels)if(panel.container==id)JS_SetPropertyUint32(ctx,panels,n++,JS_NewInt32(ctx,panel.id));
+  n=0;for(const auto &light:currentScene->lights)if(light.container==id)JS_SetPropertyUint32(ctx,lights,n++,JS_NewInt32(ctx,light.id));
+  JS_SetPropertyStr(ctx,state,"lightIds",lights);
   JS_SetPropertyStr(ctx,state,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,state,"disposed",JS_NewBool(ctx,!currentScene->containers.count(id)));
   JS_SetPropertyStr(ctx,state,"objectIds",objects);JS_SetPropertyStr(ctx,state,"panelIds",panels);
   JS_SetPropertyStr(ctx,state,"inputCallback",JS_NewBool(ctx,inputCallbackCtx==ctx&&inputCallbackContainer==id));return state;
@@ -1057,6 +1062,7 @@ static JSValue jsDisposeSceneContainer(JSContext *ctx,JSValueConst,int argc,JSVa
   int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"disposeSceneContainer(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
   if(!id)return JS_ThrowRangeError(ctx,"root is not a disposable scene container");
   if(!currentScene->containers.erase(id))return JS_UNDEFINED;
+  std::erase_if(currentScene->lights,[&](const PointLight &light){return light.container==id;});
   if(inputCallbackCtx==ctx&&inputCallbackContainer==id)clearInputCallback(ctx);
   std::vector<int> objects;for(const auto &object:currentScene->objects)if(object.container==id)objects.push_back(object.id);
   for(int object:objects)removeSceneObject(object);
@@ -1076,6 +1082,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
   auto *panel=findPanel(id);if(!panel)return JS_ThrowRangeError(ctx,"unknown panel");panel->container=owner;return JS_UNDEFINED;
 }
 
+#include "scene_light_api.h"
 #include "scene_persistence.h"
 
 struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};Scene scene;};
@@ -1153,6 +1160,10 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"setModelLighting",jsSetModelLighting,2);
+  bind(candidate.ctx,"createPointLight",jsCreatePointLight,1);
+  bind(candidate.ctx,"setPointLight",jsSetPointLight,2);
+  bind(candidate.ctx,"getPointLight",jsGetPointLight,1);
+  bind(candidate.ctx,"removePointLight",jsRemovePointLight,1);
   bind(candidate.ctx,"createObject",jsCreateObject,6);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
@@ -2400,6 +2411,7 @@ int main(int argc,char **argv) {
         for(const auto &eye:eyes){float squared=0,depth=0;for(int axis=0;axis<3;axis++){const float d=center[axis]-eye[axis];squared+=d*d;depth-=d*head.m[axis][2];}nearest=std::min(nearest,std::sqrt(squared)-radius);pixels=std::max(pixels,modelLod::projectedDiameter(radius,focal,squared,depth));}
         selectDetail(modelLod::select(pixels,nearest,object.lodLevel));
       }
+      const auto frameLights=resolvePointLights(script.scene);
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
 #ifdef SF_GPU_SYNC_EXPERIMENT
@@ -2655,6 +2667,7 @@ int main(int argc,char **argv) {
                   auto &activePbr=fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram;
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+                  if(pass>=0)activePbr.lights(frameLights,surfaceX,surfaceY,surfaceZ);
                   activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);

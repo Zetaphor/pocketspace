@@ -53,7 +53,7 @@ static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,7));
+  put(ctx,result,"version",JS_NewInt32(ctx,8));
   for(auto o:currentScene->objects)if(o.container==owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
@@ -82,6 +82,13 @@ static JSValue capture(JSContext *ctx,int owner){
     if(ownA)putIndex(ctx,joints,jointIndex++,jointValue(ctx,j));
   }
   uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels)if(p.container==owner){require(panelIndex<maxPanels,"snapshot panel limit is 32");putIndex(ctx,panels,panelIndex++,panelValue(ctx,p,panelBytes));}
+  Value lights(ctx,JS_NewArray(ctx));uint32_t lightIndex=0;
+  for(const auto &light:currentScene->lights){
+    const auto *object=light.objectId?findObject(light.objectId):nullptr;
+    require(!object||((object->container==owner)==(light.container==owner)),"light attachment crosses scene container boundary");
+    if(light.container==owner)putIndex(ctx,lights,lightIndex++,pointLightValue(ctx,light));
+  }
+  put(ctx,result,"lights",JS_DupValue(ctx,lights));
   put(ctx,result,"panels",JS_DupValue(ctx,panels));
   put(ctx,result,"joints",JS_DupValue(ctx,joints));
   put(ctx,result,"models",JS_DupValue(ctx,models));put(ctx,result,"objects",JS_DupValue(ctx,objects));
@@ -92,7 +99,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,7,true));
+  const int version=int(number(ctx,root,"version",1,8,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -119,11 +126,12 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);
   for(const auto &[id,policy]:scene.renderGroupSplits)occupied.insert(id);
   std::map<int,int> groups;std::vector<Object> restored;std::vector<int> interactive;
+  std::map<int,int> objectIds;
   std::map<int,int> bodyMap;std::vector<physics::BodyRestore> bodies;std::vector<std::vector<physics::Vec3>> geometry;std::vector<std::optional<SavedAnimation>> animations;
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));Object o{};
     const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(sourceIds.insert(source).second,"duplicate source object id");
-    o.id=scene.nextId+int(i);o.container=scene.nextContainerId;
+    o.id=scene.nextId+int(i);o.container=scene.nextContainerId;objectIds[source]=o.id;
     const int model=int(number(ctx,item,"model",0,double(nm)-1,true));o.asset=assets.at(model);
     const int group=int(number(ctx,item,"renderGroup",0,256,true));
     if(group&&!groups.count(group)){int free=1;while(free<=256&&occupied.count(free))free++;require(free<=256,"no free render groups");groups[group]=free;occupied.insert(free);}
@@ -151,6 +159,22 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   if(version<4&&!JS_IsUndefined(panelArray))require(length(ctx,panelArray,maxPanels)==0,"panels require snapshot version 4");
   require(scene.nextPanelId<=INT_MAX-int(np),"panel ID limit reached");std::vector<Panel> restoredPanels;std::vector<int> panelSources;std::set<int> uniquePanels;size_t pixelBytes=0;
   for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),scene.nextContainerId,pixelBytes));}
+  auto lightArray=field(ctx,root,"lights");const uint32_t nl=version>=8?length(ctx,lightArray,maxPointLights):0;
+  if(version<8&&!JS_IsUndefined(lightArray))require(length(ctx,lightArray,maxPointLights)==0,"lights require snapshot version 8");
+  require(scene.lights.size()+nl<=maxPointLights&&scene.nextLightId<=INT_MAX-int(nl),"point light limit reached");
+  std::vector<PointLight> restoredLights;std::vector<int> lightSources;std::set<int> uniqueLights;
+  for(uint32_t i=0;i<nl;i++){
+    Value item(ctx,JS_GetPropertyUint32(ctx,lightArray,i));PointLight light;
+    const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniqueLights.insert(source).second,"duplicate light ID");lightSources.push_back(source);
+    light.id=scene.nextLightId+int(i);light.container=scene.nextContainerId;
+    light.intensity=float(number(ctx,item,"intensity",0,64));light.range=float(number(ctx,item,"range",.001,64));light.enabled=boolean(ctx,item,"enabled");
+    for(auto [name,destination,low,high]:{std::tuple{"position",&light.position,-10000.f,10000.f},std::tuple{"color",&light.color,0.f,64.f}}){
+      auto array=field(ctx,item,name);require(length(ctx,array,3)==3,"light vector must contain three numbers");
+      for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=low&&n<=high,"invalid light vector");(*destination)[c]=float(n);}
+    }
+    auto attachment=field(ctx,item,"objectId");if(!JS_IsNull(attachment)){const int id=int(number(ctx,item,"objectId",1,INT_MAX-1,true));require(objectIds.count(id),"light attachment must be inside snapshot");light.objectId=objectIds.at(id);}
+    restoredLights.push_back(light);
+  }
   // Load CPU data only after the entire schema has passed. No shared cache or
   // native overlays change until every asset is available.
   for(auto &a:pending){const auto path=a.path;require(loadModelFile(path,a),"could not load snapshot model");if(!a.lighting.environment.empty()){a.environment=loadLightingEnvironment(a.lighting.environment);require(bool(a.environment),"could not load snapshot environment");}}
@@ -167,6 +191,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     if(body.state.settings.shape==physics::Shape::Convex||body.state.settings.shape==physics::Shape::Mesh)for(const auto &part:a.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
     body.geometry={o.asset,o.scale,vertices};
   }
+  scene.lights.reserve(scene.lights.size()+nl);
   scene.panels.reserve(scene.panels.size()+np);
   scene.assets.reserve(scene.assets.size()+pending.size());scene.objects.reserve(scene.objects.size()+no);scene.interactiveIds.reserve(scene.interactiveIds.size()+interactive.size());
   Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx)),jointIds(ctx,JS_NewArray(ctx)),jointMap(ctx,JS_NewObject(ctx)),panelIds(ctx,JS_NewArray(ctx)),panelMap(ctx,JS_NewObject(ctx)),panelHandles(ctx,JS_NewArray(ctx));
@@ -180,6 +205,9 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   put(ctx,result,"jointIds",JS_DupValue(ctx,jointIds));put(ctx,result,"jointMap",JS_DupValue(ctx,jointMap));
   for(uint32_t i=0;i<np;i++){const int id=restoredPanels[i].id;putIndex(ctx,panelIds,i,JS_NewInt32(ctx,id));put(ctx,panelMap,std::to_string(panelSources[i]).c_str(),JS_NewInt32(ctx,id));putIndex(ctx,panelHandles,i,panelHandle(ctx,id));}
   put(ctx,result,"panelIds",JS_DupValue(ctx,panelIds));put(ctx,result,"panelMap",JS_DupValue(ctx,panelMap));put(ctx,result,"panels",JS_DupValue(ctx,panelHandles));
+  Value lightIds(ctx,JS_NewArray(ctx)),lightMap(ctx,JS_NewObject(ctx));
+  for(uint32_t i=0;i<nl;i++){putIndex(ctx,lightIds,i,JS_NewInt32(ctx,restoredLights[i].id));put(ctx,lightMap,std::to_string(lightSources[i]).c_str(),JS_NewInt32(ctx,restoredLights[i].id));}
+  put(ctx,result,"lightIds",JS_DupValue(ctx,lightIds));put(ctx,result,"lightMap",JS_DupValue(ctx,lightMap));
   // This also detects JS allocation failures before committing native state.
   if(JS_HasException(ctx))throw std::runtime_error("snapshot result allocation failed");
   std::set<int> reserved;std::vector<int> reservedPanels;reservedPanels.reserve(np);bool committed=false;
@@ -194,6 +222,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   scene.containers.insert(scene.nextContainerId);scene.nextContainerId++;
   for(auto &a:pending)scene.assets.push_back(std::move(a));for(auto &o:restored)scene.objects.push_back(std::move(o));
   for(auto &p:restoredPanels)scene.panels.push_back(std::move(p));scene.nextPanelId+=int(np);
+  for(const auto &light:restoredLights)scene.lights.push_back(light);scene.nextLightId+=int(nl);
   scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }

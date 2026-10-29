@@ -128,6 +128,7 @@ struct Renderer {
             const bool depthOnly=fastPbrDepth&&pass<0;auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;assert(activePbr.init(depthOnly));
             activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
+            if(pass>=0)activePbr.lights(resolvePointLights(scene),0,-.2f,0);
             activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;

@@ -1,7 +1,7 @@
 # Scene save and restore
 
 Scene containers can capture model instances, panels, animation playback, physics
-bodies and joints into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
+bodies, joints and point lights into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
 and load it in a later run. Positions use the current scene anchor: a save does
 not preserve an absolute room location across launches or recentering.
 
@@ -9,11 +9,11 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v7
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v8
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
-  panelIds, panelMap, panels}`. `objectIds` follows snapshot
+  panelIds, panelMap, panels, lightIds, lightMap}`. `objectIds` follows snapshot
   order. `objectMap` maps source object IDs to fresh IDs, and `renderGroups` maps
   positive source groups to available positive groups. `jointIds` follows snapshot
   joint order; `jointMap` maps source joint IDs to fresh IDs. Keys are strings, as in
@@ -63,6 +63,7 @@ semantics; asset files are referenced, not embedded. Keep them available when
 loading on another device. Exact cached paths reuse the shared asset only when
 all saved loading options match. Cached assets remain scene-owned after disposal.
 
+Owned point lights preserve settings and remap object attachments.
 Owned panels preserve their retained RGBA canvas and layout. Animated model
 instances and empty containers are supported.
 
@@ -90,7 +91,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
 this identifier and its legacy default save directory for compatibility with
 existing snapshots and named saves.
-New captures use `version: 7`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 8`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
@@ -322,3 +323,25 @@ versions is rejected rather than silently discarded. Existing v3 playback and
 v4 panel requirements continue to apply.
 
 Save and restore playback state; see [blending.js](../scripts/blending.js) for creating transitions: [animation-save.js](../scripts/animation-save.js).
+
+## Point lights (v8)
+
+V8 requires a `lights` array of at most eight entries. Each entry stores `id`,
+`position`, `color`, `intensity`, `range`, `enabled`, `objectId` and `container`.
+The source container field is informational: restore assigns the new container.
+All light values use the [point-light API limits](lighting-api.md#dynamic-point-lights).
+IDs must be unique positive integers; `objectId` is null or an object ID inside
+the same snapshot. Duplicate IDs, invalid values or external attachments reject
+the restore before publication. A capture also rejects light attachments crossing
+the captured boundary in either direction.
+
+Restore returns `lightIds` in snapshot order and `lightMap` from source IDs to
+fresh IDs, with object attachments remapped through `objectMap`. These arrays and
+maps are empty for v1–v7 snapshots. Older versions cannot contain nonempty light
+arrays. Eight is the total live-light limit, including lights in existing tools
+and disabled lights; replacing a tool requires temporary capacity for both.
+Removing an object removes all attached lights. Disposing the restored container
+removes its lights through the same cleanup path.
+
+Try capture/restore with a grabbable attached light in
+[lights.js](../scripts/lights.js).

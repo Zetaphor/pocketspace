@@ -529,3 +529,22 @@ Initialize sampler units before the first depth draw (which may precede color),
 preserving the caller's current program. Restore texture/attribute/program state
 through the existing release path. Keep diagnostic `SF_PBR_DEPTH` overrides out
 of production. See [validation](../tests/results/pbr-depth.md).
+
+## Dynamic point lights
+
+Scene lights are sorted, monotonically issued logical IDs, not vector pointers
+or GL resources. Copy settings before evaluating script getters; resolve the
+light and validate its owner/attachment again before publishing. Recheck capacity
+after getters. Removing an object removes all attached lights; disposing a scope
+removes its owned lights. Ownership transfer and attachment are independent.
+
+Resolve enabled/nonzero lights once after interaction/physics per rendered frame.
+Object-local offsets are meters, independent of scale; reflect Z into model axes
+consistently for positions, normals and surface origins. All eyes/surfaces use
+the same frame snapshot. Keep the per-program cached uniform payload free of
+scene pointers, update it after removals, and skip light setup for external depth.
+Unlit materials must remain invariant. V8 snapshots validate/stage lights and
+attachment maps before native publication; require both attachment endpoints
+inside the captured scope, honor total live capacity and return fresh light IDs.
+Legacy snapshots restore no lights. See the [API](lighting-api.md#dynamic-point-lights)
+and [regression](../tests/point-light-regression.cpp).

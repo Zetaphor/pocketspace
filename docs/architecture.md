@@ -271,6 +271,21 @@ for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
 [Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
 are recorded as separate validation evidence.
+Scene point lights are logical CPU records (up to eight), with independent IDs
+and container ownership. The renderer resolves object-local meter offsets after
+interaction/physics into one frame snapshot, shared by all eyes and surfaces.
+PBR shaders receive positions relative to each surface in the same model axes as
+surface normals. Cached uniform payloads avoid repeated uploads at unchanged
+surface origins. The bounded forward loop adds GGX point illumination with smooth
+range cutoff and inverse-square attenuation; disabled/zero-intensity lights are
+excluded. Unlit materials and external-depth draws bypass the lighting work.
+Lights cast no shadows. V8 snapshots stage owned lights, remap attachments and
+publish fresh IDs; cross-container capture attachments are rejected. Removal,
+container disposal and reload share normal scene cleanup. See the
+[point-light API](lighting-api.md#dynamic-point-lights) and
+[regression](../tests/point-light-regression.cpp) and
+[bounded Frame comparison](../tests/results/point-lights.md).
+
 Static PBR supports full-input indexing with `optimizeVertexCache: true` (default
 false). Every 14-float shader-input tuple participates in identity, preserving
 position, both UV inputs, normal/tangent seams and material boundaries. Only
@@ -326,8 +341,8 @@ Legacy, PBR color and PBR depth programs link during startup, before live scene 
 reloads do not compile a new shader after committing their candidate scene.
 The separate program restores legacy program, texture-unit and attribute state
 before subsequent objects/panels. Both member-color and external occluder passes
-use the same geometry and alpha policy. Lighting state is per shared asset and
-is captured in snapshot v7, with transactional cache-conflict validation; v6
+use the same geometry and alpha policy. Directional/environment lighting state is per shared asset and
+is captured in snapshot v7 and later, with transactional cache-conflict validation; v6
 retains its direct-light behavior with environments disabled.
 External PBR depth draws use a dedicated program with the same vertex shader,
 geometry, deformation, LOD, winding and UV policy. Opaque depth returns before
