@@ -60,6 +60,10 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
 
 ## Headset workflow
 
+- On-device tests that do not require user interaction, including FPS/profiling
+  runs, must not capture pointer input. Configure all test overlays, including
+  HUD panels, as non-interactive so they do not interrupt the user's other VR
+  activity. Enable pointer capture only for tests that require user interaction.
 - Respect the user's current headset availability. Do not run headset workloads
   while they have asked to pause or said the headset is powered off.
 - Check for an existing engine/demo process before launching another. Stop the
