@@ -5,6 +5,8 @@ fit; changing the fit or reseating the headset can require recalibration. This
 corrects the combined OpenVR gaze ray; it does not recalibrate SteamVR itself or
 change foveation centers. No wearer correction is bundled in the repository.
 
+Generate a correction with training and held-out validation targets: [eye-calibration.js](../scripts/eye-calibration.js).
+
 ## Generate in the headset
 
 Run these commands from the checkout on the runtime host after building the engine. SteamVR must be running and the headset must have a
@@ -113,6 +115,8 @@ correction immediately for corrected getters in the same engine process. A faile
 save leaves the active correction unchanged. Reset to raw-only behavior by
 restarting without `--eye-calibration`; loading a new scene alone does not clear it.
 
+Run the generator with the output option described above: [eye-calibration.js](../scripts/eye-calibration.js).
+
 ## Correction status and integration
 
 All original source fields, including `status`, `tracked`, `fresh`, and
@@ -132,6 +136,8 @@ gaze has `calibrationStatus: "notLoaded"` and `valid: false`. Use both `valid` a
 `calibrationApplied` when an interaction requires a corrected ray. If your scene
 allows raw fallback, gate on `valid` and display or record the correction status.
 
+Display correction status and use the corrected gaze ray: [tracking.js](../scripts/tracking.js).
+
 ## Troubleshooting
 
 | Symptom | Action |
@@ -146,6 +152,8 @@ allows raw fallback, gate on `valid` and display or record the correction status
 | File loads but dot stays raw | Inspect `calibrationStatus` and ensure the scene calls `getCalibratedEyeTracking()`. |
 | `outOfRange` near panel edges or after head turns | This sample is outside supported coverage; raw fallback is intentional. Recalibrate with an appropriate headset fit and panel position. |
 | Previously good calibration becomes inaccurate | Refit/reseat the headset and repeat calibration. Choose the file for the current wearer. |
+
+Inspect runtime availability and correction status in a headset HUD: [tracking.js](../scripts/tracking.js).
 
 ## File format
 
@@ -176,3 +184,5 @@ runtime correction. Loading and the low-level save API enforce schema bounds,
 not the generator's accuracy gate; a manually edited file need not have passed
 wearer validation. There is no automatic identity/device matching: select the correct
 wearer's file when launching.
+
+Generate the calibration file instead of authoring coefficients by hand: [eye-calibration.js](../scripts/eye-calibration.js).

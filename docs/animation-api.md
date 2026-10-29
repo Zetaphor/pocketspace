@@ -39,6 +39,8 @@ looping clip to its duration evaluates the end pose immediately; the next
 advance wraps. Hidden objects still advance. Paused poses are not reevaluated
 each frame. Completion is observed through state, not an event.
 
+Select clips, pause/resume, stop and scrub playback: [animation.js](../scripts/animation.js).
+
 ## Transitions between clips
 
 ```js
@@ -103,6 +105,8 @@ current deformed geometry; eligible GPU skins build/refit that geometry only
 when a controller ray intersects their conservative bounds. Default-pose normalization remains fixed
 through playback.
 
+Compare rigid, skeletal and morph animation in one scene: [blending.js](../scripts/blending.js).
+
 ## Skeletal skinning
 
 Skeletal skinning supports skin joint hierarchies, inverse-bind matrices, and
@@ -132,6 +136,8 @@ cache. Color and depth passes use the same GPU deformation at full geometry
 detail. Conservative bounds may include more transparent surface area than tight
 CPU bounds. Many overlapping ray candidates can still require full CPU deformation;
 GPU skinning does not remove that worst-case interaction cost.
+
+Play one shared character asset with independent instance clocks: [skinning.js](../scripts/skinning.js).
 
 ## Morph targets
 

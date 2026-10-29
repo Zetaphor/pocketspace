@@ -4,12 +4,16 @@ The engine exposes documented OpenVR gaze/foveation data and raw controller
 capacitance from the local vrserver stream. Bare-hand optical tracking, native
 hand skeletons, eye openness, and per-eye 3D poses are not exposed.
 
+Display available gaze, foveation and finger data: [tracking.js](../scripts/tracking.js).
+
 ## Optional personal correction
 
 See [eye calibration](eye-calibration.md) for `--eye-calibration FILE`, the headset
 generator, and `getCalibratedEyeTracking()`. `getEyeTracking()` remains
 raw. Both gaze getters expose a nullable row-major `headBasis` matrix for
 head-relative calculations; validity and coexistence policies remain as below.
+
+Generate a personal correction using headset targets: [eye-calibration.js](../scripts/eye-calibration.js).
 
 ## Combined gaze
 
