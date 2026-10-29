@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include "../src/mesh_index.h"
 #include "opaque-shader-experiment.h"
+#include "ordinary-program-experiment.h"
 #include "primitive-visibility-experiment.h"
 #include "cluster-visibility-experiment.h"
 
@@ -20,6 +21,8 @@ struct Renderer {
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
   bool specialize=false;
+  bool ordinaryRouting=true;
+  OrdinaryModelProgram ordinaryProgram,skinProgram;
   bool primitiveVisibility=false;
   PrimitiveVisibilityExperiment primitiveBounds;
   ClusterVisibilityExperiment clusterBounds;
@@ -31,6 +34,7 @@ struct Renderer {
     auto v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);
     GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);assert(linked);glDeleteShader(v);glDeleteShader(f);
+    skinProgram.borrow(program);
     glUseProgram(program);glUniform1i(glGetUniformLocation(program,"material"),0);
     vector("right",1,0,0);vector("up",0,1,0);vector("forward",0,0,-1);
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
@@ -48,6 +52,9 @@ struct Renderer {
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
+    const GLuint generalProgram=program;
+    if(ordinaryRouting&&!specialize&&!drawUniformCachingEnabled&&ordinaryProgram.select(false))program=ordinaryProgram.id();
+    ScopeExit restorePrimary{[&]{program=generalProgram;glUseProgram(program);}};
     auto panel=anchor,head=anchor;
     for(int row=0;row<3;row++){
       panel.m[row][3]+=anchor.m[row][1]*-.2f;
@@ -81,15 +88,21 @@ struct Renderer {
         if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))return false;
         return true;
       };
+      bool skinBound=false;
+      ScopeExit restoreSkinProgram{[&]{if(skinBound)glUseProgram(program);}};
       auto drawObject=[&](const Object &object){
         const auto &asset=scene.assets[object.asset-1];
         if(uniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
-        uniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
+        const bool skin=program!=generalProgram&&object.animationPose&&object.animationPose->gpuSkin;
+        if(skin){
+          if(!skinBound){skinProgram.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);skinBound=true;}
+          skinProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
+        }else {if(skinBound){glUseProgram(program);skinBound=false;}uniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);}
         for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
           const auto &part=asset.primitives[primitive];
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           if(primitiveVisibility&&pass<0&&!primitiveBounds.mayDraw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels))continue;
-          uniforms.material(part);
+          if(skin)skinProgram.material(part);else uniforms.material(part);
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
           if(pass<0&&clusterBounds.draw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels,[](unsigned){}))continue;
           const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
@@ -97,8 +110,9 @@ struct Renderer {
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
-          if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
+          const GLuint activeProgram=skin?generalProgram:program;
+          if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);
           }else {
             if(!special&&object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
           if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
@@ -109,7 +123,7 @@ struct Renderer {
       };
       if(instanceExperiment.mode!=ModelInstancing::Off){
         std::vector<const Object*> objects;for(const auto &object:scene.objects)if(selected(object))objects.push_back(&object);
-        instanceExperiment.draw(scene,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){});return;
+        instanceExperiment.draw(scene,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){},[&]{skinBound=false;});return;
       }
       for(const auto &object:scene.objects)if(selected(object))drawObject(object);
     };

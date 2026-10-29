@@ -38,9 +38,11 @@ This roadmap contains future work, without prescribing an implementation order.
   sufficient workload budget. The [current pipeline profile](../tests/results/dense-model-current.md)
   confirms substantial adaptive occluder work and costly fixed-group member draws
   with automatic LOD/instancing enabled. Its static-only ordinary vertex shader
-  prototype improves bounded FPS modestly but is not a production default;
-  its 16-car visual check is accepted. Complete mixed CPU/GPU backend routing
-  and lifecycle validation before considering adoption. Validate larger detailed-model counts after reducing
+  prototype's 16-car visual check is accepted, but the completed
+  [mixed-program integration](../tests/results/ordinary-program-routing.md) did not
+  establish consistent native gains. Keep it experimental; revisit only with
+  better-controlled matched workloads and repeatable throughput improvements.
+  Validate larger detailed-model counts after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
   Consider wider regrouping searches or changed cost thresholds only if further
