@@ -9,7 +9,7 @@ This roadmap contains future work, without prescribing an implementation order.
   The [Frame comparison](../tests/results/gpu-skinning.md) established its
   performance and the prototype visual/grabbing checks passed. Production now
   selects eligible GPU skins with CPU fallback; the expanded real-model matrix
-  and 30 mixed-scene reload/save/restore cycles cover correctness locally.
+  and 30 mixed-scene reload/save/restore cycles pass locally and on Frame.
   Confirm mixed rendering, grabs and pause/resume with the normal executable
   after Frame production checks. Longer-session memory/stability checks remain
   conditional on larger experience workloads. Additional influence sets and

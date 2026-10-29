@@ -195,3 +195,7 @@ GPU experiment. B/Y finishes; actors also clear after five minutes.
 
 [gpu-skinning-mixed-api.js](gpu-skinning-mixed-api.js) is the mixed backend
 fixture invoked by the GPU regression, including failed reload rollback.
+
+[scenes/gpu-skinning-production.js](scenes/gpu-skinning-production.js) is the
+normal-engine mixed GPU/CPU acceptance scene: grab, A/X pause/resume, bumper
+save/restore, B/Y finish, five-minute cleanup.
