@@ -85,4 +85,10 @@ compositor FPS, automatic-policy measurements or a sustained-performance claim.
 
 ## Normal-engine headset check
 
-The final interactive check in the normal production executable is pending.
+The user accepted the scene in the normal `sf-overlay-engine` executable on
+2026-10-29 using `586e619`, with no diagnostic enabling override. Requested checks
+covered distance changes, grip/trigger grabbing, rotation and release of the car
+and normal-map fixture; the user reported “Everything works.” This completes the
+normal-engine visual acceptance separately from automated correctness and fixed-
+detail timing above. Runtime logs reported no GL errors; close-up adaptive surface
+resizing means live FPS observations are not a controlled performance comparison.
