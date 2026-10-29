@@ -13,7 +13,9 @@ This roadmap contains future work, without prescribing an implementation order.
   approximate sheen tint. Restore geometry fast paths for lit assets only after
   they preserve surface seams, normal/tangent deformation, alpha and stereo
   occlusion, and demonstrate measured benefits. The initial lit path uses full
-  expanded geometry and CPU animation; headset material acceptance is pending.
+  expanded geometry and CPU animation; the interactive ToyCar, unlit and emissive visual checks are accepted.
+  Reflection-based tangent/mirrored-material validation still needs environment
+  illumination; dark pure-metal fixture sections are expected with direct light alone.
 
 ## Scripted experiences
 

@@ -38,8 +38,22 @@ The normal engine also completed a 20-second non-interactive run of
 and clean automatic exit. This smoke run checks startup, scene publication and
 the compositor path; it is not a matched culling performance comparison.
 
-These are automated checks. PBR material appearance and interaction in a live
-headset still require user visual acceptance. There is no environment map in the
+These are automated checks. The user accepted the interactive ToyCar PBR check on 2026-10-29: rendering
+remained correct during grabbing, rotation and head movement, without reported
+flicker, missing parts or jumping highlights. The user also accepted the gallery's unlit and emissive appearance. The user
+reported dark metallic columns in the tangent fixtures, dark blue/metallic
+spheres in NegativeScaleTest, and little visible variation between the
+TextureEncodingTest orbs. The encoding fixture intentionally matches equivalent
+materials across each row; different rows are not required to match.
+
+Inspection of the embedded metallic/roughness texture confirms that the third
+NormalTangentTest section and the metallic half of NormalTangentMirrorTest use
+roughness byte 0 and metalness byte 255. NegativeScaleTest's `So Shiny` material
+is metallic with zero roughness, while its `Dark` dielectric has linear base color
+[.004, .008, .02]. Their darkness is consistent with direct-only lighting and the
+absence of reflected environment illumination. It does not establish a tangent
+failure or prove complete tangent correctness. The reflection-based diagnostic
+checks remain incomplete until environment lighting provides a useful reference. There is no environment map in the
 first PBR implementation; the Khronos reflection-based reference images are not
 pixel goldens for its direct-light output.
 
