@@ -32,7 +32,9 @@
 #include <iterator>
 #include "model_asset.h"
 #include "model_shaders.h"
-#include "model_draw_uniforms.h"
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+#include "../tests/draw-uniforms-experiment.h"
+#endif
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
@@ -2050,7 +2052,9 @@ int main(int argc,char **argv) {
   setVec3(upLocation,anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
   setVec3(forwardLocation,-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
   const ModelDrawLocations drawLocations(program);
+#endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;FrameBoundsCache frameBounds;
@@ -2457,8 +2461,8 @@ int main(int argc,char **argv) {
           auto region=projectedScissor(targetBounds[i],surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
-            ModelDrawUniforms drawUniforms(drawLocations,drawUniformCachingEnabled);
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
+            ModelDrawUniforms drawUniforms(drawLocations,drawUniformCachingEnabled);
             ScopeExit countUniforms{[&]{uniformIssued+=drawUniforms.issued;uniformSkipped+=drawUniforms.skipped;}};
 #endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
@@ -2474,11 +2478,20 @@ int main(int argc,char **argv) {
             };
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
               if(drawUniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
+#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
               if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
 #endif
-              {drawUniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);}
+              {
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+                drawUniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+#else
+                glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+                glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+#endif
+              }
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
@@ -2488,7 +2501,13 @@ int main(int argc,char **argv) {
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(special)special->material(part);else
 #endif
-                {drawUniforms.material(part);}
+                {
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+                  drawUniforms.material(part);
+#else
+                  glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
+#endif
+                }
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
