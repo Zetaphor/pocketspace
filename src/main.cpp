@@ -85,6 +85,7 @@ struct Object {
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
 struct Scene {std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 #include "model_instancing.h"
+#include "pbr_program.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
@@ -583,10 +584,15 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   int eyePixels=kDefaultEyePixels;
   if(argc>1&&JS_ToInt32(ctx,&eyePixels,argv[1])<0)return JS_EXCEPTION;
   if(eyePixels<256||eyePixels>2048||eyePixels%64!=0)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");
+  bool pbr=false,explicitPbr=false;
   bool optimizeVertexCache=false,explicitCache=false,gpuInstancing=true,explicitInstancing=false,lod=true,explicitLod=false;
   if(argc>2&&!JS_IsUndefined(argv[2])){
     if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"model options must be an object");
-    JSValue option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;
+    JSValue option=JS_GetPropertyStr(ctx,argv[2],"pbr");if(JS_IsException(option))return option;
+    explicitPbr=!JS_IsUndefined(option);
+    if(explicitPbr&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"pbr must be a boolean");}
+    if(explicitPbr)pbr=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
+    option=JS_GetPropertyStr(ctx,argv[2],"optimizeVertexCache");if(JS_IsException(option))return option;
     explicitCache=!JS_IsUndefined(option);
     if(explicitCache&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"optimizeVertexCache must be a boolean");}
     if(explicitCache)optimizeVertexCache=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
@@ -603,15 +609,40 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
     if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
     if(explicitCache&&currentScene->assets[i].optimizeVertexCache!=optimizeVertexCache)return JS_ThrowRangeError(ctx,"model already loaded with different optimizeVertexCache options");
     if(explicitInstancing&&currentScene->assets[i].gpuInstancing!=gpuInstancing)return JS_ThrowRangeError(ctx,"model already loaded with different gpuInstancing options");
+    if(explicitPbr&&currentScene->assets[i].pbr!=pbr)return JS_ThrowRangeError(ctx,"model already loaded with different pbr options");
     if(explicitLod&&currentScene->assets[i].lod!=lod)return JS_ThrowRangeError(ctx,"model already loaded with different lod options");
     return JS_NewInt32(ctx,(int)i+1);
   }
-  ModelAsset asset;
+  ModelAsset asset;asset.pbr=pbr;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
   asset.eyePixels=eyePixels;
   asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;asset.lod=lod;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
+}
+static JSValue jsSetModelLighting(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;
+  if(!currentScene||argc<2||JS_ToInt32(ctx,&id,argv[0])<0||id<1||size_t(id)>currentScene->assets.size())return JS_ThrowRangeError(ctx,"unknown asset id");
+  if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"lighting options must be an object");
+  // Copy before running user getters, which may append/reallocate shared assets.
+  const auto path=currentScene->assets[id-1].path;auto candidate=currentScene->assets[id-1].lighting;
+  if(!currentScene->assets[id-1].pbr)return JS_ThrowTypeError(ctx,"lighting requires a model loaded with pbr: true");
+  for(auto [name,destination,low,high]:{std::tuple{"intensity",&candidate.intensity,0.f,64.f},std::tuple{"ambient",&candidate.ambient,0.f,16.f},std::tuple{"exposure",&candidate.exposure,.001f,64.f}}){
+    JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return v;
+    float n=0;bool missing=JS_IsUndefined(v),valid=missing||(JS_IsNumber(v)&&number(ctx,v,n)&&n>=low&&n<=high);JS_FreeValue(ctx,v);
+    if(!valid)return JS_ThrowRangeError(ctx,"invalid lighting %s",name);if(!missing)*destination=n;
+  }
+  for(auto [name,destination,isColor]:{std::tuple{"direction",candidate.direction,false},std::tuple{"color",candidate.color,true}}){
+    JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return v;
+    if(JS_IsUndefined(v)){JS_FreeValue(ctx,v);continue;}
+    if(!JS_IsArray(v)){JS_FreeValue(ctx,v);return JS_ThrowTypeError(ctx,"lighting vectors must be arrays");}
+    JSValue length=JS_GetPropertyStr(ctx,v,"length");if(JS_IsException(length)){JS_FreeValue(ctx,v);return length;}int count=0;bool valid=JS_IsArray(v)&&JS_ToInt32(ctx,&count,length)==0&&count==3;JS_FreeValue(ctx,length);
+    for(int i=0;i<3&&valid;i++){JSValue component=JS_GetPropertyUint32(ctx,v,i);if(JS_IsException(component)){JS_FreeValue(ctx,v);return component;}float n=0;valid=JS_IsNumber(component)&&number(ctx,component,n)&&n>=(isColor?0.f:-64.f)&&n<=64;JS_FreeValue(ctx,component);if(valid)destination[i]=n;}
+    JS_FreeValue(ctx,v);if(!valid)return JS_ThrowRangeError(ctx,"lighting %s must be an array of three finite numbers",name);
+  }
+  double length=0;for(float v:candidate.direction)length+=double(v)*v;if(length<1e-12)return JS_ThrowRangeError(ctx,"light direction must be nonzero");
+  if(size_t(id)>currentScene->assets.size()||currentScene->assets[id-1].path!=path)return JS_ThrowRangeError(ctx,"model changed during lighting option evaluation");
+  currentScene->assets[id-1].lighting=candidate;return JS_UNDEFINED;
 }
 static JSValue jsSetRenderGroupAutoSplit(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   double group=0;
@@ -1110,6 +1141,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
+  bind(candidate.ctx,"setModelLighting",jsSetModelLighting,2);
   bind(candidate.ctx,"createObject",jsCreateObject,6);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
@@ -1968,6 +2000,8 @@ int main(int argc,char **argv) {
   GLuint generalProgram=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
   ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
+  // Validate both material programs before any live scene can be published.
+  PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
 #ifdef SF_GPU_SYNC_EXPERIMENT
   OrdinaryModelProgram ordinaryProgram,skinProgram;
   const GLuint program=ordinaryProgram.select(false)?ordinaryProgram.id():generalProgram;
@@ -2112,6 +2146,7 @@ int main(int argc,char **argv) {
   std::vector<Surface*> ready;FrameBoundsCache frameBounds;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
   ModelInstancing instanceExperiment(ModelInstancing::Instanced);
+
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const char *groupPolicy=std::getenv("SF_GPU_GROUP_POLICY");
   groupOccluderTieBreak=groupPolicy&&std::strcmp(groupPolicy,"occluders")==0;
@@ -2530,6 +2565,7 @@ int main(int argc,char **argv) {
             ScopeExit restoreProgram{[&]{if(special)glUseProgram(program);}};
             if(special)special->view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
 #endif
+            ModelCulling culling;
             auto selected=[&](const Object &object){
               if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))return false;
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))return false;
@@ -2587,10 +2623,22 @@ int main(int argc,char **argv) {
                   glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
 #endif
                 }
+                culling.material(part,object.animationPose.get());
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
 #endif
+                if(asset.pbr){
+                  pbrProgram.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
+                  pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+                  pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part);
+                  ScopeExit restorePbr{[&]{pbrProgram.release();glUseProgram(program);}};
+                  if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part);
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                  gpuSync.draw(unsigned(part.vertexCount));
+#endif
+                  continue;
+                }
                 GLuint activeProgram=program;
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(useSkinProgram)activeProgram=generalProgram;
@@ -2621,7 +2669,7 @@ int main(int argc,char **argv) {
             if(useInstancing){
               std::vector<const Object*> objects;objects.reserve(script.scene.objects.size());for(const auto &object:script.scene.objects)if(selected(object))objects.push_back(&object);
               const float origin[3]={surfaceX,surfaceY,surfaceZ};
-              instanceExperiment.draw(script.scene,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
+              instanceExperiment.draw(script.scene,culling,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 gpuSync.draw(count);
 #else
@@ -2705,6 +2753,11 @@ int main(int argc,char **argv) {
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
       for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
+      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){
+        if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
+        for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
+      }
+      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

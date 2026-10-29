@@ -18,9 +18,10 @@ constexpr int pixels=768;
 struct Renderer {
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
+  PbrProgram pbrProgram;
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
-  bool specialize=false;
+  bool specialize=false,materialCulling=true;
   bool ordinaryRouting=true;
   OrdinaryModelProgram ordinaryProgram,skinProgram;
   bool primitiveVisibility=false;
@@ -83,6 +84,7 @@ struct Renderer {
     const ModelDrawLocations drawLocations(program);
     auto draw=[&](int key,int pass){
       ModelDrawUniforms uniforms(drawLocations,drawUniformCachingEnabled);
+      ModelCulling culling(materialCulling);
       auto selected=[&](const Object &object){
         if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))return false;
         if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))return false;
@@ -103,12 +105,20 @@ struct Renderer {
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           if(primitiveVisibility&&pass<0&&!primitiveBounds.mayDraw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels))continue;
           if(skin)skinProgram.material(part);else uniforms.material(part);
+          culling.material(part,object.animationPose.get());
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
           if(pass<0&&clusterBounds.draw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels,[](unsigned){}))continue;
           const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
           if(special){
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
+          }
+          if(asset.pbr){
+            assert(pbrProgram.init());pbrProgram.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
+            pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
+            pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part);
+            if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part);
+            pbrProgram.release();glUseProgram(program);continue;
           }
           const GLuint activeProgram=skin?generalProgram:program;
           if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
@@ -123,7 +133,7 @@ struct Renderer {
       };
       if(instanceExperiment.mode!=ModelInstancing::Off){
         std::vector<const Object*> objects;for(const auto &object:scene.objects)if(selected(object))objects.push_back(&object);
-        instanceExperiment.draw(scene,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){},[&]{skinBound=false;});return;
+        instanceExperiment.draw(scene,culling,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){},[&]{skinBound=false;});return;
       }
       for(const auto &object:scene.objects)if(selected(object))drawObject(object);
     };
@@ -160,6 +170,7 @@ struct Renderer {
     const auto targetBounds=cached?frameBounds.project(target,eye,r,u,f):projectedBounds(target,scene.assets[size_t(target.asset)-1],anchor,eye,r,u,f);
     auto draw=[&](int targetId,int pass){
       if(pass<0&&!occlusion)return;
+      ModelCulling culling(materialCulling);
       for(const auto &object:scene.objects){
         if(!object.visible||(pass<0?object.id==targetId:object.id!=targetId))continue;
         const auto &asset=scene.assets[size_t(object.asset)-1];
@@ -170,6 +181,7 @@ struct Renderer {
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);
           glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
+          culling.material(part,object.animationPose.get());
           GLuint reference=0;
           if(expanded){auto &buffer=expandedBuffers[&part];if(!buffer){glGenBuffers(1,&buffer);glBindBuffer(GL_ARRAY_BUFFER,buffer);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);}reference=buffer;}
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);drawModelPrimitive(part,reference);

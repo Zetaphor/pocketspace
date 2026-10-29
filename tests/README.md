@@ -985,3 +985,34 @@ for instanced Boxes, GPU-skinned Foxes and merged rigid ranges. Each stage lasts
 four seconds; normal completion clears actors and the runner stops the process.
 It verifies frame/LOD coherence, clean GL status and zero grouped budget charges
 at shutdown. No interactive headset feedback is needed for these counting checks.
+
+## PBR materials
+
+Build `pbr-regression` explicitly. Run from the repository root with a working
+GLES context; no OpenVR session or controller interaction is required:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target pbr-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-regression
+```
+
+Set `SF_PBR_IMAGES=/tmp/pbr-images` to write bounded first-pose PPM previews.
+
+The fixture set includes two high-triangle sphere grids. Keep them in offscreen
+checks rather than assuming they are suitable for a live headset gallery. For
+visual acceptance, run `tests/scenes/pbr-materials.js`; it does not capture pointer
+input. Inspect normal-map orientation, mirrored geometry, uniform unlit colors
+and increasing emissive brightness. `scripts/pbr.js` separately enables grabbing
+and rotation on ToyCar. Automated rendering checks are distinct from headset
+visual acceptance and performance measurements.
+
+`culling-regression` is an additional excluded target. It checks front/back
+visibility and instancing under the shared culling policy. `--benchmark` adds
+ABBA comparisons of culling off/on/on/off: 240 boxes and 32 ToyCars, full detail,
+ordered instancing, one fixed 768×768 offscreen view, alternating eyes, fixed
+camera/object transforms. Each stage warms 30 frames and measures 60. It checks
+GPU disjoint/error flags and reports GPU, enqueue and synchronized frame times.
+It opens no OpenVR session, creates no overlays and captures no pointer input.
+Use an awake/worn headset for meaningful native performance measurements; these
+are offscreen rendering costs, not compositor FPS or sustained thermal results.

@@ -253,9 +253,29 @@ depth for the modeled geometry. For each eye the renderer performs:
 
 There is no general transparency sorting guarantee. Material support includes
 base-color textures/factors, UV transforms, alpha modes, and an approximate
-sheen tint; full physical lighting/PBR and normal/tangent shading are not
-implemented. Model surface output is premultiplied alpha, matching its OpenVR
-flag; masked fragments explicitly premultiply when blending is disabled.
+sheen tint. Opt-in PBR assets use `src/pbr_asset.h`, `src/surface_frame.h` and
+`src/pbr_program.h`: retained normals/tangents and morph deltas, MikkTSpace tangent
+generation, a separate expanded surface-frame VBO, sRGB color/emissive textures,
+linear data textures, and a directional-light GGX metallic/roughness shader.
+Material UV0 transforms and sampler settings are independent. Surface frames use
+inverse-transpose normals and orthogonalized tangents, including mirrored node
+handedness. PBR CPU poses update surface buffers alongside positions and bounds;
+shared textures remain asset-owned. PBR currently bypasses legacy indexing, LOD,
+instancing, rigid batching and GPU skinning to preserve seams and deformation.
+All model paths share a per-pass `ModelCulling` owner: it applies `doubleSided`
+and node-transform winding consistently to member-color, alpha and external-depth
+draws, and skips redundant driver state calls. Instanced batches use the same
+material state; rigid merging stops at incompatible animated winding. Culling and
+front-face state reset before panel/other passes. The [native comparison](../tests/results/culling.md)
+found no repeatable overall throughput gain; this policy implements glTF sidedness. Unlike the old unlit path,
+single-sided back faces are now culled for unlit assets too.
+Both material programs link during startup, before live scene publication;
+reloads do not compile a new shader after committing their candidate scene.
+The separate program restores legacy program, texture-unit and attribute state
+before subsequent objects/panels. Both member-color and external occluder passes
+use the same geometry and alpha policy. Lighting state is per shared asset and
+is captured in snapshot v6, with transactional cache-conflict validation.
+See [lighting API](lighting-api.md) for controls, color mapping and limitations.
 
 Ordered GPU instancing is enabled by default for eligible consecutive same-asset,
 single-primitive, static opaque/masked objects. Runs must also match selected LOD.

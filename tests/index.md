@@ -259,3 +259,26 @@ of malformed, drifting or inequivalent work samples. The
 GPU-skinned and merged-rigid submission totals through the native renderer using
 the bounded non-interactive
 [render-work-validation.js](scenes/render-work-validation.js) scene.
+
+## Model lighting
+
+- [pbr-regression.cpp](pbr-regression.cpp): real GLES tests for opt-in material
+  import/rendering, sRGB transfer, linear packed metal/roughness channels, surface
+  transforms, static/skeletal/morph poses, unlit invariance, GL cleanup, API
+  validation and snapshot compatibility. Does not open an OpenVR session.
+- [scenes/pbr-materials.js](scenes/pbr-materials.js): non-interactive headset
+  gallery for generated/supplied tangents, mirrored nodes, color encoding, unlit
+  materials and emissive strength. The large sphere grids remain offscreen.
+- [PBR fixture inventory](fixtures/pbr/khronos-models.json): pinned upstream Git
+  blobs and SHA-256 hashes for the eight Khronos material diagnostic models.
+
+- [culling-regression.cpp](culling-regression.cpp): front/back visibility for
+  single-/double-sided, mirrored, opaque/masked/blended, PBR/unlit and instanced
+  meshes; GL state cleanup. Optional `--benchmark` measures matched full-detail
+  box/car workloads offscreen with CPU submission and GPU elapsed times.
+- [Bounded surface fixtures](fixtures/pbr/generate.py): original reproducible
+  GLBs for missing normals, mirrored geometry, morph normal/tangent data,
+  unsupported texture-coordinate selection and zero normal-map UV scale.
+
+- [PBR and sidedness validation](results/culling.md): automated coverage, pending
+  headset visual acceptance, and the native culling performance comparison.

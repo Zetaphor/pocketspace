@@ -54,7 +54,7 @@ panel handles remain associated with the old scene.
 ## Included state and limitations
 
 Snapshots save exact model paths, eye resolution, vertex-cache, instancing and LOD
-options; position, Euler rotation, scale and visibility; logical render-group
+options, PBR choice and per-asset lighting; position, Euler rotation, scale and visibility; logical render-group
 membership; and all current object interaction flags, including grip/trigger
 selection and hand rotation axes. Model paths retain their normal working-directory
 semantics; asset files are referenced, not embedded. Keep them available when
@@ -82,12 +82,12 @@ script reload, like calibration writes.
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`.
-New captures use `version: 5`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 6`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
 models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
-requires v4.
+requires v4. V1–v5 models restore with PBR disabled and default lighting.
 
 `models` is an array of at most 32 entries with required fields:
 
@@ -96,6 +96,8 @@ requires v4.
 | `path` | Nonempty model path string without NUL characters; no duplicate paths |
 | `eyePixels` | Integer multiple of 64, from 256 to 2048 |
 | `optimizeVertexCache`, `gpuInstancing`, `lod` | Booleans |
+| `pbr` | Boolean; required in v6. |
+| `lighting` | V6 object with three-component `direction` and `color` arrays, plus numeric `intensity`, `ambient`, and `exposure`; ranges match [model lighting](lighting-api.md). Cached PBR lighting must match. |
 
 `objects` is an array of at most 256 entries with required fields:
 

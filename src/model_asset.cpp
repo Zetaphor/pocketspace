@@ -25,6 +25,8 @@ static bool decodeBaseColor(const cgltf_image *image,PrimitiveAsset &part) {
   stbi_image_free(pixels);
   return true;
 }
+#include "pbr_asset.h"
+
 static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source,ModelAsset &out,float low[3],float high[3],int skinIndex,const std::vector<std::vector<animation::Matrix>> &bindPalettes) {
   if(source.type!=cgltf_primitive_type_triangles){std::fprintf(stderr,"[model] skipping non-triangle primitive\n");return true;}
   const cgltf_accessor *positions=nullptr,*uvs=nullptr;
@@ -74,10 +76,12 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
   const cgltf_image *image=view&&view->texture?view->texture->image:nullptr;
   part.untextured=!image;
   if(!decodeBaseColor(image,part)){std::fprintf(stderr,"[model] base-color image decode failed\n");return false;}
-  animation::Matrix transform;cgltf_node_transform_world(&node,transform.data());
+  if(out.pbr&&!readPbrMaterial(material,view,part))return false;
+  if(out.pbr&&view&&view->texture&&view->texture->sampler){const auto &s=*view->texture->sampler;if(s.wrap_s)part.baseWrapS=s.wrap_s;if(s.wrap_t)part.baseWrapT=s.wrap_t;if(s.min_filter)part.baseMinFilter=s.min_filter;if(s.mag_filter)part.baseMagFilter=s.mag_filter;}
+  animation::Matrix transform;cgltf_node_transform_world(&node,transform.data());part.surfaceMirrored=surfaceFrame::determinant(transform)<0;
   cgltf_size count=source.indices?source.indices->count:positions->count;
   part.vertices.reserve(count*5);
-  if(out.hasAnimation||out.hasSkin||out.hasMorph)part.localVertices.reserve(count*5);
+  if(out.pbr||out.hasAnimation||out.hasSkin||out.hasMorph)part.localVertices.reserve(count*5);
   for(auto &set:part.influences)set.reserve(count);
   for(cgltf_size i=0;i<count;i++){
     cgltf_size index=source.indices?cgltf_accessor_read_index(source.indices,i):i;
@@ -114,11 +118,12 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
       }
     }
     const auto world=skinIndex>=0?animation::skinPoint(morphed,bindPalettes[skinIndex],part.influences,size_t(i)):animation::transformPoint(transform,morphed);
-    if(out.hasAnimation||out.hasSkin||out.hasMorph)part.localVertices.insert(part.localVertices.end(),{p[0],p[1],p[2],uv[0],uv[1]});
+    if(out.pbr||out.hasAnimation||out.hasSkin||out.hasMorph)part.localVertices.insert(part.localVertices.end(),{p[0],p[1],p[2],uv[0],uv[1]});
     for(int axis=0;axis<3;axis++){low[axis]=std::min(low[axis],world[axis]);high[axis]=std::max(high[axis],world[axis]);}
     part.vertices.insert(part.vertices.end(),{world[0],world[1],world[2],uv[0],uv[1]});
   }
   part.vertexCount=(GLsizei)count;
+  if(out.pbr&&!readPbrSurface(source,positions,uvs,node,part,transform,bindPalettes))return false;
   if(source.targets_count)out.hasMorph=true;
   out.primitives.push_back(std::move(part));
   return true;
@@ -202,7 +207,7 @@ bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primit
 #endif
  if(!rigidBatchEnabled||!asset.rigidBatchEligible||pose.gpuSkin||!pose.geometry.batchVbo)return false;
  const auto &part=asset.primitives[primitive];size_t end=primitive+1;
- while(end<asset.primitives.size()&&sameRigidMaterial(part,asset.primitives[end]))++end;
+ while(end<asset.primitives.size()&&sameRigidMaterial(part,asset.primitives[end])&&(part.doubleSided||modelPrimitiveMirrored(part,&pose)==modelPrimitiveMirrored(asset.primitives[end],&pose)))++end;
  if(end==primitive+1)return false;
  const GLint first=pose.parts[primitive].streamFirst;GLsizei count=0;
  for(size_t p=primitive;p<end;p++)count+=asset.primitives[p].vertexCount;
@@ -248,9 +253,9 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
     out.low[axis]=(low[axis]-high[axis])*.5f*scale;
     out.high[axis]=(high[axis]-low[axis])*.5f*scale;
   }
-  prepareSkinAsset(out);
+  if(!out.pbr)prepareSkinAsset(out);
   uint64_t streamVertices=0;for(const auto &part:out.primitives)streamVertices+=uint64_t(part.vertexCount);
-  if(out.hasAnimation&&!out.hasSkin&&!out.hasMorph&&streamVertices<=uint64_t(std::numeric_limits<GLsizei>::max())&&std::all_of(out.primitives.begin(),out.primitives.end(),[](const auto &p){return p.vertexCount>0&&p.vertexCount%3==0;}))
+  if(!out.pbr&&out.hasAnimation&&!out.hasSkin&&!out.hasMorph&&streamVertices<=uint64_t(std::numeric_limits<GLsizei>::max())&&std::all_of(out.primitives.begin(),out.primitives.end(),[](const auto &p){return p.vertexCount>0&&p.vertexCount%3==0;}))
     for(size_t i=1;i<out.primitives.size();i++)if(sameRigidMaterial(out.primitives[i-1],out.primitives[i]))out.rigidBatchEligible=true;
   const auto pickingStart=std::chrono::steady_clock::now();
   picking::build(out);
@@ -299,11 +304,11 @@ void uploadModel(ModelAsset &asset){
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
     glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
-    auto indexed=mesh::index(part.vertices);
+    auto indexed=asset.pbr?mesh::Indexed{}:mesh::index(part.vertices);
     const size_t unique=indexed.vertices.size()/5;
     part.indexType=unique<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
     const size_t indexSize=part.indexType==GL_UNSIGNED_SHORT?sizeof(uint16_t):sizeof(uint32_t);
-    if(indexed.vertices.size()*sizeof(float)+size_t(part.vertexCount)*indexSize<part.vertices.size()*sizeof(float)){
+    if(!asset.pbr&&indexed.vertices.size()*sizeof(float)+size_t(part.vertexCount)*indexSize<part.vertices.size()*sizeof(float)){
 #ifdef SF_MODEL_LOD_EXPERIMENT
       lodExperiment::simplify(asset,part,indexed);
 #endif
@@ -326,12 +331,21 @@ void uploadModel(ModelAsset &asset){
     }else{
       glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);part.gpuVertexCount=part.vertexCount;
     }
+    if(asset.pbr){
+      uploadSurface(part,GL_STATIC_DRAW);
+      for(size_t i=0;i<4;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
+        glGenTextures(1,&map.texture);glBindTexture(GL_TEXTURE_2D,map.texture);
+        glTexImage2D(GL_TEXTURE_2D,0,i==3?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,map.minFilter);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,map.magFilter);
+        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,map.wrapS);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,map.wrapT);glGenerateMipmap(GL_TEXTURE_2D);map.rgba.clear();
+      }
+    }
     glGenTextures(1,&part.texture);glBindTexture(GL_TEXTURE_2D,part.texture);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,part.width,part.height,0,GL_RGBA,GL_UNSIGNED_BYTE,part.rgba.data());
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+    glTexImage2D(GL_TEXTURE_2D,0,asset.pbr?GL_SRGB8_ALPHA8:GL_RGBA,part.width,part.height,0,GL_RGBA,GL_UNSIGNED_BYTE,part.rgba.data());
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,part.baseMinFilter);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,part.baseMagFilter);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,part.baseWrapS);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,part.baseWrapT);
     glGenerateMipmap(GL_TEXTURE_2D);
     part.rgba.clear();
   }
@@ -352,6 +366,8 @@ void deleteModel(ModelAsset &asset){
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
     glDeleteVertexArrays(3,part.vertexArrays);std::fill_n(part.vertexArrays,3,0);
 #endif
+    if(part.surfaceVbo)glDeleteBuffers(1,&part.surfaceVbo);part.surfaceVbo=0;
+    for(auto &map:part.maps){if(map.texture)glDeleteTextures(1,&map.texture);map.texture=0;}
     if(part.skinVbo)glDeleteBuffers(1,&part.skinVbo);if(part.skinIbo)glDeleteBuffers(1,&part.skinIbo);part.skinVbo=part.skinIbo=0;
 #ifdef SF_MODEL_LOD_EXPERIMENT
     lodExperiment::results.erase(&part);
@@ -404,7 +420,7 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
   if(pose.geometry.primitives.empty()){
     pose.geometry.primitives.resize(asset.primitives.size());
     for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
-    pose.geometry.rigidBatchEligible=asset.rigidBatchEligible;
+    pose.geometry.rigidBatchEligible=asset.rigidBatchEligible;pose.geometry.pbr=asset.pbr;
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
 #ifdef SF_ANIMATION_PROFILE
@@ -431,6 +447,7 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
       }
       cache.radius=std::max(cache.radius,std::sqrt(radiusSquared));
     }
+      if(asset.pbr)deformSurface(source,target,matrix,source.skin>=0?&pose.palettes[source.skin]:nullptr,pose.nodes[source.node].weights);
       cache.world=matrix;cache.valid=true;
 #ifdef SF_ANIMATION_PROFILE
       if(animationProfileFrame)animationProfileFrame->vertices+=source.localVertices.size()/5;
@@ -503,6 +520,7 @@ void uploadModelPose(ModelPose &pose){
       prepareVertexArrays(part);
 #endif
     }
+    if(pose.geometry.pbr)uploadSurface(part,GL_DYNAMIC_DRAW);
     cache.uploadDirty=false;
   }
   pose.dirty=false;

@@ -92,7 +92,8 @@ uniform float panelHalfWidth;
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
     geometry|=multipart.enabled&&object.lodLevel==0&&MultipartInstancingExperiment::eligible(asset);
 #endif
-    return geometry&&asset.gpuInstancing&&pass<=0&&!object.animationPose&&!asset.hasAnimation&&!asset.hasSkin&&!asset.hasMorph;
+    if(asset.primitives.size()>1&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){const auto &first=asset.primitives[0];return p.doubleSided!=first.doubleSided||(!p.doubleSided&&p.surfaceMirrored!=first.surfaceMirrored);}))return false;
+    return !asset.pbr&&geometry&&asset.gpuInstancing&&pass<=0&&!object.animationPose&&!asset.hasAnimation&&!asset.hasSkin&&!asset.hasMorph;
   }
 public:
   explicit ModelInstancing(Mode initial=Off):mode(initial){}
@@ -113,7 +114,7 @@ public:
 #endif
   GLuint instanceBuffer()const{return buffer;}
   uint64_t submittedBatches()const{return totalBatches;}
-  template<class Fallback,class Count,class Restored=std::nullptr_t> void draw(const Scene &scene,const std::vector<const Object*> &objects,int pass,GLuint baseline,const vr::HmdMatrix34_t &anchor,const float center[3],const float eye[3],const float r[3],const float u[3],const float f[3],float halfWidth,const float origin[3],Fallback fallback,Count count,Restored restored=nullptr){
+  template<class Fallback,class Count,class Restored=std::nullptr_t> void draw(const Scene &scene,ModelCulling &culling,const std::vector<const Object*> &objects,int pass,GLuint baseline,const vr::HmdMatrix34_t &anchor,const float center[3],const float eye[3],const float r[3],const float u[3],const float f[3],float halfWidth,const float origin[3],Fallback fallback,Count count,Restored restored=nullptr){
     if(mode==Original)ensure();
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
     // Both paths retain identical combined storage in controlled comparisons.
@@ -139,6 +140,7 @@ public:
       for(size_t n=begin;n<end;n++){
         const auto &o=*objects[n];staging.push_back({{o.x-origin[0],o.y-origin[1],o.z-origin[2],o.scale},{o.pitch,o.yaw,o.roll}});
       }
+      culling.material(part);
       active->view(anchor,center,eye,r,u,f,halfWidth);
 #ifdef SF_HAS_MULTIPART_EXPERIMENT
       if(multi){for(size_t n=0;n<asset.primitives.size();n++){const auto &p=asset.primitives[n];const auto &locations=multipartLocations[n];

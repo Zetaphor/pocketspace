@@ -53,6 +53,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 | Script | Demonstrates |
 | --- | --- |
+| [pbr.js](scripts/pbr.js) | Opt-in metallic/roughness lighting, normal maps, and hand rotation |
 | [avocado.js](scripts/avocado.js) | Load and place one model |
 | [sample-gallery.js](scripts/sample-gallery.js) | Multiple assets and animated object transforms |
 | [full-sphere-gallery.js](scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |
@@ -88,6 +89,8 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 ## Documentation
 
+- [Model lighting and PBR](docs/lighting-api.md)
+
 - [Engine architecture](docs/architecture.md): complete runtime, rendering, ownership, and optimization pipeline.
 
 - [JavaScript API](docs/javascript-api.md): runtime, engine statistics, models, interaction, controllers, and events.
@@ -116,6 +119,8 @@ supported data and limits.
 
 This project is licensed under the [MIT License](LICENSE).
 Third-party code and sample assets retain their respective licenses.
+MikkTSpace by Morten S. Mikkelsen supplies tangent generation; its license is
+retained in [the upstream source](third_party/mikktspace.h).
 Sample sources and licenses are listed in [asset attribution](assets/samples/ATTRIBUTION.md).
 The glTF loader uses [cgltf](https://github.com/jkuhlmann/cgltf), vendored at
 commit `85cd62382dfea638278962690cf515023f33ed00`; see
