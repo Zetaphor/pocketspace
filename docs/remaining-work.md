@@ -5,15 +5,15 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- GPU skeletal skinning for larger animated scenes. The
-  [completed Frame profile](../tests/results/animation-profile.md) measured
-  32 CesiumMan instances at 51.5 FPS animated versus 89.8 FPS paused, with
-  10.98 ms/frame in CPU deformation/bounds and BVH refits. Design conservative
-  joint-influence bounds and accurate ray-candidate picking alongside GPU
-  deformation; retaining complete CPU deformation/refitting would preserve most
-  of that cost. Measure indexed deformed rendering and shader cost before
-  adoption. Preserve all supported influences, morph order, transitions,
-  per-instance poses and coherent stereo color/depth rendering.
+- Finish production readiness for GPU skeletal skinning. The isolated
+  [Frame prototype](../tests/results/gpu-skinning.md) improved 32 animated
+  CesiumMan instances from 50.4 to 88.3 FPS with conservative joint bounds and
+  lazy exact picking; correctness checks passed. Obtain headset visual acceptance,
+  measure active ray-candidate interaction costs, and broaden model/material and
+  multi-part coverage before adoption. Support additional influence sets and
+  morph-before-skin combinations, or retain explicit CPU fallback. Preserve
+  transitions, per-instance poses, resource lifetime and coherent stereo
+  color/depth rendering. Normal builds still use CPU skinning.
 - Profile larger rigid-node and morph workloads before moving their vertex
   deformation to the GPU; the completed workload establishes a skeletal cost,
   not a bottleneck for every animation path.

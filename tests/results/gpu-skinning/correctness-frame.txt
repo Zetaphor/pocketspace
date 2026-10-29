@@ -1,0 +1,11 @@
+SKIN_PIXELS time=0.00 eye=-0.032 differing_pixels=0 visible=3145
+SKIN_PIXELS time=0.00 eye=0.032 differing_pixels=0 visible=3128
+SKIN_PIXELS time=0.20 eye=-0.032 differing_pixels=0 visible=3313
+SKIN_PIXELS time=0.20 eye=0.032 differing_pixels=0 visible=3250
+SKIN_PIXELS time=0.70 eye=-0.032 differing_pixels=0 visible=3337
+SKIN_PIXELS time=0.70 eye=0.032 differing_pixels=0 visible=3311
+SKIN_PIXELS time=1.20 eye=-0.032 differing_pixels=0 visible=3346
+SKIN_PIXELS time=1.20 eye=0.032 differing_pixels=0 visible=3310
+SKIN_PIXELS time=1.80 eye=-0.032 differing_pixels=0 visible=3270
+SKIN_PIXELS time=1.80 eye=0.032 differing_pixels=0 visible=3271
+PASS GPU skinning: transform-feedback vertices, conservative bounds, stereo color/depth pixels, 3000 exact picking comparisons, lazy per-pose cache, palette uploads and CPU fallback

@@ -309,3 +309,22 @@ targets. Normal builds have no phase timers. Keep deformation/bounds fused;
 separating their loops for timing would change the workload. See the
 [Frame results and next design constraints](../tests/results/animation-profile.md)
 before implementing GPU skinning or duplicating CPU picking geometry work.
+
+
+GPU skinning remains isolated behind `SF_GPU_SKIN_EXPERIMENT` in the excluded
+`gpu-skinning-experiment` and `gpu-skinning-regression` targets. Normal builds
+retain CPU skinning. The prototype accepts entirely skinned, non-morph assets
+with one four-lane influence set per primitive and at most 1,024 joints per skin;
+other assets fall back to CPU. Exact indexed keys include position, UV, joints
+and weights. Shared geometry belongs to the asset; palette textures belong to
+independent poses and are destroyed with them.
+
+Use transformed joint-influence boxes for conservative animated bounds. Both
+experimental CPU/GPU modes use those same bounds for comparable compositor
+layouts. Reject ray misses before exact CPU deformation/BVH refitting; cache
+candidate geometry once per evaluated pose, sharing it between hands. Preserve
+conservative bounds and GPU upload dirtiness when filling that cache. Never
+retain unconditional CPU deformation beside the GPU path. Common shaders apply
+the same skin transform to color/depth passes; reset skin attributes and uniform
+state after draws. See the [Frame comparison](../tests/results/gpu-skinning.md)
+for results, eligibility, checks and remaining adoption work.
