@@ -204,6 +204,10 @@ was needed. Documentation lint, site build and whitespace checks passed.
 
 [Frame production evidence](gpu-skinning/production-frame.txt) records correctness,
 not a new performance comparison. The final normal-engine mixed scene is
-[documented here](../README.md#normal-engine-mixed-backend-acceptance); user
-acceptance of this final integration remains pending. Earlier prototype visual
-and grabbing acceptance still apply to their recorded workloads.
+[documented here](../README.md#normal-engine-mixed-backend-acceptance). On
+2026-10-28 the user confirmed that grabbing, A/X pause/resume, bumper
+save/restore and rendering during head movement all worked with the normal
+executable (`ea490de` build, `06f2174` scene). The demo was stopped after
+feedback. Automatic GPU skinning with CPU fallback is accepted; the completed
+production integration item has been removed from the backlog. This acceptance
+is separate from the earlier controlled prototype performance comparison.
