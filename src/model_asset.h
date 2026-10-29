@@ -4,6 +4,7 @@
 #include <vector>
 #include "picking_bvh.h"
 #include "animation.h"
+#include "animation_profile.h"
 
 struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;};
 struct PrimitiveAsset {

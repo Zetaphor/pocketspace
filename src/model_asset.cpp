@@ -323,6 +323,9 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
     for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
+#ifdef SF_ANIMATION_PROFILE
+  const auto profilePoseStart=AnimationProfileClock::now();
+#endif
   animation::evaluateNodes(asset.nodes,asset.animations[state.clip],state.time,pose.nodes);
   const auto &blend=state.transition;
   if(blend.active()){
@@ -331,6 +334,10 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
   }
   animation::worldMatrices(pose.nodes,asset.nodeOrder,pose.world);
   animation::palettes(asset.skins,pose.world,pose.palettes);
+#ifdef SF_ANIMATION_PROFILE
+  if(animationProfileFrame){animationProfileFrame->poseMs+=animationProfileMs(profilePoseStart);animationProfileFrame->evaluations++;}
+  const auto profileDeformStart=AnimationProfileClock::now();
+#endif
   pose.radius=0;
   for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::numeric_limits<float>::max();pose.geometry.high[axis]=-std::numeric_limits<float>::max();}
   for(size_t i=0;i<asset.primitives.size();i++){
@@ -347,14 +354,28 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
       pose.radius=std::max(pose.radius,std::sqrt(radiusSquared));
     }
   }
+#ifdef SF_ANIMATION_PROFILE
+  if(animationProfileFrame){animationProfileFrame->deformBoundsMs+=animationProfileMs(profileDeformStart);for(const auto &part:asset.primitives)animationProfileFrame->vertices+=part.localVertices.size()/5;}
+  const auto profileBvhStart=AnimationProfileClock::now();
+#endif
   picking::refit(pose.geometry);pose.dirty=true;
+#ifdef SF_ANIMATION_PROFILE
+  if(animationProfileFrame)animationProfileFrame->bvhMs+=animationProfileMs(profileBvhStart);
+#endif
 }
 void uploadModelPose(ModelPose &pose){
   if(!pose.dirty)return;
+#ifdef SF_ANIMATION_PROFILE
+  const auto profileUploadStart=AnimationProfileClock::now();
+  if(animationProfileFrame){animationProfileFrame->uploads++;for(const auto &part:pose.geometry.primitives)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);}
+#endif
   for(auto &part:pose.geometry.primitives){
     part.gpuVertexCount=part.vertexCount;
     if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
     else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
   }
   pose.dirty=false;
+#ifdef SF_ANIMATION_PROFILE
+  if(animationProfileFrame)animationProfileFrame->uploadMs+=animationProfileMs(profileUploadStart);
+#endif
 }

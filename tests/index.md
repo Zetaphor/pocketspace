@@ -16,6 +16,9 @@ performance experiments are separate from correctness and visual acceptance.
 | [morph-api-smoke.js](morph-api-smoke.js) | Morph clip playback and stop/reset through real bindings. |
 | [animation-blend-regression.cpp](animation-blend-regression.cpp) | TRS/morph blending, live clocks, interruptions, animated picking, pause/endpoints and v5 persistence. |
 | [animation-blend-api-smoke.js](animation-blend-api-smoke.js) | Actual animation transition options and malformed save fixtures for the blend harness. |
+| [animation-profile-regression.cpp](animation-profile-regression.cpp) | Real GLES animation phase counters, upload byte totals, clean-pose skip and stable sampling windows. |
+| [animation-profile-scene.cjs](animation-profile-scene.cjs) | Automated animated/paused stage counts, completion cleanup and abort behavior. |
+| [animation-profile-analysis-test.py](animation-profile-analysis-test.py) | Warmup filtering, weighted summaries and incomplete/mixed run rejection. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
 | [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes exercised through real script bindings without a VR session. |
@@ -176,3 +179,7 @@ validation output associated with those reports, rather than additional tests.
 | [results/physics-persistence.md](results/physics-persistence.md) | V2 body/joint/motor roundtrips, construction frame preservation, native rollback, v1 compatibility, live simulation cleanup and accepted headset check. |
 | [results/animation-persistence.md](results/animation-persistence.md) | V3 skin/rigid playback and independent-pose roundtrips, legacy compatibility, rollback, live resource cleanup and accepted headset check. |
 | [results/panel-persistence.md](results/panel-persistence.md) | V4 lossless pixels/layout/handles, raw/RLE bounds, pointer reconnection, native rollback, legacy compatibility, live mixed-scene cleanup and accepted headset check. |
+
+## Animated-model profiling
+
+[scenes/animation-profile.js](scenes/animation-profile.js) runs bounded animated/paused character stages with a HUD. The excluded `animation-profile-experiment` target adds phase timers to the real engine. [analyze-animation-profile.py](analyze-animation-profile.py) summarizes steady windows; see [the profiling instructions](README.md#animated-model-performance-profiling).
