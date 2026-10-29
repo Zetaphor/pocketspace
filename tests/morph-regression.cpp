@@ -32,5 +32,13 @@ int main(int argc,char **argv){
  const auto *source=findObject(id("morphSource")),*copy=findObject(id("morphCopy"));
  assert(source&&copy&&source->animationPose&&copy->animationPose&&source->animationPose!=copy->animationPose);
  assert(source->animationPose->geometry.primitives[0].vertices==copy->animationPose->geometry.primitives[0].vertices);
+ closeScript(host);
+ assert(loadScript(host,"scripts/morph.js"));
+ auto button=[&](const char *hand,bool down){frame_input::Event event{};event.type="controller.button";event.hand=hand;event.control="/input/a/click";event.component.boolean=down;JSValue value=inputEventValue(host.ctx,event),result=JS_Call(host.ctx,inputCallback,JS_UNDEFINED,1,&value);assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);JS_FreeValue(host.ctx,value);};
+ auto playing=[&]{return host.scene.objects[0].animation.playing;};
+ assert(playing());button("right",true);assert(!playing());
+ button("right",true);button("right",true);assert(!playing());
+ button("right",false);button("right",true);assert(playing());
+ button("left",true);assert(!playing());
  puts("PASS morph defaults, five-target STEP/LINEAR/CUBICSPLINE, morph-before-skin, bounds, picking, independent instances, malformed inputs and API");
 }
