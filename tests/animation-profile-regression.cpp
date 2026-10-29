@@ -45,7 +45,10 @@ int main(){
    for(int axis=0;axis<3;axis++)assert(cached.geometry.low[axis]==reference.geometry.low[axis]&&cached.geometry.high[axis]==reference.geometry.high[axis]);
    for(size_t part=0;part<asset.primitives.size();part++){
     const auto &a=cached.geometry.primitives[part],&b=reference.geometry.primitives[part];assert(a.vertices==b.vertices);
-    glBindBuffer(GL_ARRAY_BUFFER,a.vbo);const auto *data=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,0,a.vertices.size()*sizeof(float),GL_MAP_READ_BIT));assert(data);
+    const auto stream=cached.geometry.batchVbo;
+    if(stream)assert(a.vbo==0);
+    glBindBuffer(GL_ARRAY_BUFFER,stream?stream:a.vbo);const auto offset=stream?size_t(cached.parts[part].streamFirst)*5*sizeof(float):0;
+    const auto *data=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,offset,a.vertices.size()*sizeof(float),GL_MAP_READ_BIT));assert(data);
     assert(std::equal(a.vertices.begin(),a.vertices.end(),data));glUnmapBuffer(GL_ARRAY_BUFFER);
    }
    assert(cached.geometry.pickNodes.size()==reference.geometry.pickNodes.size());

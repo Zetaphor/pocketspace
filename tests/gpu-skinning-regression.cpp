@@ -73,7 +73,7 @@ int main(int argc,char **argv){
    for(size_t p=0;p<asset.primitives.size();p++){
     const auto &part=asset.primitives[p];if((selected>=0&&int(p)!=selected)||(part.alphaMode==2)!=bool(pass))continue;glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
     if(bindSkinPrimitive(asset,part,pose,program)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);}
-    else drawModelPrimitive(part,pose.geometry.primitives[p].vbo);
+    else drawPosePrimitive(part,pose,p);
    }
    }
    glDepthMask(GL_TRUE);glDisable(GL_BLEND);
@@ -149,10 +149,11 @@ int main(int argc,char **argv){
   ScopeExit remove{[&]{std::filesystem::remove(invalid);}};
   std::ofstream(invalid)<<"loadModel('assets/samples/Fox/Fox.glb');throw Error('EXPECTED_GPU_ROLLBACK')";
   auto js=[&](const char *code){auto result=JS_Eval(host.ctx,code,strlen(code),"mixed-skin",JS_EVAL_TYPE_GLOBAL);assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);};
-  std::vector<GLuint> oldTextures;
+  std::vector<GLuint> oldTextures,oldStreams;
   for(int cycle=0;cycle<30;cycle++){
    assert(loadScript(host,"tests/gpu-skinning-mixed-api.js"));
    for(auto texture:oldTextures)assert(!glIsTexture(texture));oldTextures.clear();
+   for(auto buffer:oldStreams)assert(!glIsBuffer(buffer));oldStreams.clear();
    for(auto &asset:host.scene.assets)uploadModel(asset);
    for(auto &object:host.scene.objects)if(object.animationPose)uploadModelPose(*object.animationPose);
    auto *original=host.ctx;assert(!loadScript(host,invalid.string()));assert(host.ctx==original&&host.scene.objects.size()==6);
@@ -163,18 +164,28 @@ int main(int argc,char **argv){
      assert(bool(a.animationPose)==bool(b.animationPose));if(!a.animationPose)continue;
      auto &source=host.scene.assets[a.asset-1];auto &pa=*a.animationPose,&pb=*b.animationPose;
      assert(pa.gpuSkin==(i<3)&&pb.gpuSkin==pa.gpuSkin&&pa.world==pb.world&&pa.palettes==pb.palettes);
-     uploadModelPose(pb);if(pa.gpuSkin){prepareSkinPicking(source,pa);prepareSkinPicking(source,pb);}
+     uploadModelPose(pa);uploadModelPose(pb);
+     if(source.rigidBatchEligible){
+      assert(pa.geometry.batchVbo&&pb.geometry.batchVbo&&pa.geometry.batchVbo!=pb.geometry.batchVbo);
+      size_t bytes=0;
+      for(const auto &part:pa.geometry.primitives){assert(part.vbo==0);bytes+=part.vertices.size()*sizeof(float);}
+      for(const auto &part:pb.geometry.primitives)assert(part.vbo==0);
+      assert(pa.geometry.batchBytes==bytes&&pb.geometry.batchBytes==bytes);
+     }
+     if(pa.gpuSkin){prepareSkinPicking(source,pa);prepareSkinPicking(source,pb);}
      for(size_t part=0;part<pa.geometry.primitives.size();part++)assert(pa.geometry.primitives[part].vertices==pb.geometry.primitives[part].vertices);
     }
-    std::vector<GLuint> copied;
+    std::vector<GLuint> copied,copiedStreams;
     for(size_t i=6;i<12;i++)if(auto pose=host.scene.objects[i].animationPose)copied.insert(copied.end(),pose->skinTextures.begin(),pose->skinTextures.end());
-    js("discardMixed()");assert(host.scene.objects.size()==6);for(auto texture:copied)assert(!glIsTexture(texture));
+    for(size_t i=6;i<12;i++)if(auto pose=host.scene.objects[i].animationPose)if(pose->geometry.batchVbo)copiedStreams.push_back(pose->geometry.batchVbo);
+    js("discardMixed()");assert(host.scene.objects.size()==6);for(auto texture:copied)assert(!glIsTexture(texture));for(auto buffer:copiedStreams)assert(!glIsBuffer(buffer));
     if(!phase)js("interruptMixed()");
    }
+   for(auto &object:host.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)oldStreams.push_back(object.animationPose->geometry.batchVbo);
    for(auto &object:host.scene.objects)if(object.animationPose)oldTextures.insert(oldTextures.end(),object.animationPose->skinTextures.begin(),object.animationPose->skinTextures.end());
   }
-  closeScript(host);for(auto texture:oldTextures)assert(!glIsTexture(texture));currentScene=liveScene=nullptr;
-  assert(glGetError()==GL_NO_ERROR);puts("PASS GPU production lifecycle: 30 mixed-scene reloads, failed reload rollback, independent live/frozen snapshots, CPU fallbacks and texture cleanup");
+  closeScript(host);for(auto buffer:oldStreams)assert(!glIsBuffer(buffer));for(auto texture:oldTextures)assert(!glIsTexture(texture));currentScene=liveScene=nullptr;
+  assert(glGetError()==GL_NO_ERROR);puts("PASS GPU production lifecycle: 30 mixed-scene reloads, failed reload rollback, independent live/frozen snapshots, CPU fallbacks, independent owned streams and resource cleanup");
  }
  if(argc>2&&std::string(argv[2])=="--profile-picking")profilePicking();
  eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);

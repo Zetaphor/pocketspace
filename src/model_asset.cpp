@@ -72,9 +72,7 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
     }
   }
   const cgltf_image *image=view&&view->texture?view->texture->image:nullptr;
-#ifdef SF_RIGID_BATCH_EXPERIMENT
   part.untextured=!image;
-#endif
   if(!decodeBaseColor(image,part)){std::fprintf(stderr,"[model] base-color image decode failed\n");return false;}
   animation::Matrix transform;cgltf_node_transform_world(&node,transform.data());
   cgltf_size count=source.indices?source.indices->count:positions->count;
@@ -195,24 +193,27 @@ static bool loadAnimations(const cgltf_data &data,ModelAsset &out){
   }
   return true;
 }
-#ifdef SF_RIGID_BATCH_EXPERIMENT
 static bool sameRigidMaterial(const PrimitiveAsset &a,const PrimitiveAsset &b){
  return a.untextured&&b.untextured&&a.alphaMode!=2&&a.alphaMode==b.alphaMode&&a.alphaCutoff==b.alphaCutoff&&a.doubleSided==b.doubleSided&&std::equal(a.factor,a.factor+4,b.factor)&&std::equal(a.sheen,a.sheen+3,b.sheen);
 }
 bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primitive){
+#if defined(SF_RIGID_BATCH_EXPERIMENT) || defined(SF_RIGID_BATCH_COUNTERS)
  ++rigidBatchStats.draws;
+#endif
  if(!rigidBatchEnabled||!asset.rigidBatchEligible||pose.gpuSkin||!pose.geometry.batchVbo)return false;
  const auto &part=asset.primitives[primitive];size_t end=primitive+1;
  while(end<asset.primitives.size()&&sameRigidMaterial(part,asset.primitives[end]))++end;
  if(end==primitive+1)return false;
- GLint first=0;GLsizei count=0;
- for(size_t p=0;p<primitive;p++)first+=asset.primitives[p].vertexCount;
+ const GLint first=pose.parts[primitive].streamFirst;GLsizei count=0;
  for(size_t p=primitive;p<end;p++)count+=asset.primitives[p].vertexCount;
  glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);
  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
- glDrawArrays(GL_TRIANGLES,first,count);rigidBatchStats.mergedParts+=end-primitive;primitive=end-1;return true;
-}
+ glDrawArrays(GL_TRIANGLES,first,count);
+#if defined(SF_RIGID_BATCH_EXPERIMENT) || defined(SF_RIGID_BATCH_COUNTERS)
+ rigidBatchStats.mergedParts+=end-primitive;
 #endif
+ primitive=end-1;return true;
+}
 bool loadModelFile(const std::string &path,ModelAsset &out) {
   cgltf_options options{};cgltf_data *data=nullptr;
   auto result=cgltf_parse_file(&options,path.c_str(),&data);
@@ -248,9 +249,9 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
     out.high[axis]=(high[axis]-low[axis])*.5f*scale;
   }
   prepareSkinAsset(out);
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-  if(out.hasAnimation&&!out.hasSkin&&!out.hasMorph&&std::all_of(out.primitives.begin(),out.primitives.end(),[](const auto &p){return p.vertexCount%3==0;}))for(size_t i=1;i<out.primitives.size();i++)if(sameRigidMaterial(out.primitives[i-1],out.primitives[i]))out.rigidBatchEligible=true;
-#endif
+  uint64_t streamVertices=0;for(const auto &part:out.primitives)streamVertices+=uint64_t(part.vertexCount);
+  if(out.hasAnimation&&!out.hasSkin&&!out.hasMorph&&streamVertices<=uint64_t(std::numeric_limits<GLsizei>::max())&&std::all_of(out.primitives.begin(),out.primitives.end(),[](const auto &p){return p.vertexCount>0&&p.vertexCount%3==0;}))
+    for(size_t i=1;i<out.primitives.size();i++)if(sameRigidMaterial(out.primitives[i-1],out.primitives[i]))out.rigidBatchEligible=true;
   const auto pickingStart=std::chrono::steady_clock::now();
   picking::build(out);
   const double pickingBuildMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
@@ -346,9 +347,7 @@ void uploadModel(ModelAsset &asset){
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
-#ifdef SF_RIGID_BATCH_EXPERIMENT
   if(asset.batchVbo)glDeleteBuffers(1,&asset.batchVbo);asset.batchVbo=0;asset.batchBytes=0;
-#endif
   for(auto &part:asset.primitives){
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
     glDeleteVertexArrays(3,part.vertexArrays);std::fill_n(part.vertexArrays,3,0);
@@ -384,6 +383,19 @@ void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLev
   else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
 }
 
+void drawPosePrimitive(const PrimitiveAsset &source,const ModelPose &pose,size_t primitive){
+ if(pose.geometry.batchVbo){
+  glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);
+  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
+  glDrawArrays(GL_TRIANGLES,pose.parts[primitive].streamFirst,source.vertexCount);return;
+ }
+ drawModelPrimitive(source,pose.geometry.primitives[primitive].vbo,0
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+   ,&pose.geometry.primitives[primitive]
+#endif
+ );
+}
+
 ModelPose::~ModelPose(){
  for(auto texture:skinTextures)if(texture)glDeleteTextures(1,&texture);
  deleteModel(geometry);
@@ -392,9 +404,7 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
   if(pose.geometry.primitives.empty()){
     pose.geometry.primitives.resize(asset.primitives.size());
     for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
-#ifdef SF_RIGID_BATCH_EXPERIMENT
     pose.geometry.rigidBatchEligible=asset.rigidBatchEligible;
-#endif
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
 #ifdef SF_ANIMATION_PROFILE
@@ -471,36 +481,28 @@ void uploadModelPose(ModelPose &pose){
   if(animationProfileFrame)animationProfileFrame->uploads++;
 #endif
   pose.parts.resize(pose.geometry.primitives.size());
-#ifdef SF_RIGID_BATCH_EXPERIMENT
   if(pose.geometry.rigidBatchEligible&&!pose.geometry.batchVbo){
     for(const auto &part:pose.geometry.primitives)pose.geometry.batchBytes+=part.vertices.size()*sizeof(float);
     glGenBuffers(1,&pose.geometry.batchVbo);glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);glBufferData(GL_ARRAY_BUFFER,pose.geometry.batchBytes,nullptr,GL_DYNAMIC_DRAW);
   }
-  size_t batchOffset=0;
-#endif
+  size_t byteOffset=0;
   for(size_t i=0;i<pose.geometry.primitives.size();i++){
     auto &part=pose.geometry.primitives[i];auto &cache=pose.parts[i];
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-    const auto partOffset=batchOffset;batchOffset+=part.vertices.size()*sizeof(float);
-#endif
-    if(part.vbo&&cache.valid&&!cache.uploadDirty)continue;
+    const auto offset=byteOffset;byteOffset+=part.vertices.size()*sizeof(float);cache.streamFirst=GLint(offset/(5*sizeof(float)));
+    if(cache.valid&&!cache.uploadDirty&&(pose.geometry.batchVbo||part.vbo))continue;
 #ifdef SF_ANIMATION_PROFILE
     if(animationProfileFrame)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);
 #endif
-    part.gpuVertexCount=part.vertexCount;
-    if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
-    else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-    prepareVertexArrays(part);
-#endif
-#ifdef SF_RIGID_BATCH_EXPERIMENT
     if(pose.geometry.batchVbo){
-      glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);glBufferSubData(GL_ARRAY_BUFFER,partOffset,part.vertices.size()*sizeof(float),part.vertices.data());
-#ifdef SF_ANIMATION_PROFILE
-      if(animationProfileFrame)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);
+      glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);glBufferSubData(GL_ARRAY_BUFFER,offset,part.vertices.size()*sizeof(float),part.vertices.data());
+    }else{
+      part.gpuVertexCount=part.vertexCount;
+      if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
+      else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+      prepareVertexArrays(part);
 #endif
     }
-#endif
     cache.uploadDirty=false;
   }
   pose.dirty=false;
