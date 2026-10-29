@@ -55,9 +55,10 @@ absence of reflected environment illumination. It does not establish a tangent
 failure or prove complete tangent correctness. The reflection-based diagnostic
 checks required environment lighting to provide a useful reference. The subsequent
 [environment validation](environment-lighting.md) found and corrected missing
-generated-tangent handedness conversion; live visual acceptance is still pending. There is no environment map in the
-first PBR implementation; the Khronos reflection-based reference images are not
-pixel goldens for its direct-light output.
+generated-tangent handedness conversion, and the user accepted the updated
+headset gallery. The first PBR implementation had no environment map; the Khronos
+reflection-based reference images were not pixel goldens for its direct-light
+output.
 
 ## Performance controls
 

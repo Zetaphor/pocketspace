@@ -25,8 +25,16 @@ environment implementation and generated-tangent handedness correction.
   old direct-light v6 snapshots retain an empty environment.
 - Documentation lint, VitePress build and whitespace checks passed.
 
-These are automated checks and inspected offscreen previews. Headset acceptance
-of the environment-lit diagnostic gallery remains pending.
+## Headset visual acceptance
+
+The user accepted the environment-lit diagnostic gallery on 2026-10-29 using
+`68bd49e`, after being asked to inspect generated tangent details, mirrored
+reflection orientation and metallic reflections. This completes the gallery's
+visual check; it is separate from automated correctness and measured cost below.
+
+The six-surface, non-interactive gallery logged 89–90 FPS across three 900-frame
+windows with no GL errors. These runtime observations are not a controlled
+performance comparison.
 
 ## Tangent orientation discovered by reflections
 

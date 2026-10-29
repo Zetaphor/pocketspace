@@ -268,8 +268,8 @@ immutable. Rotation sine/cosine are prepared on the CPU. Environment upload
 preserves caller texture bindings and unpack alignment. Units 6/7 are reserved
 for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
-[Native correctness and incremental cost](../tests/results/environment-lighting.md)
-are recorded separately from pending headset visual acceptance.
+[Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
+are recorded as separate validation evidence.
 Material UV0 transforms and sampler settings are independent. Surface frames use
 inverse-transpose normals and orthogonalized tangents, including mirrored node
 handedness. PBR CPU poses update surface buffers alongside positions and bounds;
