@@ -31,10 +31,12 @@ HTML and search assets live in `docs/.vitepress/dist/`; build output, caches and
 
 ## Edit the content
 
-Edit existing `docs/*.md` guides normally. The build/run and example pages include
-named regions from `README.md`, so commands and the example inventory have one
-source. Keep the `quickstart` and `examples` region markers when editing it.
-The repository README remains normal GitHub Markdown.
+Edit existing `docs/*.md` guides normally. `docs/getting-started.md` owns detailed
+build/run instructions, and `docs/examples.md` owns the complete example table.
+Both are ordinary Markdown, shared directly by GitHub and the site. The README
+introduces the product and links to these guides; no README inclusion regions
+are required. Keep the example table uninterrupted so the documentation linter
+can verify every supported script.
 
 `docs/.vitepress/config.mjs` defines navigation, search, metadata and the GitHub
 Pages base path. `docs/.vitepress/theme/` contains the small theme customization.

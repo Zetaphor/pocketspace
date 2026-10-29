@@ -52,7 +52,7 @@ export default defineConfig({
   markdown: {
     config(md) {
       // Keep repository Markdown readable on GitHub. Rewrite only site output,
-      // including README sections embedded in the build/run and examples pages.
+      // with repository links pointing to their corresponding GitHub files.
       md.core.ruler.after('inline', 'repository-links', state => {
         for (const block of state.tokens) for (const token of block.children || []) {
           if (token.type !== 'link_open') continue

@@ -35,24 +35,25 @@ bindings = re.findall(r'bind\(candidate.ctx,"([^"]+)"', (ROOT / 'src/main.cpp').
 for name in bindings:
     if not re.search(r'\b' + re.escape(name) + r'\b', combined):
         errors.append(f'undocumented global: {name}')
-readme = (ROOT / 'README.md').read_text()
-# Every example belongs to one uninterrupted two-column GFM table.
-examples = re.search(r'^## Examples\n(.*?)(?=^## |\Z)', readme, re.M | re.S)
-if not examples or '| Script | Demonstrates |' not in examples[1]:
-    errors.append('README.md: missing examples table')
+example_doc = ROOT / 'docs/examples.md'
+example_inventory = example_doc.read_text()
+# Every supported example belongs to one uninterrupted two-column GFM table.
+# The guide is the source of truth for GitHub and the documentation site.
+header = '| Script | Demonstrates |'
+if header not in example_inventory:
+    errors.append('docs/examples.md: missing examples table')
 else:
-    example_text = re.sub(r'^<!-- #(?:end)?region [\w-]+ -->\n?', '', examples[1], flags=re.M)
-    table = example_text.split('| Script | Demonstrates |', 1)[1].strip().splitlines()
+    table = example_inventory.split(header, 1)[1].strip().splitlines()
     for row in table:
         if not re.fullmatch(r'\|[^|\n]+\|[^|\n]+\|', row):
-            errors.append('README.md: interrupted or malformed examples table')
+            errors.append('docs/examples.md: interrupted or malformed examples table')
             break
 for script in sorted((ROOT / 'scripts').glob('*')):
     if script.suffix != '.js':
         errors.append(f'non-example file in scripts/: {script.name}')
     else:
-        if f'(scripts/{script.name})' not in readme:
-            errors.append(f'example missing from README: {script.name}')
+        if f'(../scripts/{script.name})' not in example_inventory:
+            errors.append(f'example missing from docs/examples.md: {script.name}')
         for asset in re.findall(r'[\"\'](assets/[^\"\']+)[\"\']', script.read_text()):
             if not (ROOT / asset).is_file():
                 errors.append(f'{script.relative_to(ROOT)}: missing asset {asset}')

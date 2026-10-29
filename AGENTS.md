@@ -2,7 +2,9 @@
 
 ## Start here
 
-- Read [README.md](README.md) for setup, build commands, and examples.
+- Read [README.md](README.md) for the product overview,
+  [docs/getting-started.md](docs/getting-started.md) for setup and build commands,
+  and [docs/examples.md](docs/examples.md) for supported examples.
 - Read [docs/architecture.md](docs/architecture.md) for the engine pipeline and
   production optimization policies. Update it when those change.
 - Read [docs/agent-handoff.md](docs/agent-handoff.md) before changing engine
@@ -42,8 +44,9 @@ cmake --build build -j2
 ```
 
 For another host, override `SDK_INCLUDE`, `QJS_INCLUDE`, `QJS_LIB`, and
-`STEAMVR_BIN` as described in the README. Reuse an appropriate configured build
-directory; do not assume the local workstation has the headset dependencies.
+`STEAMVR_BIN` as described in the getting-started guide. Reuse an appropriate
+configured build directory; do not assume the local workstation has the headset
+dependencies.
 Run `cmake -S . -B <build-directory>` again before building newly added targets.
 
 - Regression targets are generally excluded from the default build. Build the
@@ -82,8 +85,9 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
 - Document actual shipped behavior and limitations. Keep implementation history
   out of user guides, and remove completed items from the remaining-work list.
 - Markdown remains the source of truth for both GitHub and the VitePress site.
-  README inclusion regions share the build instructions and example inventory;
-  preserve them and the example table's Markdown formatting.
+  Keep detailed build instructions in `docs/getting-started.md` and the full
+  example inventory in `docs/examples.md`; the README introduces the product
+  and links to these guides. Preserve the example table's Markdown formatting.
 - Run `python3 tools/lint-docs.py` after documentation/API/example changes.
   Run `npm run docs:build` after changing site content, links, or navigation
   (`npm ci` first when dependencies are not installed).
