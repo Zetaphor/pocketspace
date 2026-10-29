@@ -1190,3 +1190,26 @@ cache-indexed reduced streams, isolating reduced packing. Raw samples record
 lighting, projection, target dimensions and actual draw/triangle counts stay
 matched. See [measurements and headset acceptance](results/pbr-lod-index.md).
 The normal-engine `tests/scenes/pbr-index.js` exercises both full and reduced paths.
+
+## Broader PBR cache validation
+
+The default `pbr-index-production-regression` now covers nineteen imported models:
+the existing car/normal/mirror/alpha/encoding and animation fixtures plus Lantern,
+both metal/rough sphere grids, unlit/emissive samples, Box, Avocado, RiggedSimple,
+RiggedFigure, CesiumMan and InterpolationTest. The two high-triangle sphere grids
+use full detail in both variants so optional-budget admission cannot change their
+compared geometry; other eligible fixtures also exercise reduced LODs.
+
+A generated coplanar two-color grid intentionally demonstrates equal-depth
+ownership differences for opaque/masked materials in both eyes. Its exact
+oriented triangle/shader-input multiset and coverage must remain unchanged while
+color ownership changes. This is an expected compatibility limit, not an image
+comparison failure. It provides concrete evidence for retaining the cache opt-in.
+
+`--benchmark-models` follows the correctness checks with full-detail color and
+external-depth comparisons: sixteen Avocados, sixteen Lanterns, one textured
+metal/rough sphere grid and one untextured sphere grid. It preloads both assets
+and shader programs, keeps LOD disabled and quality matched, records actual
+triangle/draw counts and geometry bytes, and uses off/on/on/off stages with 30
+warmup plus 120 measured frames. Run with the headset awake and worn. No overlay
+or input capture is created. See [results](results/pbr-cache-materials.md).

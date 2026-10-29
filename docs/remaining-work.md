@@ -17,11 +17,6 @@ This roadmap contains future work, without prescribing an implementation order.
   replacement for the legacy approximate sheen tint. Restore geometry fast paths
   for lit assets only after they preserve surface seams, normal/tangent
   deformation, alpha and stereo occlusion, and demonstrate measured benefits.
-  Lit animation still uses CPU deformation; indexing/cache ordering is opt-in.
-  Keep plain indexing disabled as an optimization: the recorded comparison
-  regressed throughput without cache ordering. Validate broader model/material
-  workloads before reconsidering the cache option's default, including assets
-  with coplanar overlapping triangles that can depend on original draw order.
 
 
 ## Scripted experiences

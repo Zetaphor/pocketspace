@@ -263,7 +263,8 @@ the bounded non-interactive
 ## Model lighting
 
 - [pbr-index-production-regression.cpp](pbr-index-production-regression.cpp):
-  production opt-in full/reduced indexing with automatic LOD, reconstructed
+  nineteen-model production opt-in full/reduced indexing, a generated coplanar
+  ownership counterexample, broader material timing, automatic LOD and reconstructed
   reduced shader inputs, exact stereo/color/depth and
   animated fallback checks, partial allocation rollback, shared persistence,
   rejected reload and cleanup; matched color/depth timing at each LOD.
