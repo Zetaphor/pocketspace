@@ -826,3 +826,35 @@ allocation estimate. Normal builds compile out this experiment and its switch.
 The [completed vertex-array comparison](results/vertex-arrays.md) passed exact
 images but did not establish a throughput improvement. It remains excluded;
 normal engine vertex setup is unchanged.
+
+## Adjacent rigid primitive batching
+
+Build excluded targets `rigid-batch-experiment` and `rigid-batch-pixels`. The
+native image check compares 864 exact stereo views, CPU/GPU/morph fallbacks,
+material barriers, clip changes, mapped combined-stream ranges and buffer cleanup.
+The prototype only combines adjacent, complete-triangle CPU rigid parts with
+identical factors/sheen/alpha/cutoff/double-sided state and no source texture
+(the engine's immutable white texture). Skins, morphs, blended parts, textured
+parts and static assets retain their existing paths. No sorting crosses a part,
+material or object boundary.
+
+Both comparison modes retain original per-part VBOs plus a per-pose combined
+expanded VBO. Changed primitive ranges update both, so storage and upload work
+match between modes. This intentionally isolates draw-call reduction; it is not
+yet a production memory/upload design. Teardown releases the extra VBO, and the
+engine GPU allocation estimate includes it. CPU geometry/BVH/bounds are unchanged.
+
+On Frame with its normal display/library environment:
+
+```sh
+SF_RIGID_BATCH=0 ./build/rigid-batch-experiment tests/scenes/rigid-pose-profile.js > /tmp/batch-full.log 2>&1
+SF_RIGID_BATCH=1 ./build/rigid-batch-experiment tests/scenes/rigid-pose-profile.js > /tmp/batch-on.log 2>&1
+```
+
+Each mode runs 256 Linear Scale actors, 20 seconds animated then 20 paused.
+Keep the view steady; B/Y aborts. Stop after completion and use the animation
+analyzer. `RIGID_BATCH_DRAWS` reports CPU-pose draws and merged source parts for
+one frame. Require matching allocations and pixels before attributing a gain.
+The nine untextured cubes in InterpolationTest can merge into one draw; its
+textured plane stays separate. All implementation/toggles compile out of normal
+builds. This is independent of the rejected multi-material shader experiment.

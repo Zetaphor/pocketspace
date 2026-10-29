@@ -6,6 +6,9 @@
 #include "animation.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+#include "../tests/rigid-batch-experiment.h"
+#endif
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
 #include "../tests/vertex-array-experiment.h"
 #endif
@@ -28,6 +31,9 @@ struct PrimitiveAsset {
   int alphaMode=0; // 0 opaque, 1 mask, 2 blend
   float alphaCutoff=.5f;
   bool doubleSided=false;
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+  bool untextured=false;
+#endif
   ModelLodLevel lod[2];
   GLuint vbo=0,indexBuffer=0,texture=0;
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
@@ -48,6 +54,11 @@ struct ModelAsset {
   std::vector<animation::Clip> animations;
   float center[3]{},normalization=1;
   bool skinEligible=false;
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+  bool rigidBatchEligible=false;
+  GLuint batchVbo=0;
+  size_t batchBytes=0;
+#endif
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
@@ -106,3 +117,7 @@ inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part,int level=0){
   return part.vertexCount;
 #endif
 }
+
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primitive);
+#endif

@@ -1833,6 +1833,10 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
   return best==miss?miss:best*object.scale;
 }
 int main(int argc,char **argv) {
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+  rigidBatchEnabled=std::getenv("SF_RIGID_BATCH")&&std::string(std::getenv("SF_RIGID_BATCH"))=="1";
+  std::fprintf(stdout,"RIGID_BATCH enabled=%d\n",rigidBatchEnabled);
+#endif
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
   vertexArrayCachingEnabled=std::getenv("SF_VERTEX_ARRAY_CACHE")&&std::string(std::getenv("SF_VERTEX_ARRAY_CACHE"))=="1";
   std::fprintf(stdout,"VERTEX_ARRAY_CACHE enabled=%d\n",vertexArrayCachingEnabled);
@@ -2382,6 +2386,9 @@ int main(int argc,char **argv) {
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
       uint64_t uniformIssued=0,uniformSkipped=0;
 #endif
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+      rigidBatchStats={};
+#endif
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
@@ -2520,6 +2527,9 @@ int main(int argc,char **argv) {
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
                 }
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+                if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
+#endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
                   ,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr
@@ -2545,6 +2555,9 @@ int main(int argc,char **argv) {
       }
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
       if(frame%120==0)std::fprintf(stdout,"DRAW_UNIFORMS {\"frame\":%d,\"issued\":%llu,\"skipped\":%llu}\n",frame,(unsigned long long)uniformIssued,(unsigned long long)uniformSkipped);
+#endif
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+      if(frame%120==0)std::fprintf(stdout,"RIGID_BATCH_DRAWS {\"draws\":%llu,\"mergedParts\":%llu}\n",(unsigned long long)rigidBatchStats.draws,(unsigned long long)rigidBatchStats.mergedParts);
 #endif
       const auto finishStart=std::chrono::steady_clock::now();
       const double frameRenderMs=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();renderMs+=frameRenderMs;
@@ -2610,6 +2623,9 @@ int main(int argc,char **argv) {
       bytes+=instanceExperiment.allocatedBytes();
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
+#ifdef SF_RIGID_BATCH_EXPERIMENT
+      for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
+#endif
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE
