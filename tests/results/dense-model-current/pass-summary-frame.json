@@ -1,0 +1,200 @@
+[
+  {
+    "name": "128-models-fixed",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 36.974388026286135,
+    "gpuEstimateMiBMedian": 473.4923858642578,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 1.0334530000000002,
+    "waitMs": 25.198477,
+    "submitMs": 0.039277999999999993,
+    "wholeRenderGpuMs": 16.264010499999998,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-fixed",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 36.67646196501016,
+    "gpuEstimateMiBMedian": 473.4923858642578,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 1.000026,
+    "waitMs": 25.3327625,
+    "submitMs": 0.028234000000000002,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.0023425,
+      15.850884,
+      0.000728
+    ],
+    "threadCpuMs": [
+      0.0022389999999999997,
+      0.16125,
+      0.0215365
+    ],
+    "draws": [
+      0.0,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      3694336.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.0001495773013833438,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 35.51249550607866,
+    "gpuEstimateMiBMedian": 423.4992218017578,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3,
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 2.1286310000000004,
+    "waitMs": 24.9386535,
+    "submitMs": 0.047076,
+    "wholeRenderGpuMs": 17.490810500000002,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 36.43354731005124,
+    "gpuEstimateMiBMedian": 423.4992218017578,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3,
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 2.1901865000000003,
+    "waitMs": 24.471265000000002,
+    "submitMs": 0.038401500000000005,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      11.139867500000001,
+      10.1797635,
+      0.00156
+    ],
+    "threadCpuMs": [
+      0.046093999999999996,
+      0.171694,
+      0.045703499999999994
+    ],
+    "draws": [
+      102.5,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      749389.0,
+      3694336.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.5209036037521981,
+    "matchingStorage": true
+  },
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 36.95521667064766,
+    "gpuEstimateMiBMedian": 423.4992218017578,
+    "groupBufferPeakMiB": 418.0,
+    "deferredAllocations": 8,
+    "surfaceCreations": 3,
+    "round": 1,
+    "passProfiling": true,
+    "enqueueMs": 2.1477615,
+    "waitMs": 23.984503,
+    "submitMs": 0.038780499999999996,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      10.9967425,
+      7.2672635,
+      0.001508
+    ],
+    "threadCpuMs": [
+      0.061382,
+      0.181197,
+      0.038280499999999995
+    ],
+    "draws": [
+      158.5,
+      512.0,
+      0.0
+    ],
+    "triangles": [
+      1155162.0,
+      3694336.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 0.625773454579271,
+    "matchingStorage": false
+  },
+  {
+    "name": "128-models-adaptive",
+    "lod": true,
+    "lodIndexBytes": 495864,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 37.44792988533424,
+    "gpuEstimateMiBMedian": 385.4992218017578,
+    "groupBufferPeakMiB": 380.0,
+    "deferredAllocations": 7,
+    "surfaceCreations": 3,
+    "round": 1,
+    "passProfiling": false,
+    "enqueueMs": 2.1511365,
+    "waitMs": 23.912958,
+    "submitMs": 0.0454315,
+    "wholeRenderGpuMs": 17.182389,
+    "matchingStorage": false
+  }
+]

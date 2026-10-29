@@ -35,7 +35,12 @@ This roadmap contains future work, without prescribing an implementation order.
   [bounded-error GPU LOD investigation](../tests/results/lod.md) improves
   both measured model workloads; the default automatic LOD headset check
   is accepted. Further investigate repeated occluder draws; object count alone is not a
-  sufficient workload budget. Validate larger detailed-model counts after reducing
+  sufficient workload budget. The [current pipeline profile](../tests/results/dense-model-current.md)
+  confirms substantial adaptive occluder work and costly fixed-group member draws
+  with automatic LOD/instancing enabled. Its static-only ordinary vertex shader
+  prototype improves bounded FPS modestly but is not a production default;
+  complete the visual check and mixed CPU/GPU backend routing/lifecycle validation
+  before considering adoption. Validate larger detailed-model counts after reducing
   their rendering cost; the accepted detailed headset case contains 32 objects.
   Preserve the common projection plane and coherent depth-cutout reprojection.
   Consider wider regrouping searches or changed cost thresholds only if further

@@ -32,6 +32,9 @@
 #include <iterator>
 #include "model_asset.h"
 #include "model_shaders.h"
+#ifdef SF_GPU_SYNC_EXPERIMENT
+#include "../tests/static-vertex-experiment.h"
+#endif
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
 #include "../tests/draw-uniforms-experiment.h"
 #endif
@@ -1928,7 +1931,14 @@ int main(int argc,char **argv) {
   destroyImage=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   imageRenderbuffer=(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
-  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
+  const char *vertexSource=modelVertexShader;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+  const char *staticMode=std::getenv("SF_GPU_STATIC_VERTEX");
+  const bool staticVertexOnly=staticMode&&std::strcmp(staticMode,"1")==0;
+  const auto staticSource=staticVertexOnly?staticVertexExperiment():std::string{};
+  if(staticVertexOnly)vertexSource=staticSource.c_str();
+#endif
+  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
   ScopeExit shaderCleanup{[&]{glDeleteProgram(program);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
@@ -2302,6 +2312,7 @@ int main(int argc,char **argv) {
 #ifdef SF_MODEL_LOD_EXPERIMENT
       if(lodExperiment::ratio()!=1&&(useInstancing||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque||std::getenv("SF_GPU_MULTIPART_INSTANCING"))){fprintf(stderr,"LOD comparison requires original object draws without other geometry/shader experiments\n");return 13;}
 #endif
+      if(staticVertexOnly&&std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const auto &asset){return asset.hasSkin;})){fprintf(stderr,"static vertex experiment cannot render skinned assets\n");return 13;}
       if(useInstancing&&(primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque)){fprintf(stderr,"instancing cannot combine with other geometry/shader experiments\n");return 13;}
       if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
       if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.update(script.scene,anchor,head,eyes);
