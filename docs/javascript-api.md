@@ -1,5 +1,8 @@
 # JavaScript API
 
+For a comparison of optional optimizations, defaults and tradeoffs, see
+[performance options](optimizations.md).
+
 Scripts execute as QuickJS globals, without Node.js/browser modules, filesystem
 APIs, or timers. Define an optional `update(dt)` function at load time. The host
 caches it and supplies `1 / 90` seconds at its 90 Hz target; use `Date.now()`
