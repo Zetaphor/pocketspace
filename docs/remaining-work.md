@@ -11,8 +11,11 @@ This roadmap contains future work, without prescribing an implementation order.
   lazy exact picking; correctness checks and the 32-model visual check passed.
   Deterministic ray-candidate costs and synthetic multi-part/material checks
   are recorded in the comparison; active grabbing and pause/resume are also
-  accepted in headset. Broaden real-world model coverage before adoption. Support additional influence sets and
-  morph-before-skin combinations, or retain explicit CPU fallback. Preserve
+  accepted in headset. The expanded CesiumMan/Fox/RiggedFigure/RiggedSimple
+  correctness matrix passes on Frame, including every clip. Integrate the
+  validated path into production with explicit CPU fallback and verify longer
+  mixed-scene/reload sessions. Additional influence sets and morph-before-skin
+  combinations currently require that fallback. Preserve
   transitions, per-instance poses, resource lifetime and coherent stereo
   color/depth rendering. Normal builds still use CPU skinning.
 - Profile larger rigid-node and morph workloads before moving their vertex
