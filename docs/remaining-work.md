@@ -5,15 +5,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Complete the final normal-engine headset check for automatic GPU skinning.
-  The [Frame comparison](../tests/results/gpu-skinning.md) established its
-  performance and the prototype visual/grabbing checks passed. Production now
-  selects eligible GPU skins with CPU fallback; the expanded real-model matrix
-  and 30 mixed-scene reload/save/restore cycles pass locally and on Frame.
-  Confirm mixed rendering, grabs and pause/resume with the normal executable
-  after Frame production checks. Longer-session memory/stability checks remain
-  conditional on larger experience workloads. Additional influence sets and
-  morph-before-skin combinations retain CPU fallback.
 - Profile larger rigid-node and morph workloads before moving their vertex
   deformation to the GPU; the completed workload establishes a skeletal cost,
   not a bottleneck for every animation path.
