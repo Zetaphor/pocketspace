@@ -51,7 +51,7 @@ void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodL
 // Per-object deformed geometry; material textures remain on the shared asset.
 struct ModelPose {
   ModelAsset geometry;
-  std::vector<animation::Node> nodes;
+  std::vector<animation::Node> nodes,sourceNodes;
   std::vector<animation::Matrix> world;
   std::vector<std::vector<animation::Matrix>> palettes;
   float radius=1;bool dirty=true;

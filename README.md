@@ -59,6 +59,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 | [grabbing.js](scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, and distant yaw/depth controls |
 | [input.js](scripts/input.js) | Controller snapshots and button events; right stick moves the box, right bumper toggles it |
 | [panels.js](scripts/panels.js) | Retained canvas drawing and a clickable button |
+| [blending.js](scripts/blending.js) | Smooth rigid, skeletal and morph transitions; bumper changes clips/phases, A/X pauses or resumes |
 | [morph.js](scripts/morph.js) | Morphing cube; A/X pauses or resumes, bumper restarts |
 | [animation.js](scripts/animation.js) | Clip playback; bumper cycles clips, A/X pauses or resumes |
 | [skinning.js](scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
