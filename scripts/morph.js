@@ -1,7 +1,9 @@
+// Play a grabbable morphing cube. A/X pauses/resumes; bumper restarts the clip.
 const asset = loadModel('assets/samples/AnimatedMorphCube/AnimatedMorphCube.glb');
 const object = createObject(asset, 0, 0, 0, .55);
 enableObjectInteraction(object, {grabButton: 'both'});
 playAnimation(object, 0, {loop: true});
+// Ignore duplicate button-down reports until the corresponding release.
 const pressed = new Set();
 onInputEvent(event => {
   if (event.type !== 'controller.button') return;

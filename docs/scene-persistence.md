@@ -7,7 +7,7 @@ not preserve an absolute room location across launches or recentering.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v5
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v7
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,

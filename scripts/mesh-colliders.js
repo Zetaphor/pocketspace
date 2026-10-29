@@ -1,6 +1,9 @@
+// Roll or throw bodies through a static model-derived platform with an opening and ramp.
+// Grip/trigger grabs; bumper resets unheld bodies.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.53, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const platform = createObject(loadModel('assets/physics/RingRamp.glb'), 0, -.2, 0, 1);
+// Triangle-mesh colliders preserve openings but are restricted to static bodies.
 setObjectPhysics(platform, {type: 'static', shape: 'mesh'});
 const bodies = [
   {path: 'assets/physics/YellowSphere.glb', x: 0, z: -.32, scale: .1, shape: 'sphere'},

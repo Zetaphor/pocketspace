@@ -1,4 +1,9 @@
+// Spawn independent physics boxes with an FPS/CPU/RAM/GPU/solver HUD.
+// Bumper adds 1, A/X adds 5, B/Y clears; grip/trigger grabs. This example caps at 51.
+// This is a conservative example limit, not the engine object limit or a frame-rate guarantee.
 const LIMIT = 51;
+// -1 selects automatic workers; use 0 for single-threaded comparisons or 1–4 additional workers.
+setPhysicsWorkers(-1);
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const assets = ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb', 'assets/physics/GreenBox.glb', 'assets/samples/Box/Box.glb'].map(path => loadModel(path));
@@ -25,10 +30,12 @@ function add(count) {
 }
 function clear() { while (objects.length) removeObject(objects.pop()); spawnStatus = ''; nextDraw = 0; }
 
+// Walk backward because removal also shrinks the script's ID list.
 function prune() {
   let removed = false;
   for (let i = objects.length - 1; i >= 0; i--) {
     const p = getObjectPhysics(objects[i]).position;
+    // Remove the object to reclaim physics/overlay resources and spawn capacity.
     if (p.y < -1.2 || p.x * p.x + p.y * p.y + p.z * p.z > 9) {
       removeObject(objects[i]);
       objects.splice(i, 1);
@@ -41,6 +48,7 @@ const panel = createPanel({widthPixels: 1024, heightPixels: 552, widthMeters: .9
 panelSetTransform(panel, 'world', 0, .55, .25);
 const mib = bytes => bytes === null ? 'warming up' : `${(bytes / 1048576).toFixed(1)} MiB`;
 function draw() {
+  // Driver GPU memory may be unavailable; the HUD labels the allocation-estimate fallback.
   const s = getEngineStats(), c = panel.canvas;
   c.clear(12, 18, 29, 255);
   const lines = [

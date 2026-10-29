@@ -1,3 +1,5 @@
+// Display corrected gaze, eye foveation centers and raw controller finger sensors.
+// Gaze correction is optional; finger values are contact/capacitance, not a hand skeleton.
 const panel = createPanel({widthPixels: 1024, heightPixels: 640, widthMeters: 1.1});
 let lastDraw = 0;
 function value(field) { return field.value === null ? '--' : field.value.toFixed(2); }
@@ -10,6 +12,7 @@ function update() {
   c.clear(12, 18, 29, 255);
   c.text(24, 20, `Gaze: ${gaze.status} | correction: ${gaze.calibrationStatus}`,
     230, 240, 255, 255, 24);
+  // Intersect the gaze ray with the panel plane, then convert meters to canvas pixels.
   if (gaze.valid && gaze.direction.z > 0) {
     const distance = -gaze.origin.z / gaze.direction.z;
     const x = (gaze.origin.x + distance * gaze.direction.x) / 1.1 * 1024 + 512;
@@ -23,5 +26,10 @@ function update() {
     c.text(24, y + 40, `Ring ${value(hand.sensors.ring)} | pinky ${value(hand.sensors.pinky)} | grip ${value(hand.sensors.grip)}`,
       180, 210, 240, 255, 22);
   }
+  // Foveation centers are projection-dependent NDC coordinates, not 3D gaze rays.
+  const centers = getEyeFoveationCenters();
+  c.text(24, 360, centers.valid
+    ? `Foveation L ${centers.left.x.toFixed(2)},${centers.left.y.toFixed(2)} R ${centers.right.x.toFixed(2)},${centers.right.y.toFixed(2)}`
+    : 'Foveation centers unavailable', 180, 210, 240, 255, 22);
   c.present();
 }

@@ -1,4 +1,5 @@
-// Fit head-relative angular correction; validation targets never enter the fit.
+// Generate a personal head-relative eye correction from 9 training and 5 validation targets.
+// Launch with --eye-calibration-output FILE. Trigger samples; bumper restarts.
 if(!getEyeTrackingCalibration().outputPath)throw Error("Start with --eye-calibration-output FILE; its parent directory must exist.");
 const panel=createPanel({widthPixels:1024,heightPixels:768,widthMeters:1.1,interactive:false});
 panelSetTransform(panel,'world',0,0,0);panelSetVisible(panel,true);
@@ -8,6 +9,7 @@ let index=0,capture=null,fit=null,done=false,lastDraw=0,message='Look at the gol
 const points=[],checks=[],started=Date.now(),degrees=180/Math.PI;
 getEyeTracking();
 function median(a){a=a.slice().sort((x,y)=>x-y);const m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+// Transpose headBasis to express a scene-space ray in head-relative coordinates.
 function angles(v,b){const h=[0,0,0];for(let c=0;c<3;c++)for(let r=0;r<3;r++)h[c]+=b[r*3+c]*v[r];if(h[2]<=0)return null;return [Math.atan2(h[0],h[2]),Math.atan2(h[1],Math.hypot(h[0],h[2]))];}
 function sample(g){
   if(!g.valid||!g.tracked||!g.headBasis)return null;
@@ -16,6 +18,7 @@ function sample(g){
   const raw=angles([g.direction.x,g.direction.y,g.direction.z],g.headBasis),target=angles(expected,g.headBasis);
   return raw&&target?{raw,target}:null;
 }
+// Fit each target angle as offset + yaw coefficient + pitch coefficient.
 function solve(rows,axis){
   const m=Array.from({length:3},()=>[0,0,0,0]);
   for(const p of rows){const a=[1,...p.raw];for(let i=0;i<3;i++){for(let j=0;j<3;j++)m[i][j]+=a[i]*a[j];m[i][3]+=a[i]*p.target[axis];}}
@@ -30,6 +33,7 @@ function finish(){
   const p={raw:[0,1].map(i=>median(samples.map(s=>s.raw[i]))),target:[0,1].map(i=>median(samples.map(s=>s.target[i])))};
   const spread=samples.map(s=>Math.max(error(s.raw,p.raw),error(s.target,p.target))).sort((a,b)=>a-b);
   if(spread[Math.ceil(spread.length*.95)-1]>1.5){message='Gaze or head moved too much. Keep still and retry trigger.';return;}
+  // Held-out targets evaluate the fitted correction but never influence its coefficients.
   if(index<9)points.push(p);else checks.push({raw:error(p.raw,p.target),corrected:error(corrected(p.raw),p.target),inRange:p.raw[0]>=fit.bounds[0]&&p.raw[0]<=fit.bounds[1]&&p.raw[1]>=fit.bounds[2]&&p.raw[1]<=fit.bounds[3]});
   index++;
   if(index===9){
@@ -50,6 +54,7 @@ function finish(){
 onInputEvent(e=>{
   if(e.type!=='controller.button'||!e.down||Date.now()-started<1000)return;
   if(e.control==='/input/bumper/click'){index=0;capture=null;fit=null;done=false;points.length=0;checks.length=0;message='Restarted. Look at gold circle, then tap trigger.';}
+  // Delay sampling after the click to avoid including the trigger-induced head movement.
   else if(e.control==='/input/trigger/click'&&!capture&&!done){capture={start:Date.now()+350,end:Date.now()+1350,samples:[]};message='Keep head and gaze steady. Sampling for one second.';}
 });
 function update(){

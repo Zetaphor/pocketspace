@@ -1,3 +1,5 @@
+// Combine a hinged panel, tethered ball and welded pair of grabbable models.
+// Bumper resets their poses and reconnects the joints when nothing is held.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.43, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const bodies = [];
@@ -13,6 +15,7 @@ function body(path, x, y, z, scale, type = 'dynamic', rotation = [0, 0, 0]) {
   return id;
 }
 const pivot = body('assets/physics/Platform.glb', -.5, 0, 0, .05, 'static');
+// The wall asset is thin along Y; rotate it upright before attaching the hinge.
 const door = body('assets/physics/ThinWallBlue.glb', -.35, 0, 0, .3, 'dynamic', [Math.PI / 2, 0, 0]);
 const anchor = body('assets/physics/GreenBox.glb', .3, .25, 0, .06, 'static');
 const ball = body('assets/physics/YellowSphere.glb', .3, -.05, 0, .1);
@@ -34,6 +37,7 @@ setLaserVisible('right', true);
 onInputEvent(event => {
   if (event.type !== 'controller.button' || !event.down || event.control !== '/input/bumper/click') return;
   if (bodies.some(({id}) => getObjectPhysics(id).held)) return;
+  // Recreate joints after teleporting so their reference frames match the reset poses.
   joints.forEach(removePhysicsJoint);
   for (const {id, x, y, z, rotation} of bodies) {
     setObjectPosition(id, x, y, z);

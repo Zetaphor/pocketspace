@@ -1,4 +1,5 @@
-// Bumper saves playback; A/X restores; B/Y pauses or resumes the models.
+// Save and restore independent animation poses and playback.
+// Bumper saves, A/X restores, and B/Y pauses or resumes both models.
 const skin=loadModel('assets/samples/CesiumMan/CesiumMan.glb');
 const rigid=loadModel('assets/samples/InterpolationTest/InterpolationTest.glb');
 let tool=createSceneContainer();

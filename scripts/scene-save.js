@@ -1,4 +1,5 @@
-// Move the boxes; bumper saves, A/X restores the saved arrangement.
+// Save a grabbable box arrangement to a named scene file.
+// Bumper saves; A/X restores the saved positions into a replacement container.
 const model = loadModel('assets/samples/Box/Box.glb');
 let tool = createSceneContainer();
 for (let n = 0; n < 4; n++) {
@@ -16,6 +17,7 @@ onInputEvent(event => {
   try {
     if (event.control === '/input/bumper/click') { saveSceneContainer(tool, 'boxes'); status('Saved. A/X restores the boxes.'); }
     if (['/input/a/click', '/input/x/click'].includes(event.control)) {
+      // Restore returns fresh IDs and must succeed before the old container is disposed.
       const restored = loadSceneContainer('boxes');
       disposeSceneContainer(tool); tool = restored.containerId; status('Restored. Bumper saves again.');
     }

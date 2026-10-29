@@ -1,3 +1,5 @@
+// Compare low and high damping on two grabbable spring-suspended weights.
+// Bumper resets both weights when neither is held.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.63, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const weights = [
@@ -8,6 +10,7 @@ const weights = [
   setObjectPhysics(top, {type: 'static'});
   const id = createObject(loadModel(weight), x, -.15, 0, .12);
   setObjectPhysics(id, {shape, mass: .25});
+  // Equal min/max distances define the rest length; the spring makes the link elastic.
   createPhysicsJoint(top, id, {type: 'distance', minDistance: .3, maxDistance: .3, spring: {frequency: 2, damping}});
   enableObjectInteraction(id, {grabButton: 'both'});
   setObjectInteraction(id, {handRotationAxes: {pitch: true, yaw: true, roll: true}});

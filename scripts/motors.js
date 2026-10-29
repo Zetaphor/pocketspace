@@ -1,3 +1,5 @@
+// Drive a hinged panel by target angle and a rotor by angular velocity.
+// Bumper changes the angle; A/X toggles motor power; grip/trigger grabs.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.43, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 function body(path, x, y, scale, type) {
@@ -18,6 +20,7 @@ for (const id of [door, rotor]) {
 const hinge = createPhysicsJoint(frame, door, {type: 'hinge', anchor: {x: -.5, y: 0, z: 0}, minAngle: -1.2, maxAngle: 1.2});
 const spinner = createPhysicsJoint(base, rotor, {type: 'hinge', anchor: {x: .3, y: 0, z: 0}});
 let powered = true, open = false;
+// Position mode uses spring response; velocity mode regulates angular speed.
 function drive() {
   setPhysicsJointMotor(hinge, {mode: powered ? 'position' : 'off', targetAngle: open ? .9 : 0, maxTorque: .15, frequency: 3, damping: 1});
   setPhysicsJointMotor(spinner, {mode: powered ? 'velocity' : 'off', targetVelocity: .8, maxTorque: .05});

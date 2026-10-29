@@ -1,3 +1,5 @@
+// Stack and throw grabbable boxes while displaying collision events.
+// Bumper resets unheld boxes; contact events are explicitly enabled.
 setPhysicsCollisionEvents(true);
 const platformAsset = loadModel('assets/physics/Platform.glb');
 const platform = createObject(platformAsset, 0, -1, 0, 1.2);
@@ -28,6 +30,7 @@ function drawContacts() {
 drawContacts();
 onInputEvent(event => {
   if (event.type === 'physics.collisionStart' || event.type === 'physics.collisionEnd') {
+    // Contact pairs arrive in canonical object-ID order, so one key tracks each pair.
     const pair = `${event.objectId}:${event.otherObjectId}`;
     if (event.type === 'physics.collisionStart') {
       contacts.add(pair);
@@ -39,6 +42,7 @@ onInputEvent(event => {
   if (event.type !== 'controller.button' || !event.down ||
       event.control !== '/input/bumper/click') return;
   for (const {id, x} of boxes) {
+    // Teleporting preserves velocity; a reset must clear both linear and angular motion.
     if (getObjectPhysics(id).held) continue;
     setObjectPosition(id, x, .3, 0);
     setObjectRotation(id, 0, 0, 0);

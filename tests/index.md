@@ -22,7 +22,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [gpu-skinning-regression.cpp](gpu-skinning-regression.cpp) | CesiumMan, Fox (all clips), RiggedFigure, RiggedSimple and generated multi-part GPU vertex/pixel/picking checks; bounds, resource cleanup, transitions, fallback, and 30 mixed-scene reload/save/restore cycles. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
-| [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes exercised through real script bindings without a VR session. |
+| [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes through real bindings without VR, including snapshot remapping, ownership transfer, panel/body recreation and animation seeking. |
 | [eye-calibration-math.cpp](eye-calibration-math.cpp) | Gaze correction math, head-relative transforms, and calibration bounds. |
 | [eye-calibration-test.cjs](eye-calibration-test.cjs) | Calibration generator behavior with simulated gaze, jitter, invalid samples, and validation failures. |
 | [gaze-accuracy-test.cjs](gaze-accuracy-test.cjs) | Gaze measurement scene behavior using a simulated clock and tracking input. |

@@ -1,4 +1,5 @@
-// Bumper saves the moving physics tool; A/X restores and resumes it.
+// Save a moving physics tool with bodies, hinge motor, spring and velocities.
+// Bumper saves; A/X restores and resumes the saved motion.
 const floor=createObject(loadModel('assets/physics/ThinPlatform.glb'),0,-.63,0,1.2);
 setObjectPhysics(floor,{type:'static',halfExtents:{x:.6,y:.03,z:.6}});
 let tool=createSceneContainer();
@@ -27,6 +28,7 @@ onInputEvent(event=>{
   try{
     if(event.control==='/input/bumper/click'){saveSceneContainer(tool,'physics-tool');status('Saved. A/X restores position and motion.');}
     if(['/input/a/click','/input/x/click'].includes(event.control)){
+      // Stage the restored tool before disposing the old one, preserving it if loading fails.
       const restored=loadSceneContainer('physics-tool');
       disposeSceneContainer(tool);tool=restored.containerId;status('Restored: hinge, spring and velocities resume.');
     }

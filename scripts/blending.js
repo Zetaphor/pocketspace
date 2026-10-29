@@ -1,3 +1,5 @@
+// Blend between rigid, skeletal and morph animations over one second.
+// Bumper changes clips/phases; A/X pauses or resumes. Models are grabbable.
 const models = [
   ['InterpolationTest', -.6], ['CesiumMan', 0], ['AnimatedMorphCube', .6]
 ].map(([name, x]) => {
@@ -7,6 +9,7 @@ const models = [
   playAnimation(object, 0);
   return {object, clips: getAnimations(asset), selected: 0, phase: false};
 });
+// A button can arrive through more than one input source; transition only once per press.
 const pressed = new Set();
 onInputEvent(event => {
   if (event.type !== 'controller.button') return;
@@ -18,6 +21,7 @@ onInputEvent(event => {
     if (event.control === '/input/bumper/click') {
       model.selected = (model.selected + 1) % model.clips.length;
       model.phase = !model.phase;
+      // A single-clip model blends to another phase instead of selecting the same pose.
       const time = model.clips.length === 1 && model.phase ? model.clips[0].duration / 2 : 0;
       playAnimation(model.object, model.selected, {time, blendDuration: 1});
     } else if (event.control === '/input/a/click' || event.control === '/input/x/click') {
