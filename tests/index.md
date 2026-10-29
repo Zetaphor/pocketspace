@@ -22,7 +22,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [gaze-accuracy-test.cjs](gaze-accuracy-test.cjs) | Gaze measurement scene behavior using a simulated clock and tracking input. |
 | [gaze-analysis-test.py](gaze-analysis-test.py) | Offline gaze analyzer fitting and quality filtering against a known affine mapping. |
 | [grab-buttons-regression.py](grab-buttons-regression.py) | Native grab state machine for grip, trigger, and either-button selection without VR or graphics. |
-| [lifecycle-input-regression.cpp](lifecycle-input-regression.cpp) | Input connection upgrades, reconnects, queues, invalidation, and resource cleanup using a local test server. |
+| [lifecycle-input-regression.cpp](lifecycle-input-regression.cpp) | Raw input device replacement, missing-state retry, idle streams, connection upgrades, reconnects, queues and resource cleanup using a local server. |
 | [lifecycle-script-regression.cpp](lifecycle-script-regression.cpp) | Script loading, failed-reload rollback, callbacks, and scene cleanup without VR or graphics. |
 | [panel-submission-regression.cpp](panel-submission-regression.cpp) | Cached panel writes and grouped surface handoffs, including injected presentation failures and fallback cleanup. |
 | [physics-api-regression.cpp](physics-api-regression.cpp) | Physics JavaScript fixtures against real bindings, with native simulation and lifecycle checks. |

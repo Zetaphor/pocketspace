@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <algorithm>
 #include <poll.h>
+#include <cstdio>
 
 namespace frame_input {
 namespace {
@@ -21,10 +22,18 @@ std::string jsonString(const std::string &s,const std::string &key,size_t from=0
 std::string randomKey(){std::random_device source;std::string mask(4,'\0');for(char &byte:mask)byte=static_cast<char>(source());return mask;}
 }
 Monitor::~Monitor(){if(fd_>=0)close(fd_);}
-void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};hovered_[0]=hovered_[1]=0;
+void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;refreshRequested_=false;subscribedAt_={};buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};hovered_[0]=hovered_[1]=0;
   auto input=[](const Event &e){return !e.type.starts_with("physics.");};
   std::erase_if(events_,input);std::erase_if(callbackEvents_,input);}
 void Monitor::stop(){disconnect();}
+void Monitor::setTrackedDevice(int hand,int device){
+ if(hand<0||hand>1||devices_[hand]==device)return;
+ devices_[hand]=device;
+ // The mailbox subscription may still refer to the old physical controller,
+ // even when the WebSocket remains open. Refresh through normal disconnect
+ // cleanup so stale presses/holds cannot survive the new subscription.
+ if(started_)refreshRequested_=true;
+}
 void Monitor::resetScene(){events_.clear();callbackEvents_.clear();hovered_[0]=hovered_[1]=0;}
 void Monitor::invalidateHand(int hand){
  if(hand<0||hand>1)return;
@@ -80,7 +89,7 @@ bool Monitor::start(){
    const std::string msg="mailbox_send input_server {\"type\":\"request_input_state_updates\",\"device_path\":\"/user/hand/"+std::string(side)+"\",\"returnAddress\":\"sf_overlay_engine\"}";
    if(!sendFrame(1,msg))return fail();
  }
- started_=true;return true;
+ subscribedAt_=tracking::Clock::now();started_=true;return true;
 }
 void Monitor::processMessage(const std::string &message){
  const auto device=jsonString(message,"device");
@@ -127,7 +136,16 @@ void Monitor::processMessage(const std::string &message){
    p=end;
  }
 }
-void Monitor::poll(){if(!started_)return;char buf[65536];for(;;){ssize_t n=recv(fd_,buf,sizeof(buf),MSG_DONTWAIT);if(n==0){disconnect();break;}if(n<0){if(errno==EAGAIN||errno==EWOULDBLOCK)break;disconnect();break;}buffer_.append(buf,n);}while(buffer_.size()>=2){unsigned char b0=buffer_[0],b1=buffer_[1];size_t n=b1&127,h=2;if(n==126){if(buffer_.size()<4)break;n=(static_cast<unsigned char>(buffer_[2])<<8)|static_cast<unsigned char>(buffer_[3]);h=4;}if(buffer_.size()<h+n)break;auto payload=buffer_.substr(h,n);buffer_.erase(0,h+n);if((b0&15)==8){disconnect();break;}if((b0&15)==9){if(!sendFrame(10,payload)){disconnect();break;}continue;}if((b0&15)==1){fragment_+=payload;if(b0&128){processMessage(fragment_);fragment_.clear();}}}}
+void Monitor::poll(tracking::Clock::time_point now){
+ if(!started_)return;
+ if(refreshRequested_){std::fprintf(stdout,"[input] controller device changed; renewing raw subscriptions\n");disconnect();return;}
+ char buf[65536];for(;;){ssize_t n=recv(fd_,buf,sizeof(buf),MSG_DONTWAIT);if(n==0){disconnect();break;}if(n<0){if(errno==EAGAIN||errno==EWOULDBLOCK)break;disconnect();break;}buffer_.append(buf,n);}while(buffer_.size()>=2){unsigned char b0=buffer_[0],b1=buffer_[1];size_t n=b1&127,h=2;if(n==126){if(buffer_.size()<4)break;n=(static_cast<unsigned char>(buffer_[2])<<8)|static_cast<unsigned char>(buffer_[3]);h=4;}if(buffer_.size()<h+n)break;auto payload=buffer_.substr(h,n);buffer_.erase(0,h+n);if((b0&15)==8){disconnect();break;}if((b0&15)==9){if(!sendFrame(10,payload)){disconnect();break;}continue;}if((b0&15)==1){fragment_+=payload;if(b0&128){processMessage(fragment_);fragment_.clear();}}}
+ // Only missing initial state is a failure signal: a valid delta stream may
+ // legitimately be silent. Check after draining coalesced/queued state first.
+ if(started_&&now-subscribedAt_>=std::chrono::seconds(5))for(int h=0;h<2;h++)if(devices_[h]>=0&&!hands_[h].valid){
+  std::fprintf(stdout,"[input] controller initial raw state missing; retrying subscriptions\n");disconnect();break;
+ }
+}
 std::vector<Event> Monitor::takeEvents(){std::vector<Event> result;result.swap(events_);return result;}
 std::vector<Event> Monitor::takeCallbackEvents(){auto result=std::move(callbackEvents_);callbackEvents_.clear();return result;}
 void Monitor::setHoveredObject(int hand,int objectId){if(hand>=0&&hand<2)hovered_[hand]=objectId;}

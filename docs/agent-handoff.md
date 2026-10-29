@@ -45,6 +45,12 @@ Apply morph deltas before skinning; preserve node/mesh/zero defaults, independen
 poses, fixed normalization, picking refits, and default-pose restoration on stop.
 See [morph target support](animation-api.md#morph-targets).
 
+Raw controller subscriptions follow OpenVR device identity, including connected
+devices with temporarily invalid poses. `Monitor::poll` exposes device-change
+refresh as normal connection loss so the host cancels stale holds before its
+bounded reconnect. Retry missing initial hand state after five seconds, but
+do not expire healthy delta subscriptions merely because their values are idle.
+
 ## Physics and performance entry points
 
 The [physics API coverage table](physics-api.md#api-coverage) maps the implemented
