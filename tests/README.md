@@ -231,7 +231,10 @@ The bounded runner alternates whole-render and per-pass timing runs across two
 rounds of fixed/adaptive 128 mixed models and fixed 128 Avocados, with mesh cache
 optimization enabled. It retains logs, checks object counts and shutdown buffer
 accounting, rejects unavailable/disjoint GPU timings and reported GL errors, and
-records whether paired storage estimates match. Keep the headset awake and the
+rejects paired storage mismatches. Automatic LOD is enabled; add `--instancing`
+to include production ordered instancing (the historical profile omitted it).
+The runner clears inherited `SF_GPU_*` experiment options before each run.
+Keep the headset awake and the
 view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
 
 `RENDER_PASS_SAMPLE` arrays are ordered occluder, opaque, blended. GPU times sum
@@ -876,3 +879,31 @@ The normal-engine mixed acceptance scene now selects Linear Scale for its rigid
 actors. It checks GPU skins, morph fallbacks and adjacent rigid batches together;
 bumper save/restore rebuilds independently owned streams. Use the existing
 [normal-engine instructions](#normal-engine-mixed-backend-acceptance).
+
+## Static vertex specialization experiment
+
+The excluded `gpu-sync-experiment` accepts `SF_GPU_STATIC_VERTEX=1` to replace
+`skinEnabled ? skinPoint() : p` with `p` in the ordinary model vertex program.
+The compiler can then remove unused skin attributes, uniforms, and palette
+sampling. Projection, geometry, material shaders, and the instancing program
+remain unchanged. This is an experiment for non-skinned workloads, not a
+production backend policy; the experimental mode rejects skinned assets.
+
+Build `static-vertex-pixels` and run it with the Frame display/library environment.
+Its 216 byte-identical images cover Box, Avocado, ToyCar, both eyes, three head
+positions, opaque/masked/blended state, checker-mask holes and external occlusion.
+It verifies that the linked specialized shader has no skin-enable/palette uniform.
+
+```sh
+cmake --build build --target static-vertex-pixels gpu-sync-experiment -j2
+./build/static-vertex-pixels
+python3 tests/compare-static-vertex.py --output /tmp/static-vertex-comparison \
+  --case 128-models-fixed --case 32-cars-fixed
+```
+
+The comparison uses automatic LOD, mesh cache optimization, and ordered instancing.
+It reverses pair/case order in round two, rejects GPU errors/disjoint samples and
+storage mismatches, retains logs, and verifies normal process/budget cleanup.
+Keep the headset awake and view steady. GPU timer values include scheduling and
+are separate from FPS and compositor latency. See the
+[dense-scene investigation](results/dense-model-current.md) for results.

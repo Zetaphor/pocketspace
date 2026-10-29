@@ -387,3 +387,13 @@ See [prototype and production measurements](../tests/results/rigid-batches.md).
 The single-stream production comparison and lifecycle checks pass on Frame. The
 normal-engine mixed scene passed user-confirmed visual, grabbing, pause/resume and
 save/restore acceptance on 2026-10-29; the demo was stopped afterward.
+
+
+The [current dense-model investigation](../tests/results/dense-model-current.md)
+refreshes pass attribution with automatic LOD and ordered instancing. The
+`gpu-sync-experiment` alone accepts `SF_GPU_STATIC_VERTEX=1`, replacing ordinary
+vertex skin selection with `p`; its instancing program remains unchanged and it
+rejects skinned assets. Exact static pixels pass, with modest bounded FPS gains;
+this is not a production policy. Any adoption needs separate program routing for
+mixed CPU/GPU poses, full uniform rebinding and normal reload/resource cleanup.
+Never enable the whole-program experiment for a mixed production scene.

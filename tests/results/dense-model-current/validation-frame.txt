@@ -1,0 +1,9 @@
+Frame base: 590ce5c008a1fd1ac6e43eacf8c6205fdf106208
+Experimental binary SHA256: 1291dcc3d91f6d4c7bf222fa5d005a596e6cb5cccd68ef57b1f41577a47c8193
+CPU governor: schedutil (unchanged)
+PASS static vertex specialization: 216 exact stereo/group/material views, masked holes and blended fallback preserved
+Skinned workload guard: scripts/skinning.js exits 13 with explicit rejection.
+Guard cleanup: grouped_buffer_bytes=0 peak=0 limit=536870912.
+Normal sf-overlay-engine rebuilt successfully after test hooks.
+Normal binary SHA256 before/after: 18a1f6ea3bb50852ae66875349e8d04a3cd0dd1166bcb02802dd827b1f86a981 (identical).
+Python comparison/profile runners: help and syntax checks pass.

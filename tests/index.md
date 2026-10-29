@@ -226,3 +226,15 @@ with VAO ownership/deletion checks. `vertex-array-experiment` profiles the same
 for adjacent same-material CPU rigid parts, material barriers, changed stream
 ranges, clip changes and buffer lifetime. `rigid-batch-experiment` profiles the
 [256-actor scene](scenes/rigid-pose-profile.js) with `SF_RIGID_BATCH=0/1`.
+
+[static-vertex-pixels.cpp](static-vertex-pixels.cpp) checks 216 exact stereo views
+for the test-only ordinary-draw vertex specialization across detailed/static
+models, opaque/masked/blended materials, and external occlusion.
+[compare-static-vertex.py](compare-static-vertex.py) pairs ordinary/static-only
+vertex programs with production automatic LOD and ordered instancing enabled;
+it rejects unequal storage and invalid GPU samples. The switch exists only in
+`gpu-sync-experiment`; skinned assets are rejected in that mode.
+
+The [current dense-model report](results/dense-model-current.md) records refreshed
+pass attribution with production LOD/instancing, rejected allocation-mismatched
+rows, and bounded static-vertex candidate comparisons.

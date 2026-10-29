@@ -25,10 +25,10 @@ struct Renderer {
   ClusterVisibilityExperiment clusterBounds;
   ModelInstancing instanceExperiment;
   std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
-  Renderer(bool specialization=false):specialize(specialization){
+  Renderer(bool specialization=false,const char *vertexSource=modelVertexShader):specialize(specialization){
     if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
     for(int i=0;i<3;i++)anchor.m[i][i]=1;
-    auto v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
+    auto v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);
     GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);assert(linked);glDeleteShader(v);glDeleteShader(f);
     glUseProgram(program);glUniform1i(glGetUniformLocation(program,"material"),0);

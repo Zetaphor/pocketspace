@@ -341,7 +341,10 @@ correctness, measured performance, and user headset acceptance separately.
 Normal builds do not enable the rejected uniform-cache, owned-VAO, primitive or
 cluster occluder-culling, specialized opaque shader, shared-scene-depth, or
 alternate GPU synchronization experiments. Their isolated targets and reports
-remain available through the [test index](../tests/index.md). GPU morph work is
+remain available through the [test index](../tests/index.md). A separate
+[static-only ordinary vertex shader prototype](../tests/results/dense-model-current.md)
+is also test-only; production retains the general skin-capable vertex program.
+GPU morph work is
 deferred until a workload establishes sufficient CPU cost.
 
 ## Source map and maintenance

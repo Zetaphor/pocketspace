@@ -14,6 +14,7 @@ parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--rounds', type=int, default=2)
 parser.add_argument('--seconds', type=int, default=16)
 parser.add_argument('--case', action='append')
+parser.add_argument('--instancing', action='store_true', help='Enable production ordered instancing in the workload')
 args = parser.parse_args()
 if args.rounds < 1 or args.seconds < 12:
     parser.error('require positive rounds and at least twelve seconds per run')
@@ -25,10 +26,14 @@ for round_index in range(args.rounds):
         pair = []
         for passes in ((False, True) if round_index % 2 == 0 else (True, False)):
             directory = args.output / f'r{round_index}-{case}-passes-{int(passes)}'
-            env = {**os.environ, 'SF_GPU_PROFILE_PASSES': str(int(passes)), 'SF_GPU_SYNC_MODE': 'finish'}
-            subprocess.run([sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
-                            '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
-                            '--vertex-cache'], env=env, check=True)
+            env = {k: v for k, v in os.environ.items() if not k.startswith('SF_GPU_')}
+            env.update(SF_GPU_PROFILE_PASSES=str(int(passes)), SF_GPU_SYNC_MODE='finish')
+            command = [sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
+                       '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
+                       '--vertex-cache']
+            if args.instancing:
+                command.append('--instancing')
+            subprocess.run(command, env=env, check=True)
             result = json.loads((directory / 'summary.json').read_text())[0]
             log = (directory / f'{case}.log').read_text()
             def samples(prefix):
@@ -61,3 +66,6 @@ for round_index in range(args.rounds):
         for result in pair:
             result['matchingStorage'] = matched
         (args.output / 'summary.json').write_text(json.dumps(results, indent=2) + '\n')
+
+        if not matched:
+            raise RuntimeError(f'{case}: storage differs; reject the timing comparison')
