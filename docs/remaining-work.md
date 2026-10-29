@@ -19,10 +19,11 @@ This roadmap contains future work, without prescribing an implementation order.
   deformation, alpha and stereo occlusion, and demonstrate measured benefits.
   The current lit path uses full expanded geometry and CPU animation. The
   [static PBR indexing comparison](../tests/results/pbr-index.md) reduced geometry
-  storage but regressed native throughput, including with cache/fetch ordering;
-  retain expanded uploads alongside the implemented, budgeted PBR LOD. Investigate
-  shader/depth-pass cost next. Revisit indexing only with a different layout and
-  measured gains.
+  storage but regressed native throughput with the cache policy off;
+  retain expanded uploads alongside the implemented, budgeted PBR LOD and cheaper
+  external depth pass. Profile the indexing variant with cache/fetch ordering
+  explicitly enabled: the earlier mode-2 run left that policy disabled. Adopt
+  indexing only with measured gains.
 
 ## Scripted experiences
 

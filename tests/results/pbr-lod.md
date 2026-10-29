@@ -35,7 +35,9 @@ release the additional buffers once, and GPU allocation estimates include them.
 
 The strict error/seam limits stop above the half target for one opaque primitive.
 The quarter attempt offers insufficient additional savings and is discarded.
-The blend primitive remains full detail. Avocado and NegativeScaleTest retain
+All three ToyCar materials are opaque, including the material named Glass.
+The Fabric primitive does not produce a useful reduction under the current
+error/seam policy and remains full detail. Avocado and NegativeScaleTest retain
 full detail in this fixture set. NormalTangentTest and NormalTangentMirrorTest
 also produce one useful reduced level.
 

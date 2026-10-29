@@ -311,3 +311,12 @@ the bounded non-interactive
 
 - [Environment validation and cost](results/environment-lighting.md): corrected
   generated tangent orientation, automated coverage and native IBL timing.
+
+## PBR depth optimization
+
+- [pbr-depth-regression.cpp](pbr-depth-regression.cpp): 1,248 exact stereo, alpha,
+  overlap, LOD and animated-pose comparisons; GL state/resource cleanup and
+  matched depth/color performance workloads.
+- [scenes/pbr-depth.js](scenes/pbr-depth.js): independent car and alpha-test
+  surfaces against a blue backdrop for interactive external-depth inspection.
+- [Recorded comparison](results/pbr-depth.md): native depth-pass timings and scope.

@@ -7,8 +7,10 @@ The implementation is test-only; production retains expanded PBR geometry.
 
 `pbr-index-regression` and `pbr-index-demo` compile `SF_PBR_INDEX_EXPERIMENT`.
 `SF_PBR_INDEXED=0` retains expanded uploads; `1` enables full-input indexing;
-`2` also applies meshoptimizer vertex-cache/fetch ordering to static non-blend
-primitives when the existing cache policy permits it. Animated, skinned and morph
+`2` can also apply meshoptimizer vertex-cache/fetch ordering to static non-blend
+primitives when the existing cache policy permits it. The recorded run left
+`optimizeVertexCache` at its C++ default of `false`: mode 2 therefore repeated
+plain indexing and did not measure enabled cache/fetch ordering. Animated, skinned and morph
 assets keep expanded streams. Indexing is skipped when total geometry storage
 would not shrink. Neither variant generates LOD or enables instancing.
 
@@ -43,17 +45,19 @@ The table averages the two stage means for each mode. Raw stage data is in
 | Objects | Variant | GPU ms expanded → indexed | CPU enqueue ms | Synchronized frame ms |
 | ---: | --- | ---: | ---: | ---: |
 | 1 | Indexing | .7235 → 1.0038 | .0169 → .0223 | 1.1859 → 1.5635 |
-| 1 | Indexing + cache/fetch ordering | .7101 → 1.0237 | .0173 → .0198 | 1.1953 → 1.5665 |
+| 1 | Repeated indexing (cache policy off) | .7101 → 1.0237 | .0173 → .0198 | 1.1953 → 1.5665 |
 | 16 | Indexing | 9.8911 → 14.1354 | .3170 → .3379 | 11.6499 → 15.7573 |
-| 16 | Indexing + cache/fetch ordering | 10.0844 → 14.2719 | .3166 → .3075 | 11.5184 → 15.7985 |
+| 16 | Repeated indexing (cache policy off) | 10.0844 → 14.2719 | .3166 → .3075 | 11.5184 → 15.7985 |
 
 Per shared ToyCar asset, position/surface/index GPU storage falls from
 18,301,248 to 5,550,662 bytes (about 70% less). Textures, environment data and
 retained CPU arrays are excluded and unchanged. This is retained buffer storage;
 loading peak memory and upload latency were not measured.
 
-Both variants regress GPU and synchronized frame time in these comparisons, so
-neither is adopted. Cache ordering does not recover the lost throughput. GPU
+Both plain-indexing sequences regress GPU and synchronized frame time, so this
+path is not adopted. Enabled cache/fetch ordering remains unmeasured; the original
+report incorrectly described mode 2 as cache-enabled. Its control flag must be
+enabled explicitly and its actual value recorded before drawing that conclusion. GPU
 clocks, thermal state and scheduling are not locked; this short investigation
 does not identify the hardware cause or establish a universal indexed-draw cost.
 Revisit only with a different layout/workload and repeatable net gains. Further

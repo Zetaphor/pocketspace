@@ -19,6 +19,10 @@ struct Renderer {
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
   PbrProgram pbrProgram;
+  PbrProgram depthPbrProgram;bool fastPbrDepth=true;
+#ifdef SF_PBR_DEPTH_EXPERIMENT
+  uint64_t pbrDepthDraws=0,pbrColorDraws=0,pbrDepthTriangles=0,pbrColorTriangles=0;
+#endif
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
   bool specialize=false,materialCulling=true;
@@ -52,6 +56,9 @@ struct Renderer {
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
+#ifdef SF_PBR_DEPTH_EXPERIMENT
+    pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
+#endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
     const GLuint generalProgram=program;
     if(ordinaryRouting&&!specialize&&!drawUniformCachingEnabled&&ordinaryProgram.select(false))program=ordinaryProgram.id();
@@ -114,11 +121,16 @@ struct Renderer {
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
           if(asset.pbr){
-            assert(pbrProgram.init());pbrProgram.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
-            pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
-            pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel);
+#ifdef SF_PBR_DEPTH_EXPERIMENT
+            if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
+            else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
+#endif
+            const bool depthOnly=fastPbrDepth&&pass<0;auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;assert(activePbr.init(depthOnly));
+            activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
+            activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
+            activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
-            pbrProgram.release();glUseProgram(program);continue;
+            activePbr.release();glUseProgram(program);continue;
           }
           const GLuint activeProgram=skin?generalProgram:program;
           if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
