@@ -8,8 +8,8 @@ This roadmap contains future work, without prescribing an implementation order.
 - Finish production readiness for GPU skeletal skinning. The isolated
   [Frame prototype](../tests/results/gpu-skinning.md) improved 32 animated
   CesiumMan instances from 50.4 to 88.3 FPS with conservative joint bounds and
-  lazy exact picking; correctness checks passed. Obtain headset visual acceptance,
-  measure active ray-candidate interaction costs, and broaden model/material and
+  lazy exact picking; correctness checks and the 32-model visual check passed.
+  Measure active ray-candidate interaction costs, and broaden model/material and
   multi-part coverage before adoption. Support additional influence sets and
   morph-before-skin combinations, or retain explicit CPU fallback. Preserve
   transitions, per-instance poses, resource lifetime and coherent stereo

@@ -2,7 +2,7 @@
 
 Measured on Steam Frame on 2026-10-28 at commit `76edcd7`. This excluded
 experiment improved the measured workload; normal builds retain CPU skinning.
-Headset visual acceptance has not yet been requested or confirmed.
+The user confirmed that the 32-model scene looked visually fine after this comparison.
 
 ## Method
 
@@ -69,7 +69,8 @@ Eligibility is deliberately limited: entirely skinned assets, no morph targets,
 exactly one four-lane influence set per primitive, at most 1,024 joints per skin.
 Other assets use the existing CPU path. Automated rendered comparisons cover
 CesiumMan; broader assets/materials, mixed-part scenes, active interaction costs,
-resource stress and headset visual acceptance remain before production adoption.
+resource stress remain before production adoption. Visual acceptance applies to the
+32-model CesiumMan scene; it does not establish coverage for every asset.
 The common runtime shader handles both color and depth draws, but these image
 checks do not replace headset occlusion/reprojection acceptance.
 
