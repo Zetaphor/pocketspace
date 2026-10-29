@@ -9,7 +9,7 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v8
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v9
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
@@ -91,7 +91,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
 this identifier and its legacy default save directory for compatibility with
 existing snapshots and named saves.
-New captures use `version: 8`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 9`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
@@ -345,3 +345,20 @@ removes its lights through the same cleanup path.
 
 Try capture/restore with a grabbable attached light in
 [lights.js](../scripts/lights.js).
+
+## Spotlights and light types (v9)
+
+V9 requires `type: 'point'` or `type: 'spot'` on every `lights` entry. Spotlights
+also require a nonzero three-component `direction`, `innerConeAngle` and
+`outerConeAngle`, using the [spotlight API ranges](lighting-api.md#dynamic-spotlights).
+Invalid types, vectors or cone ordering reject restoration before publication.
+Both types share the existing eight-light capacity and attachment/ownership rules.
+The returned `lightIds` and `lightMap` include both types in snapshot order.
+
+V8 documents restore their lights as points; an optional `type` may only be
+`'point'`. A spotlight type requires v9. V1–v7 continue restoring without scene
+lights. Restore stages a mixed set together and preserves the current scene and
+ID counters on failure.
+
+Try mixed-type persistence in the native regression, or run the grabbable
+flashlight capture/restore example: [spotlights.js](../scripts/spotlights.js).

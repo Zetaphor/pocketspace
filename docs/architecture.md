@@ -271,7 +271,7 @@ for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
 [Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
 are recorded as separate validation evidence.
-Scene point lights are logical CPU records (up to eight), with independent IDs
+Scene point lights and spotlights are logical CPU records (up to eight combined), with independent IDs
 and container ownership. The renderer resolves object-local meter offsets after
 interaction/physics into one frame snapshot, shared by all eyes and surfaces.
 PBR shaders receive positions relative to each surface in the same model axes as
@@ -279,12 +279,18 @@ surface normals. Cached uniform payloads avoid repeated uploads at unchanged
 surface origins. The bounded forward loop adds GGX point illumination with smooth
 range cutoff and inverse-square attenuation; disabled/zero-intensity lights are
 excluded. Unlit materials and external-depth draws bypass the lighting work.
-Lights cast no shadows. V8 snapshots stage owned lights, remap attachments and
+Spotlights additionally rotate/normalize emitted direction with attachments and
+multiply direct illumination by a squared cone fade, with an explicit hard-edge
+case for equal cone angles. Uniform payloads include direction and cone cosines;
+point lights bypass the cone branch. Lights cast no shadows. V9 snapshots store
+light types and cone data; v8 retains point lights. Snapshots stage owned lights, remap attachments and
 publish fresh IDs; cross-container capture attachments are rejected. Removal,
 container disposal and reload share normal scene cleanup. See the
 [point-light API](lighting-api.md#dynamic-point-lights) and
 [regression](../tests/point-light-regression.cpp) and
 [bounded Frame comparison](../tests/results/point-lights.md).
+Spotlight correctness and matched point/spot timings are recorded in the
+[spotlight comparison](../tests/results/spotlights.md).
 
 Static PBR supports full-input indexing with `optimizeVertexCache: true` (default
 false). Every 14-float shader-input tuple participates in identity, preserving

@@ -45,6 +45,11 @@ int main() {
       toggleTool();
       if(getSceneContainerState(tool).objectIds.length!==4||!getSceneContainerState(tool).inputCallback)throw Error('tool recreation');
     )";
+    if(name=="spotlights.js") controls=R"(
+      inputEventForExample('/input/b/click');const previousSpot=light;
+      inputEventForExample('/input/b/click');
+      if(light===previousSpot||getSpotLight(light).objectId===handle)throw Error('flashlight restore');
+    )";
     if(name=="lights.js") controls=R"(
       inputEventForExample('/input/b/click');
       const oldLight=light;

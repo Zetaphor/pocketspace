@@ -26,7 +26,7 @@ int main(int argc,char **argv){
   }
   r.scene.objects[0].x=.2;r.scene.objects[0].y=.3;r.scene.objects[0].z=.4;r.scene.objects[0].yaw=float(std::acos(-1)/2);
   light.objectId=1;light.position={0,0,.1};r.scene.lights={light};auto resolved=resolvePointLights(r.scene);assert(resolved.size()==1&&std::abs(resolved[0].position[0]-.1)<1e-5&&std::abs(resolved[0].position[1]-.3)<1e-5&&std::abs(resolved[0].position[2]-.4)<1e-5);
-  if(argc>1&&std::string(argv[1])=="--profile"){
+  if(argc>1&&(std::string(argv[1])=="--profile"||std::string(argv[1])=="--profile-spots")){
    r.scene.objects[0]=object;
    auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
    for(bool detailed:{false,true}){
@@ -35,14 +35,23 @@ int main(int argc,char **argv){
     r.scene.assets.emplace_back();auto &car=r.scene.assets.back();car.pbr=true;car.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",car));uploadModel(car);car.lighting.intensity=0;car.lighting.ambient=.04;
     r.scene.objects.clear();for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.2f;o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);members.push_back(o.id);}
    }else members={1};
+   for(bool spot:{false,true}){
+   if(spot&&std::string(argv[1])!="--profile-spots")continue;
    for(int count:{0,1,4,8,8,4,1,0}){
-    r.scene.lights.clear();for(int i=0;i<count;i++){auto l=light;l.id=i+1;l.objectId=0;l.position={float(i%2)*.2f,.15f,-.5f};l.intensity=.15f;r.scene.lights.push_back(l);}
+    r.scene.lights.clear();for(int i=0;i<count;i++){auto l=light;l.id=i+1;l.objectId=0;l.position={float(i%2)*.2f,.15f,-.5f};l.intensity=.15f;l.spot=spot;l.direction={0,0,1};l.innerConeAngle=1.2f;l.outerConeAngle=1.4f;r.scene.lights.push_back(l);}
+    if(spot){
+     const auto coneImage=r.renderSet(members,{0,0,-1.2f},0);
+     for(auto &l:r.scene.lights)l.spot=false;
+     assert(coneImage==r.renderSet(members,{0,0,-1.2f},0));
+     for(auto &l:r.scene.lights)l.spot=true;
+    }
     GLuint query;gen(1,&query);double wall=0,gpu=0;
     for(int frame=0;frame<240;frame++){
      auto start=std::chrono::steady_clock::now();begin(GL_TIME_ELAPSED_EXT,query);r.renderSet(members,{0,0,-1.2f},frame%2,0,false);end(GL_TIME_ELAPSED_EXT);glFinish();GLuint64 elapsed=0;result(query,GL_QUERY_RESULT_EXT,&elapsed);GLint disjoint=0;glGetIntegerv(GL_GPU_DISJOINT_EXT,&disjoint);assert(!disjoint);
      if(frame>=60){wall+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();gpu+=double(elapsed)/1e6;}
     }
-    destroy(1,&query);printf("POINT_PROFILE lights=%d wall_ms=%.4f gpu_ms=%.4f frames=180 pixels=768 geometry=%s\n",count,wall/180,gpu/180,detailed?"16-ToyCars":"Box");
+    destroy(1,&query);printf("POINT_PROFILE type=%s lights=%d wall_ms=%.4f gpu_ms=%.4f frames=180 pixels=768 geometry=%s\n",spot?"spot":"point",count,wall/180,gpu/180,detailed?"16-ToyCars":"Box");
+   }
    }
    }
   }
@@ -60,7 +69,7 @@ int main(int argc,char **argv){
    fails(()=>setPointLight(light,{get color(){throw Error('expected getter')}}));check(JSON.stringify(getPointLight(light))===initial);
    setPointLight(light,{get intensity(){for(let i=0;i<7;i++)createPointLight();return .4}});fails(()=>createPointLight());
    for(let id=2;id<=8;id++)removePointLight(id);
-   const snap=captureSceneContainer(owner);check(snap.version===8&&snap.lights.length===1);
+   const snap=captureSceneContainer(owner);check(snap.version===9&&snap.lights.length===1);
    saveSceneContainer(owner,'light');const disk=loadSceneContainer('light');check(getPointLight(disk.lightIds[0]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const restored=restoreSceneContainer(snap),copy=restored.lightIds[0];check(copy!==light&&restored.lightMap[light]===copy&&getPointLight(copy).objectId===restored.objectMap[object]);disposeSceneContainer(restored.containerId);fails(()=>getPointLight(copy));
    for(const mutate of [s=>s.lights[0].range=0,s=>s.lights[0].objectId=999,s=>s.lights[0].color=[1,2],s=>s.lights.push(s.lights[0])]){

@@ -98,7 +98,7 @@ int main(){
    setModelLighting(a,{get ambient(){loadModel('assets/samples/Lantern/Lantern.glb');return .15;}});
    setModelLighting(a,{direction:[1,2,3],color:[1,.8,.6],intensity:4,ambient:.1,exposure:1.2});
    const owner=createSceneContainer();createObject(a,0,0,0,.2,{container:owner});
-   const snap=captureSceneContainer(owner);check(snap.version===8&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
+   const snap=captureSceneContainer(owner);check(snap.version===9&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
    for(const options of [{direction:[0,0,0]},{direction:[1,2]},{color:[-1,0,0]},{intensity:-1},{exposure:0},{ambient:Infinity}])fails(()=>setModelLighting(a,options));
    fails(()=>setModelLighting(a,{get ambient(){throw Error('getter');}}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
