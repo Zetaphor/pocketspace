@@ -838,11 +838,13 @@ identical factors/sheen/alpha/cutoff/double-sided state and no source texture
 parts and static assets retain their existing paths. No sorting crosses a part,
 material or object boundary.
 
-Both comparison modes retain original per-part VBOs plus a per-pose combined
-expanded VBO. Changed primitive ranges update both, so storage and upload work
-match between modes. This intentionally isolates draw-call reduction; it is not
-yet a production memory/upload design. Teardown releases the extra VBO, and the
-engine GPU allocation estimate includes it. CPU geometry/BVH/bounds are unchanged.
+Eligible poses now own one combined expanded VBO; per-part VBOs are absent.
+Changed primitive ranges upload once. Both comparison modes use this same stream:
+reference draws individual ranges, batching combines eligible adjacent ranges.
+Unmerged/textured parts still draw their correct ranges. Teardown releases the
+stream once and GPU allocation estimates count it once. CPU geometry/BVH/bounds
+are unchanged. The historical prototype report used duplicate storage/uploads;
+that arrangement has been removed.
 
 On Frame with its normal display/library environment:
 
@@ -856,5 +858,15 @@ Keep the view steady; B/Y aborts. Stop after completion and use the animation
 analyzer. `RIGID_BATCH_DRAWS` reports CPU-pose draws and merged source parts for
 one frame. Require matching allocations and pixels before attributing a gain.
 The nine untextured cubes in InterpolationTest can merge into one draw; its
-textured plane stays separate. All implementation/toggles compile out of normal
-builds. This is independent of the rejected multi-material shader experiment.
+textured plane stays separate. The stream implementation is compiled into normal builds; grouped draws remain
+disabled by default pending final production validation. Environment toggles and
+draw counters exist only in the excluded comparison executable. The pixel target
+uses production code with test counters, without the experiment definition.
+This is independent of the rejected multi-material shader experiment.
+
+
+The mixed GPU lifecycle regression also checks independent restored rigid streams,
+absence of per-part VBOs, exact allocation size, and buffer deletion through 30
+successful/failed reload and live/frozen snapshot cycles. The rigid phase test
+maps individual stream ranges across all nine rigid clips and preserves pending
+updates through repeated pose evaluations.

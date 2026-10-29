@@ -56,7 +56,7 @@ add_executable(gpu-sync-experiment EXCLUDE_FROM_ALL src/main.cpp src/model_asset
 add_executable(rigid-batch-experiment EXCLUDE_FROM_ALL src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_definitions(rigid-batch-experiment PRIVATE SF_RIGID_BATCH_EXPERIMENT=1 SF_ANIMATION_PROFILE=1)
 add_executable(rigid-batch-pixels EXCLUDE_FROM_ALL tests/rigid-batch-pixels.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
-target_compile_definitions(rigid-batch-pixels PRIVATE SF_RIGID_BATCH_EXPERIMENT=1)
+target_compile_definitions(rigid-batch-pixels PRIVATE SF_RIGID_BATCH_COUNTERS=1)
 target_compile_options(rigid-batch-pixels PRIVATE -UNDEBUG)
 add_executable(vertex-array-experiment EXCLUDE_FROM_ALL src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_definitions(vertex-array-experiment PRIVATE SF_VERTEX_ARRAY_EXPERIMENT=1 SF_ANIMATION_PROFILE=1)

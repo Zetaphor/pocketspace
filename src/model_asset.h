@@ -6,9 +6,7 @@
 #include "animation.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-#include "../tests/rigid-batch-experiment.h"
-#endif
+#include "rigid_batching.h"
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
 #include "../tests/vertex-array-experiment.h"
 #endif
@@ -31,9 +29,7 @@ struct PrimitiveAsset {
   int alphaMode=0; // 0 opaque, 1 mask, 2 blend
   float alphaCutoff=.5f;
   bool doubleSided=false;
-#ifdef SF_RIGID_BATCH_EXPERIMENT
   bool untextured=false;
-#endif
   ModelLodLevel lod[2];
   GLuint vbo=0,indexBuffer=0,texture=0;
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
@@ -54,11 +50,9 @@ struct ModelAsset {
   std::vector<animation::Clip> animations;
   float center[3]{},normalization=1;
   bool skinEligible=false;
-#ifdef SF_RIGID_BATCH_EXPERIMENT
   bool rigidBatchEligible=false;
-  GLuint batchVbo=0;
+  GLuint batchVbo=0; // Owned once; geometry.primitives never alias this name.
   size_t batchBytes=0;
-#endif
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
@@ -81,6 +75,7 @@ struct PosePartState {
   animation::Matrix world{};
   std::array<float,3> low{},high{};
   float radius=0;
+  GLint streamFirst=0;
   bool valid=false,uploadDirty=true;
 };
 // Per-object deformed geometry; material textures remain on the shared asset.
@@ -118,6 +113,5 @@ inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part,int level=0){
 #endif
 }
 
-#ifdef SF_RIGID_BATCH_EXPERIMENT
 bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primitive);
-#endif
+void drawPosePrimitive(const PrimitiveAsset &source,const ModelPose &pose,size_t primitive);

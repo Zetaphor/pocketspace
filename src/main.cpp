@@ -2527,14 +2527,9 @@ int main(int argc,char **argv) {
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
                 }
-#ifdef SF_RIGID_BATCH_EXPERIMENT
                 if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
-#endif
-                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-                  ,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr
-#endif
-                );
+                if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
+                else drawModelPrimitive(part,0,object.lodLevel);
               }
             };
             if(useInstancing){
@@ -2623,9 +2618,7 @@ int main(int argc,char **argv) {
       bytes+=instanceExperiment.allocatedBytes();
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
-#ifdef SF_RIGID_BATCH_EXPERIMENT
       for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
-#endif
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

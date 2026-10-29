@@ -369,10 +369,19 @@ Restore VAO 0 after each cached draw. Both reference/VAO modes allocate identica
 storage; include driver metadata limits when describing allocation estimates.
 
 
-The [adjacent rigid batch prototype](../tests/results/rigid-batches.md) has a
-measured gain but is not integrated. Keep it behind `SF_RIGID_BATCH_EXPERIMENT`.
-Only adjacent identical-state untextured CPU rigid parts qualify; preserve exact
-expanded triangle order, material/object barriers and existing skin/morph/static
-fallbacks. Both measured modes retain mirrored per-part/combined buffers and
-uploads. Remove that duplication in a production stream design, with ownership,
-allocation accounting and partial-update/restore tests, before adoption.
+Adjacent rigid batching now uses an owned production stream; grouped draws remain
+disabled by default pending final production validation. Eligible CPU poses own
+one `geometry.batchVbo`; `geometry.primitives[].vbo` remain zero. Never alias the
+shared stream name into per-part ownership. Count the stream once and delete it
+once. `drawPosePrimitive` handles unmerged ranges as well as the per-part fallback;
+do not render an animated part by reading its per-part VBO directly.
+
+Only adjacent identical-state untextured opaque/masked CPU rigid parts qualify.
+Keep exact expanded triangle order, material/object barriers and skin/morph/static
+fallbacks. Partial updates use fixed `PosePartState::streamFirst` offsets, retain
+pending dirtiness across evaluations, and upload each changed range once. Saved
+scenes serialize playback, not GL resources; rebuild independent streams through
+normal restore/upload. The excluded `rigid-batch-experiment` alone exposes a draw
+mode switch and counters. The pixel test uses production code with test counters.
+See [prototype measurements](../tests/results/rigid-batches.md); repeat performance
+checks after the stream ownership change before default adoption.
