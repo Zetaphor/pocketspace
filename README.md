@@ -1,30 +1,33 @@
 # Pocketspace
 
-**Build interactive tools that live alongside your VR apps.**
+**Build games, tools, toys and experiences. AR in VR, powered by JavaScript.**
 
-Create a VR workspace, a floating control panel, or a scene full of objects you
-can pick up and play with—all in JavaScript. Pocketspace runs
-alongside your existing SteamVR application, so your tools can stay with you in VR.
+Pocketspace is a platform for adding your own interactive layer to virtual
+reality. Build a floating game, a useful tool, a physics toy or an animated
+companion scene that lives alongside the SteamVR apps you already use.
+
+Think of it as augmented reality inside VR: your creations share your virtual
+space while another application runs. Start with a few lines of JavaScript,
+then bring your ideas to life with objects you can grab, interfaces you can
+click and worlds that respond to you.
 
 [Documentation](https://zetaphor.github.io/pocketspace/) ·
 [Getting started](docs/getting-started.md) · [Examples](docs/examples.md)
 
 ## What you can build
 
-- **Interactive 3D tools.** Load GLB models, place them around you, and grab,
-  rotate or throw objects with either controller using grip, trigger or both.
-- **Panels and interfaces.** Draw text, images and controls on canvas panels,
-  then respond to controller pointer clicks.
-- **Physical scenes.** Add gravity, collisions, joints, springs, motors and
-  breakable connections to build moving mechanisms.
-- **Animated models.** Play and blend skeletal, morph and node animations with
-  independent playback for each object.
-- **Lit materials.** Use opt-in PBR lighting and HDR environment reflections,
-  with automatic model LOD for distant objects and full detail while held.
-- **Persistent workspaces.** Group related objects and panels into containers,
-  then save and restore their layout, animation, physics and panel contents.
-- **Tracking-aware experiences.** Read controller input, eye gaze and finger
-  sensor values, with personal eye-calibration support.
+- **Games in your space.** Combine grabbable models, controller input, physics
+  and animation to create interactive play alongside your VR apps.
+- **Tools within reach.** Build floating panels with text, images and controls,
+  or make 3D tools you can pick up and move with either hand.
+- **Toys to experiment with.** Give objects gravity and collisions; connect
+  them with springs, motors and breakable joints to build playful mechanisms.
+- **Experiences that respond to you.** Use controller input, eye gaze and finger
+  sensor values to drive interactions, with personal eye-calibration support.
+- **Scenes with character.** Play and blend model animations, add PBR materials
+  and HDR environment reflections, and arrange objects all around you.
+- **Creations you can return to.** Save and restore groups of objects and panels,
+  including their layout, animation, physics and panel contents.
 
 Write scripts against the included API—no game-engine project is required.
 Edits reload automatically, and a failed reload keeps your current scene running.
