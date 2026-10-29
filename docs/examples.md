@@ -47,6 +47,9 @@ Run any example with `./run-pocketspace.sh scripts/<name>.js`.
 
 ## Functionality coverage
 
+See [performance options](optimizations.md) for optimization defaults, opt-ins
+and tradeoffs used by these examples.
+
 Examples demonstrate supported workflows rather than every spelling of the API.
 Each script starts with its purpose and controls; inline comments explain units,
 ownership, input-source differences and other behavior that is easy to misread.

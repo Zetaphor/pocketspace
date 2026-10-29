@@ -405,7 +405,8 @@ generations, pose streams, palette textures, unlit LOD indices, PBR LOD buffer s
 and instance data. It
 excludes driver/compositor overhead and is not measured GPU residency.
 
-The production optimizations and their controls are:
+Script-facing defaults, opt-ins and tradeoffs are collected in
+[performance options](optimizations.md). The production optimizations and their controls are:
 
 | Optimization | Production policy | Evidence |
 | --- | --- | --- |
