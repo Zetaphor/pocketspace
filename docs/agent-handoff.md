@@ -350,3 +350,11 @@ Only rigid non-morph parts may reuse geometry; skin/morph parts still update.
 Refit the whole BVH when any part changes. See the
 [Frame comparison](../tests/results/rigid-pose-cache.md) before adopting or
 extending this optimization.
+
+
+The [pass-local uniform cache comparison](../tests/results/draw-uniforms.md)
+preserved exact pixels and removed most uniform calls, but did not improve
+end-to-end throughput. Keep it isolated in `SF_DRAW_SUBMIT_EXPERIMENT` and
+`tests/draw-uniforms-experiment.h`; normal draws retain direct uniform calls.
+Do not infer GPU duration from completion-wait changes. Future submission work
+must target the actual draw/vertex-state cost and preserve primitive order.

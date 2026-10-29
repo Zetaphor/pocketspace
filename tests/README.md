@@ -794,4 +794,5 @@ Keep the view steady; B/Y aborts. Stop after the completion marker. Use the
 animation analyzer; compare allocation estimates before attributing FPS changes.
 `DRAW_UNIFORMS` periodically reports issued/skipped object/material uniform
 calls for one frame. The toggle and counters are excluded from normal builds;
-normal rendering retains full uniform writes until measurement/acceptance.
+normal rendering retains direct full uniform writes. The
+[completed comparison](results/draw-uniforms.md) did not justify adoption.
