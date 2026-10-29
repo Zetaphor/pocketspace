@@ -2520,7 +2520,11 @@ int main(int argc,char **argv) {
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
                 }
-                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr);
+                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+                  ,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr
+#endif
+                );
               }
             };
             if(useInstancing){

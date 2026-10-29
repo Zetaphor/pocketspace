@@ -358,3 +358,12 @@ end-to-end throughput. Keep it isolated in `SF_DRAW_SUBMIT_EXPERIMENT` and
 `tests/draw-uniforms-experiment.h`; normal draws retain direct uniform calls.
 Do not infer GPU duration from completion-wait changes. Future submission work
 must target the actual draw/vertex-state cost and preserve primitive order.
+
+
+The [owned VAO comparison](../tests/results/vertex-arrays.md) is complete and
+not adopted. Keep its fields, setup, destruction and draw switch behind
+`SF_VERTEX_ARRAY_EXPERIMENT`; normal `drawModelPrimitive` retains its original
+three-argument call and vertex setup. Experimental CPU overrides pass their
+own geometry owner so VAOs are destroyed with the pose, not cached by GL name.
+Restore VAO 0 after each cached draw. Both reference/VAO modes allocate identical
+storage; include driver metadata limits when describing allocation estimates.

@@ -1,0 +1,1 @@
+PASS vertex arrays: 864 exact stereo views, opaque/masked/blended materials, static/rigid/morph/GPU skin, instancing switches and LOD, default VAO restoration and resource deletion

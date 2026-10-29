@@ -821,3 +821,8 @@ unchanged pixels before attributing a throughput change. VAOs retain vertex
 attribute/index bindings; no geometry buffers, draw order, shader, material or
 quality setting changes. Driver VAO metadata is outside the engine's buffer
 allocation estimate. Normal builds compile out this experiment and its switch.
+
+
+The [completed vertex-array comparison](results/vertex-arrays.md) passed exact
+images but did not establish a throughput improvement. It remains excluded;
+normal engine vertex setup is unchanged.

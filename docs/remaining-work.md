@@ -14,9 +14,11 @@ This roadmap contains future work, without prescribing an implementation order.
   the cache is now accepted in headset and enabled by default. Investigate bounded
   primitive draw/vertex-state submission reductions while preserving draw order,
   exact picking, independent transitions and matched surface density. The
-  [uniform cache comparison](../tests/results/draw-uniforms.md) reduced calls
-  but did not improve throughput; it remains experimental. The prior combined
-  multi-part stream also did not justify general adoption.
+  [uniform cache comparison](../tests/results/draw-uniforms.md) and
+  [owned vertex array comparison](../tests/results/vertex-arrays.md) preserved
+  pixels but did not establish throughput gains; both remain experimental.
+  Investigate actual draw count/driver cost and narrowly ordered reductions.
+  The prior combined multi-part stream also did not justify general adoption.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.

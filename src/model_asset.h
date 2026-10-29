@@ -59,7 +59,11 @@ bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0,const PrimitiveAsset *deformed=nullptr);
+#else
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
+#endif
 
 inline bool rigidPoseCachingEnabled=true; // Comparison tests may force full CPU updates.
 struct PosePartState {
