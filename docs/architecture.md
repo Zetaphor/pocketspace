@@ -277,6 +277,14 @@ triangles and animated uploads stay expanded. These variants are excluded from
 the production engine: [native comparisons](../tests/results/pbr-index.md) found
 lower geometry storage but worse GPU throughput. See the
 [test instructions](../tests/README.md#static-pbr-indexing-experiment).
+The separate [surface-aware PBR LOD experiment](../tests/results/pbr-lod.md)
+uses full-input CPU indexing only while simplifying. It locks coincident surface
+seams and primitive borders, then expands selected original vertices into owned
+position/surface VBO pairs. Full streams stay resident for near and held objects;
+this trades additional shared geometry storage for less distant draw work. The
+existing object-level selector supplies the same detail choice to color/depth
+passes and both eyes. The bake path remains test-only pending a production adoption decision that
+accounts for additional shared geometry storage.
 Material UV0 transforms and sampler settings are independent. Surface frames use
 inverse-transpose normals and orthogonalized tangents, including mirrored node
 handedness. PBR CPU poses update surface buffers alongside positions and bounds;

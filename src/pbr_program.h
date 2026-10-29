@@ -110,7 +110,7 @@ void main(){
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
  }
- void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry)const{
+ void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0)const{
   glUniform4fv(location("factor"),1,p.factor);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
   scalar("metallic",p.metallic);scalar("roughness",p.roughness);scalar("normalScale",p.normalScale);scalar("occlusionStrength",p.occlusionStrength);vector("emissive",p.emissive);
   integer("materialUnlit",p.materialUnlit);integer("doubleSided",p.doubleSided);
@@ -125,7 +125,8 @@ void main(){
    glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,env->cube);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,env->lut);
   }
   glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,p.texture);
-  glBindBuffer(GL_ARRAY_BUFFER,geometry.surfaceVbo);
+  const auto *lod=modelLodLevel(geometry,lodLevel);
+  glBindBuffer(GL_ARRAY_BUFFER,lod&&lod->surfaceVbo?lod->surfaceVbo:geometry.surfaceVbo);
   glEnableVertexAttribArray(8);glEnableVertexAttribArray(9);glEnableVertexAttribArray(10);
   glVertexAttribPointer(8,3,GL_FLOAT,GL_FALSE,9*sizeof(float),nullptr);glVertexAttribPointer(9,4,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float)));glVertexAttribPointer(10,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(7*sizeof(float)));
  }
