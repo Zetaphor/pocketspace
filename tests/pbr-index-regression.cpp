@@ -33,6 +33,7 @@ static bool verifyStream(const PrimitiveAsset &p,bool reordered=false){
  const bool changed=actual!=expected;
  std::sort(actual.begin(),actual.end());std::sort(expected.begin(),expected.end());assert(actual==expected);return changed;
 }
+#ifndef SF_PBR_INDEX_HELPERS_ONLY
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  // Boundary coverage for both index widths and exact shader-input identity.
@@ -104,3 +105,5 @@ int main(int argc,char **argv){
  }
  assert(glGetError()==GL_NO_ERROR);eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
+
+#endif

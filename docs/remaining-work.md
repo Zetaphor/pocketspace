@@ -21,12 +21,13 @@ This roadmap contains future work, without prescribing an implementation order.
   [static PBR indexing comparison](../tests/results/pbr-index.md) reduced geometry
   storage but regressed native throughput with the cache policy off;
   retain expanded uploads alongside the implemented, budgeted PBR LOD and cheaper
-  external depth pass. Integrate the validated
-  [cache-ordered PBR indexing prototype](../tests/results/pbr-index-cache.md)
-  with production uploads, automatic LOD, memory accounting and shared-asset
-  cleanup; then compare normal-engine workloads and validate in the headset.
-  Preserve full-input surface seams and blended triangle order. Plain indexing
-  remains slower and must not be enabled as a fallback optimization.
+  external depth pass. Investigate cache-ordered indexing for reduced PBR LOD
+  streams: [production full-detail indexing](../tests/results/pbr-index-production.md)
+  improves the matched old path, but indexed full detail now outperforms the
+  retained expanded reduced streams on ToyCar. Preserve surface identity, quality,
+  the optional memory budget and rollback before adopting reduced indexing.
+  Keep the existing cache option opt-in; plain indexing remains slower.
+
 
 ## Scripted experiences
 

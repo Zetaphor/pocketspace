@@ -161,3 +161,11 @@ public:
   }
   void reset(){if(enabled)glDisable(GL_CULL_FACE);if(clockwise)glFrontFace(GL_CCW);enabled=clockwise=false;}
 };
+
+#ifdef SF_PBR_INDEX_VALIDATION
+namespace pbrIndexValidation {
+inline int failStage=-1;
+inline bool failCpu=false,rollbackClean=true;
+inline size_t rejectedBuffers=0;
+}
+#endif

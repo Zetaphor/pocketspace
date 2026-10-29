@@ -426,14 +426,21 @@ choice; snapshot v6 also requires matching lighting for cached lit models. V1–
 snapshots default to unlit rendering; v6 retains direct PBR lighting. Failed restores must not change lighting
 on already-visible objects.
 
-PBR retains expanded normals, tangents/handedness and UV0 separately from legacy
-xyz/UV storage. Do not deduplicate PBR geometry using the legacy five-float key:
-normal and tangent seams must survive. The test-only full-input indexing/cache
-variants are not production policy: [native measurements](../tests/results/pbr-index.md)
-showed lower storage but worse throughput with cache ordering disabled. The
-[enabled-cache follow-up](../tests/results/pbr-index-cache.md) verifies reordering
-and measures full-detail gains; it remains test-only pending production/LOD
-integration. Never reorder blended triangles. MikkTSpace is vendored at upstream commit
+PBR keeps expanded CPU inputs but can compact full-detail GPU streams with the
+existing opt-in `optimizeVertexCache` policy. Do not use the legacy five-float
+identity: both UV inputs, normal/tangent/handedness and position must participate.
+Only static opaque/masked primitives with storage savings are indexed in
+production, with cache/fetch ordering; blended and deforming uploads remain
+expanded. Stage position/surface/index buffers atomically and verify sizes before
+publishing. On failure release partial buffers and retain expanded uploads.
+Keep source draw count and uploaded compact vertex count distinct for drawing
+and memory accounting. Generate reduced PBR LOD pairs from unchanged CPU inputs
+regardless of full-detail indexing; select their expanded position/surface pairs
+before consulting full-detail element buffers. Optional LOD budgets remain
+independent of compact full buffers. Preserve the opt-in flag in the existing
+snapshot/cache-conflict policy; no new snapshot version or runtime override.
+See [production validation](../tests/results/pbr-index-production.md).
+MikkTSpace is vendored at upstream commit
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 

@@ -336,7 +336,7 @@ their defaults, including `merge: false` and `rebalance: false`.
 
 ### Shared model geometry
 
-Shared GPU meshes reuse identical position/UV vertices within each material
+Unlit shared GPU meshes reuse identical position/UV vertices within each material
 primitive when vertex and index buffers together use less storage. By default,
 full-detail triangle order, UV seams, and material boundaries are preserved.
 Automatic LOD retains that full mesh and selects reduced index streams for
@@ -361,6 +361,13 @@ every triangle, its winding, exact vertex/UV data, textures, and reference
 resolution. It does not simplify geometry or alter picking/collision meshes.
 Objects can still move, rotate, be grabbed, and use physics; the static-geometry
 restriction concerns vertex deformation, not object motion.
+
+For PBR, this option also enables full-input indexing of static opaque/masked
+primitives when compact GPU storage is smaller. Identity includes both UV inputs,
+normal and tangent/handedness as well as position. Compact full-detail buffers
+coexist with the usual reduced expanded PBR LOD streams. Failed optional staging
+keeps expanded full detail; the option does not enable plain indexing for blends.
+The retained CPU geometry and picking remain unchanged.
 Blended primitives and assets with animation or skinning retain their original
 GPU triangle order, even when the option is enabled. Non-indexed primitives also
 retain their original stream.

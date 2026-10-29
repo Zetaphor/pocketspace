@@ -1139,3 +1139,35 @@ Grip or trigger grabs/rotates the car and alpha-test model against a blue backdr
 check overlaps, cutout holes and head movement for flicker or missing parts.
 Production enables the cheaper depth pass automatically. Only the excluded
 `pbr-depth-demo` diagnostic executable accepts `SF_PBR_DEPTH=0/1` for comparisons.
+
+## Production PBR indexing checks
+
+Reconfigure CMake and build `pbr-index-production-regression` explicitly. Run from
+the repository root with the normal GLES environment. Unlike the earlier
+comparison target, this target uses the production opt-in policy and ignores
+`SF_PBR_INDEXED`. It compares both eyes at all three LOD choices, color/external
+depth, original blended materials and animated fallbacks. It checks reconstructed
+full shader inputs, CPU preservation, shared snapshots, cache conflicts, rejected
+reload preservation, buffer cleanup, a full LOD budget and partial allocation
+rollback. Failure injection is compiled only into this excluded check.
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target pbr-index-production-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-index-production-regression
+```
+
+`--benchmark` adds matched 16-car comparisons with the opt-in policy off/on at
+LOD 0/1/2 for color-only and external-depth workloads. The studio environment,
+768-square target, fixed camera and triangle counts stay matched. Each sequence
+runs off/on/on/off, with 30 warmup and 120 measured frames per stage. Shader
+programs and assets are initialized first; every frame checks actual draw/triangle
+counts, GPU disjoint and GL errors. Keep the headset awake and worn. This is
+an offscreen production-path measurement, not compositor FPS.
+
+Run `tests/scenes/pbr-index.js` with the normal engine for interactive inspection.
+Grip/trigger grabs and rotates a car, normal-map fixture and alpha-test model;
+approach and move away to check LOD, then grab to restore full detail. Check
+reflections, cutouts and overlaps against the blue backdrop. The public
+`scripts/pbr.js` example also enables the existing `optimizeVertexCache` option.
+See [production results](results/pbr-index-production.md).
