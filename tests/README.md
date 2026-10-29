@@ -679,8 +679,8 @@ jumps, stale geometry after release, and color/depth disagreement when models
 overlap. This check uses the 32-actor workload and reports live FPS/CPU on its HUD.
 
 
-The real-model GPU matrix includes CesiumMan, Fox (all three clips), RiggedFigure
-and RiggedSimple, plus the generated multi-part fixture. For each clip it samples
+The GPU matrix includes six real-model clips across CesiumMan, Fox (all three
+clips), RiggedFigure and RiggedSimple, plus one generated multi-part clip. For each clip it samples
 0%, 12.5%, 50%, 87.5% and 100% of its duration; the middle samples exercise live
 cross-clip sources where available and frozen-pose transitions. It compares every
 expanded CPU vertex with captured indexed GPU vertices, exact ray hits, bounds,

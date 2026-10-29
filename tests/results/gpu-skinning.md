@@ -129,3 +129,49 @@ and A/X pause/resume worked in the
 (`83a0dc5` scene, `76edcd7` experiment executable). The demo was stopped after
 feedback. This confirms interaction behavior for this workload; it is not a
 controlled end-to-end grabbing performance measurement.
+
+
+## Additional Khronos models
+
+The expanded suite at `a7f8025` passed on both the workstation and Steam Frame
+on 2026-10-28. New, unmodified assets from Khronos glTF-Sample-Assets are pinned
+to the same upstream revision as the existing samples:
+
+| Model | Joints | Clips tested | Stereo comparisons | Frame maximum differing pixels/image |
+| --- | --- | --- | --- | --- |
+| CesiumMan (existing) | 19 | 1 | 10 | 0 |
+| Fox | 24 | Survey, Walk, Run | 30 | 1 |
+| RiggedFigure | 19 | 1 | 10 | 0 |
+| RiggedSimple | 2 | 1 | 10 | 0 |
+| Generated multi-part fixture | Two palettes | 1 | 10 | 0 |
+
+There are six real-model clips and one synthetic clip. Every clip samples its
+start, 12.5%, 50%, 87.5% and endpoint, rather than a fixed short time range.
+The middle samples exercise live sources (cross-clip for Fox) and frozen sources.
+All eligible assets use the GPU path; they are not passing through CPU fallback.
+
+All GPU-captured expanded positions match the CPU reference within 0.00003
+normalized units and remain within conservative bounds. All 21,000 exact picking
+comparisons pass; both hands share one lazy cache per evaluated pose. Stereo
+images pass the existing tolerance of no more than 32 pixels with any channel
+error greater than 2/255. Actual Frame maximum was one pixel for Fox, zero for
+all other assets. Workstation maximum was three for CesiumMan, zero for all
+others. These are bounded numerical/raster differences, not exact image identity.
+
+Each asset also passes repeated pose creation/upload/exact-picking/destruction,
+palette texture deletion and shared skin-buffer deletion checks. Existing
+transition persistence and unsupported-feature fallback checks remain in the
+suite. No engine implementation changes were needed. Normal builds continue
+using CPU skinning. These native offscreen checks establish correctness on the
+Frame driver; they do not constitute a new FPS benchmark or user visual acceptance
+of the newly added models. No compositor demo was launched for this run.
+
+- [Pinned source hashes, sizes and clip inventory](gpu-skinning/khronos-models.json)
+- [Frame model results](gpu-skinning/models-frame.txt)
+- [Workstation model results](gpu-skinning/models-local.txt)
+- [Credits and licenses](../../assets/samples/ATTRIBUTION.md)
+
+Run the documented `gpu-skinning-regression` fixture command to reproduce the
+full matrix. Further work concerns production integration with CPU fallback and
+longer mixed-scene/reload coverage, rather than collecting more of the same
+single-skin examples.
