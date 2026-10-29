@@ -35,6 +35,7 @@ export default defineConfig({
         { text: 'Lifecycle', link: '/lifecycle' }
       ] },
       { text: 'Project', items: [
+        { text: 'Engine architecture', link: '/architecture' },
         { text: 'Roadmap', link: '/remaining-work' },
         { text: 'Maintainer guide', link: '/agent-handoff' },
         { text: 'Documentation site', link: '/documentation-site' },

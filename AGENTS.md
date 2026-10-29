@@ -3,6 +3,8 @@
 ## Start here
 
 - Read [README.md](README.md) for setup, build commands, and examples.
+- Read [docs/architecture.md](docs/architecture.md) for the engine pipeline and
+  production optimization policies. Update it when those change.
 - Read [docs/agent-handoff.md](docs/agent-handoff.md) before changing engine
   internals. It records ownership, rendering, input, and persistence invariants.
 - Use [docs/remaining-work.md](docs/remaining-work.md) for unfinished work.
