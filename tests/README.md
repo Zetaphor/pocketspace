@@ -537,3 +537,56 @@ right it shows node animation, skeletal animation and morph animation. Bumper
 crossfades to the next clip (or a different phase for single-clip assets) over
 one second; A/X pauses/resumes all three. Press bumper during a fade to test a
 continuous interrupted transition. Grip or trigger grabs each model.
+
+## Animated-model performance profiling
+
+```sh
+cmake -S . -B build
+cmake --build build --target animation-profile-experiment animation-profile-regression -j2
+# Workstation EGL check (choose the EGL platform appropriate to your host):
+EGL_PLATFORM=surfaceless ./build/animation-profile-regression
+node tests/animation-profile-scene.cjs
+python3 tests/animation-profile-analysis-test.py
+```
+
+On an awake Steam Frame, after stopping any other engine demo:
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/animation-profile-experiment tests/scenes/animation-profile.js > /tmp/animation-profile.log 2>&1
+```
+
+Keep the headset active and looking at the models. The six 20-second stages use
+8, 16 and 32 CesiumMan instances, paired animated/paused, with staggered clip
+phases, 768 eye pixels and one logical render group. There is no physics or
+manual grabbing in this workload. One HUD panel reports process FPS, CPU and
+RSS. B/Y aborts and removes the actors. Completion also removes the actors;
+stop the process after the completion marker. Change the scene's `MODEL` constant
+to `InterpolationTest` or `AnimatedMorphCube` for those paths; record that change.
+
+```sh
+python3 tests/analyze-animation-profile.py /tmp/animation-profile.log > /tmp/animation-profile.json
+```
+
+The profiler is compiled only into excluded targets with `SF_ANIMATION_PROFILE`.
+Normal engine builds contain no animation phase timers. Each JSON log window
+covers 120 frames, resetting when object/playing counts or script generation
+change. The analyzer discards complete windows starting in each stage's first
+five seconds, rejects incomplete/aborted or mismatched runs, and weights means
+by sampled frames. `maxWindowP95Ms` is the largest window p95, not a combined p95.
+
+CPU phases are pose/channel evaluation (including hierarchy, blend and skin
+palettes), fused per-vertex deformation/normalization/bounds, BVH refit, and
+dynamic VBO upload submission. Initial pose geometry allocation is excluded
+from phase timing; first-stage windows are warmup. Do not split the production
+vertex loop just to time bounds separately: that would change memory traffic.
+Counters report evaluated objects, expanded vertices, dirty poses uploaded,
+and submitted bytes per frame. Clean paused poses do not upload again.
+
+`uploadSubmitMs` measures CPU time in GL upload calls, including any driver
+blocking, and is not GPU DMA duration. `renderSubmitMs` is CPU render submission;
+`gpuWaitMs` is CPU time waiting for existing GPU completion, not a GPU timestamp.
+`workMs` excludes the loop's final pacing sleep; logged FPS includes pacing.
+Compositor/head tracking, presentation, and sampling conditions still affect
+end-to-end results. Compare equivalent layouts and retain picking, bounds,
+stereo color/depth coherence, and independent instance poses in any GPU redesign.

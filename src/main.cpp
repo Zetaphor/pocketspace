@@ -2056,7 +2056,15 @@ int main(int argc,char **argv) {
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto lastAnimationTick=std::chrono::steady_clock::now();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
+#ifdef SF_ANIMATION_PROFILE
+  AnimationProfileFrame animationFrame;AnimationProfileWindow animationWindow;unsigned animationEpoch=0;
+  animationProfileFrame=&animationFrame;ScopeExit clearAnimationProfiler{[]{animationProfileFrame=nullptr;}};
+  std::fprintf(stdout,"ANIMATION_PROFILE_BEGIN gpu=%s version=%s\n",glGetString(GL_RENDERER),glGetString(GL_VERSION));
+#endif
   while(running){
+#ifdef SF_ANIMATION_PROFILE
+    animationFrame={};const auto animationFrameStart=AnimationProfileClock::now();
+#endif
     vr::VREvent_t runtimeEvent{};
     while(system->PollNextEvent(&runtimeEvent,sizeof(runtimeEvent)))if(runtimeEvent.eventType==vr::VREvent_Quit){system->AcknowledgeQuit_Exiting();fprintf(stdout,"[lifecycle] SteamVR quit; exiting\n");running=false;}
     if(!running)break;
@@ -2094,6 +2102,9 @@ int main(int argc,char **argv) {
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
           instanceExperiment.reset();
           lastAnimationTick=std::chrono::steady_clock::now();
+#ifdef SF_ANIMATION_PROFILE
+          ++animationEpoch;
+#endif
           fprintf(stdout,"[lifecycle] scene state reset\n");
 #ifdef SF_GPU_SYNC_EXPERIMENT
           primitiveExperiment.reset();
@@ -2479,7 +2490,10 @@ int main(int argc,char **argv) {
         ready.push_back(surface.get());
       }
       const auto finishStart=std::chrono::steady_clock::now();
-      renderMs+=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();
+      const double frameRenderMs=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();renderMs+=frameRenderMs;
+#ifdef SF_ANIMATION_PROFILE
+      animationFrame.renderMs+=frameRenderMs;
+#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.complete();
       if(useInstancing)instanceExperiment.report();
@@ -2488,7 +2502,10 @@ int main(int argc,char **argv) {
 #else
       glFinish();
 #endif
-      finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
+      const double frameFinishMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();finishMs+=frameFinishMs;
+#ifdef SF_ANIMATION_PROFILE
+      animationFrame.finishMs+=frameFinishMs;
+#endif
       glBindFramebuffer(GL_FRAMEBUFFER,0);
       std::set<int> changingSubmissions;
       if(pendingTileChange){
@@ -2536,6 +2553,12 @@ int main(int argc,char **argv) {
       bytes+=instanceExperiment.allocatedBytes();
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
+#ifdef SF_ANIMATION_PROFILE
+    animationFrame.workMs=animationProfileMs(animationFrameStart);
+    size_t profiledObjects=0,playingObjects=0;
+    for(const auto &object:script.scene.objects)if(object.animationPose){profiledObjects++;playingObjects+=object.animation.playing;}
+    animationWindow.record(animationFrame,profiledObjects,playingObjects,animationEpoch);
+#endif
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.
     next=std::max(next+std::chrono::microseconds(11111),std::chrono::steady_clock::now());
     std::this_thread::sleep_until(next);
