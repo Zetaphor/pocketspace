@@ -32,6 +32,7 @@
 #include <iterator>
 #include "model_asset.h"
 #include "model_shaders.h"
+#include "model_draw_uniforms.h"
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
@@ -1830,6 +1831,10 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
   return best==miss?miss:best*object.scale;
 }
 int main(int argc,char **argv) {
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+  drawUniformCachingEnabled=std::getenv("SF_DRAW_UNIFORM_CACHE")&&std::string(std::getenv("SF_DRAW_UNIFORM_CACHE"))=="1";
+  std::fprintf(stdout,"DRAW_UNIFORM_CACHE enabled=%d\n",drawUniformCachingEnabled);
+#endif
 #ifdef SF_RIGID_POSE_EXPERIMENT
   rigidPoseCachingEnabled=!(std::getenv("SF_RIGID_POSE_CACHE")&&std::string(std::getenv("SF_RIGID_POSE_CACHE"))=="0");
   std::fprintf(stdout,"RIGID_POSE_CACHE enabled=%d\n",rigidPoseCachingEnabled);
@@ -2045,6 +2050,7 @@ int main(int argc,char **argv) {
   setVec3(upLocation,anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
   setVec3(forwardLocation,-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
+  const ModelDrawLocations drawLocations(program);
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   std::vector<Surface*> ready;FrameBoundsCache frameBounds;
@@ -2365,6 +2371,9 @@ int main(int argc,char **argv) {
       gpuSync.begin();
       if(specializeOpaque)for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives)if(part.alphaMode!=0){fprintf(stderr,"opaque shader experiment requires opaque-only assets\n");return 13;}
 #endif
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+      uint64_t uniformIssued=0,uniformSkipped=0;
+#endif
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
@@ -2448,6 +2457,10 @@ int main(int argc,char **argv) {
           auto region=projectedScissor(targetBounds[i],surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
+            ModelDrawUniforms drawUniforms(drawLocations,drawUniformCachingEnabled);
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+            ScopeExit countUniforms{[&]{uniformIssued+=drawUniforms.issued;uniformSkipped+=drawUniforms.skipped;}};
+#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
             gpuSync.beginPass(pass);ScopeExit finishPass{[&]{gpuSync.endPass();}};
             auto *special=specializeOpaque?(pass<0?depthExperiment.get():opaqueExperiment.get()):nullptr;
@@ -2461,11 +2474,11 @@ int main(int argc,char **argv) {
             };
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
+              if(drawUniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
 #ifdef SF_GPU_SYNC_EXPERIMENT
               if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
 #endif
-              {glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
-              glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);}
+              {drawUniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);}
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
@@ -2475,8 +2488,7 @@ int main(int argc,char **argv) {
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(special)special->material(part);else
 #endif
-                {glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);
-                glUniform3fv(sheenLocation,1,part.sheen);}
+                {drawUniforms.material(part);}
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
@@ -2504,6 +2516,9 @@ int main(int argc,char **argv) {
         }
         ready.push_back(surface.get());
       }
+#ifdef SF_DRAW_SUBMIT_EXPERIMENT
+      if(frame%120==0)std::fprintf(stdout,"DRAW_UNIFORMS {\"frame\":%d,\"issued\":%llu,\"skipped\":%llu}\n",frame,(unsigned long long)uniformIssued,(unsigned long long)uniformSkipped);
+#endif
       const auto finishStart=std::chrono::steady_clock::now();
       const double frameRenderMs=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();renderMs+=frameRenderMs;
 #ifdef SF_ANIMATION_PROFILE

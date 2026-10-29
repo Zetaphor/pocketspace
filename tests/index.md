@@ -208,3 +208,11 @@ profiling executable. Eight 20-second stages; B/Y aborts.
 cached rigid primitive updates using 256 Linear Scale actors; 20 seconds each
 animated/paused. `animation-profile-regression` also checks exact cached GPU
 buffer contents and geometry over all rigid clips.
+
+| Additional check | Coverage |
+| --- | --- |
+| [draw-uniform-pixels.cpp](draw-uniform-pixels.cpp) | 288 exact stereo comparisons for pass-local object/material uniform caching, alpha/depth, CPU/GPU animation and instancing switches. |
+
+`draw-submit-experiment` measures full/cached uniforms on
+[scenes/rigid-pose-profile.js](scenes/rigid-pose-profile.js) using the documented
+`SF_DRAW_UNIFORM_CACHE` switch.
