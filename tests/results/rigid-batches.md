@@ -108,8 +108,8 @@ unchanged `rigid-pose-profile.js`. Eligible rigid poses now own exactly one
 unmerged draws or adjacent batches from the same buffer. Upload each changed
 range once, preserving cache dirtiness, current CPU geometry, BVH and bounds.
 The stream is counted once and deleted once. No aliasing GL name is stored in
-per-part ownership. Grouped draws are now enabled by default in the normal build;
-its final mixed-scene headset check remains pending.
+per-part ownership. Grouped draws are enabled by default in the normal build and passed the final
+mixed-scene headset check.
 
 ### Production correctness
 
@@ -166,8 +166,13 @@ Evidence: [individual log](rigid-batches/production/full-frame.txt),
 [batched summary](rigid-batches/production/on-summary.json), and
 [Frame correctness results](rigid-batches/production/correctness-frame.txt).
 
-The final normal-engine check uses the existing
-[mixed acceptance scene](../scenes/gpu-skinning-production.js), now selecting
-Linear Scale for rigid actors. Bumper restore rebuilds streams, A/X pauses/resumes,
-and both hands can grab. Prototype visual acceptance remains recorded above;
-production ownership/stream acceptance will be recorded separately.
+### Production headset acceptance
+
+On **2026-10-29**, the user confirmed “Everything works” in the normal engine
+built from `c2f7714`, running the
+[mixed acceptance scene](../scenes/gpu-skinning-production.js) with Linear Scale
+selected for rigid actors. The requested checks covered grip/trigger grabbing,
+A/X pause/resume, bumper save/restore, and head movement without missing parts or
+visual jumps. This confirms production stream rendering and restored streams in
+the mixed scene, separately from the automated checks and timed measurements.
+The demo was stopped afterward and its process exit verified.
