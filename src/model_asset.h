@@ -55,7 +55,7 @@ void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
 
-inline bool rigidPoseCachingEnabled=false; // Comparison tests may force full CPU updates.
+inline bool rigidPoseCachingEnabled=true; // Comparison tests may force full CPU updates.
 struct PosePartState {
   animation::Matrix world{};
   std::array<float,3> low{},high{};

@@ -2,8 +2,9 @@
 
 Measured on Steam Frame on 2026-10-28: executable `6ef48fb`, corrected scene
 `d17c18d`. The excluded `rigid-pose-experiment` target toggles cached/full updates
-with `SF_RIGID_POSE_CACHE=1/0`. Production default remains full updates pending
-headset visual acceptance.
+with `SF_RIGID_POSE_CACHE=1/0`. After the measured comparison, the user accepted
+clip blending, pause/resume and grabbing in headset on 2026-10-28. Rigid caching
+is now enabled by default in production; the visual demo was stopped.
 
 ## Behavior and correctness
 
@@ -73,6 +74,6 @@ and animation timing can vary pixel work despite matching allocations.
 - [Run instructions](../README.md#rigid-primitive-update-comparison)
 
 Reproduce summaries with `tests/analyze-animation-profile.py`. Scene, analyzer,
-documentation lint and site checks pass. Next validate animation blending and
-pause/resume visually with caching enabled, then adopt the cache if accepted.
+documentation lint and site checks pass. Animation blending, pause/resume and grabbing passed the subsequent user
+headset check using `scripts/blending.js` with caching enabled.
 Further optimization should target draw/uniform submission independently.

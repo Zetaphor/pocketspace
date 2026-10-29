@@ -11,7 +11,7 @@ This roadmap contains future work, without prescribing an implementation order.
   submission, versus 1.54 ms deformation/refits. The
   [rigid primitive cache comparison](../tests/results/rigid-pose-cache.md)
   reduced upload submission to 0.57 ms on a matched continuous-animation run;
-  final visual acceptance/default adoption is pending. Next investigate bounded
+  the cache is now accepted in headset and enabled by default. Investigate bounded
   draw/uniform submission reductions while preserving draw order,
   exact picking, independent transitions and matched surface density. The prior
   combined multi-part stream did not justify general adoption.

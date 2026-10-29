@@ -86,6 +86,10 @@ but animation channels targeting a node with a matrix are unsupported.
 Morph-weight channels support the same three interpolation modes.
 
 Each instance owns its clock and pose. Materials/textures remain shared.
+Rigid primitives reuse their deformed vertices and GPU buffers when their full
+world transform is unchanged, including ancestor transforms. Changed parts update
+exact bounds and picking geometry; pending uploads are preserved until rendering.
+This optimization is automatic and preserves full geometry detail.
 Animated surface bounds follow the current pose. Exact triangle picking uses
 current deformed geometry; eligible GPU skins build/refit that geometry only
 when a controller ray intersects their conservative bounds. Default-pose normalization remains fixed
