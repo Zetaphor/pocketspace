@@ -283,6 +283,11 @@ the bounded non-interactive
   verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
   exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
+- [point-light-regression.cpp](point-light-regression.cpp): real GLES point-light
+  stereo pixels, intensity/color/range, unlit/depth invariance, attachment transforms,
+  API rollback, cleanup and v8/legacy snapshots. `--profile` measures bounded
+  zero/one/four/eight-light offscreen workloads. See the
+  [point-light results](results/point-lights.md).
 - [pbr-regression.cpp](pbr-regression.cpp): real GLES tests for opt-in material
   import/rendering, sRGB transfer, linear packed metal/roughness channels, surface
   transforms, static/skeletal/morph poses, unlit invariance, GL cleanup, API

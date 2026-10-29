@@ -1213,3 +1213,32 @@ and shader programs, keeps LOD disabled and quality matched, records actual
 triangle/draw counts and geometry bytes, and uses off/on/on/off stages with 30
 warmup plus 120 measured frames. Run with the headset awake and worn. No overlay
 or input capture is created. See [results](results/pbr-cache-materials.md).
+
+## Dynamic point lights
+
+Build and run the real GLES and script regression from the repository root:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target point-light-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/point-light-regression
+```
+
+The test opens no OpenVR session and captures no controller input. It checks both
+eyes, direct-light intensity/color, range cutoff, disabled and unlit invariance,
+external-depth silhouettes, local-offset transforms, option getter mutations,
+capacity, attachment/container cleanup, failed reloads and v8/legacy restoration.
+Failures exit with a diagnostic instead of deliberately generating a core dump.
+
+With the headset awake and worn, add `--profile` for zero/one/four/eight-light
+measurements in forward and reverse order. Each case uses a 768-square
+target with either one Box or 16 ToyCars, 60 warmup and 180 measured frames,
+alternating eyes. GPU timer queries
+reject disjoint measurements; wall time includes rendering and GPU completion.
+This is a bounded light-loop comparison, not a many-model throughput guarantee.
+
+Run `./run-pocketspace.sh scripts/lights.js` for interactive acceptance. Grab the
+small marker with grip or trigger and move it around the car. Check that the lit
+area follows it while moving your head; bumper cycles colors, A/X toggles light,
+and B/Y captures then restores the lit tool. Verify fresh attachments after
+restoring. Stop the demo immediately after the user verifies it.

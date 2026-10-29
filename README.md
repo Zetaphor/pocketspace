@@ -24,7 +24,7 @@ click and worlds that respond to you.
   them with springs, motors and breakable joints to build playful mechanisms.
 - **Experiences that respond to you.** Use controller input, eye gaze and finger
   sensor values to drive interactions, with personal eye-calibration support.
-- **Scenes with character.** Play and blend model animations, add PBR materials
+- **Scenes with character.** Play and blend model animations, add PBR materials, movable point lights
   and HDR environment reflections, and arrange objects all around you.
 - **Creations you can return to.** Save and restore groups of objects and panels,
   including their layout, animation, physics and panel contents.

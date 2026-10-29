@@ -45,6 +45,12 @@ int main() {
       toggleTool();
       if(getSceneContainerState(tool).objectIds.length!==4||!getSceneContainerState(tool).inputCallback)throw Error('tool recreation');
     )";
+    if(name=="lights.js") controls=R"(
+      inputEventForExample('/input/b/click');
+      const oldLight=light;
+      inputEventForExample('/input/b/click');
+      if(light===oldLight||getPointLight(light).objectId!==marker)throw Error('light tool restore');
+    )";
     if(name=="scene-snapshot.js") controls=R"(
       for(let n=0;n<3;n++){
         inputEventForExample('/input/bumper/click');

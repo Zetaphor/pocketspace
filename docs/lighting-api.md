@@ -44,11 +44,83 @@ changes are published. Getter side effects remain ordinary script actions.
 | `environmentRotation` | Rotate the environment around scene +Y, in radians | `0`; −10000 through 10000 |
 
 Direction is normalized by the shader. All numeric values must be finite.
-Lighting is not a new scene object: it provides one unshadowed directional
+These per-asset settings provide one unshadowed directional
 light, constant diffuse ambient light and an optional baked environment per asset.
+Scene point lights below add illumination independently of those settings.
 Emissive materials do not illuminate other objects.
 
 Configure lighting on a shared asset and rotate a lit model: [pbr.js](../scripts/pbr.js).
+
+## Dynamic point lights
+
+Create up to eight scene-wide point lights. They illuminate every PBR model,
+including animated models, in addition to its existing per-asset directional,
+ambient and environment lighting. Unlit assets, `KHR_materials_unlit` materials,
+panels and laser geometry ignore them. Lights do not draw visible bulbs or cast
+shadows; create a marker object separately if needed.
+
+```js
+const tool = createSceneContainer();
+const marker = createObject(loadModel('assets/physics/YellowSphere.glb'),
+  -.25, .15, -.15, .035, {container: tool});
+enableObjectInteraction(marker, {grabButton: 'both'});
+const light = createPointLight({
+  objectId: marker, container: tool,
+  color: [1, .25, .08], intensity: .3, range: 1.5
+});
+setPointLight(light, {enabled: false});
+setPointLight(light, {enabled: true, position: [0, .05, 0]});
+print(JSON.stringify(getPointLight(light)));
+// removePointLight(light); // Removes illumination, leaving the marker in place.
+```
+
+Run [lights.js](../scripts/lights.js) to carry a colored light around a car,
+change its color, toggle it, and capture/restore the lit tool.
+
+| Function | Behavior |
+| --- | --- |
+| `createPointLight(options = {})` | Return a fresh positive light ID. Up to eight live lights per scene, including disabled lights. |
+| `setPointLight(id, options)` | Update only supplied fields. Invalid options throw before publishing the update. |
+| `getPointLight(id)` | Return a detached snapshot `{id, position, color, intensity, range, enabled, objectId, container}`. |
+| `removePointLight(id)` | Remove a live light; unknown or removed IDs throw. |
+
+| Option | Default | Meaning and limits |
+| --- | --- | --- |
+| `position` | `[0, 0, 0]` | Three finite numbers from −10000 through 10000, in meters. Scene position when unattached; object-local offset when attached. |
+| `color` | `[1, 1, 1]` | Linear RGB, three finite components from 0 through 64. |
+| `intensity` | `1` | Finite radiance multiplier from 0 through 64; inverse-square attenuation makes close lights much brighter. This is not a calibrated lumen value. |
+| `range` | `1` | Finite cutoff distance in meters, .001 through 64. Light fades smoothly to zero at this distance. |
+| `enabled` | `true` | Boolean switch. Disabled lights retain their ID and settings. |
+| `objectId` | `null` | Live object ID to follow, or `null` to detach. |
+| `container` | `0` | Active cleanup scope; zero is root ownership. Updating it transfers ownership. |
+
+Attached offsets use object-local +X right, +Y up and +Z forward. They rotate
+with the object but remain in meters regardless of its model scale. Attachments
+follow the object after interaction/physics updates; visibility does not switch
+off a light. Detaching preserves the stored numeric `position`, which then
+becomes scene-relative; set a new position in the same call to avoid a jump.
+Removing the attachment object removes its lights even if owned by another
+container. Disposing a container removes its lights; moving an object to another
+container does not transfer light ownership automatically.
+
+Point lights use the same GGX direct-light BRDF as the existing directional
+light. Attenuation is `(1 - (distance / range)^4)^2 / max(distance^2, .0001)`
+inside the range, and zero outside. The minimum denominator avoids a singularity
+at the light position. Lighting and exposure can saturate near bright lights;
+reduce intensity rather than relying on the range to control nearby brightness.
+
+Snapshots v8 save owned lights and return fresh `lightIds`/`lightMap` on restore.
+An attached light and its object must belong to the captured container; crossing
+that boundary throws rather than saving a dangling reference. Light attachments
+remap to restored object IDs. Root lights are not captured. Older v1–v7 snapshots
+restore without point lights. Restore stages the whole light set and requires
+room within the eight-light limit while the original tool is still live.
+
+The initial implementation uses a bounded forward loop over enabled, nonzero
+lights for each lit fragment. More lights and more screen coverage increase GPU
+work; there is no tiled-light system, shadow pass, or automatic light selection.
+The external-depth pass skips point-light setup. Start with one or two lights
+and profile your intended scene before using all eight.
 
 ## Imported materials and surface geometry
 

@@ -21,7 +21,7 @@ disposeSceneContainer(tool);
 | Function | Behavior |
 | --- | --- |
 | `createSceneContainer()` | Return a new positive integer ID. Up to 256 containers can be active; disposed IDs are not reused within a scene. |
-| `getSceneContainerState(id)` | Return `{id, disposed, objectIds, panelIds, inputCallback}`. Arrays describe current live members in scene order and are snapshots. Previously disposed IDs return empty membership and `disposed: true`. Unknown IDs throw. |
+| `getSceneContainerState(id)` | Return `{id, disposed, objectIds, panelIds, lightIds, inputCallback}`. Arrays describe current live members in scene order and are snapshots. Previously disposed IDs return empty membership and `disposed: true`. Unknown IDs throw. |
 | `disposeSceneContainer(id)` | Dispose all current members. Repeating disposal of the same issued ID is harmless; unknown IDs and root ID 0 throw. Returns `undefined`. |
 | `setObjectContainer(objectId, containerId)` | Transfer a live object to an active container. Use 0 to transfer it to the root scene. Returns `undefined`. |
 | `setPanelContainer(panel, containerId)` | Transfer a live panel handle or panel ID; 0 selects the root. Returns `undefined`. |
@@ -58,6 +58,15 @@ Disposal does not erase JavaScript variables, closures or the global `update()`
 function; scripts must stop using their removed resource handles.
 
 Keep a tool-owned callback safe across closing and reopening: [containers.js](../scripts/containers.js).
+
+## Light ownership
+
+`createPointLight({container: id})` and `setPointLight(light, {container: id})`
+assign or transfer light ownership. Closing a container removes its lights.
+Object attachments do not imply container ownership: removing the attached object
+also removes the light, but transferring an object does not transfer its lights.
+See [dynamic point lights](lighting-api.md#dynamic-point-lights) for offset and
+snapshot-boundary rules, and [lights.js](../scripts/lights.js) for a complete tool.
 
 ## Cleanup and shared resources
 

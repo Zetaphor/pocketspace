@@ -5,10 +5,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Add dynamic scene lighting: script-controlled lights with position, color,
-  intensity and range, including lights that move with objects. Define supported
-  light types and limits, persistence and the relationship to existing per-asset
-  lighting. Profile many-light workloads before choosing the rendering approach.
+- Extend dynamic lighting beyond the implemented bounded point lights as needed:
+  consider spotlights, additional directional lights, shadows or scalable light
+  selection only after profiling the intended scene. Point lights currently
+  affect PBR models, do not cast shadows and have an eight-light scene limit.
 
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only

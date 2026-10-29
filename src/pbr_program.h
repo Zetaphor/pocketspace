@@ -7,6 +7,8 @@
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
+ mutable int pointCount=-1;
+ mutable std::array<float,64> pointPayload{};
  mutable std::map<std::string,GLint> locations;
  GLint location(const char *name)const{
   const auto found=locations.find(name);if(found!=locations.end())return found->second;
@@ -24,7 +26,7 @@ public:
 layout(location=8) in vec3 surfaceNormal;
 layout(location=9) in vec4 surfaceTangent;
 layout(location=10) in vec2 surfaceUV;
-out highp vec3 litNormal,litTangent,litView;
+out highp vec3 litNormal,litTangent,litView,litPosition;
 out highp vec2 mapUV;
 out highp float tangentSign;
 vec3 rotateSurface(vec3 v){
@@ -35,12 +37,13 @@ vec3 rotateSurface(vec3 v){
 }
 )");
   vertex.insert(vertex.find("  vec3 ray=world-eye;"),R"(
+  litPosition=offset*vec3(1,1,-1)+modelScale*rotated;
   litNormal=rotateSurface(surfaceNormal);litTangent=rotateSurface(surfaceTangent.xyz);tangentSign=surfaceTangent.w;mapUV=surfaceUV;
   vec3 v=eye-world;litView=vec3(dot(v,right),dot(v,up),-dot(v,forward));
 )");
   const char *fragment=R"(#version 300 es
 precision highp float;
-in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView;in highp float tangentSign;
+in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView,litPosition;in highp float tangentSign;
 uniform sampler2D material,normalMap,metalRoughMap,occlusionMap,emissiveMap;
 uniform highp samplerCube environmentMap;
 uniform highp sampler2D environmentBrdf;
@@ -53,6 +56,8 @@ uniform mat3 normalUV,metalRoughUV,occlusionUV,emissiveUV;
 uniform vec4 factor;uniform int alphaMode;uniform float alphaCutoff;
 uniform float metallic,roughness,normalScale,occlusionStrength,intensity,ambient,exposure;
 uniform vec3 emissive,lightDirection,lightColor;
+uniform int pointLightCount;
+uniform vec4 pointPositionRange[8],pointColorIntensity[8];
 out vec4 color;
 const float PI=3.141592653589793;
 vec3 safeUnit(vec3 v,vec3 fallback){float d=dot(v,v);return d>1e-16?v*inversesqrt(d):fallback;}
@@ -84,6 +89,20 @@ void main(){
   float ao=hasOcclusion?mix(1.,texture(occlusionMap,(occlusionUV*vec3(mapUV,1)).xy).r,occlusionStrength):1.;
   vec3 emission=emissive*(hasEmissive?texture(emissiveMap,(emissiveUV*vec3(mapUV,1)).xy).rgb:vec3(1));
   result=(diffuse+distribution*visibility*f)*lightColor*intensity*nl+ambient*base.rgb*(1.-metal)*ao+emission;
+  for(int i=0;i<8;i++){
+   if(i>=pointLightCount)break;
+   vec3 delta=pointPositionRange[i].xyz-litPosition;
+   float distance2=dot(delta,delta),range=pointPositionRange[i].w;
+   if(distance2>=range*range)continue;
+   vec3 pl=safeUnit(delta,n),ph=safeUnit(pl+v,n);
+   float pnl=max(dot(n,pl),0.),pnh=max(dot(n,ph),0.),pvh=max(dot(v,ph),0.);
+   float pd=pnh*pnh*(a2-1.)+1.,distributionP=a2/(PI*pd*pd);
+   float visibilityP=.5/max(pnl*sqrt(nv*nv*(1.-a2)+a2)+nv*sqrt(pnl*pnl*(1.-a2)+a2),1e-6);
+   vec3 pf=f0+(1.-f0)*pow(1.-pvh,5.);
+   float window=max(1.-pow(distance2/(range*range),2.),0.);
+   float attenuation=window*window/max(distance2,.0001);
+   result+=((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
+  }
   if(environmentEnabled){
    vec3 en=environmentDirection(n),reflection=environmentDirection(reflect(-v,n));
    vec3 filtered=textureLod(environmentMap,reflection,r*environmentMaxLod).rgb;
@@ -120,6 +139,17 @@ void main(){
   glUseProgram(program);vector("center",c);vector("eye",e);vector("panelRight",r);vector("panelUp",u);vector("panelForward",f);scalar("panelHalfWidth",width);
   float axes[3][3];for(int column=0;column<3;column++)for(int row=0;row<3;row++)axes[column][row]=anchor.m[row][column]*(column==2?-1.f:1.f);
   vector("right",axes[0]);vector("up",axes[1]);vector("forward",axes[2]);integer("skinEnabled",0);integer("material",0);
+ }
+ void lights(const std::vector<ResolvedPointLight> &lights,float x=0,float y=0,float z=0)const{
+  std::array<float,64> payload{};int count=0;
+  for(const auto &light:lights){if(count==8)break;const int i=count++*4;
+   payload[i]=light.position[0]-x;payload[i+1]=light.position[1]-y;payload[i+2]=-(light.position[2]-z);payload[i+3]=light.range;
+   for(int c=0;c<3;c++)payload[32+i+c]=light.color[c];payload[32+i+3]=light.intensity;
+  }
+  if(pointCount==count&&pointPayload==payload)return;
+  integer("pointLightCount",count);
+  if(count){glUniform4fv(location("pointPositionRange"),count,payload.data());glUniform4fv(location("pointColorIntensity"),count,payload.data()+32);}
+  pointCount=count;pointPayload=payload;
  }
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
