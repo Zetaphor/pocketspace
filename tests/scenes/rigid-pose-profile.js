@@ -16,7 +16,7 @@ function selectStage(index){
   const columns=count===256?16:8,spacing=count===256?.065:.12,scale=count===256?.065:.12;
   for(let i=0;i<count;i++){
     const id=createObject(asset,((i%columns)-(columns-1)/2)*spacing,(Math.floor(i/columns)-(columns-1)/2)*spacing,0,scale,{renderGroup:1});
-    actors.push(id);playAnimation(id,0,{time:clip.duration*i/count});
+    actors.push(id);playAnimation(id,1,{time:clip.duration*i/count});
     if(!playing)pauseAnimation(id);
   }
   print('ANIMATION_STAGE '+JSON.stringify({stage,count,playing,model:MODEL,eyePixels:768,renderGroup:1,seconds:SECONDS,clip:clip.name}));

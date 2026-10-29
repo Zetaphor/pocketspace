@@ -8,7 +8,7 @@ function fixture(file='tests/scenes/animation-profile.js'){
     loadModel:()=>1,getAnimations:()=>[{duration:2,name:"Step Scale"},{duration:2,name:"Linear Scale"}],
     createObject:()=>{const id=next++;actors.set(id,{});return id;},
     removeObject:id=>assert(actors.delete(id)),
-    playAnimation:id=>{actors.get(id).playing=true;},pauseAnimation:id=>{actors.get(id).playing=false;},
+    playAnimation:(id,clip)=>{actors.get(id).playing=true;actors.get(id).clip=clip;},pauseAnimation:id=>{actors.get(id).playing=false;},
     createPanel:()=>({canvas:{clear(){},text(){}},present(){}}),panelSetTransform(){},
     getEngineStats:()=>({fps:90,cpuPercent:100,ramBytes:1048576,sampleId:Math.floor(now/1000)}),
     onInputEvent:fn=>callback=fn,print:text=>logs.push(text)});
@@ -38,6 +38,6 @@ assert.equal(mixed.actors.size,0);assert(mixed.logs.includes('ANIMATION_PROFILE_
 const mixedAbort=fixture('tests/scenes/rigid-morph-profile.js');mixedAbort.abort();mixedAbort.advance();assert.equal(mixedAbort.actors.size,0);
 
 const rigid=fixture('tests/scenes/rigid-pose-profile.js');
-assert.equal(rigid.actors.size,256);assert([...rigid.actors.values()].every(actor=>actor.playing));
+assert.equal(rigid.actors.size,256);assert([...rigid.actors.values()].every(actor=>actor.playing&&actor.clip===1));
 assert.equal(JSON.parse(rigid.logs.find(line=>line.startsWith('ANIMATION_STAGE ')).slice(16)).clip,'Linear Scale');
 rigid.advance();assert([...rigid.actors.values()].every(actor=>!actor.playing));rigid.advance();assert.equal(rigid.actors.size,0);
