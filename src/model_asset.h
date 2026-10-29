@@ -6,6 +6,9 @@
 #include "animation.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+#include "../tests/vertex-array-experiment.h"
+#endif
 
 struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;};
 struct PrimitiveAsset {
@@ -27,6 +30,9 @@ struct PrimitiveAsset {
   bool doubleSided=false;
   ModelLodLevel lod[2];
   GLuint vbo=0,indexBuffer=0,texture=0;
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+  mutable GLuint vertexArrays[3]{};
+#endif
   GLenum indexType=GL_UNSIGNED_INT;
   GLsizei vertexCount=0,gpuVertexCount=0; // expanded draw count; uploaded vertex count
 };
@@ -53,7 +59,7 @@ bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0,const PrimitiveAsset *deformed=nullptr);
 
 inline bool rigidPoseCachingEnabled=true; // Comparison tests may force full CPU updates.
 struct PosePartState {

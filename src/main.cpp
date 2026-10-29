@@ -1833,6 +1833,10 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
   return best==miss?miss:best*object.scale;
 }
 int main(int argc,char **argv) {
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
+  vertexArrayCachingEnabled=std::getenv("SF_VERTEX_ARRAY_CACHE")&&std::string(std::getenv("SF_VERTEX_ARRAY_CACHE"))=="1";
+  std::fprintf(stdout,"VERTEX_ARRAY_CACHE enabled=%d\n",vertexArrayCachingEnabled);
+#endif
 #ifdef SF_DRAW_SUBMIT_EXPERIMENT
   drawUniformCachingEnabled=std::getenv("SF_DRAW_UNIFORM_CACHE")&&std::string(std::getenv("SF_DRAW_UNIFORM_CACHE"))=="1";
   std::fprintf(stdout,"DRAW_UNIFORM_CACHE enabled=%d\n",drawUniformCachingEnabled);
@@ -2516,7 +2520,7 @@ int main(int argc,char **argv) {
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
                 }
-                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);
+                drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel,object.animationPose?&object.animationPose->geometry.primitives[primitive]:nullptr);
               }
             };
             if(useInstancing){
