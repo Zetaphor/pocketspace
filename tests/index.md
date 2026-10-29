@@ -19,6 +19,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [animation-profile-regression.cpp](animation-profile-regression.cpp) | Real GLES animation phase counters, upload byte totals, clean-pose skip and stable sampling windows. |
 | [animation-profile-scene.cjs](animation-profile-scene.cjs) | Automated animated/paused stage counts, completion cleanup and abort behavior. |
 | [animation-profile-analysis-test.py](animation-profile-analysis-test.py) | Warmup filtering, weighted summaries and incomplete/mixed run rejection. |
+| [gpu-skinning-regression.cpp](gpu-skinning-regression.cpp) | Actual GPU vertex capture, conservative bounds, stereo pixels, lazy exact picking, palette uploads, transition persistence and fallback checks. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
 | [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes exercised through real script bindings without a VR session. |
@@ -185,3 +186,5 @@ validation output associated with those reports, rather than additional tests.
 [scenes/animation-profile.js](scenes/animation-profile.js) runs bounded animated/paused character stages with a HUD. The excluded `animation-profile-experiment` target adds phase timers to the real engine. [analyze-animation-profile.py](analyze-animation-profile.py) summarizes steady windows; see [the profiling instructions](README.md#animated-model-performance-profiling).
 
 The [Frame animation profile](results/animation-profile.md) records the completed skeletal workload, steady phase timings, and GPU design constraints.
+
+[scenes/gpu-skinning-profile.js](scenes/gpu-skinning-profile.js) is the bounded, matched 32-actor CPU/GPU skinning workload. See [GPU skinning prototype instructions](README.md#gpu-skinning-prototype).
