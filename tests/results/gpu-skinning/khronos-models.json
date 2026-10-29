@@ -1,0 +1,47 @@
+{
+  "upstream": "KhronosGroup/glTF-Sample-Assets",
+  "revision": "edc7c9e67c639d230715049ee31f9a96a6babbbe",
+  "models": [
+    {
+      "model": "Fox",
+      "bytes": 162852,
+      "gitBlob": "1ef5c0d05658caea339680fe581aa2c8302b3365",
+      "sha256": "d97044e701822bac5a62696459b27d7b375aada5de8574ed4362edbba94771f7",
+      "joints": [
+        24
+      ],
+      "clips": [
+        "Survey",
+        "Walk",
+        "Run"
+      ],
+      "primitives": 1
+    },
+    {
+      "model": "RiggedFigure",
+      "bytes": 50116,
+      "gitBlob": "c505a33dfa5ba84bd5f3dd0a85f74ee4c9978322",
+      "sha256": "d6be85417d3e256861ee733eea6916093a7af7c79c16366181fd8abcaeb38cf5",
+      "joints": [
+        19
+      ],
+      "clips": [
+        ""
+      ],
+      "primitives": 1
+    },
+    {
+      "model": "RiggedSimple",
+      "bytes": 15104,
+      "gitBlob": "d56b94eef74fb085d7e7856a29cbafd0428fbfdc",
+      "sha256": "3a79dabb67bb0cd598a18d08b954d9d357c27c30672f82ef5d3f4e7fe6ca3401",
+      "joints": [
+        2
+      ],
+      "clips": [
+        ""
+      ],
+      "primitives": 1
+    }
+  ]
+}

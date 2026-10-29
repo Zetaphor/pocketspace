@@ -44,11 +44,13 @@ static void profilePicking(){
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  std::vector<std::string> paths={"assets/samples/CesiumMan/CesiumMan.glb"};
+ for(const char *name:{"Fox","RiggedSimple","RiggedFigure"})paths.push_back(std::string("assets/samples/")+name+"/"+name+".glb");
+ size_t comparisons=0;
  if(argc>1)paths.push_back(std::string(argv[1])+"/gpu-multipart.glb");
  for(const auto &path:paths){
   Scene scene;currentScene=liveScene=&scene;scene.assets.emplace_back();auto &asset=scene.assets[0];
   assert(loadModelFile(path,asset)&&asset.skinEligible);
-  if(paths.size()>1&&path==paths[1])for(auto &part:asset.primitives)if(part.alphaMode==1){
+  if(path.find("gpu-multipart.glb")!=std::string::npos)for(auto &part:asset.primitives)if(part.alphaMode==1){
    part.width=part.height=2;part.rgba={255,255,255,255,255,255,255,0,255,255,255,0,255,255,255,255};
   }
   uploadModel(asset);
@@ -77,10 +79,10 @@ int main(int argc,char **argv){
   };
   Object object{};object.id=1;object.asset=1;object.scale=.5;object.animationPose=std::make_shared<ModelPose>();
   std::mt19937 random(22);std::uniform_real_distribution<float> position(-.8,.8);int hits=0;
-  for(double time:{0.,.2,.7,1.2,1.8}){
-   animation::Playback state;state.clip=0;state.time=time;
-   if(time==.7){state.transition.duration=1;state.transition.elapsed=.5;state.transition.source.clip=0;state.transition.source.time=.2;}
-   if(time==1.2){state.transition.duration=1;state.transition.elapsed=.25;state.transition.frozen=object.animationPose->nodes;}
+  for(size_t clip=0;clip<asset.animations.size();clip++)for(double fraction:{0.,.125,.5,.875,1.}){
+   animation::Playback state;state.clip=int(clip);state.time=fraction*asset.animations[clip].duration;
+   if(fraction==.5){state.transition.duration=1;state.transition.elapsed=.5;state.transition.source.clip=int((clip+1)%asset.animations.size());state.transition.source.time=.2;}
+   if(fraction==.875){state.transition.duration=1;state.transition.elapsed=.25;state.transition.frozen=object.animationPose->nodes;}
    ModelPose cpu;gpuSkinningEnabled=false;evaluateModelPose(asset,state,cpu);uploadModelPose(cpu);
    AnimationProfileFrame profile;animationProfileFrame=&profile;gpuSkinningEnabled=true;auto &gpu=*object.animationPose;evaluateModelPose(asset,state,gpu);uploadModelPose(gpu);
    assert(gpu.gpuSkin&&!gpu.pickingValid&&profile.vertices==0&&profile.uploadBytes==paletteBytes);
@@ -96,7 +98,7 @@ int main(int argc,char **argv){
     }
     glUnmapBuffer(GL_TRANSFORM_FEEDBACK_BUFFER);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,0);glDeleteBuffers(1,&feedback);
    }
-   if(paths.size()>1&&path==paths[1])for(size_t p=0;p<asset.primitives.size();p++){
+   if(path.find("gpu-multipart.glb")!=std::string::npos)for(size_t p=0;p<asset.primitives.size();p++){
     auto expected=image(cpu,-.032f,int(p)),actual=image(gpu,-.032f,int(p));size_t visible=0;
     for(size_t i=0;i<actual.size();i++){assert(std::abs(int(actual[i])-int(expected[i]))<=2);if(i%4==3)visible+=expected[i]>0;}
     assert(visible>10);
@@ -104,13 +106,13 @@ int main(int argc,char **argv){
    for(float eye:{-.032f,.032f}){
     auto expected=image(cpu,eye),actual=image(gpu,eye);size_t different=0,visible=0;
     for(size_t i=0;i<actual.size();i+=4){bool differs=false;visible+=expected[i+3]>0;for(int c=0;c<4;c++)differs|=std::abs(int(actual[i+c])-int(expected[i+c]))>2;different+=differs;}
-    printf("SKIN_PIXELS time=%.2f eye=%.3f differing_pixels=%zu visible=%zu\n",time,eye,different,visible);fflush(stdout);assert(visible>100&&different<=32);
+    printf("SKIN_PIXELS asset=%s clip=%zu time=%.2f eye=%.3f differing_pixels=%zu visible=%zu\n",path.c_str(),clip,state.time,eye,different,visible);fflush(stdout);assert(visible>100&&different<=32);
    }
    ControllerSnapshot miss{};miss.valid=true;miss.x=100;for(int a=0;a<3;a++)miss.rotation[a*3+a]=1;
    assert(meshHit(object,gpu.geometry,miss,0)==std::numeric_limits<float>::max()&&!gpu.pickingValid);
    for(int r=0;r<600;r++){
     ControllerSnapshot hand{};hand.valid=true;hand.x=position(random);hand.y=position(random);hand.z=position(random);for(int a=0;a<3;a++)hand.rotation[a*3+a]=1;
-    const float fast=meshHit(object,gpu.geometry,hand,r%2),expected=meshHit(object,cpu.geometry,hand,r%2,false);
+    comparisons++;const float fast=meshHit(object,gpu.geometry,hand,r%2),expected=meshHit(object,cpu.geometry,hand,r%2,false);
     assert((fast==expected&&fast==std::numeric_limits<float>::max())||near(fast,expected));hits+=fast!=std::numeric_limits<float>::max();
    }
    assert(gpu.pickingValid&&profile.vertices==vertexCount); // one exact cache for both hands
@@ -141,5 +143,5 @@ int main(int argc,char **argv){
  }
  if(argc>2&&std::string(argv[2])=="--profile-picking")profilePicking();
  eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
- printf("PASS GPU skinning: %zu assets, %zu exact picking comparisons, transform-feedback vertices, conservative bounds, stereo/material pixels, pose cache, palette uploads, resource cleanup and CPU fallback\n",paths.size(),paths.size()*3000);
+ printf("PASS GPU skinning: %zu assets, %zu exact picking comparisons, transform-feedback vertices, conservative bounds, stereo/material pixels, pose cache, palette uploads, resource cleanup and CPU fallback\n",paths.size(),comparisons);
 }

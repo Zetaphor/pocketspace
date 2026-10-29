@@ -636,7 +636,7 @@ Record surface allocation estimates and compare pixels before adopting a result;
 GPU palette/VBO memory savings are separate from compositor surface density.
 
 The regression captures GPU-transformed vertices and compares them with the CPU
-reference, checks containment, both-eye images, 3,000 ray comparisons, clean
+reference, checks containment, both-eye images, 21,000 ray comparisons, clean
 uploads/cache reuse, live and frozen transitions, saved poses, and CPU fallbacks.
 The pixel check allows at most 32 pixels with channel differences over 2/255 in
 each 256x256 image; report actual differences rather than describing that bound
@@ -677,3 +677,13 @@ all actors and hides lasers; the same cleanup runs after five minutes. Stop the
 engine process after collecting feedback. Watch for selection misses, pose
 jumps, stale geometry after release, and color/depth disagreement when models
 overlap. This check uses the 32-actor workload and reports live FPS/CPU on its HUD.
+
+
+The real-model GPU matrix includes CesiumMan, Fox (all three clips), RiggedFigure
+and RiggedSimple, plus the generated multi-part fixture. For each clip it samples
+0%, 12.5%, 50%, 87.5% and 100% of its duration; the middle samples exercise live
+cross-clip sources where available and frozen-pose transitions. It compares every
+expanded CPU vertex with captured indexed GPU vertices, exact ray hits, bounds,
+and stereo images, then repeatedly destroys instance resources. See the
+[pinned asset inventory](results/gpu-skinning/khronos-models.json) and
+[recorded model checks](results/gpu-skinning.md#additional-khronos-models).
