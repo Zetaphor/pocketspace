@@ -1,6 +1,7 @@
 #define SF_OCCLUSION_HELPERS_ONLY
 #include "render-occlusion-regression.cpp"
 #include <GLES2/gl2ext.h>
+#include "../src/pbr_lod.h"
 static std::vector<float> readFloats(GLuint buffer,size_t count){
  glBindBuffer(GL_ARRAY_BUFFER,buffer);const auto *data=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,0,count*sizeof(float),GL_MAP_READ_BIT));assert(data);std::vector<float> values(data,data+count);assert(glUnmapBuffer(GL_ARRAY_BUFFER));return values;
 }
@@ -63,6 +64,62 @@ int main(int argc,char **argv){
  assert(reduced);
  }
  for(GLuint buffer:owned)assert(!glIsBuffer(buffer));
+ assert(pbrLodBudget.used==0);
+ unsetenv("SF_PBR_LOD"); // The production default must generate reductions.
+ {
+  PbrLodBudget budget;assert(budget.reserve(PbrLodBudget::limit));assert(!budget.reserve(1));budget.release(PbrLodBudget::limit);assert(budget.used==0);
+  assert(!budget.reserve(UINT64_MAX));assert(budget.used==0);
+ }
+ for(uint64_t held:{PbrLodBudget::limit,PbrLodBudget::limit-1}){
+  assert(pbrLodBudget.reserve(held));ModelAsset a;a.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));auto vertices=a.primitives[0].vertices;uploadModel(a);
+  for(const auto &p:a.primitives){assert(glIsBuffer(p.vbo)&&glIsBuffer(p.surfaceVbo));assert(modelDrawVertexCount(p,2)==p.vertexCount);for(const auto &lod:p.lod)assert(!lod.vbo&&!lod.surfaceVbo&&!lod.budgetBytes);}
+  assert(a.primitives[0].vertices==vertices&&pbrLodBudget.used==held);deleteModel(a);assert(pbrLodBudget.used==held);pbrLodBudget.release(held);
+ }
+ for(bool cpuFailure:{false,true}){
+  ModelAsset a;a.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));pbrLod::failSurfaceUpload=!cpuFailure;pbrLod::failCpuStaging=cpuFailure;uploadModel(a);pbrLod::failSurfaceUpload=pbrLod::failCpuStaging=false;
+  assert(pbrLod::rejectedPairs>0&&pbrLod::rejectedPairsClean);assert(pbrLodBudget.used==0);
+  for(const auto &p:a.primitives){assert(glIsBuffer(p.vbo)&&glIsBuffer(p.surfaceVbo));for(const auto &lod:p.lod)assert(!lod.vbo&&!lod.surfaceVbo&&!lod.budgetBytes);}
+  deleteModel(a);assert(pbrLodBudget.used==0);
+ }
+ {
+  std::vector<ModelAsset> assets;uint64_t sum=0;bool reducedFirst=false,fullLater=false;
+  for(int i=0;i<5;i++){
+   ModelAsset a;a.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);
+   if(!i)reducedFirst=bool(a.primitives[0].lod[0].vbo);else fullLater|=!a.primitives[0].lod[0].vbo;
+   for(const auto &p:a.primitives)for(const auto &lod:p.lod)sum+=lod.budgetBytes;
+   assets.push_back(std::move(a));assert(pbrLodBudget.used==sum&&sum<=PbrLodBudget::limit);
+  }
+  assert(reducedFirst&&fullLater);for(auto &a:assets)deleteModel(a);assert(pbrLodBudget.used==0);
+ }
+ {
+  const auto folder=std::filesystem::temp_directory_path()/("sf-pbr-lod-budget-"+std::to_string(getpid()));std::filesystem::create_directory(folder);const auto script=folder/"scene.js";
+  std::ofstream(script)<<R"JS(
+   function check(v){if(!v)throw Error('budget assertion');}
+   function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
+   const asset=loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true});
+   const owner=createSceneContainer();createObject(asset,0,0,0,.2,{container:owner});
+   const saved=captureSceneContainer(owner);check(saved.models[0].lod===true);
+   const bad=JSON.parse(JSON.stringify(saved));bad.models[0].path='/missing-pbr-model.glb';
+   fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(saved));
+   function update(){}
+  )JS";
+  ScriptHost host;assert(loadScript(host,script.string()));for(auto &a:host.scene.assets)uploadModel(a);assert(pbrLodBudget.used>0);const uint64_t charged=pbrLodBudget.used;
+  auto *active=host.ctx;const GLuint full=host.scene.assets[0].primitives[0].vbo;
+  std::ofstream(script)<<"loadModel('assets/Avocado.glb',768,{pbr:true});throw Error('EXPECTED staged reload rejection');function update(){}";
+  assert(!loadScript(host,script.string()));assert(host.ctx==active&&pbrLodBudget.used==charged&&glIsBuffer(full));
+  const uint64_t held=PbrLodBudget::limit-charged;assert(pbrLodBudget.reserve(held));
+  const char *restore=R"JS(
+   const copy=JSON.parse(JSON.stringify(saved));copy.models[0].path='./assets/samples/ToyCar/ToyCar.glb';
+   const restored=restoreSceneContainer(copy);check(restored.containerId>0);
+   check(captureSceneContainer(restored.containerId).models[0].lod===true);
+   fails(()=>loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true,lod:false}));
+  )JS";
+  JSValue result=JS_Eval(host.ctx,restore,std::strlen(restore),"restore-budget.js",JS_EVAL_TYPE_GLOBAL);assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+  assert(host.scene.assets.size()==2);uploadModel(host.scene.assets[1]);for(const auto &p:host.scene.assets[1].primitives)for(const auto &lod:p.lod)assert(!lod.vbo);
+  assert(pbrLodBudget.used==PbrLodBudget::limit&&glIsBuffer(full));pbrLodBudget.release(held);closeScript(host);assert(pbrLodBudget.used==0);
+  std::filesystem::remove_all(folder);
+ }
+ std::printf("PASS PBR LOD budget: default generation, 32 MiB cap, overflow rejection, full-detail fallback, partial upload rollback, shared lifetime, restore pressure and failed reload preservation\n");
  std::printf("PASS PBR LOD: %zu exact reduced-stream stereo/depth views, %zu quality views, original shader-input tuples, CPU/picking preservation, eligibility fallbacks and cleanup\n",exact,quality);
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);

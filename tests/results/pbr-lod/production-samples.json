@@ -1,0 +1,178 @@
+[
+  {
+    "objects": 1,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 0.692144,
+    "enqueueMs": 0.020648,
+    "frameMs": 1.222166
+  },
+  {
+    "objects": 1,
+    "stage": 1,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 0.455516,
+    "enqueueMs": 0.018943,
+    "frameMs": 1.023965
+  },
+  {
+    "objects": 1,
+    "stage": 2,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 0.47004,
+    "enqueueMs": 0.015889,
+    "frameMs": 0.974584
+  },
+  {
+    "objects": 1,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 0.799107,
+    "enqueueMs": 0.016399,
+    "frameMs": 1.134137
+  },
+  {
+    "objects": 1,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 0.783427,
+    "enqueueMs": 0.018843,
+    "frameMs": 1.197367
+  },
+  {
+    "objects": 1,
+    "stage": 1,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 0.471103,
+    "enqueueMs": 0.017387,
+    "frameMs": 0.91626
+  },
+  {
+    "objects": 1,
+    "stage": 2,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 0.455838,
+    "enqueueMs": 0.022236,
+    "frameMs": 1.406946
+  },
+  {
+    "objects": 1,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 0.678324,
+    "enqueueMs": 0.023912,
+    "frameMs": 1.117926
+  },
+  {
+    "objects": 16,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 9.978266,
+    "enqueueMs": 0.316595,
+    "frameMs": 11.81842
+  },
+  {
+    "objects": 16,
+    "stage": 1,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 6.381743,
+    "enqueueMs": 0.267404,
+    "frameMs": 7.959584
+  },
+  {
+    "objects": 16,
+    "stage": 2,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 6.366563,
+    "enqueueMs": 0.300097,
+    "frameMs": 8.005825
+  },
+  {
+    "objects": 16,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 9.909361,
+    "enqueueMs": 0.287978,
+    "frameMs": 11.545664
+  },
+  {
+    "objects": 16,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 10.073413,
+    "enqueueMs": 0.32596,
+    "frameMs": 11.654573
+  },
+  {
+    "objects": 16,
+    "stage": 1,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 6.014022,
+    "enqueueMs": 0.287894,
+    "frameMs": 7.8659
+  },
+  {
+    "objects": 16,
+    "stage": 2,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 68022,
+    "gpuMs": 6.162293,
+    "enqueueMs": 0.300189,
+    "frameMs": 7.782375
+  },
+  {
+    "objects": 16,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "triangles": 108936,
+    "gpuMs": 10.19862,
+    "enqueueMs": 0.312605,
+    "frameMs": 12.08691
+  }
+]

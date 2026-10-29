@@ -68,7 +68,9 @@ Callbacks, functions, script variables, widget/business state, hover/grab state,
 and tracking state are not serialized. Scripts recreate
 their own behavior after loading. Scene-wide render-group auto-split policies are
 not saved; reapply them using `renderGroups` if needed. Runtime tiles and chosen
-LOD levels are recomputed. Fresh groups avoid accidentally merging a restored
+LOD levels are recomputed. Optional PBR LOD buffers are admitted under the
+current shared budget; generated buffers and reservations are not serialized.
+Insufficient optional budget preserves restored objects at finer/full detail. Fresh groups avoid accidentally merging a restored
 tool with existing scene surfaces or inheriting their auto-split policies.
 
 Restore validates the complete document, stages missing CPU model assets, and

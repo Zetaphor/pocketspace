@@ -333,9 +333,7 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part){
   return true;
 }
 #endif
-#ifdef SF_PBR_LOD_EXPERIMENT
-#include "../tests/pbr-lod-experiment.h"
-#endif
+#include "pbr_lod.h"
 void uploadModel(ModelAsset &asset){
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
@@ -375,9 +373,7 @@ void uploadModel(ModelAsset &asset){
 #endif
     if(asset.pbr){
       if(!part.surfaceVbo)uploadSurface(part,GL_STATIC_DRAW);
-#ifdef SF_PBR_LOD_EXPERIMENT
-      pbrLodExperiment::upload(asset,part);
-#endif
+      if(!part.indexBuffer)pbrLod::upload(asset,part);
       for(size_t i=0;i<4;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
         glGenTextures(1,&map.texture);glBindTexture(GL_TEXTURE_2D,map.texture);
         glTexImage2D(GL_TEXTURE_2D,0,i==3?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());
@@ -417,7 +413,7 @@ void deleteModel(ModelAsset &asset){
 #ifdef SF_MODEL_LOD_EXPERIMENT
     lodExperiment::results.erase(&part);
 #endif
-    for(auto &lod:part.lod){if(lod.indexBuffer)glDeleteBuffers(1,&lod.indexBuffer);if(lod.vbo)glDeleteBuffers(1,&lod.vbo);if(lod.surfaceVbo)glDeleteBuffers(1,&lod.surfaceVbo);lod={};}
+    for(auto &lod:part.lod){if(lod.indexBuffer)glDeleteBuffers(1,&lod.indexBuffer);if(lod.vbo)glDeleteBuffers(1,&lod.vbo);if(lod.surfaceVbo)glDeleteBuffers(1,&lod.surfaceVbo);pbrLodBudget.release(lod.budgetBytes);lod={};}
     if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
   asset.uploaded=false;
 }

@@ -20,11 +20,9 @@ This roadmap contains future work, without prescribing an implementation order.
   The current lit path uses full expanded geometry and CPU animation. The
   [static PBR indexing comparison](../tests/results/pbr-index.md) reduced geometry
   storage but regressed native throughput, including with cache/fetch ordering;
-  retain expanded uploads. Decide production adoption of the
-  [surface-aware PBR LOD prototype](../tests/results/pbr-lod.md), accounting for
-  its extra shared geometry storage; native cost and the interactive car check
-  are accepted. Shader/depth-pass cost remains another candidate. Revisit
-  indexing only with a different layout and measured gains.
+  retain expanded uploads alongside the implemented, budgeted PBR LOD. Investigate
+  shader/depth-pass cost next. Revisit indexing only with a different layout and
+  measured gains.
 
 ## Scripted experiences
 

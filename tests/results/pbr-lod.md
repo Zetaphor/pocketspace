@@ -1,8 +1,9 @@
 # Surface-aware PBR LOD prototype
 
 Validated on Steam Frame on **2026-10-29**, using `efe00a3` plus this prototype.
-The bake remains excluded from production pending an adoption decision and
-consideration of its additional geometry storage.
+The initial bake was excluded from production during these prototype checks.
+The subsequent [budgeted production integration](pbr-lod-production.md) records
+default adoption, bounded storage and additional failure/restore checks.
 
 ## Geometry and ownership
 

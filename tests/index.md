@@ -262,12 +262,13 @@ the bounded non-interactive
 
 ## Model lighting
 
-- [pbr-lod-regression.cpp](pbr-lod-regression.cpp): test-only surface-aware PBR
-  simplification, exact reduced-stream stereo/depth routing, image-difference
-  measurements, eligibility/ownership checks and optional native ABBA timing.
+- [pbr-lod-regression.cpp](pbr-lod-regression.cpp): production surface-aware PBR
+  LOD, exact stereo/depth routing, image differences, 32 MiB budget exhaustion,
+  partial upload rollback, reload/restore preservation, ownership cleanup and
+  optional native ABBA timing.
 - [scenes/pbr-lod.js](scenes/pbr-lod.js): interactive PBR car and normal-map
   fixture for automatic detail transitions and full-detail restoration on grab;
-  requires the excluded `pbr-lod-demo` executable with `SF_PBR_LOD=1`.
+  runs in the normal engine; `pbr-lod-demo` additionally logs transitions.
 - [pbr-index-regression.cpp](pbr-index-regression.cpp): test-only static PBR
   indexing and vertex-cache ordering; full-input seam identity, 16/32-bit indices,
   exact stereo/alpha/overlap pixels, animation fallback, buffer cleanup and an

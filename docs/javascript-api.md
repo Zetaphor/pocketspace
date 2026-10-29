@@ -439,14 +439,19 @@ const car = loadModel('assets/samples/ToyCar/ToyCar.glb');
 const exact = loadModel('assets/Avocado.glb', 768, {lod: false});
 ```
 
-The engine retains full geometry and generates up to two shared reduced index
-buffers per eligible primitive, targeting half and quarter triangle counts.
-Only indexed opaque primitives in static assets qualify; animated, skinned,
-morph, CPU-deformed, masked and blended geometry keeps full detail. Small meshes
-and reductions saving less than 20% of indices keep the original path. Generation
-uses a relative position/UV error limit of 0.001, UV weights of 0.1 and locked
-mesh borders. It may stop above the target count. This is lossy geometry, not a
+The engine retains full geometry and generates up to two shared reduced levels
+per eligible static opaque primitive, targeting half and quarter triangle counts.
+Unlit meshes use reduced index buffers with a relative position/UV error limit of
+0.001, UV weights of 0.1 and locked mesh borders. [PBR meshes](lighting-api.md)
+include normals, tangents, handedness and material UVs in simplification, lock
+surface seams and borders, and upload reduced expanded position/surface buffers.
+PBR uses the same combined error limit with additional surface-attribute weights.
+Each PBR level must save at least 20% of triangles, and a second must save at least
+20% beyond the first. Targets may not be reached; this is lossy geometry, not a
 promise of identical pixels or a forced triangle budget.
+
+Animated, skinned, morph, CPU-deformed, masked and blended geometry keeps full
+detail. Small meshes and ineffective reductions also retain the original path.
 
 Each object gets one detail decision per frame after input, animation and
 physics updates. The engine estimates its projected bounding-sphere diameter
@@ -470,12 +475,27 @@ the option is omitted; an explicitly conflicting setting throws. Reload the
 script to change it. Use `{lod: false}` for assets requiring unchanged geometry
 or for visual comparisons. `optimizeVertexCache` remains independently opt-in.
 
-Reduced indices are generated once during GPU upload and shared by every copy
-of the asset. Full vertices and indices remain allocated, so LOD adds index
-storage while reducing rendering work. `gpuAllocatedEstimateBytes` includes
-these extra buffers; reload/removal of the scene and shutdown release them.
-Generation can add loading time, and unavailable reductions retain full geometry.
-See [lod.js](../scripts/lod.js) for a detailed grabbable-model example.
+Reduced geometry is generated once during GPU upload and shared by every copy
+of the asset. Full geometry stays allocated, so LOD adds storage while reducing
+rendering work. Optional PBR position/surface pairs share a **32 MiB engine-wide
+buffer-payload budget**, separate from textures, full meshes, unlit LOD indices
+and overlay buffers. Reservations include both buffers before either is
+published. If a pair cannot fit or its GPU allocation fails, that primitive keeps
+a finer available level or full detail; loading and scene restore do not fail
+because optional detail is unavailable. Some primitives of an asset may reduce
+while others remain full.
+
+Budget admission follows asset/primitive upload order. There is no eviction or
+background retry for an already uploaded asset; reloading the script rebuilds
+availability. Held objects use full geometry while their shared reduced buffers
+remain resident. Removing an object does not unload its cached asset. Scene
+reload/shutdown or actual asset destruction releases the buffers and budget;
+`gpuAllocatedEstimateBytes` includes allocated pairs once per shared asset.
+The budget limits payload bytes, not driver overhead or total engine VRAM.
+Generation can add loading time. Scene saves retain `lod`, not generated levels
+or reservations; restored availability depends on the current budget.
+See [lod.js](../scripts/lod.js) for a detailed grabbable-model example and
+[pbr.js](../scripts/pbr.js) for lit geometry with the same automatic policy.
 
 ## Grabbing and selection
 

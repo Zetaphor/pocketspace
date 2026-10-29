@@ -84,8 +84,9 @@ normal draws or panel work. Count the owned instance buffer in GPU estimates,
 while leaving driver streaming overhead outside the estimate.
 
 Automatic LOD defaults on in `loadModel`; `{lod: false}` opts out. Preserve the
-full CPU and GPU mesh; `PrimitiveAsset::lod` owns up to two reduced index buffers.
-Only indexed opaque static primitives qualify. Count those buffers in GPU
+full CPU and GPU mesh; `PrimitiveAsset::lod` owns up to two reduced index buffers
+for unlit meshes or position/surface VBO pairs for PBR. Only opaque static
+primitives qualify; unlit meshes also require indexing. Count those buffers in GPU
 estimates and delete them with the asset. `Object::lodLevel` is selected once
 per frame after mutations and shared by eyes/surfaces/depth passes. Grabbed and
 nearby objects restore full detail; preserve projection and distance hysteresis.
@@ -433,11 +434,22 @@ showed lower storage but worse throughput. MikkTSpace is vendored at upstream co
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 
-The [test-only PBR LOD prototype](../tests/results/pbr-lod.md) retains expanded
-reduced position/surface pairs in each primitive's LOD records. Select both buffers
-and their count together in color and depth passes; never pair a reduced position
-stream with the full surface stream. Release and count each additional pair once
-per shared asset. Its generation remains excluded from production.
+Production PBR LOD in `src/pbr_lod.h` retains reduced expanded position/surface
+pairs in each primitive's LOD records. Select both buffers and their count
+together in color and depth passes; never pair reduced positions with full
+surface data. Full 14-float shader-input identity, locked seam positions/borders
+and surface-attribute weights preserve the validated simplification policy.
+
+`pbrLodBudget` caps optional pair payloads at 32 MiB engine-wide. Reserve a whole
+pair before allocating, validate both buffer sizes before publishing, and roll
+back buffers/charge on any unpublished exit. `ModelLodLevel::budgetBytes` belongs
+to its shared asset; `deleteModel` releases it and clears the record. Do not copy
+uploaded ownership records into poses or independently owned assets. Live assets
+retain their charges during restore; unavailable optional storage must keep full
+geometry rather than fail publication. Saved `lod` is a policy request, not a
+promise of generated levels. Budget fallback has no eviction or background retry.
+The excluded diagnostic build's failure injection and `SF_PBR_LOD` override must
+remain unavailable in production. See the [recorded validation](../tests/results/pbr-lod-production.md).
 
 Lit poses currently use CPU position and surface-frame deformation and disable
 GPU skinning eligibility, ordered instancing, LOD and rigid merging. Preserve

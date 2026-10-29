@@ -181,13 +181,20 @@ sheen, or other advanced material extensions. Unsupported optional material exte
 metallic/roughness fallback. Metals can look dark away from their direct-light highlight when an environment
 is disabled. Environment lighting must be explicitly selected.
 
-Lit assets currently use full-detail expanded geometry to preserve normal and
-UV seams. The unlit position/UV indexer, automatic LOD, ordered instancing, rigid
-part batching and GPU skinning do not run on lit assets. Loading options for
-those policies remain stored, but do not enable those paths for PBR. Additional
-surface buffers and material textures are included in the engine's GPU allocation
-estimate. Choose lit assets deliberately for dense scenes; no PBR throughput gain
-is implied.
+Static opaque lit geometry supports [automatic model LOD](javascript-api.md#automatic-model-lod)
+by default. It preserves full meshes and surface seams while adding shared,
+reduced expanded streams for distant objects. `{lod: false}` disables generation.
+Optional reduced PBR buffers share a 32 MiB engine-wide payload budget; exhausted
+budget or failed optional allocations keep finer/full geometry. This budget does
+not include full meshes, textures, environments or overlays. Full detail returns
+nearby and while held, with textures and picking unchanged.
+
+Lit animation still uses CPU position/surface deformation. The legacy position/UV
+indexer, ordered instancing, rigid part batching and GPU skinning do not run on
+lit assets. Loading options for those policies remain stored but do not enable
+those paths for PBR. Additional surface/LOD buffers and material textures are
+included in the engine's GPU allocation estimate. Dense-scene cost still depends
+on model complexity, materials and overlay layout.
 
 Scene-container snapshots preserve the PBR choice and lighting settings. Restore
 rejects a conflicting cached asset instead of changing existing objects' shared

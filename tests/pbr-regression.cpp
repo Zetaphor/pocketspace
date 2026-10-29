@@ -60,6 +60,8 @@ int main(){
    assert(std::filesystem::exists(path));
    renderer.scene.assets.emplace_back();auto &a=renderer.scene.assets.back();a.pbr=true;
    assert(loadModelFile(path,a));assert(!a.skinEligible&&!a.rigidBatchEligible);uploadModel(a);
+   if(std::string(name)=="ToyCar")assert(std::any_of(a.primitives.begin(),a.primitives.end(),[](const auto &p){return p.lod[0].vbo&&p.lod[0].surfaceVbo&&p.lod[0].budgetBytes>0;}));
+   assert(pbrLodBudget.used<=PbrLodBudget::limit);
    for(const auto &p:a.primitives){assert(p.surface.size()==size_t(p.vertexCount)*9&&p.surfaceVbo&&!p.indexBuffer&&!p.lod[0].indexBuffer);for(float v:p.surface)assert(std::isfinite(v));for(size_t v=0;v<p.surface.size();v+=9){V n{p.surface[v],p.surface[v+1],p.surface[v+2]},t{p.surface[v+3],p.surface[v+4],p.surface[v+5]};assert(std::abs(dot(n,n)-1)<1e-4f&&std::abs(dot(t,t)-1)<1e-4f&&std::abs(dot(n,t))<1e-4f);assert(std::abs(p.surface[v+6])==1);}}
    Object object{};object.id=1;object.asset=int(renderer.scene.assets.size());object.scale=.65f;object.pitch=.15f;object.yaw=.25f;renderer.scene.objects={object};
    std::vector<unsigned char> first;
