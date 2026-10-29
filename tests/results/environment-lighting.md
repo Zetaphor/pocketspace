@@ -109,7 +109,11 @@ curl --fail --location --output /tmp/sf-real-hdr/studio_small_01_1k.hdr https://
 - Bake SHA-256:
   `de2bd1f134a314545ca8c0ef1a64ad7c90ebb66b25349cc1df8410c21d936da0`.
 
-This verifies a real downloaded HDR through conversion, precomputation and native
-loading/upload. It is not a headset visual acceptance or performance measurement
-for this particular environment. The headset acceptance above used the procedural
-studio bake.
+The user subsequently accepted this bake in the headset on 2026-10-29 using
+an interactive ToyCar with the existing PBR example, selecting the external bake
+from `/tmp/sf-real-hdr/studio_small_01.sfenv`. The requested checks covered grip
+or trigger grabbing, rotation, head movement and smooth reflections without
+flicker, black patches or missing parts. The user reported “Looks correct.”
+This adds headset visual acceptance to conversion, precomputation and native
+loading/upload checks; no controlled performance measurement was made for this
+environment. The earlier diagnostic-gallery acceptance used the procedural bake.
