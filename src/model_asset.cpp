@@ -406,9 +406,10 @@ void uploadModelPose(ModelPose &pose){
   const auto profileUploadStart=AnimationProfileClock::now();
   if(animationProfileFrame)animationProfileFrame->uploads++;
 #endif
+  pose.parts.resize(pose.geometry.primitives.size());
   for(size_t i=0;i<pose.geometry.primitives.size();i++){
     auto &part=pose.geometry.primitives[i];auto &cache=pose.parts[i];
-    if(part.vbo&&!cache.uploadDirty)continue;
+    if(part.vbo&&cache.valid&&!cache.uploadDirty)continue;
 #ifdef SF_ANIMATION_PROFILE
     if(animationProfileFrame)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);
 #endif
