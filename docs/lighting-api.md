@@ -183,7 +183,7 @@ is disabled. Environment lighting must be explicitly selected.
 
 Static opaque lit geometry supports [automatic model LOD](javascript-api.md#automatic-model-lod)
 by default. It preserves full meshes and surface seams while adding shared,
-reduced expanded streams for distant objects. `{lod: false}` disables generation.
+reduced streams for distant objects. `{lod: false}` disables generation.
 Optional reduced PBR buffers share a 32 MiB engine-wide payload budget; exhausted
 budget or failed optional allocations keep finer/full geometry. This budget does
 not include full meshes, textures, environments or overlays. Full detail returns
@@ -199,11 +199,12 @@ for eligible static opaque/masked lit primitives when compact buffers save space
 The option defaults to `false`; coplanar overlapping triangles can depend on their
 original order. Position, both UV inputs, normal and tangent/handedness all
 participate in identity, preserving surface seams. Full-detail buffers become
-compact while reduced LOD streams retain their existing quality and ownership.
+compact; reduced LOD streams also use cache-ordered compact indices when smaller,
+with their existing simplification quality and ownership.
 Transparent and deforming primitives keep expanded uploads. If optional indexing
-cannot be staged, the mesh keeps its expanded buffers. Reduced levels currently
-remain expanded: a lower triangle count does not guarantee less GPU time than
-cache-indexed full detail. Profile the intended model workload when choosing LOD.
+cannot be staged, full detail keeps expanded buffers. Failed reduced-level staging
+keeps a finer/full level and releases its optional budget reservation. Profile
+the intended model workload when choosing LOD.
 
 Lit animation still uses CPU position/surface deformation. The legacy position/UV
 indexer, ordered instancing, rigid part batching and GPU skinning do not run on

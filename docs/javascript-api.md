@@ -365,7 +365,8 @@ restriction concerns vertex deformation, not object motion.
 For PBR, this option also enables full-input indexing of static opaque/masked
 primitives when compact GPU storage is smaller. Identity includes both UV inputs,
 normal and tangent/handedness as well as position. Compact full-detail buffers
-coexist with the usual reduced expanded PBR LOD streams. Failed optional staging
+coexist with reduced PBR LOD streams, which also receive compact indices when
+smaller under the same cache option. Failed optional staging
 keeps expanded full detail; the option does not enable plain indexing for blends.
 The retained CPU geometry and picking remain unchanged.
 Blended primitives and assets with animation or skinning retain their original
@@ -451,7 +452,10 @@ per eligible static opaque primitive, targeting half and quarter triangle counts
 Unlit meshes use reduced index buffers with a relative position/UV error limit of
 0.001, UV weights of 0.1 and locked mesh borders. [PBR meshes](lighting-api.md)
 include normals, tangents, handedness and material UVs in simplification, lock
-surface seams and borders, and upload reduced expanded position/surface buffers.
+surface seams and borders, and upload reduced position/surface buffers. With
+`optimizeVertexCache: true`, reduced PBR streams also receive compact cache-ordered
+indices when smaller. Each level owns its index width and compact vertex count;
+its geometry error and selected triangle count remain unchanged.
 PBR uses the same combined error limit with additional surface-attribute weights.
 Each PBR level must save at least 20% of triangles, and a second must save at least
 20% beyond the first. Targets may not be reached; this is lossy geometry, not a

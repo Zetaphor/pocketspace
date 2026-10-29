@@ -1,13 +1,14 @@
 // Actual production upload policy; no SF_PBR_INDEX_EXPERIMENT routing controls.
 #define SF_PBR_INDEX_HELPERS_ONLY
 #include "pbr-index-regression.cpp"
+#include "../src/pbr_lod.h"
 static uint64_t allGeometryBytes(const ModelAsset &asset){
  uint64_t bytes=geometryBytes(asset);for(const auto &p:asset.primitives)for(const auto &lod:p.lod)bytes+=lod.budgetBytes;return bytes;
 }
 static uint64_t triangles(const ModelAsset &asset,int level){uint64_t n=0;for(const auto &p:asset.primitives)n+=modelDrawVertexCount(p,level)/3;return n;}
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
- size_t views=0,indexed=0;bool reduced=false;
+ size_t views=0,indexed=0;bool reduced=false;uint64_t compactBudget=0;
  // Production ignores the diagnostic override, even when it asks for expansion.
  setenv("SF_PBR_INDEXED","0",1);
  for(const char *name:{"ToyCar","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","AlphaBlendModeTest","TextureEncodingTest","Fox","AnimatedMorphCube"}){
@@ -21,10 +22,23 @@ int main(int argc,char **argv){
     if(!mode||p.alphaMode==2||a.hasAnimation||a.hasSkin||a.hasMorph)assert(!p.indexBuffer);
     if(p.indexBuffer){++indexed;reordered|=verifyStream(p,true);}
     for(GLuint b:{p.vbo,p.surfaceVbo,p.indexBuffer})if(b)owned.push_back(b);
-    for(const auto &lod:p.lod)if(lod.vbo){reduced=true;owned.push_back(lod.vbo);owned.push_back(lod.surfaceVbo);assert(!lod.indexBuffer);}
+    for(const auto &lod:p.lod)if(lod.vbo){reduced=true;owned.push_back(lod.vbo);owned.push_back(lod.surfaceVbo);if(!mode)assert(!lod.indexBuffer);else if(lod.indexBuffer)owned.push_back(lod.indexBuffer);
+     uint64_t allocated=0;for(GLuint buffer:{lod.vbo,lod.surfaceVbo,lod.indexBuffer})if(buffer){glBindBuffer(GL_ARRAY_BUFFER,buffer);GLint bytes=0;glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&bytes);assert(bytes>0);allocated+=uint64_t(bytes);}assert(allocated==lod.budgetBytes);
+     if(mode&&std::string(name)=="ToyCar")compactBudget+=lod.budgetBytes;
+     if(lod.indexBuffer)assert(lod.indexType==(lod.gpuVertexCount<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT));}
    }
    if(mode&&std::string(name)=="ToyCar")assert(reordered);
    a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment);
+  }
+  for(size_t i=0;i<r.scene.assets[ids[1]-1].primitives.size();i++)for(int level:{1,2}){
+   const auto &source=r.scene.assets[ids[0]-1].primitives[i];const auto &part=r.scene.assets[ids[1]-1].primitives[i];
+   const auto *control=modelLodLevel(source,level),*lod=modelLodLevel(part,level);assert(bool(control)==bool(lod));
+   if(!lod)continue;assert(control->count==lod->count&&control->error==lod->error);
+   if(lod->indexBuffer){
+    PrimitiveAsset check;check.vertexCount=lod->count;check.gpuVertexCount=lod->gpuVertexCount;check.vbo=lod->vbo;check.surfaceVbo=lod->surfaceVbo;check.indexBuffer=lod->indexBuffer;check.indexType=lod->indexType;
+    for(bool surface:{false,true}){const size_t count=size_t(control->count)*(surface?9:5);glBindBuffer(GL_ARRAY_BUFFER,surface?control->surfaceVbo:control->vbo);const auto *data=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,0,count*sizeof(float),GL_MAP_READ_BIT));assert(data);(surface?check.surface:check.vertices).assign(data,data+count);assert(glUnmapBuffer(GL_ARRAY_BUFFER));}
+    verifyStream(check,true);
+   }
   }
   assert(geometryBytes(r.scene.assets[ids[1]-1])<=geometryBytes(r.scene.assets[ids[0]-1]));
   for(int level:{0,1,2})for(int phase:{0,1})for(int eye:{0,1})for(const auto &members:std::vector<std::vector<int>>{{1,2},{1},{2}}){
@@ -39,7 +53,15 @@ int main(int argc,char **argv){
   }
   r.scene.objects.clear();for(auto &a:r.scene.assets)deleteModel(a);for(GLuint b:owned)assert(!glIsBuffer(b));assert(pbrLodBudget.used==0);
  }
- assert(indexed>0&&reduced);
+ assert(indexed>0&&reduced&&compactBudget>0);
+ // Admit the complete compact payload even when expanded levels would not fit.
+ assert(pbrLodBudget.reserve(PbrLodBudget::limit-compactBudget));
+ {
+  ModelAsset a;a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);
+  uint64_t charged=0;for(const auto &p:a.primitives)for(const auto &lod:p.lod)charged+=lod.budgetBytes;
+  assert(charged==compactBudget&&pbrLodBudget.used==PbrLodBudget::limit);deleteModel(a);assert(pbrLodBudget.used==PbrLodBudget::limit-compactBudget);
+ }
+ pbrLodBudget.release(PbrLodBudget::limit-compactBudget);
  // Full-detail indexing is independent of the optional reduced-pair budget.
  assert(pbrLodBudget.reserve(PbrLodBudget::limit));
  {
@@ -56,6 +78,13 @@ int main(int argc,char **argv){
   uploadModel(a);pbrIndexValidation::failCpu=false;pbrIndexValidation::failStage=-1;
   for(const auto &p:a.primitives)assert(!p.indexBuffer&&p.gpuVertexCount==p.vertexCount&&glIsBuffer(p.vbo)&&glIsBuffer(p.surfaceVbo));
   assert(pbrIndexValidation::rollbackClean);if(failure>=0)assert(pbrIndexValidation::rejectedBuffers>before);deleteModel(a);
+ }
+ {
+  ModelAsset a;a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));
+  pbrLod::failIndexUpload=true;uploadModel(a);pbrLod::failIndexUpload=false;
+  assert(a.primitives[0].indexBuffer&&pbrLodBudget.used==0&&pbrLod::rejectedPairsClean);
+  for(const auto &p:a.primitives)for(const auto &lod:p.lod)assert(!lod.vbo&&!lod.surfaceVbo&&!lod.indexBuffer&&!lod.budgetBytes);
+  deleteModel(a);
  }
  {
   const auto folder=std::filesystem::temp_directory_path()/("sf-pbr-index-"+std::to_string(getpid()));std::filesystem::create_directory(folder);const auto script=folder/"scene.js";
@@ -75,8 +104,9 @@ int main(int argc,char **argv){
  std::printf("PASS production PBR indexing: %zu exact stereo/LOD/depth/pose views, %zu indexed primitives, original CPU inputs, blend/animation fallback, allocation rollback, shared snapshots/reload and cleanup\n",views,indexed);
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[2];
-  for(int mode=0;mode<2;mode++){r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());}
+  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[3];
+  for(int mode=0;mode<3;mode++){setenv("SF_PBR_LOD_INDEXED",mode==2?"0":"1",1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.sfenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());}
+  unsetenv("SF_PBR_LOD_INDEXED");
   assert(r.pbrProgram.init()&&r.depthPbrProgram.init(true));
   for(bool depthOnly:{false,true})for(int level:{0,1,2}){
    r.scene.objects.clear();std::vector<int> members;
@@ -84,13 +114,13 @@ int main(int argc,char **argv){
    if(depthOnly){Object target{};target.id=17;target.asset=3;target.z=.7f;target.scale=.95f;r.scene.objects.push_back(target);members={17};}
    const uint64_t work=triangles(r.scene.assets[ids[0]-1],level)*16;assert(work==triangles(r.scene.assets[ids[1]-1],level)*16);
    for(int stage=0;stage<4;stage++){
-    const int mode=stage==1||stage==2;for(auto &o:r.scene.objects)if(o.id!=17)o.asset=ids[mode];double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);
+    const int mode=stage==1||stage==2;for(auto &o:r.scene.objects)if(o.id!=17)o.asset=ids[!mode&&level?2:mode];double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);
     for(int frame=0;frame<150;frame++){
      const auto start=std::chrono::steady_clock::now();begin(GL_TIME_ELAPSED_EXT,query);r.renderSet(members,{0,.1f,-1.2f},frame%2,0,false);end(GL_TIME_ELAPSED_EXT);const auto queued=std::chrono::steady_clock::now();glFinish();const auto finish=std::chrono::steady_clock::now();GLuint64 ns=0;result(query,GL_QUERY_RESULT_EXT,&ns);GLint disjoint=0;glGetIntegerv(GL_GPU_DISJOINT_EXT,&disjoint);assert(!disjoint&&glGetError()==GL_NO_ERROR);
      assert((depthOnly?r.pbrDepthTriangles:r.pbrColorTriangles)==work&&(depthOnly?r.pbrColorTriangles:r.pbrDepthTriangles)==0);assert((depthOnly?r.pbrDepthDraws:r.pbrColorDraws)==48);
      if(frame>=30){cpu+=std::chrono::duration<double,std::milli>(queued-start).count();wall+=std::chrono::duration<double,std::milli>(finish-start).count();gpu+=double(ns)/1e6;}
     }
-    destroy(1,&query);std::printf("PBR_INDEX_PRODUCTION_SAMPLE {\"objects\":16,\"stage\":%d,\"cache\":%s,\"lod\":%d,\"depthOnly\":%s,\"frames\":120,\"eyePixels\":768,\"triangles\":%llu,\"draws\":48,\"geometryBytes\":%llu,\"gpuMs\":%.6f,\"enqueueMs\":%.6f,\"frameMs\":%.6f}\n",stage,mode?"true":"false",level,depthOnly?"true":"false",(unsigned long long)work,(unsigned long long)allGeometryBytes(r.scene.assets[ids[mode]-1]),gpu/120,cpu/120,wall/120);std::fflush(stdout);
+    destroy(1,&query);std::printf("PBR_INDEX_PRODUCTION_SAMPLE {\"objects\":16,\"stage\":%d,\"cache\":%s,\"indexedLod\":%s,\"lod\":%d,\"depthOnly\":%s,\"frames\":120,\"eyePixels\":768,\"triangles\":%llu,\"draws\":48,\"geometryBytes\":%llu,\"gpuMs\":%.6f,\"enqueueMs\":%.6f,\"frameMs\":%.6f}\n",stage,r.scene.assets[ids[!mode&&level?2:mode]-1].optimizeVertexCache?"true":"false",mode?"true":"false",level,depthOnly?"true":"false",(unsigned long long)work,(unsigned long long)allGeometryBytes(r.scene.assets[ids[!mode&&level?2:mode]-1]),gpu/120,cpu/120,wall/120);std::fflush(stdout);
    }
   }
  }

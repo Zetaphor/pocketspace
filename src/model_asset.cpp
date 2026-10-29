@@ -414,7 +414,7 @@ void uploadModel(ModelAsset &asset){
     glGenerateMipmap(GL_TEXTURE_2D);
     part.rgba.clear();
   }
-  uint64_t lodBytes=0;for(const auto &part:asset.primitives)for(const auto &lod:part.lod)if(lod.indexBuffer)lodBytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);
+  uint64_t lodBytes=0;for(const auto &part:asset.primitives)for(const auto &lod:part.lod)if(lod.indexBuffer)lodBytes+=uint64_t(lod.count)*((lod.vbo?lod.indexType:part.indexType)==GL_UNSIGNED_SHORT?2:4);
   if(lodBytes){std::printf("[model] lod path=%s index_bytes=%llu\n",asset.path.c_str(),(unsigned long long)lodBytes);std::fflush(stdout);}
   if(asset.skinEligible)for(auto &part:asset.primitives){
     glGenBuffers(1,&part.skinVbo);glBindBuffer(GL_ARRAY_BUFFER,part.skinVbo);glBufferData(GL_ARRAY_BUFFER,part.skinVertices.size()*sizeof(float),part.skinVertices.data(),GL_STATIC_DRAW);
@@ -450,7 +450,8 @@ void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLev
   if(!expandedVbo)if(const auto *lod=modelLodLevel(part,lodLevel);lod&&lod->vbo){
     glBindBuffer(GL_ARRAY_BUFFER,lod->vbo);
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-    glDrawArrays(GL_TRIANGLES,0,lod->count);return;
+    if(lod->indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,lod->indexBuffer);glDrawElements(GL_TRIANGLES,lod->count,lod->indexType,nullptr);}
+    else glDrawArrays(GL_TRIANGLES,0,lod->count);return;
   }
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
   const auto *owner=expandedVbo?deformed:&part;

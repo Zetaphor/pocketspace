@@ -85,7 +85,7 @@ while leaving driver streaming overhead outside the estimate.
 
 Automatic LOD defaults on in `loadModel`; `{lod: false}` opts out. Preserve the
 full CPU and GPU mesh; `PrimitiveAsset::lod` owns up to two reduced index buffers
-for unlit meshes or position/surface VBO pairs for PBR. Only opaque static
+for unlit meshes or position/surface VBOs with optional compact indices for PBR. Only opaque static
 primitives qualify; unlit meshes also require indexing. Count those buffers in GPU
 estimates and delete them with the asset. `Object::lodLevel` is selected once
 per frame after mutations and shared by eyes/surfaces/depth passes. Grabbed and
@@ -434,9 +434,9 @@ production, with cache/fetch ordering; blended and deforming uploads remain
 expanded. Stage position/surface/index buffers atomically and verify sizes before
 publishing. On failure release partial buffers and retain expanded uploads.
 Keep source draw count and uploaded compact vertex count distinct for drawing
-and memory accounting. Generate reduced PBR LOD pairs from unchanged CPU inputs
-regardless of full-detail indexing; select their expanded position/surface pairs
-before consulting full-detail element buffers. Optional LOD budgets remain
+and memory accounting. Generate reduced PBR LOD buffer sets from unchanged CPU inputs
+regardless of full-detail indexing; select all reduced position/surface/index
+buffers before consulting full-detail buffers. Optional LOD budgets remain
 independent of compact full buffers. Preserve the opt-in flag in the existing
 snapshot/cache-conflict policy; no new snapshot version or runtime override.
 See [production validation](../tests/results/pbr-index-production.md).
@@ -444,14 +444,18 @@ MikkTSpace is vendored at upstream commit
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 
-Production PBR LOD in `src/pbr_lod.h` retains reduced expanded position/surface
-pairs in each primitive's LOD records. Select both buffers and their count
+Production PBR LOD in `src/pbr_lod.h` retains independently owned reduced
+position/surface buffers and optional indices in each primitive's LOD records.
+The cache option enables compact indexing of reduced streams when smaller;
+otherwise streams stay expanded. Preserve each level's index type, uploaded
+vertex count and complete draw count independently of full detail. Select all
+buffers and their count
 together in color and depth passes; never pair reduced positions with full
 surface data. Full 14-float shader-input identity, locked seam positions/borders
 and surface-attribute weights preserve the validated simplification policy.
 
-`pbrLodBudget` caps optional pair payloads at 32 MiB engine-wide. Reserve a whole
-pair before allocating, validate both buffer sizes before publishing, and roll
+`pbrLodBudget` caps optional buffer-set payloads at 32 MiB engine-wide. Reserve a whole
+set before allocating, validate all buffer sizes before publishing, and roll
 back buffers/charge on any unpublished exit. `ModelLodLevel::budgetBytes` belongs
 to its shared asset; `deleteModel` releases it and clears the record. Do not copy
 uploaded ownership records into poses or independently owned assets. Live assets

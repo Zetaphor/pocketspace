@@ -14,7 +14,7 @@
 #include "../tests/vertex-array-experiment.h"
 #endif
 
-struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;uint64_t budgetBytes=0;};
+struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;uint64_t budgetBytes=0;GLsizei gpuVertexCount=0;GLenum indexType=GL_UNSIGNED_INT;};
 struct MaterialMap {
   std::vector<unsigned char> rgba;
   int width=1,height=1;

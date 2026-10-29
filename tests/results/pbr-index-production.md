@@ -1,5 +1,8 @@
 # Production PBR indexing integration
 
+This report records full-detail integration before the subsequent
+[reduced-LOD indexing](pbr-lod-index.md) work.
+
 Steam Frame, 2026-10-29. The existing `optimizeVertexCache: true` option now
 supports static opaque/masked PBR geometry in the normal engine. Its default
 remains false. Diagnostic environment overrides are absent from production.

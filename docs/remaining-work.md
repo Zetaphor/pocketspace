@@ -17,16 +17,11 @@ This roadmap contains future work, without prescribing an implementation order.
   replacement for the legacy approximate sheen tint. Restore geometry fast paths
   for lit assets only after they preserve surface seams, normal/tangent
   deformation, alpha and stereo occlusion, and demonstrate measured benefits.
-  The current lit path uses full expanded geometry and CPU animation. The
-  [static PBR indexing comparison](../tests/results/pbr-index.md) reduced geometry
-  storage but regressed native throughput with the cache policy off;
-  retain expanded uploads alongside the implemented, budgeted PBR LOD and cheaper
-  external depth pass. Investigate cache-ordered indexing for reduced PBR LOD
-  streams: [production full-detail indexing](../tests/results/pbr-index-production.md)
-  improves the matched old path, but indexed full detail now outperforms the
-  retained expanded reduced streams on ToyCar. Preserve surface identity, quality,
-  the optional memory budget and rollback before adopting reduced indexing.
-  Keep the existing cache option opt-in; plain indexing remains slower.
+  Lit animation still uses CPU deformation; indexing/cache ordering is opt-in.
+  Keep plain indexing disabled as an optimization: the recorded comparison
+  regressed throughput without cache ordering. Validate broader model/material
+  workloads before reconsidering the cache option's default, including assets
+  with coplanar overlapping triangles that can depend on original draw order.
 
 
 ## Scripted experiences
