@@ -1171,3 +1171,22 @@ approach and move away to check LOD, then grab to restore full detail. Check
 reflections, cutouts and overlaps against the blue backdrop. The public
 `scripts/pbr.js` example also enables the existing `optimizeVertexCache` option.
 See [production results](results/pbr-index-production.md).
+
+## Cache-indexed reduced PBR LOD
+
+`pbr-index-production-regression` also reconstructs compact reduced streams and
+compares every oriented triangle and full shader-input tuple against the expanded
+reduced control, at identical simplification error/count. Its image comparisons
+cover all three detail choices and both eyes in color and external-depth passes.
+It verifies rollback after a reduced index upload as well as full-detail failures.
+The target includes excluded LOD diagnostics; `SF_PBR_LOD_INDEXED=0` forces expanded
+reduced streams for its matched control only. This override is absent from the
+normal engine. The cache option remains opt-in.
+
+In `--benchmark`, LOD 0 compares the full-detail cache policy off/on. LOD 1/2 keep
+full-detail cache indexing enabled in both assets and compare expanded versus
+cache-indexed reduced streams, isolating reduced packing. Raw samples record
+`cache` and `indexedLod` separately. Source triangles, simplification/error policy,
+lighting, projection, target dimensions and actual draw/triangle counts stay
+matched. See [measurements and headset acceptance](results/pbr-lod-index.md).
+The normal-engine `tests/scenes/pbr-index.js` exercises both full and reduced paths.

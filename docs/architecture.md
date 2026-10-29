@@ -152,7 +152,7 @@ order and paths.
 
 Automatic LOD retains the full mesh and adds up to two reduced levels for
 eligible opaque static primitives: index buffers for unlit indexed meshes, and
-expanded position/surface pairs for PBR meshes. One projected-size/distance decision
+owned position/surface buffers with optional compact indices for PBR meshes. One projected-size/distance decision
 per object is reused by both eyes, surfaces, and depth passes. Hysteresis limits
 switching; nearby or grabbed models use full detail. Picking and physics continue
 to use full CPU geometry. `lod: false` disables this quality/performance policy.
@@ -286,15 +286,22 @@ shared asset deletion releases each buffer once. The excluded diagnostic builds
 alone allow plain indexing or `SF_PBR_INDEXED` overrides. See
 [production validation](../tests/results/pbr-index-production.md).
 Production surface-aware PBR LOD in `src/pbr_lod.h` uses full-input CPU indexing
-only while simplifying. It locks coincident surface seams and primitive borders,
-then expands selected original vertices into owned position/surface VBO pairs.
+while simplifying. It locks coincident surface seams and primitive borders,
+then stores selected original inputs in owned position/surface VBOs. With
+`optimizeVertexCache: true`, reduced streams also receive cache/fetch ordering
+and compact 16/32-bit indices when that saves storage. Each level owns its index
+type and uploaded vertex count independently of full detail; draw and surface
+bindings select the complete level together. Without the option, reduced streams
+remain expanded. Simplification targets/error policy and selected triangles are
+unchanged by this storage optimization. See
+[reduced indexing validation](../tests/results/pbr-lod-index.md).
 Full streams stay resident for near and held objects. The existing object-level
 selector supplies the same detail choice to color/depth passes and both eyes.
 [Budgeted production validation](../tests/results/pbr-lod-production.md) records the quality,
 throughput and extra-memory tradeoff.
 
-`src/pbr_lod_budget.h` admits optional PBR pairs under one 32 MiB payload limit
-across assets. Each exact pair reservation precedes GPU allocation/publication;
+`src/pbr_lod_budget.h` admits optional PBR buffer sets under one 32 MiB payload limit
+across assets. Each exact buffer-set reservation precedes GPU allocation/publication;
 failed allocation or CPU staging exceptions release staged buffers and the
 reservation. Missing levels fall back to a finer level or full geometry without
 rejecting an asset or restore. Admission follows upload order, with no eviction
@@ -393,7 +400,7 @@ engine FPS, scene counts, allocation estimates, and latest physics timings.
 Process samples update roughly once a second; getters do not synchronize the GPU.
 Shared memory means RAM and GPU values can overlap. The allocation estimate counts
 owned buffers/textures, deduplicates shared depth, and includes retained surface
-generations, pose streams, palette textures, unlit LOD indices, PBR LOD pairs,
+generations, pose streams, palette textures, unlit LOD indices, PBR LOD buffer sets,
 and instance data. It
 excludes driver/compositor overhead and is not measured GPU residency.
 

@@ -263,7 +263,8 @@ the bounded non-interactive
 ## Model lighting
 
 - [pbr-index-production-regression.cpp](pbr-index-production-regression.cpp):
-  production opt-in indexing with automatic LOD, exact stereo/color/depth and
+  production opt-in full/reduced indexing with automatic LOD, reconstructed
+  reduced shader inputs, exact stereo/color/depth and
   animated fallback checks, partial allocation rollback, shared persistence,
   rejected reload and cleanup; matched color/depth timing at each LOD.
 - [scenes/pbr-index.js](scenes/pbr-index.js): normal-engine cache-ordered PBR car,
