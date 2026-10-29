@@ -1,0 +1,178 @@
+[
+  {
+    "objects": 1,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 0.685997,
+    "enqueueMs": 0.016071,
+    "frameMs": 1.118744
+  },
+  {
+    "objects": 1,
+    "stage": 1,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 1.118488,
+    "enqueueMs": 0.025529,
+    "frameMs": 1.633492
+  },
+  {
+    "objects": 1,
+    "stage": 2,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 0.889013,
+    "enqueueMs": 0.019049,
+    "frameMs": 1.4936
+  },
+  {
+    "objects": 1,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 0.761019,
+    "enqueueMs": 0.017792,
+    "frameMs": 1.253077
+  },
+  {
+    "objects": 1,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 0.684721,
+    "enqueueMs": 0.016165,
+    "frameMs": 1.181322
+  },
+  {
+    "objects": 1,
+    "stage": 1,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 1.027642,
+    "enqueueMs": 0.020371,
+    "frameMs": 1.587981
+  },
+  {
+    "objects": 1,
+    "stage": 2,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 1.019831,
+    "enqueueMs": 0.019145,
+    "frameMs": 1.545019
+  },
+  {
+    "objects": 1,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 0.735447,
+    "enqueueMs": 0.018472,
+    "frameMs": 1.209254
+  },
+  {
+    "objects": 16,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 9.950828,
+    "enqueueMs": 0.33522,
+    "frameMs": 11.831652
+  },
+  {
+    "objects": 16,
+    "stage": 1,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 14.104516,
+    "enqueueMs": 0.356934,
+    "frameMs": 15.595061
+  },
+  {
+    "objects": 16,
+    "stage": 2,
+    "mode": 1,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 14.166241,
+    "enqueueMs": 0.318947,
+    "frameMs": 15.919568
+  },
+  {
+    "objects": 16,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 9.831304,
+    "enqueueMs": 0.298854,
+    "frameMs": 11.468145
+  },
+  {
+    "objects": 16,
+    "stage": 0,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 10.056843,
+    "enqueueMs": 0.300812,
+    "frameMs": 11.310783
+  },
+  {
+    "objects": 16,
+    "stage": 1,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 14.181111,
+    "enqueueMs": 0.312028,
+    "frameMs": 15.733381
+  },
+  {
+    "objects": 16,
+    "stage": 2,
+    "mode": 2,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 5550662,
+    "gpuMs": 14.362709,
+    "enqueueMs": 0.302872,
+    "frameMs": 15.863526
+  },
+  {
+    "objects": 16,
+    "stage": 3,
+    "mode": 0,
+    "frames": 120,
+    "eyePixels": 768,
+    "geometryBytes": 18301248,
+    "gpuMs": 10.111862,
+    "enqueueMs": 0.332291,
+    "frameMs": 11.725952
+  }
+]

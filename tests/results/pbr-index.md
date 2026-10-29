@@ -1,0 +1,61 @@
+# Static PBR indexing investigation
+
+Measured on Steam Frame on **2026-10-29** with the headset awake and worn.
+The implementation is test-only; production retains expanded PBR geometry.
+
+## Implementation and correctness
+
+`pbr-index-regression` and `pbr-index-demo` compile `SF_PBR_INDEX_EXPERIMENT`.
+`SF_PBR_INDEXED=0` retains expanded uploads; `1` enables full-input indexing;
+`2` also applies meshoptimizer vertex-cache/fetch ordering to static non-blend
+primitives when the existing cache policy permits it. Animated, skinned and morph
+assets keep expanded streams. Indexing is skipped when total geometry storage
+would not shrink. Neither variant generates LOD or enables instancing.
+
+Vertex identity includes all 14 floats: position, base UV, normal, tangent with
+handedness, and material-map UV. Identity is bit-exact within each primitive, so
+surface seams remain independent. CPU triangles, picking, bounds, material
+ownership and shared-asset lifetime stay unchanged. GPU position and surface
+buffers use the same remap and share the element buffer in both color and depth
+passes. Blend triangle order is retained.
+
+Native checks compare 264 exact stereo/alpha/overlap images across eleven models,
+including normal/tangent, mirrored, unlit, emissive and texture-encoding fixtures,
+plus animated Fox and AnimatedMorphCube fallbacks. They reconstruct uploaded
+shader inputs and verify exact oriented-triangle identity, check index-width
+boundaries and buffer cleanup. All passed, along with the production PBR
+regression (130 images plus API/persistence checks) and culling regression
+(70 views). This is automated evidence, not user headset
+acceptance of the prototype.
+
+## Matched native measurements
+
+One and sixteen full-detail ToyCars use the same PBR shader, procedural studio
+environment, transforms, camera, 768×768 offscreen target and alternating eyes.
+All variants are loaded before timing. Each comparison runs expanded/variant/
+variant/expanded, warming 30 and measuring 120 frames per stage. No OpenVR session,
+overlays or pointer capture are created. GPU-disjoint and GL-error checks passed.
+These are offscreen rendering costs, not compositor FPS.
+
+The table averages the two stage means for each mode. Raw stage data is in
+[samples.json](pbr-index/samples.json).
+
+| Objects | Variant | GPU ms expanded → indexed | CPU enqueue ms | Synchronized frame ms |
+| ---: | --- | ---: | ---: | ---: |
+| 1 | Indexing | .7235 → 1.0038 | .0169 → .0223 | 1.1859 → 1.5635 |
+| 1 | Indexing + cache/fetch ordering | .7101 → 1.0237 | .0173 → .0198 | 1.1953 → 1.5665 |
+| 16 | Indexing | 9.8911 → 14.1354 | .3170 → .3379 | 11.6499 → 15.7573 |
+| 16 | Indexing + cache/fetch ordering | 10.0844 → 14.2719 | .3166 → .3075 | 11.5184 → 15.7985 |
+
+Per shared ToyCar asset, position/surface/index GPU storage falls from
+18,301,248 to 5,550,662 bytes (about 70% less). Textures, environment data and
+retained CPU arrays are excluded and unchanged. This is retained buffer storage;
+loading peak memory and upload latency were not measured.
+
+Both variants regress GPU and synchronized frame time in these comparisons, so
+neither is adopted. Cache ordering does not recover the lost throughput. GPU
+clocks, thermal state and scheduling are not locked; this short investigation
+does not identify the hardware cause or establish a universal indexed-draw cost.
+Revisit only with a different layout/workload and repeatable net gains. Further
+PBR optimization should investigate surface-aware LOD or shader/depth-pass cost
+rather than enabling this prototype by default.

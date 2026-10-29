@@ -5,6 +5,11 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
+- Add dynamic scene lighting: script-controlled lights with position, color,
+  intensity and range, including lights that move with objects. Define supported
+  light types and limits, persistence and the relationship to existing per-asset
+  lighting. Profile many-light workloads before choosing the rendering approach.
+
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.
@@ -12,7 +17,11 @@ This roadmap contains future work, without prescribing an implementation order.
   replacement for the legacy approximate sheen tint. Restore geometry fast paths
   for lit assets only after they preserve surface seams, normal/tangent
   deformation, alpha and stereo occlusion, and demonstrate measured benefits.
-  The current lit path uses full expanded geometry and CPU animation.
+  The current lit path uses full expanded geometry and CPU animation. The
+  [static PBR indexing comparison](../tests/results/pbr-index.md) reduced geometry
+  storage but regressed native throughput, including with cache/fetch ordering;
+  retain expanded uploads. Investigate surface-aware LOD or shader/depth-pass
+  costs next; revisit indexing only with a different layout and measured gains.
 
 ## Scripted experiences
 

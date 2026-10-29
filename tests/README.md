@@ -1045,3 +1045,28 @@ For visual acceptance, `tests/scenes/pbr-materials.js` now selects the baked
 studio environment. Compare tangent-test highlights and horizon orientation,
 negative-scale check marks/spheres, matching encoding-test columns, invariant
 unlit colors and increasing emissive brightness. It remains non-interactive.
+
+## Static PBR indexing experiment
+
+Reconfigure CMake and build the excluded `pbr-index-regression` target. Run it
+from the repository root with the same native GLES environment as
+`pbr-regression`. No OpenVR session, overlay or controller input is created.
+It compares expanded geometry, full-input indexing and indexing with opaque/mask
+vertex-cache/fetch ordering. Identity includes all 14 position/UV/surface floats;
+retained CPU geometry stays expanded. Animated, skinned and morph assets retain
+the expanded upload. Both 16-bit and 32-bit index boundaries are checked.
+
+`--benchmark` compares one/sixteen full-detail ToyCars with environment lighting,
+a fixed 768×768 offscreen target and alternating eyes. Each variant uses an
+expanded/indexed/indexed/expanded sequence, with 30 warmup and 120 measured frames
+per stage. Geometry, shaders, lighting and quality stay matched; GPU disjoint and
+GL errors fail the run. The reported storage is geometry VBOs plus index buffers,
+excluding textures, environment storage and retained CPU arrays. Keep the headset
+awake and worn. Results are offscreen costs, not compositor FPS.
+
+The excluded `pbr-index-demo` executable is the normal engine compiled with the
+test-only path. `SF_PBR_INDEXED=0` retains expanded uploads, `1` enables indexing
+with triangle order retained, and `2` additionally orders static non-blend
+triangles for the vertex cache and vertex fetch. Use the same environment as the
+normal engine and pass a script such as `scripts/pbr.js`. This switch is not a
+public API and is absent from the production executable.
