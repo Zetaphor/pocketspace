@@ -1051,8 +1051,10 @@ unlit colors and increasing emissive brightness. It remains non-interactive.
 Reconfigure CMake and build the excluded `pbr-index-regression` target. Run it
 from the repository root with the same native GLES environment as
 `pbr-regression`. No OpenVR session, overlay or controller input is created.
-It compares expanded geometry, full-input indexing and indexing with opaque/mask
-vertex-cache/fetch ordering. Identity includes all 14 position/UV/surface floats;
+It compares expanded geometry and full-input indexing, and includes a mode that
+can apply opaque/mask vertex-cache/fetch ordering when the asset policy permits it.
+The recorded run and current fixture keep `optimizeVertexCache` at `false`, so
+mode 2 is a repeated indexing comparison, not an enabled-cache measurement. Identity includes all 14 position/UV/surface floats;
 retained CPU geometry stays expanded. Animated, skinned and morph assets retain
 the expanded upload. Both 16-bit and 32-bit index boundaries are checked.
 
@@ -1066,7 +1068,7 @@ awake and worn. Results are offscreen costs, not compositor FPS.
 
 The excluded `pbr-index-demo` executable is the normal engine compiled with the
 test-only path. `SF_PBR_INDEXED=0` retains expanded uploads, `1` enables indexing
-with triangle order retained, and `2` additionally orders static non-blend
+with triangle order retained, and `2`, when `optimizeVertexCache` is enabled, additionally orders static non-blend
 triangles for the vertex cache and vertex fetch. Use the same environment as the
 normal engine and pass a script such as `scripts/pbr.js`. This switch is not a
 public API and is absent from the production executable.
@@ -1108,3 +1110,28 @@ for both eyes and all passes. Unsupported or ineffective reductions retain full
 detail. Production enables the same generation by default under `lod: true`,
 with the shared payload budget. Only the excluded diagnostic targets recognize
 `SF_PBR_LOD=0` to force a full-detail baseline; the production engine ignores it.
+
+## PBR depth checks
+
+Reconfigure CMake and build the excluded `pbr-depth-regression` target. Run from
+the repository root with the normal GLES environment:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target pbr-depth-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-depth-regression
+```
+
+The default run compares 1,248 views exactly and checks independent opaque/mask/
+blend coverage, program/attribute state and cleanup. `--benchmark` measures
+4/16-car external-depth and color-only controls at 768 pixels per eye, full
+detail, fixed lighting/camera and identical draw/triangle counts. Each original/
+optimized/optimized/original stage warms up 30 frames and measures 120. Keep the
+headset awake and worn; these offscreen checks create no overlays or input capture.
+See [results and limitations](results/pbr-depth.md).
+
+For interactive inspection, run the normal engine with `tests/scenes/pbr-depth.js`.
+Grip or trigger grabs/rotates the car and alpha-test model against a blue backdrop;
+check overlaps, cutout holes and head movement for flicker or missing parts.
+Production enables the cheaper depth pass automatically. Only the excluded
+`pbr-depth-demo` diagnostic executable accepts `SF_PBR_DEPTH=0/1` for comparisons.

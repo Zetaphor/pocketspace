@@ -189,6 +189,11 @@ budget or failed optional allocations keep finer/full geometry. This budget does
 not include full meshes, textures, environments or overlays. Full detail returns
 nearby and while held, with textures and picking unchanged.
 
+External occlusion uses a cheaper depth pass automatically: opaque parts write
+solid depth, masked parts retain their alpha-cutout holes, and blended parts do
+not act as external depth occluders. This preserves the existing overlap policy
+and does not change material quality or require a script option.
+
 Lit animation still uses CPU position/surface deformation. The legacy position/UV
 indexer, ordered instancing, rigid part batching and GPU skinning do not run on
 lit assets. Loading options for those policies remain stored but do not enable

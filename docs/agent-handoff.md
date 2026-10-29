@@ -502,3 +502,15 @@ transforms. The paired GeneratedTangents/SuppliedTangents fixtures intentionally
 use a strong green normal-map component; they must produce the same frame and
 pixels under environment lighting. Orthogonality/unit-length checks alone do not
 catch an inverted bitangent. See the [Khronos reference implementation](https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/main/source/gltf/primitive.js).
+
+### PBR external depth program
+
+Color draws retain the original PBR shader. External depth uses a separately
+linked startup program with the identical vertex source, pose/LOD streams, winding
+and UV policy. Opaque depth skips texture sampling; masked depth preserves base
+alpha times factor and strict cutoff discard; blended parts remain excluded.
+Skip lighting/environment setup and disable surface attributes 8–10 for depth.
+Initialize sampler units before the first depth draw (which may precede color),
+preserving the caller's current program. Restore texture/attribute/program state
+through the existing release path. Keep diagnostic `SF_PBR_DEPTH` overrides out
+of production. See [validation](../tests/results/pbr-depth.md).

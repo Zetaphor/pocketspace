@@ -6,6 +6,7 @@
 // A separate program keeps legacy shaders, storage and their fast paths intact.
 class PbrProgram {
  GLuint program=0;
+ bool depthSupport=false;
  mutable std::map<std::string,GLint> locations;
  GLint location(const char *name)const{
   const auto found=locations.find(name);if(found!=locations.end())return found->second;
@@ -16,7 +17,7 @@ class PbrProgram {
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
  ~PbrProgram(){if(program)glDeleteProgram(program);}
- bool init(){
+ bool init(bool fastDepth=false){
   if(program)return true;
   std::string vertex=modelVertexShader;
   vertex.insert(vertex.find("layout(location=6)"),R"(
@@ -97,10 +98,23 @@ void main(){
  color=vec4(clamp(encodeSRGB(result),0.,1.),alpha);if(alphaMode==1)color.rgb*=alpha;
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
-  GLuint v=compileShader(GL_VERTEX_SHADER,vertex.c_str()),f=compileShader(GL_FRAGMENT_SHADER,fragment);
+  std::string fragmentSource=fragment;
+  if(fastDepth){
+    fragmentSource.insert(fragmentSource.find("void main(){"),"uniform bool depthOnly;\n");
+    fragmentSource.insert(fragmentSource.find(" vec4 base=")," if(depthOnly&&alphaMode==0){color=vec4(0);return;}\n");
+    fragmentSource.insert(fragmentSource.find(" float alpha=")," if(depthOnly){color=vec4(0);return;}\n");
+  }
+  GLuint v=compileShader(GL_VERTEX_SHADER,vertex.c_str()),f=compileShader(GL_FRAGMENT_SHADER,fragmentSource.c_str());
   if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
   program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);
-  if(!ok){glDeleteProgram(program);program=0;return false;}return true;
+  if(!ok){glDeleteProgram(program);program=0;return false;}
+  depthSupport=fastDepth;
+  if(depthSupport){
+    GLint previous=0;glGetIntegerv(GL_CURRENT_PROGRAM,&previous);glUseProgram(program);
+    integer("material",0);integer("normalMap",2);integer("metalRoughMap",3);integer("occlusionMap",4);integer("emissiveMap",5);integer("environmentMap",6);integer("environmentBrdf",7);
+    glUseProgram(GLuint(previous));
+  }
+  return true;
  }
  void view(const vr::HmdMatrix34_t &anchor,const float *c,const float *e,const float *r,const float *u,const float *f,float width)const{
   glUseProgram(program);vector("center",c);vector("eye",e);vector("panelRight",r);vector("panelUp",u);vector("panelForward",f);scalar("panelHalfWidth",width);
@@ -110,8 +124,16 @@ void main(){
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
  }
- void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0)const{
+ void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0,bool depthOnly=false)const{
   glUniform4fv(location("factor"),1,p.factor);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
+  if(depthSupport){
+    integer("depthOnly",depthOnly);
+    if(depthOnly){
+      glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,p.texture);
+      glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);
+      return;
+    }
+  }
   scalar("metallic",p.metallic);scalar("roughness",p.roughness);scalar("normalScale",p.normalScale);scalar("occlusionStrength",p.occlusionStrength);vector("emissive",p.emissive);
   integer("materialUnlit",p.materialUnlit);integer("doubleSided",p.doubleSided);
   const auto &l=asset.lighting;vector("lightDirection",l.direction);vector("lightColor",l.color);scalar("intensity",l.intensity);scalar("ambient",l.ambient);scalar("exposure",l.exposure);

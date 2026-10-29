@@ -273,7 +273,8 @@ estimates count each referenced environment once, with RGB16F padding allowance.
 are recorded as separate validation evidence.
 A test-only static PBR indexing path compares full 14-float shader-input tuples
 before merging vertices, preserving normal/tangent/UV seams within each material.
-A separate variant reorders non-blend triangles for the vertex cache. Retained CPU
+A separate variant can reorder non-blend triangles when the cache policy is
+explicitly enabled; the recorded initial run left it disabled. Retained CPU
 triangles and animated uploads stay expanded. These variants are excluded from
 the production engine: [native comparisons](../tests/results/pbr-index.md) found
 lower geometry storage but worse GPU throughput. See the
@@ -307,13 +308,22 @@ material state; rigid merging stops at incompatible animated winding. Culling an
 front-face state reset before panel/other passes. The [native comparison](../tests/results/culling.md)
 found no repeatable overall throughput gain; this policy implements glTF sidedness. Unlike the old unlit path,
 single-sided back faces are now culled for unlit assets too.
-Both material programs link during startup, before live scene publication;
+Legacy, PBR color and PBR depth programs link during startup, before live scene publication;
 reloads do not compile a new shader after committing their candidate scene.
 The separate program restores legacy program, texture-unit and attribute state
 before subsequent objects/panels. Both member-color and external occluder passes
 use the same geometry and alpha policy. Lighting state is per shared asset and
 is captured in snapshot v7, with transactional cache-conflict validation; v6
 retains its direct-light behavior with environments disabled.
+External PBR depth draws use a dedicated program with the same vertex shader,
+geometry, deformation, LOD, winding and UV policy. Opaque depth returns before
+texture sampling; masked depth evaluates base alpha times factor and the identical
+strict alpha-cutoff discard before returning. Blended primitives remain excluded
+from external depth. Depth draws skip lighting/environment setup and surface-frame
+attributes; normal color draws retain their original shader. Sampler units are
+initialized before a possible first depth draw, preserving the caller's program.
+No extra geometry or texture storage is introduced. See the
+[depth-pass validation](../tests/results/pbr-depth.md) for matched workloads and limits.
 See [lighting API](lighting-api.md) for controls, color mapping and limitations.
 
 Ordered GPU instancing is enabled by default for eligible consecutive same-asset,

@@ -2011,8 +2011,14 @@ int main(int argc,char **argv) {
   GLuint generalProgram=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
   ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
-  // Validate both material programs before any live scene can be published.
+  // Validate color and depth material programs before publishing a live scene.
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
+  PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
+#ifdef SF_PBR_DEPTH_EXPERIMENT
+  const bool fastPbrDepth=std::getenv("SF_PBR_DEPTH")&&std::string(std::getenv("SF_PBR_DEPTH"))=="1";
+#else
+  constexpr bool fastPbrDepth=true;
+#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
   OrdinaryModelProgram ordinaryProgram,skinProgram;
   const GLuint program=ordinaryProgram.select(false)?ordinaryProgram.id():generalProgram;
@@ -2646,10 +2652,11 @@ int main(int argc,char **argv) {
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
 #endif
                 if(asset.pbr){
-                  pbrProgram.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
-                  pbrProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-                  pbrProgram.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel);
-                  ScopeExit restorePbr{[&]{pbrProgram.release();glUseProgram(program);}};
+                  auto &activePbr=fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram;
+                  activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
+                  activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+                  activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
+                  ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
 #ifdef SF_GPU_SYNC_EXPERIMENT
                   gpuSync.draw(unsigned(part.vertexCount));
