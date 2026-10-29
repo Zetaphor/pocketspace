@@ -12,12 +12,10 @@ struct PrimitiveAsset {
   std::vector<float> vertices; // expanded xyz, uv triangle stream
   std::vector<float> localVertices; // retained for animated or skinned assets
   std::vector<std::vector<float>> morphPositions; // expanded xyz deltas per target
-#ifdef SF_GPU_SKIN_EXPERIMENT
   std::vector<SkinJointBounds> skinBounds;
   std::vector<float> skinVertices;
   std::vector<uint32_t> skinIndices;
   GLuint skinVbo=0,skinIbo=0;
-#endif
   int node=-1,skin=-1;
   animation::InfluenceSets influences;
   std::vector<unsigned char> rgba;
@@ -43,9 +41,7 @@ struct ModelAsset {
   std::vector<int> nodeOrder;
   std::vector<animation::Clip> animations;
   float center[3]{},normalization=1;
-#ifdef SF_GPU_SKIN_EXPERIMENT
   bool skinEligible=false;
-#endif
   bool uploaded=false;
   float low[3]={0,0,0},high[3]={0,0,0};
   bool hasSkin=false,hasMorph=false,hasAnimation=false;
@@ -65,20 +61,16 @@ struct ModelPose {
   std::vector<animation::Node> nodes,sourceNodes;
   std::vector<animation::Matrix> world;
   std::vector<std::vector<animation::Matrix>> palettes;
-#ifdef SF_GPU_SKIN_EXPERIMENT
   bool gpuSkin=false,pickingValid=false;
   std::vector<GLuint> skinTextures;
-#endif
   float radius=1;bool dirty=true;
   ~ModelPose();
 };
 void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose);
 void uploadModelPose(ModelPose &pose);
-#ifdef SF_GPU_SKIN_EXPERIMENT
 void prepareSkinPicking(const ModelAsset &asset,ModelPose &pose);
 bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,GLuint program);
 void unbindSkinPrimitive(GLuint program);
-#endif
 
 #ifdef SF_MODEL_LOD_EXPERIMENT
 #include "../tests/lod-experiment.h"

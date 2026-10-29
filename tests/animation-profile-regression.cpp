@@ -3,6 +3,8 @@
 #include <cassert>
 #include <cstdio>
 int main(){
+ gpuSkinningEnabled=false; // Retained CPU reference path.
+
  EGLDisplay display=eglGetDisplay(EGL_DEFAULT_DISPLAY);assert(eglInitialize(display,nullptr,nullptr));
  const EGLint attributes[]={EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT,EGL_SURFACE_TYPE,EGL_PBUFFER_BIT,EGL_NONE};EGLConfig config;EGLint count=0;assert(eglChooseConfig(display,attributes,&config,1,&count)&&count);
  const EGLint contextAttributes[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE},surfaceAttributes[]={EGL_WIDTH,32,EGL_HEIGHT,32,EGL_NONE};

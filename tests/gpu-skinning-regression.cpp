@@ -86,7 +86,7 @@ int main(int argc,char **argv){
    ModelPose cpu;gpuSkinningEnabled=false;evaluateModelPose(asset,state,cpu);uploadModelPose(cpu);
    AnimationProfileFrame profile;animationProfileFrame=&profile;gpuSkinningEnabled=true;auto &gpu=*object.animationPose;evaluateModelPose(asset,state,gpu);uploadModelPose(gpu);
    assert(gpu.gpuSkin&&!gpu.pickingValid&&profile.vertices==0&&profile.uploadBytes==paletteBytes);
-   assert(cpu.geometry.low[0]==gpu.geometry.low[0]&&cpu.geometry.high[2]==gpu.geometry.high[2]);
+   for(int axis=0;axis<3;axis++)assert(gpu.geometry.low[axis]<=cpu.geometry.low[axis]&&gpu.geometry.high[axis]>=cpu.geometry.high[axis]);
    for(size_t p=0;p<asset.primitives.size();p++){
     const auto &part=asset.primitives[p];const size_t unique=part.skinVertices.size()/13;
     GLuint feedback;glGenBuffers(1,&feedback);glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER,feedback);glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER,unique*3*sizeof(float),nullptr,GL_STREAM_READ);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,feedback);
@@ -140,6 +140,39 @@ int main(int argc,char **argv){
    run("disposeSceneContainer(blendCopy.containerId);interruptBlends()");
   }
   closeScript(host);currentScene=liveScene=nullptr;
+ }
+ {
+  gpuSkinningEnabled=true;ScriptHost host;
+  const auto invalid=std::filesystem::temp_directory_path()/("sf-gpu-reload-"+std::to_string(getpid())+".js");
+  ScopeExit remove{[&]{std::filesystem::remove(invalid);}};
+  std::ofstream(invalid)<<"loadModel('assets/samples/Fox/Fox.glb');throw Error('EXPECTED_GPU_ROLLBACK')";
+  auto js=[&](const char *code){auto result=JS_Eval(host.ctx,code,strlen(code),"mixed-skin",JS_EVAL_TYPE_GLOBAL);assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);};
+  std::vector<GLuint> oldTextures;
+  for(int cycle=0;cycle<30;cycle++){
+   assert(loadScript(host,"tests/gpu-skinning-mixed-api.js"));
+   for(auto texture:oldTextures)assert(!glIsTexture(texture));oldTextures.clear();
+   for(auto &asset:host.scene.assets)uploadModel(asset);
+   for(auto &object:host.scene.objects)if(object.animationPose)uploadModelPose(*object.animationPose);
+   auto *original=host.ctx;assert(!loadScript(host,invalid.string()));assert(host.ctx==original&&host.scene.objects.size()==6);
+   for(int phase=0;phase<2;phase++){
+    js("copyMixed()");assert(host.scene.objects.size()==12);
+    for(size_t i=0;i<6;i++){
+     auto &a=host.scene.objects[i],&b=host.scene.objects[i+6];
+     assert(bool(a.animationPose)==bool(b.animationPose));if(!a.animationPose)continue;
+     auto &source=host.scene.assets[a.asset-1];auto &pa=*a.animationPose,&pb=*b.animationPose;
+     assert(pa.gpuSkin==(i<3)&&pb.gpuSkin==pa.gpuSkin&&pa.world==pb.world&&pa.palettes==pb.palettes);
+     uploadModelPose(pb);if(pa.gpuSkin){prepareSkinPicking(source,pa);prepareSkinPicking(source,pb);}
+     for(size_t part=0;part<pa.geometry.primitives.size();part++)assert(pa.geometry.primitives[part].vertices==pb.geometry.primitives[part].vertices);
+    }
+    std::vector<GLuint> copied;
+    for(size_t i=6;i<12;i++)if(auto pose=host.scene.objects[i].animationPose)copied.insert(copied.end(),pose->skinTextures.begin(),pose->skinTextures.end());
+    js("discardMixed()");assert(host.scene.objects.size()==6);for(auto texture:copied)assert(!glIsTexture(texture));
+    if(!phase)js("interruptMixed()");
+   }
+   for(auto &object:host.scene.objects)if(object.animationPose)oldTextures.insert(oldTextures.end(),object.animationPose->skinTextures.begin(),object.animationPose->skinTextures.end());
+  }
+  closeScript(host);for(auto texture:oldTextures)assert(!glIsTexture(texture));currentScene=liveScene=nullptr;
+  assert(glGetError()==GL_NO_ERROR);puts("PASS GPU production lifecycle: 30 mixed-scene reloads, failed reload rollback, independent live/frozen snapshots, CPU fallbacks and texture cleanup");
  }
  if(argc>2&&std::string(argv[2])=="--profile-picking")profilePicking();
  eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);

@@ -5,6 +5,8 @@
 #include <random>
 static bool near(float a,float b){return std::abs(a-b)<2e-5;}
 int main(){
+ gpuSkinningEnabled=false; // Retained CPU reference path.
+
  // Analytic local-space interpolation: translation, scale, shortest-path
  // quaternion rotation, unbounded morph weights, and morphs on matrix nodes.
  std::vector<animation::Node> from(2),to(2);from[0].weights={-1,2};to[0].weights={3,0};

@@ -1813,12 +1813,10 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
     localOrigin[axis]+=rotation[row*3+axis]*delta[row]/object.scale;
     localDirection[axis]+=rotation[row*3+axis]*reflectedDirection[row];
   }
-#ifdef SF_GPU_SKIN_EXPERIMENT
   if(object.animationPose&&object.animationPose->gpuSkin && &asset==&object.animationPose->geometry){
     float near;if(!picking::bounds(localOrigin,localDirection,asset.low,asset.high,miss,near))return miss;
     prepareSkinPicking(currentScene->assets[size_t(object.asset)-1],*object.animationPose);
   }
-#endif
   float best=miss;
   if(accelerated)best=picking::intersect(asset,localOrigin,localDirection,rayTriangle);
   else{
@@ -2480,11 +2478,9 @@ int main(int argc,char **argv) {
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
                 gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
 #endif
-#ifdef SF_GPU_SKIN_EXPERIMENT
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);continue;
                 }
-#endif
                 drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);
               }
             };
@@ -2566,10 +2562,8 @@ int main(int argc,char **argv) {
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       bytes+=instanceExperiment.allocatedBytes();
-#ifdef SF_GPU_SKIN_EXPERIMENT
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
-#endif
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

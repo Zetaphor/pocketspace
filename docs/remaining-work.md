@@ -5,19 +5,15 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Finish production readiness for GPU skeletal skinning. The isolated
-  [Frame prototype](../tests/results/gpu-skinning.md) improved 32 animated
-  CesiumMan instances from 50.4 to 88.3 FPS with conservative joint bounds and
-  lazy exact picking; correctness checks and the 32-model visual check passed.
-  Deterministic ray-candidate costs and synthetic multi-part/material checks
-  are recorded in the comparison; active grabbing and pause/resume are also
-  accepted in headset. The expanded CesiumMan/Fox/RiggedFigure/RiggedSimple
-  correctness matrix passes on Frame, including every clip. Integrate the
-  validated path into production with explicit CPU fallback and verify longer
-  mixed-scene/reload sessions. Additional influence sets and morph-before-skin
-  combinations currently require that fallback. Preserve
-  transitions, per-instance poses, resource lifetime and coherent stereo
-  color/depth rendering. Normal builds still use CPU skinning.
+- Complete the final normal-engine headset check for automatic GPU skinning.
+  The [Frame comparison](../tests/results/gpu-skinning.md) established its
+  performance and the prototype visual/grabbing checks passed. Production now
+  selects eligible GPU skins with CPU fallback; the expanded real-model matrix
+  and 30 mixed-scene reload/save/restore cycles cover correctness locally.
+  Confirm mixed rendering, grabs and pause/resume with the normal executable
+  after Frame production checks. Longer-session memory/stability checks remain
+  conditional on larger experience workloads. Additional influence sets and
+  morph-before-skin combinations retain CPU fallback.
 - Profile larger rigid-node and morph workloads before moving their vertex
   deformation to the GPU; the completed workload establishes a skeletal cost,
   not a bottleneck for every animation path.

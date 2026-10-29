@@ -593,8 +593,9 @@ stereo color/depth coherence, and independent instance poses in any GPU redesign
 
 ## GPU skinning prototype
 
-This is excluded experimental code, not a public API option or a production
-default. Build the targets explicitly:
+GPU skinning is automatic for eligible models in the normal engine. The
+excluded comparison executable retains CPU/GPU profiling switches; these are
+not public script options. Build comparison and regression targets explicitly:
 
 ```sh
 cmake -S . -B build
@@ -614,8 +615,9 @@ each joint. A ray missing those bounds does no CPU deformation. Candidate rays
 build the exact picking mesh/BVH once per pose, shared by both hands; a new pose
 invalidates that cache. This preserves triangle picking, rather than substituting
 joint boxes for selection. CPU reference and GPU modes use the same conservative
-bounds policy so they request comparable surface layouts and sampling density.
-Normal engine builds retain their existing exact bounds and CPU rendering.
+bounds policy in the comparison executable so they request comparable surface
+layouts and sampling density. Normal builds use conservative bounds for GPU
+skins and exact deformed bounds for CPU fallbacks.
 
 On an active Frame with no other demo running, use the same binary and scene
 for both cases, stopping the process between runs:
@@ -635,7 +637,9 @@ with `tests/analyze-animation-profile.py` as for the animation profiling scene.
 Record surface allocation estimates and compare pixels before adopting a result;
 GPU palette/VBO memory savings are separate from compositor surface density.
 
-The regression captures GPU-transformed vertices and compares them with the CPU
+The regression is compiled against the production GPU path (no experimental
+mode definition). CPU-reference animation regressions explicitly select the
+retained CPU implementation. The regression captures GPU-transformed vertices and compares them with the CPU
 reference, checks containment, both-eye images, 21,000 ray comparisons, clean
 uploads/cache reuse, live and frozen transitions, saved poses, and CPU fallbacks.
 The pixel check allows at most 32 pixels with channel differences over 2/255 in
@@ -687,3 +691,12 @@ expanded CPU vertex with captured indexed GPU vertices, exact ray hits, bounds,
 and stereo images, then repeatedly destroys instance resources. See the
 [pinned asset inventory](results/gpu-skinning/khronos-models.json) and
 [recorded model checks](results/gpu-skinning.md#additional-khronos-models).
+
+
+Production GPU skinning also runs 30 mixed-scene reload cycles through
+[gpu-skinning-mixed-api.js](gpu-skinning-mixed-api.js): three eligible skin models,
+a rigid clip, morph clip and static box. Each cycle checks failed-reload rollback,
+live/frozen snapshot restoration, independent poses, restored CPU fallbacks,
+container disposal and deletion of old palette textures after reload/close.
+On hosts whose default font is outside the engine search paths, set `SF_FONT`
+to an installed TTF when running panel persistence checks.
