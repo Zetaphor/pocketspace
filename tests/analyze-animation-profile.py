@@ -9,6 +9,7 @@ def summarize(lines, warmup=5):
     current = None
     complete = False
     for line in lines:
+        line = line.removeprefix('[js] ')
         if line.startswith('ANIMATION_PROFILE_DONE'):
             complete = True
             current = None
@@ -16,6 +17,7 @@ def summarize(lines, warmup=5):
         if line.startswith('ANIMATION_PROFILE_ABORT'):
             raise ValueError('profiling was aborted; incomplete run')
         if line.startswith('ANIMATION_STAGE '):
+            complete = False
             current = dict(json.loads(line.split(' ', 1)[1]), elapsed=0, windows=[])
             stages.append(current)
         elif line.startswith('ANIMATION_PROFILE {') and current is not None:
