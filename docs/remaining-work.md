@@ -8,8 +8,11 @@ This roadmap contains future work, without prescribing an implementation order.
 - Reduce upload and draw submission overhead in dense multi-part rigid animation
   scenes. The [completed 64/256-actor profile](../tests/results/rigid-morph-profile.md)
   measured 256 rigid actors at 5.75 ms upload submission and 20.84 ms render
-  submission, versus 1.54 ms deformation/refits. Investigate unchanged-primitive
-  update skipping and bounded submission reductions while preserving draw order,
+  submission, versus 1.54 ms deformation/refits. The
+  [rigid primitive cache comparison](../tests/results/rigid-pose-cache.md)
+  reduced upload submission to 0.57 ms on a matched continuous-animation run;
+  final visual acceptance/default adoption is pending. Next investigate bounded
+  draw/uniform submission reductions while preserving draw order,
   exact picking, independent transitions and matched surface density. The prior
   combined multi-part stream did not justify general adoption.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
