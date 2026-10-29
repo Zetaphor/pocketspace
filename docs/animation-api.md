@@ -20,7 +20,7 @@ Names can be empty or duplicated; use an index to select unambiguously.
 
 | Function | Behavior |
 | --- | --- |
-| `playAnimation(objectId, clip=0, options={})` | Select by index or name (first match), restarting with fresh options. Defaults: `{loop: true, speed: 1, time: 0}`. |
+| `playAnimation(objectId, clip=0, options={})` | Select by index or name (first match), restarting with fresh options. Defaults: `{loop: true, speed: 1, time: 0, blendDuration: 0}`. |
 | `pauseAnimation(objectId)` | Freeze current time; no selected clip is a no-op. |
 | `resumeAnimation(objectId)` | Require a selected clip; resume without resetting time and clear `finished`. |
 | `seekAnimation(objectId, seconds)` | Evaluate immediately within `[0, duration]`; preserve paused/playing mode and clear `finished`. |
@@ -28,7 +28,7 @@ Names can be empty or duplicated; use an index to select unambiguously.
 | `getAnimationState(objectId)` | Read playback state. |
 
 Control calls return state with `clip` (index or null), `name` (or null),
-`time`, `duration`, `speed`, `loop`, `playing`, `finished`, and `status` (`stopped`, `playing`, `paused`, or `finished`).
+`time`, `duration`, `speed`, `loop`, `playing`, `finished`, `transition`, and `status` (`stopped`, `playing`, `paused`, or `finished`).
 Speed must be finite, greater than zero, and at most 100. Starting time must be
 within the clip duration. Invalid control calls throw without replacing the
 current playback state.
@@ -39,6 +39,43 @@ looping clip to its duration evaluates the end pose immediately; the next
 advance wraps. Hidden objects still advance. Paused poses are not reevaluated
 each frame. Completion is observed through state, not an event.
 
+## Transitions between clips
+
+```js
+playAnimation(actor, 'Walk', {blendDuration: .5});
+```
+
+`blendDuration` is a finite number from 0 to 60 seconds. Zero (the default)
+replaces playback immediately. A positive duration blends from the current
+local pose to the selected clip over elapsed wall time, independently of clip
+speed. Translations, scales and morph weights interpolate linearly; rotations
+use normalized shortest-path quaternion interpolation. Hierarchy transforms,
+skinning and morph deformation are applied after local pose blending.
+
+The outgoing and incoming clips both advance using their own time, speed and
+loop settings. A paused/finished outgoing clip stays frozen. Starting from a
+stopped model fades from its default pose. Interrupting an unfinished fade
+captures the displayed local pose as a frozen source for the next fade, avoiding
+a jump without accumulating an unbounded chain of outgoing clips. Blending can
+also transition between different times in the same clip.
+
+`getAnimationState` describes the incoming clip. Its `transition` is `null`, or
+`{duration, elapsed, progress, sourceClip}`; `sourceClip` is null for a frozen
+source. `progress` runs from zero toward one; completion clears `transition`.
+Pause/resume freezes/restarts both clocks and fade progress. Stop cancels the
+fade and restores the default pose. Seek cancels the fade and immediately shows
+the incoming clip at the requested time. A short nonlooping incoming clip holds
+its endpoint until the fade completes, then reports finished. Invalid options
+leave the current animation and pose unchanged.
+
+Each object owns independent transition state. Picking and bounds follow the
+blended geometry; collider shapes retain their construction geometry. Scene
+save/restore preserves active and paused fades. This API provides a two-pose
+crossfade, not additive layers or a persistent animation blend tree.
+See [blending.js](../scripts/blending.js) for rigid, skeletal and morph examples:
+bumper changes clips (or phases for single-clip models) using a one-second fade;
+A/X pauses or resumes.
+
 ## Supported glTF animation
 
 Node translation, rotation, and scale channels support STEP, LINEAR, and
@@ -46,8 +83,7 @@ CUBICSPLINE. Linear quaternion interpolation uses the shortest path; cubic
 quaternion results are normalized. Cubic tangents scale by keyframe duration.
 Unanimated nodes keep their default transforms. Matrix ancestors are supported,
 but animation channels targeting a node with a matrix are unsupported.
-Morph-weight channels support the same three interpolation modes. Clip blending
-is not implemented.
+Morph-weight channels support the same three interpolation modes.
 
 Each instance owns its clock and pose. Materials/textures remain shared.
 Animated triangles update the instance's picking BVH and surface bounds, so
@@ -102,7 +138,7 @@ The weight-stream and default-weight behavior follow the
 ## Scene persistence
 
 Scene snapshots save each instance's selected clip, playback time, speed, looping,
-playing/paused state and finished flag. Restore rebuilds independent skeletal or
+playing/paused state, finished flag and active transition. Restore rebuilds independent skeletal or
 rigid-node/morph poses and picking geometry; it does not share mutable poses between
 instances. See the [animation save/restore format](scene-persistence.md#animation-playback-v3)
 and [animation save example](../scripts/animation-save.js).

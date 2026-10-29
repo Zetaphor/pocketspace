@@ -14,6 +14,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [morph-regression.cpp](morph-regression.cpp) | Morph defaults, interpolation, skinning order, bounds, picking, independent poses and JavaScript playback. |
 | [morph-loader-regression.py](morph-loader-regression.py) | Generate valid and malformed GLB fixtures and run morph-regression. |
 | [morph-api-smoke.js](morph-api-smoke.js) | Morph clip playback and stop/reset through real bindings. |
+| [animation-blend-regression.cpp](animation-blend-regression.cpp) | TRS/morph blending, live clocks, interruptions, animated picking, pause/endpoints and v5 persistence. |
+| [animation-blend-api-smoke.js](animation-blend-api-smoke.js) | Actual animation transition options and malformed save fixtures for the blend harness. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
 | [examples-regression.cpp](examples-regression.cpp) | Published examples and rendering test scenes exercised through real script bindings without a VR session. |

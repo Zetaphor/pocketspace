@@ -7,7 +7,7 @@ not preserve an absolute room location across launches or recentering.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v4
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v5
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
@@ -82,8 +82,8 @@ script reload, like calibration writes.
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`.
-New captures use `version: 4`. Existing v1 static-instance, v2 physics and v3
-animation documents remain readable. V1 has no physics fields or joints; a v1 document
+New captures use `version: 5`. Existing v1 static-instance, v2 physics, v3
+animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
 models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
@@ -215,7 +215,8 @@ being marked finished, as allowed by `seekAnimation`.
 Animated objects can also have physics. Collider construction follows the
 [existing rigid collider rules](physics-api.md): saved animation poses do not
 deform collision shapes. Playback flags and dynamic-body motion restore
-independently. This does not add morph animation, blending, or deforming physics.
+independently. Morph poses and transitions use the normal animation path; collider shapes do
+not deform with them.
 
 The [animation save example](../scripts/animation-save.js) uses independent
 skeletal and rigid-node playback. Bumper saves, A/X restores, and B/Y toggles
@@ -284,3 +285,27 @@ loop, as they do for newly created panels.
 The [panel save example](../scripts/panel-save.js) uses bumper to save, B/Y to
 change the pixels and placement, and A/X to restore. Clicking the restored panel
 shows that its new handle still supports pointer callbacks and canvas edits.
+
+## Animation transitions (v5)
+
+V5 requires `animation.transition` for each non-null animation. It is null for
+single-clip playback, or an object with `duration` (greater than zero, at most
+60 seconds), `elapsed` (at least zero and less than duration), `source` and
+`frozen`. The outer animation describes the incoming clip. An active fade
+cannot have `finished: true`, even if its incoming clip already reached its end.
+
+A live outgoing clip is stored in `source` with the same clip metadata and
+playback fields as ordinary animation; `frozen` must be null. For default-pose
+or interrupted-fade sources, `source` is null and `frozen` contains one local
+pose per model node, each with `translation` (3 floats), `rotation` (4 floats,
+nonzero quaternion), `scale` (3 floats) and `weights` (one float per morph target).
+All numbers must be finite. Node counts and weight counts must match the loaded
+asset; parent links and static matrix transforms come from that asset. Frozen
+poses are limited to 65,536 nodes and the normal 16 MiB encoded snapshot bound.
+
+Restore validates outgoing clip metadata too and rebuilds independent blended
+geometry before committing. Both clocks, fade progress, and pause state resume
+from the save. Vertex arrays and GPU buffers remain external to the snapshot.
+V1–v4 saves restore without a transition; a non-null transition in those older
+versions is rejected rather than silently discarded. Existing v3 playback and
+v4 panel requirements continue to apply.

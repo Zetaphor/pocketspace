@@ -519,3 +519,21 @@ physics events, and avoids retrying valid idle streams or absent controllers.
 No VR session is needed. In the headset, use `scripts/morph.js` to verify A/X
 pause/resume after controller reconnection; do not hold an object during this
 check because connection recovery cancels existing holds.
+
+## Animation transition regression
+
+```sh
+cmake --build build --target animation-blend-regression -j2
+./build/animation-blend-regression
+```
+
+Checks local translation/scale/quaternion/morph blending, both live clocks,
+default and interrupted sources, endpoints, pause/resume/seek/stop, 900 blended
+BVH/reference picking comparisons, and independent rigid/skin/morph geometry.
+The real JavaScript fixture covers invalid options, live/frozen v5 snapshot
+roundtrips, malformed transition saves, v4 compatibility and example controls.
+No VR session is needed. `scripts/blending.js` is the headset example; left to
+right it shows node animation, skeletal animation and morph animation. Bumper
+crossfades to the next clip (or a different phase for single-clip assets) over
+one second; A/X pauses/resumes all three. Press bumper during a fade to test a
+continuous interrupted transition. Grip or trigger grabs each model.

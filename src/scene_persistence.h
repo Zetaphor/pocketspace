@@ -47,26 +47,13 @@ static std::string json(JSContext *ctx,JSValueConst value){
   auto data=string(ctx,encoded);require(data.size()<=maxBytes,"snapshot exceeds 16 MiB");return data;
 }
 #include "scene_physics_snapshot.h"
-static JSValue animationValue(JSContext *ctx,const Object &o,const ModelAsset &asset){
-  if(o.animation.clip<0)return JS_NULL;
-  const auto &state=o.animation;const auto &clip=asset.animations.at(state.clip);
-  Value value(ctx,JS_NewObject(ctx));put(ctx,value,"clip",JS_NewInt32(ctx,state.clip));put(ctx,value,"name",JS_NewString(ctx,clip.name.c_str()));
-  put(ctx,value,"duration",JS_NewFloat64(ctx,clip.duration));put(ctx,value,"time",JS_NewFloat64(ctx,state.time));put(ctx,value,"speed",JS_NewFloat64(ctx,state.speed));
-  put(ctx,value,"loop",JS_NewBool(ctx,state.loop));put(ctx,value,"playing",JS_NewBool(ctx,state.playing));put(ctx,value,"finished",JS_NewBool(ctx,state.finished));return JS_DupValue(ctx,value);
-}
-struct SavedAnimation {animation::Playback playback;std::string name;double duration;};
-static SavedAnimation animationRead(JSContext *ctx,JSValueConst value){
-  SavedAnimation saved;auto &s=saved.playback;s.clip=int(number(ctx,value,"clip",0,INT_MAX-1,true));saved.name=textField(ctx,value,"name");
-  saved.duration=number(ctx,value,"duration",0,std::numeric_limits<double>::max());s.time=number(ctx,value,"time",0,saved.duration);s.speed=number(ctx,value,"speed",0,100);require(s.speed>0,"animation speed must be greater than zero");
-  s.loop=boolean(ctx,value,"loop");s.playing=boolean(ctx,value,"playing");s.finished=boolean(ctx,value,"finished");
-  require(!s.finished||(!s.playing&&s.time==saved.duration&&(!s.loop||saved.duration==0)),"inconsistent finished animation state");return saved;
-}
+#include "scene_animation_snapshot.h"
 #include "scene_panel_snapshot.h"
 static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,4));
+  put(ctx,result,"version",JS_NewInt32(ctx,5));
   for(auto o:currentScene->objects)if(o.container==owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
@@ -102,7 +89,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,4,true));
+  const int version=int(number(ctx,root,"version",1,5,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -136,7 +123,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     if(version>=2){require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}}
     else require(JS_IsUndefined(body)||JS_IsNull(body),"physics requires snapshot version 2");
     auto animation=field(ctx,item,"animation");std::optional<SavedAnimation> saved;
-    if(version>=3){require(!JS_IsUndefined(animation),"missing animation field");if(!JS_IsNull(animation))saved=animationRead(ctx,animation);}
+    if(version>=3){require(!JS_IsUndefined(animation),"missing animation field");if(!JS_IsNull(animation))saved=animationRead(ctx,animation,version);}
     else require(JS_IsUndefined(animation)||JS_IsNull(animation),"animation requires snapshot version 3");
     animations.push_back(std::move(saved));restored.push_back(std::move(o));
   }
@@ -155,9 +142,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(auto &a:pending){const auto path=a.path;require(loadModelFile(path,a),"could not load snapshot model");}
   for(size_t i=0;i<restored.size();i++)if(animations[i]){
     auto &o=restored[i];const auto &saved=*animations[i];const auto &a=o.asset<=int(scene.assets.size())?scene.assets[o.asset-1]:pending[o.asset-int(scene.assets.size())-1];
-    require(size_t(saved.playback.clip)<a.animations.size(),"saved animation clip no longer exists");const auto &clip=a.animations[saved.playback.clip];
-    require(clip.supported(),"saved animation clip is unsupported");require(clip.name==saved.name&&clip.duration==saved.duration,"saved animation metadata does not match model");
-    o.animation=saved.playback;o.animationPose=std::make_shared<ModelPose>();evaluateModelPose(a,o.animation,*o.animationPose);
+    validateAnimation(saved,a,o.animation);o.animationPose=std::make_shared<ModelPose>();evaluateModelPose(a,o.animation,*o.animationPose);
   }
   geometry.reserve(bodies.size());
   for(auto &body:bodies){

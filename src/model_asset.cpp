@@ -323,7 +323,13 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
     for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
-  animation::evaluate(asset.nodes,asset.nodeOrder,asset.animations[state.clip],state.time,pose.nodes,pose.world);
+  animation::evaluateNodes(asset.nodes,asset.animations[state.clip],state.time,pose.nodes);
+  const auto &blend=state.transition;
+  if(blend.active()){
+    if(blend.source.clip>=0)animation::evaluateNodes(asset.nodes,asset.animations[blend.source.clip],blend.source.time,pose.sourceNodes);
+    animation::blendNodes(blend.source.clip>=0?pose.sourceNodes:blend.frozen,pose.nodes,blend.elapsed/blend.duration);
+  }
+  animation::worldMatrices(pose.nodes,asset.nodeOrder,pose.world);
   animation::palettes(asset.skins,pose.world,pose.palettes);
   pose.radius=0;
   for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::numeric_limits<float>::max();pose.geometry.high[axis]=-std::numeric_limits<float>::max();}

@@ -23,7 +23,7 @@ after changing guide links, navigation or site configuration.
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
 | `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
-| `src/scene_persistence.h`, `src/scene_physics_snapshot.h`, `src/scene_panel_snapshot.h` | Versioned model/panel/animation/physics snapshots, staged restore, named bounded JSON files and atomic replacement. |
+| `src/scene_persistence.h`, `src/scene_physics_snapshot.h`, `src/scene_panel_snapshot.h`, `src/scene_animation_snapshot.h` | Versioned model/panel/animation/physics snapshots, staged restore, named bounded JSON files and atomic replacement. |
 | `src/scene_lookup.h` | Object/panel ID lookup over sorted scene storage. |
 | `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |
 | `src/group_buffer_budget.h` | Admission and peak accounting for grouped surface buffers and retained generations. |
@@ -95,10 +95,10 @@ Disposal must reuse object/physics/interaction and deferred-panel cleanup, retai
 shared surfaces/assets, and preserve callback ownership on failed reloads. Hold
 a JS reference while dispatching a callback that may dispose its own owner.
 
-[Scene persistence](scene-persistence.md) v4 preserves model instances, panel
+[Scene persistence](scene-persistence.md) v5 preserves model instances, panel
 pixels/layout,
-independent animation playback/poses, interaction flags, physics bodies and joints
-with original construction frames; v1–v3 saves remain readable. Reject joints
+independent animation playback/poses and transitions, interaction flags, physics bodies and joints
+with original construction frames; v1–v4 saves remain readable. Reject joints
 crossing ownership boundaries rather than losing state silently. Validate detached JSON and stage assets/overlay
 reservations before committing; reserve fresh render groups so restores cannot
 merge with current surfaces or inherit split policies. `World::appendSnapshot`

@@ -436,6 +436,15 @@ static JSValue animationState(JSContext *ctx,const Object &object){
   JS_SetPropertyStr(ctx,value,"loop",JS_NewBool(ctx,state.loop));
   JS_SetPropertyStr(ctx,value,"playing",JS_NewBool(ctx,state.playing));
   JS_SetPropertyStr(ctx,value,"finished",JS_NewBool(ctx,state.finished));
+  JSValue transition=JS_NULL;
+  if(state.transition.active()){
+    const auto &blend=state.transition;transition=JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx,transition,"duration",JS_NewFloat64(ctx,blend.duration));
+    JS_SetPropertyStr(ctx,transition,"elapsed",JS_NewFloat64(ctx,blend.elapsed));
+    JS_SetPropertyStr(ctx,transition,"progress",JS_NewFloat64(ctx,blend.elapsed/blend.duration));
+    JS_SetPropertyStr(ctx,transition,"sourceClip",blend.source.clip>=0?JS_NewInt32(ctx,blend.source.clip):JS_NULL);
+  }
+  JS_SetPropertyStr(ctx,value,"transition",transition);
   JS_SetPropertyStr(ctx,value,"status",JS_NewString(ctx,!clip?"stopped":state.playing?"playing":state.finished?"finished":"paused"));
   return value;
 }
@@ -469,16 +478,22 @@ static JSValue jsPlayAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst
   }
   if(index<0||size_t(index)>=asset.animations.size())return JS_ThrowRangeError(ctx,"unknown animation clip");
   const auto &clip=asset.animations[index];if(!clip.supported())return JS_ThrowTypeError(ctx,"unsupported animation: %s",clip.unsupportedReason.c_str());
-  animation::Playback state;state.clip=index;state.playing=true;
+  animation::Playback state;state.clip=index;state.playing=true;double blendDuration=0;
   if(argc>2&&!JS_IsUndefined(argv[2])){
     if(!JS_IsObject(argv[2])||JS_IsNull(argv[2]))return JS_ThrowTypeError(ctx,"animation options must be an object");
     JSValue loop=JS_GetPropertyStr(ctx,argv[2],"loop");if(JS_IsException(loop))return JS_EXCEPTION;
     if(!JS_IsUndefined(loop)&&!JS_IsBool(loop)){JS_FreeValue(ctx,loop);return JS_ThrowTypeError(ctx,"loop must be boolean");}
     if(!JS_IsUndefined(loop))state.loop=JS_ToBool(ctx,loop)>0;JS_FreeValue(ctx,loop);
     auto read=[&](const char *name,double &target){JSValue value=JS_GetPropertyStr(ctx,argv[2],name);if(JS_IsException(value))return false;bool ok=JS_IsUndefined(value)||(JS_IsNumber(value)&&JS_ToFloat64(ctx,&target,value)==0&&std::isfinite(target));JS_FreeValue(ctx,value);return ok;};
-    if(!read("speed",state.speed)||!read("time",state.time))return JS_ThrowTypeError(ctx,"speed and time must be finite numbers");
+    if(!read("speed",state.speed)||!read("time",state.time)||!read("blendDuration",blendDuration))return JS_ThrowTypeError(ctx,"speed, time and blendDuration must be finite numbers");
   }
   if(state.speed<=0||state.speed>100||state.time<0||state.time>clip.duration)return JS_ThrowRangeError(ctx,"speed must be in (0,100] and time within the clip");
+  if(blendDuration<0||blendDuration>60)return JS_ThrowRangeError(ctx,"blendDuration must be in [0,60] seconds");
+  if(blendDuration>0){
+    auto &blend=state.transition;blend.duration=blendDuration;
+    if(object->animation.clip>=0&&!object->animation.transition.active())blend.source=static_cast<const animation::Cursor&>(object->animation);
+    else blend.frozen=object->animationPose?object->animationPose->nodes:asset.nodes;
+  }
   auto pose=std::make_shared<ModelPose>();evaluateModelPose(asset,state,*pose);
   object->animation=state;object->animationPose=std::move(pose);return animationState(ctx,*object);
 }
@@ -490,7 +505,7 @@ static JSValue jsSeekAnimation(JSContext *ctx,JSValueConst,int argc,JSValueConst
   double time=0;if(argc<2||!JS_IsNumber(argv[1])||JS_ToFloat64(ctx,&time,argv[1])<0||!std::isfinite(time))return JS_ThrowTypeError(ctx,"seekAnimation requires a finite time");
   const auto &asset=currentScene->assets[size_t(object->asset)-1];auto &state=object->animation;
   if(state.clip<0||time<0||time>asset.animations[state.clip].duration)return JS_ThrowRangeError(ctx,"select a clip and seek within its duration");
-  state.time=time;state.finished=false;evaluateModelPose(asset,state,*object->animationPose);return animationState(ctx,*object);
+  state.time=time;state.finished=false;state.transition={};evaluateModelPose(asset,state,*object->animationPose);return animationState(ctx,*object);
 }
 static float objectRadius(const Object &object){return object.animationPose?std::max(1.f,object.animationPose->radius):1.f;}
 static bool readGrabButton(JSContext *ctx,JSValueConst options,GrabButton &button){
@@ -2092,7 +2107,7 @@ int main(int argc,char **argv) {
     const double animationDt=std::chrono::duration<double>(animationTick-lastAnimationTick).count();lastAnimationTick=animationTick;
     for(auto &object:script.scene.objects)if(object.animation.clip>=0){
       const auto &asset=script.scene.assets[size_t(object.asset)-1];
-      if(animation::advance(object.animation,asset.animations[object.animation.clip],animationDt))evaluateModelPose(asset,object.animation,*object.animationPose);
+      if(animation::advancePlayback(object.animation,asset.animations,animationDt))evaluateModelPose(asset,object.animation,*object.animationPose);
     }
     if(!syncSurfaces()){running=false;break;}
     syncPanels();
