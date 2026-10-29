@@ -7,7 +7,8 @@ for(let i=0;i<12;i++){
   const id=createObject(asset,(i%4-1.5)*.3,(1-Math.floor(i/4))*.3,0,.25,{container:owner,renderGroup:1});
   setObjectInteraction(id,{grabbable:true,grabButton:'both',directGrab:true,
     handRotationAxes:{pitch:true,yaw:true,roll:true}});
-  playAnimation(id,0,{time:clips[0].duration*(i%3)/3});actors.push(id);
+  const selected=names[i%assets.length]==='InterpolationTest'?clips.findIndex(clip=>clip.name==='Linear Scale'):0;
+  playAnimation(id,selected,{time:clips[selected].duration*(i%3)/3});actors.push(id);
 }
 setLaserVisible('left',true);setLaserVisible('right',true);
 const panel=createPanel({widthPixels:1024,heightPixels:300,widthMeters:1,interactive:false});

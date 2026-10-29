@@ -369,8 +369,7 @@ Restore VAO 0 after each cached draw. Both reference/VAO modes allocate identica
 storage; include driver metadata limits when describing allocation estimates.
 
 
-Adjacent rigid batching now uses an owned production stream; grouped draws remain
-disabled by default pending final production validation. Eligible CPU poses own
+Adjacent rigid batching is enabled by default with an owned production stream. Eligible CPU poses own
 one `geometry.batchVbo`; `geometry.primitives[].vbo` remain zero. Never alias the
 shared stream name into per-part ownership. Count the stream once and delete it
 once. `drawPosePrimitive` handles unmerged ranges as well as the per-part fallback;
@@ -383,5 +382,6 @@ pending dirtiness across evaluations, and upload each changed range once. Saved
 scenes serialize playback, not GL resources; rebuild independent streams through
 normal restore/upload. The excluded `rigid-batch-experiment` alone exposes a draw
 mode switch and counters. The pixel test uses production code with test counters.
-See [prototype measurements](../tests/results/rigid-batches.md); repeat performance
-checks after the stream ownership change before default adoption.
+See [prototype and production measurements](../tests/results/rigid-batches.md).
+The single-stream production comparison and lifecycle checks pass on Frame; the
+final normal-engine visual/save-restore check remains pending.

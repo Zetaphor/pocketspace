@@ -90,6 +90,14 @@ Rigid primitives reuse their deformed vertices and GPU buffers when their full
 world transform is unchanged, including ancestor transforms. Changed parts update
 exact bounds and picking geometry; pending uploads are preserved until rendering.
 This optimization is automatic and preserves full geometry detail.
+
+Eligible rigid animations use one owned vertex stream per instance, updating
+only changed primitive ranges. Adjacent untextured opaque/masked parts with
+identical material state are drawn together in their original triangle order.
+Grouping stops at material or instance boundaries; textured/blended parts and
+skin/morph paths retain their normal draws. Unmerged parts use their own ranges
+of the same stream. This is automatic and does not change script animation,
+picking, saved scenes or geometry detail.
 Animated surface bounds follow the current pose. Exact triangle picking uses
 current deformed geometry; eligible GPU skins build/refit that geometry only
 when a controller ray intersects their conservative bounds. Default-pose normalization remains fixed
