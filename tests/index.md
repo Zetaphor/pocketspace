@@ -270,8 +270,9 @@ the bounded non-interactive
   fixture for automatic detail transitions and full-detail restoration on grab;
   runs in the normal engine; `pbr-lod-demo` additionally logs transitions.
 - [pbr-index-regression.cpp](pbr-index-regression.cpp): test-only static PBR
-  indexing and vertex-cache ordering; full-input seam identity, 16/32-bit indices,
-  exact stereo/alpha/overlap pixels, animation fallback, buffer cleanup and an
+  indexing and explicitly enabled vertex-cache ordering; full-input seam identity,
+  verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
+  exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
 - [pbr-regression.cpp](pbr-regression.cpp): real GLES tests for opt-in material
   import/rendering, sRGB transfer, linear packed metal/roughness channels, surface

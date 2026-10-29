@@ -274,10 +274,14 @@ are recorded as separate validation evidence.
 A test-only static PBR indexing path compares full 14-float shader-input tuples
 before merging vertices, preserving normal/tangent/UV seams within each material.
 A separate variant can reorder non-blend triangles when the cache policy is
-explicitly enabled; the recorded initial run left it disabled. Retained CPU
+explicitly enabled; the recorded initial run left it disabled. The
+[enabled-cache follow-up](../tests/results/pbr-index-cache.md) verifies changed
+triangle order and measures a substantial gain at full detail. Retained CPU
 triangles and animated uploads stay expanded. These variants are excluded from
 the production engine: [native comparisons](../tests/results/pbr-index.md) found
-lower geometry storage but worse GPU throughput. See the
+lower geometry storage but worse GPU throughput without cache ordering.
+Production integration of the enabled-cache variant with automatic LOD and
+normal scene ownership remains separate work. See the
 [test instructions](../tests/README.md#static-pbr-indexing-experiment).
 Production surface-aware PBR LOD in `src/pbr_lod.h` uses full-input CPU indexing
 only while simplifying. It locks coincident surface seams and primitive borders,
