@@ -4,20 +4,21 @@ import { posix } from 'node:path'
 const repository = 'https://github.com/Zetaphor/sf-overlay-engine'
 export default defineConfig({
   title: 'Steam Frame Overlay Engine',
-  description: 'Build scripted VR tools with models, animation, physics, interactive panels and tracking.',
+  description: 'Build interactive VR tools in JavaScript: workspaces, control panels and hands-on scenes alongside your SteamVR apps.',
   base: '/sf-overlay-engine/',
   lang: 'en-US',
   lastUpdated: true,
   themeConfig: {
     siteTitle: 'Frame Overlay Engine',
     nav: [
-      { text: 'Guide', link: '/getting-started' },
-      { text: 'API', link: '/javascript-api' },
-      { text: 'Examples', link: '/examples' }
+      { text: 'Get started', link: '/getting-started' },
+      { text: 'Examples', link: '/examples' },
+      { text: 'API', link: '/javascript-api' }
     ],
     sidebar: [
       { text: 'Start here', items: [
-        { text: 'Build and run', link: '/getting-started' },
+        { text: 'Overview', link: '/' },
+        { text: 'Getting started', link: '/getting-started' },
         { text: 'Example scripts', link: '/examples' }
       ] },
       { text: 'Build your tool', items: [
