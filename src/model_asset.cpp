@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <limits>
 #include <map>
+#ifdef SF_GPU_SKIN_EXPERIMENT
+#include "gpu_skinning_asset.h"
+#endif
 #define CGLTF_IMPLEMENTATION
 #include "../third_party/cgltf.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -225,6 +228,9 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
     out.low[axis]=(low[axis]-high[axis])*.5f*scale;
     out.high[axis]=(high[axis]-low[axis])*.5f*scale;
   }
+#ifdef SF_GPU_SKIN_EXPERIMENT
+  prepareSkinAsset(out);
+#endif
   const auto pickingStart=std::chrono::steady_clock::now();
   picking::build(out);
   const double pickingBuildMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
@@ -296,10 +302,19 @@ void uploadModel(ModelAsset &asset){
   }
   uint64_t lodBytes=0;for(const auto &part:asset.primitives)for(const auto &lod:part.lod)if(lod.indexBuffer)lodBytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);
   if(lodBytes){std::printf("[model] lod path=%s index_bytes=%llu\n",asset.path.c_str(),(unsigned long long)lodBytes);std::fflush(stdout);}
+#ifdef SF_GPU_SKIN_EXPERIMENT
+  if(asset.skinEligible)for(auto &part:asset.primitives){
+    glGenBuffers(1,&part.skinVbo);glBindBuffer(GL_ARRAY_BUFFER,part.skinVbo);glBufferData(GL_ARRAY_BUFFER,part.skinVertices.size()*sizeof(float),part.skinVertices.data(),GL_STATIC_DRAW);
+    glGenBuffers(1,&part.skinIbo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,part.skinIndices.size()*sizeof(uint32_t),part.skinIndices.data(),GL_STATIC_DRAW);
+  }
+#endif
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
   for(auto &part:asset.primitives){
+#ifdef SF_GPU_SKIN_EXPERIMENT
+    if(part.skinVbo)glDeleteBuffers(1,&part.skinVbo);if(part.skinIbo)glDeleteBuffers(1,&part.skinIbo);part.skinVbo=part.skinIbo=0;
+#endif
 #ifdef SF_MODEL_LOD_EXPERIMENT
     lodExperiment::results.erase(&part);
 #endif
@@ -316,26 +331,19 @@ void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLev
   else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
 }
 
-ModelPose::~ModelPose(){deleteModel(geometry);}
-void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose){
+ModelPose::~ModelPose(){
+#ifdef SF_GPU_SKIN_EXPERIMENT
+ for(auto texture:skinTextures)if(texture)glDeleteTextures(1,&texture);
+#endif
+ deleteModel(geometry);
+}
+static void deformPose(const ModelAsset &asset,ModelPose &pose){
   if(pose.geometry.primitives.empty()){
     pose.geometry.primitives.resize(asset.primitives.size());
     for(size_t i=0;i<asset.primitives.size();i++){pose.geometry.primitives[i].vertices=asset.primitives[i].vertices;pose.geometry.primitives[i].vertexCount=asset.primitives[i].vertexCount;}
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
 #ifdef SF_ANIMATION_PROFILE
-  const auto profilePoseStart=AnimationProfileClock::now();
-#endif
-  animation::evaluateNodes(asset.nodes,asset.animations[state.clip],state.time,pose.nodes);
-  const auto &blend=state.transition;
-  if(blend.active()){
-    if(blend.source.clip>=0)animation::evaluateNodes(asset.nodes,asset.animations[blend.source.clip],blend.source.time,pose.sourceNodes);
-    animation::blendNodes(blend.source.clip>=0?pose.sourceNodes:blend.frozen,pose.nodes,blend.elapsed/blend.duration);
-  }
-  animation::worldMatrices(pose.nodes,asset.nodeOrder,pose.world);
-  animation::palettes(asset.skins,pose.world,pose.palettes);
-#ifdef SF_ANIMATION_PROFILE
-  if(animationProfileFrame){animationProfileFrame->poseMs+=animationProfileMs(profilePoseStart);animationProfileFrame->evaluations++;}
   const auto profileDeformStart=AnimationProfileClock::now();
 #endif
   pose.radius=0;
@@ -363,8 +371,37 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
   if(animationProfileFrame)animationProfileFrame->bvhMs+=animationProfileMs(profileBvhStart);
 #endif
 }
+void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose){
+#ifdef SF_ANIMATION_PROFILE
+  const auto profilePoseStart=AnimationProfileClock::now();
+#endif
+  animation::evaluateNodes(asset.nodes,asset.animations[state.clip],state.time,pose.nodes);
+  const auto &blend=state.transition;
+  if(blend.active()){
+    if(blend.source.clip>=0)animation::evaluateNodes(asset.nodes,asset.animations[blend.source.clip],blend.source.time,pose.sourceNodes);
+    animation::blendNodes(blend.source.clip>=0?pose.sourceNodes:blend.frozen,pose.nodes,blend.elapsed/blend.duration);
+  }
+  animation::worldMatrices(pose.nodes,asset.nodeOrder,pose.world);
+  animation::palettes(asset.skins,pose.world,pose.palettes);
+#ifdef SF_ANIMATION_PROFILE
+  if(animationProfileFrame){animationProfileFrame->poseMs+=animationProfileMs(profilePoseStart);animationProfileFrame->evaluations++;}
+
+#endif
+#ifdef SF_GPU_SKIN_EXPERIMENT
+  pose.gpuSkin=asset.skinEligible&&gpuSkinningEnabled;pose.pickingValid=false;
+  if(pose.gpuSkin){skinPoseBounds(asset,pose);pose.dirty=true;return;}
+#endif
+  deformPose(asset,pose);
+#ifdef SF_GPU_SKIN_EXPERIMENT
+  if(asset.skinEligible)skinPoseBounds(asset,pose); // matched reference/prototype layout
+#endif
+}
+
 void uploadModelPose(ModelPose &pose){
   if(!pose.dirty)return;
+#ifdef SF_GPU_SKIN_EXPERIMENT
+  if(pose.gpuSkin){uploadSkinPose(pose);return;}
+#endif
 #ifdef SF_ANIMATION_PROFILE
   const auto profileUploadStart=AnimationProfileClock::now();
   if(animationProfileFrame){animationProfileFrame->uploads++;for(const auto &part:pose.geometry.primitives)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);}
@@ -379,3 +416,13 @@ void uploadModelPose(ModelPose &pose){
   if(animationProfileFrame)animationProfileFrame->uploadMs+=animationProfileMs(profileUploadStart);
 #endif
 }
+
+#ifdef SF_GPU_SKIN_EXPERIMENT
+void prepareSkinPicking(const ModelAsset &asset,ModelPose &pose){
+ if(!pose.gpuSkin||pose.pickingValid)return;
+ const bool dirty=pose.dirty;const float radius=pose.radius;
+ std::array<float,3> low,high;std::copy_n(pose.geometry.low,3,low.begin());std::copy_n(pose.geometry.high,3,high.begin());
+ deformPose(asset,pose);pose.dirty=dirty;pose.radius=radius;
+ std::copy(low.begin(),low.end(),pose.geometry.low);std::copy(high.begin(),high.end(),pose.geometry.high);pose.pickingValid=true;
+}
+#endif

@@ -590,3 +590,56 @@ blocking, and is not GPU DMA duration. `renderSubmitMs` is CPU render submission
 Compositor/head tracking, presentation, and sampling conditions still affect
 end-to-end results. Compare equivalent layouts and retain picking, bounds,
 stereo color/depth coherence, and independent instance poses in any GPU redesign.
+
+## GPU skinning prototype
+
+This is excluded experimental code, not a public API option or a production
+default. Build the targets explicitly:
+
+```sh
+cmake -S . -B build
+cmake --build build --target gpu-skinning-experiment gpu-skinning-regression -j2
+EGL_PLATFORM=surfaceless python3 tests/skinning-loader-regression.py ./build/gpu-skinning-regression
+```
+
+The GPU path supports assets whose primitives are all skinned, with one
+four-lane influence set, at most 1,024 joints per skin, and no morph targets.
+Other supported assets keep their normal CPU deformation. Static default poses
+keep the existing path. Shared indexed vertices include local position, UV,
+joints and weights in the deduplication key. Per-instance RGBA32F textures hold
+joint palettes; skinning runs in the common color/depth vertex shader.
+
+Conservative bounds union transformed local boxes for vertices influenced by
+each joint. A ray missing those bounds does no CPU deformation. Candidate rays
+build the exact picking mesh/BVH once per pose, shared by both hands; a new pose
+invalidates that cache. This preserves triangle picking, rather than substituting
+joint boxes for selection. CPU reference and GPU modes use the same conservative
+bounds policy so they request comparable surface layouts and sampling density.
+Normal engine builds retain their existing exact bounds and CPU rendering.
+
+On an active Frame with no other demo running, use the same binary and scene
+for both cases, stopping the process between runs:
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  SF_GPU_SKINNING=0 ./build/gpu-skinning-experiment tests/scenes/gpu-skinning-profile.js > /tmp/skin-cpu.log 2>&1
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  SF_GPU_SKINNING=1 ./build/gpu-skinning-experiment tests/scenes/gpu-skinning-profile.js > /tmp/skin-gpu.log 2>&1
+```
+
+Each run has 20 seconds animated then 20 seconds paused, all with 32 independent
+CesiumMan poses, 768 eye pixels, one render group and one HUD. Keep the view and
+controller pointing comparable; candidate picking contributes real CPU work.
+B/Y aborts. After `ANIMATION_PROFILE_DONE`, stop the process. Analyze each log
+with `tests/analyze-animation-profile.py` as for the animation profiling scene.
+Record surface allocation estimates and compare pixels before adopting a result;
+GPU palette/VBO memory savings are separate from compositor surface density.
+
+The regression captures GPU-transformed vertices and compares them with the CPU
+reference, checks containment, both-eye images, 3,000 ray comparisons, clean
+uploads/cache reuse, live and frozen transitions, saved poses, and CPU fallbacks.
+The pixel check allows at most 32 pixels with channel differences over 2/255 in
+each 256x256 image; report actual differences rather than describing that bound
+as exact equality. The CPU production regressions must also pass after changes
+to the shared pose code. No GPU readback is used in normal experiment rendering
+or picking; transform feedback readback is confined to the correctness test.
