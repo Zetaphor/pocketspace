@@ -740,3 +740,32 @@ bundled models are low-triangle feature samples, not proxies for high-detail
 morph characters. Use the phase measurements to decide what warrants further
 investigation. Scene transitions, actor counts, playback and abort cleanup are
 checked by `node tests/animation-profile-scene.cjs`.
+
+## Rigid primitive update comparison
+
+The excluded `rigid-pose-experiment` target compares full CPU primitive updates
+with transform-cached rigid updates. Normal builds retain the full-update default
+until this comparison is accepted. Only rigid, non-morph primitives can skip work;
+exact world-matrix equality includes parent animation. Cached per-part bounds and
+radius preserve global bounds; BVH refitting skips only when no part changed.
+Pending upload dirtiness survives repeated evaluations before rendering.
+
+Build `rigid-pose-experiment` and `animation-profile-regression` explicitly. The
+native profile regression compares cached/full vertices, bounds, BVH nodes and
+actual uploaded VBO contents over every InterpolationTest clip and frozen fades.
+Existing animation/blend/GPU lifecycle regressions also enable the cache in tests.
+
+On Frame with its display/library environment, run the same executable/scene
+in both modes, stopping each after `ANIMATION_PROFILE_DONE`:
+
+```sh
+SF_RIGID_POSE_CACHE=0 ./build/rigid-pose-experiment tests/scenes/rigid-pose-profile.js > /tmp/rigid-full.log 2>&1
+SF_RIGID_POSE_CACHE=1 ./build/rigid-pose-experiment tests/scenes/rigid-pose-profile.js > /tmp/rigid-cache.log 2>&1
+```
+
+Each mode runs 256 actors animated then paused for 20 seconds each. It selects
+**Linear Scale** (clip 1), so improvements do not depend on STEP animation holding
+constant values. One group, 768 reference eye pixels, same grid/size/materials;
+B/Y aborts. Use the existing animation analyzer, compare allocation estimates,
+and reject FPS attribution if surface allocations differ. The mode environment
+switch is compiled only into this excluded target. No draw ordering changes.

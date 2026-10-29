@@ -203,3 +203,8 @@ save/restore, B/Y finish, five-minute cleanup.
 [scenes/rigid-morph-profile.js](scenes/rigid-morph-profile.js) profiles 64/256
 rigid-node and morph actors, paired animated/paused, with the excluded phase
 profiling executable. Eight 20-second stages; B/Y aborts.
+
+[scenes/rigid-pose-profile.js](scenes/rigid-pose-profile.js) compares full versus
+cached rigid primitive updates using 256 Linear Scale actors; 20 seconds each
+animated/paused. `animation-profile-regression` also checks exact cached GPU
+buffer contents and geometry over all rigid clips.

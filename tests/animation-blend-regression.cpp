@@ -5,6 +5,8 @@
 #include <random>
 static bool near(float a,float b){return std::abs(a-b)<2e-5;}
 int main(){
+ rigidPoseCachingEnabled=true;
+
  gpuSkinningEnabled=false; // Retained CPU reference path.
 
  // Analytic local-space interpolation: translation, scale, shortest-path
