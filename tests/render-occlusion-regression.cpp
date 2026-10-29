@@ -20,7 +20,7 @@ struct Renderer {
   Scene scene;
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
-#ifdef SF_PBR_DEPTH_EXPERIMENT
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT)
   uint64_t pbrDepthDraws=0,pbrColorDraws=0,pbrDepthTriangles=0,pbrColorTriangles=0;
 #endif
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
@@ -56,7 +56,7 @@ struct Renderer {
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
-#ifdef SF_PBR_DEPTH_EXPERIMENT
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT)
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
 #endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
@@ -121,7 +121,7 @@ struct Renderer {
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
           if(asset.pbr){
-#ifdef SF_PBR_DEPTH_EXPERIMENT
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT)
             if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
 #endif

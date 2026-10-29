@@ -10,7 +10,8 @@ The implementation is test-only; production retains expanded PBR geometry.
 `2` can also apply meshoptimizer vertex-cache/fetch ordering to static non-blend
 primitives when the existing cache policy permits it. The recorded run left
 `optimizeVertexCache` at its C++ default of `false`: mode 2 therefore repeated
-plain indexing and did not measure enabled cache/fetch ordering. Animated, skinned and morph
+plain indexing and did not measure enabled cache/fetch ordering. The later
+[enabled-cache comparison](pbr-index-cache.md) measures that variant explicitly. Animated, skinned and morph
 assets keep expanded streams. Indexing is skipped when total geometry storage
 would not shrink. Neither variant generates LOD or enables instancing.
 
@@ -54,12 +55,9 @@ Per shared ToyCar asset, position/surface/index GPU storage falls from
 retained CPU arrays are excluded and unchanged. This is retained buffer storage;
 loading peak memory and upload latency were not measured.
 
-Both plain-indexing sequences regress GPU and synchronized frame time, so this
-path is not adopted. Enabled cache/fetch ordering remains unmeasured; the original
-report incorrectly described mode 2 as cache-enabled. Its control flag must be
-enabled explicitly and its actual value recorded before drawing that conclusion. GPU
-clocks, thermal state and scheduling are not locked; this short investigation
-does not identify the hardware cause or establish a universal indexed-draw cost.
-Revisit only with a different layout/workload and repeatable net gains. Further
-PBR optimization should investigate surface-aware LOD or shader/depth-pass cost
-rather than enabling this prototype by default.
+Both plain-indexing sequences regress GPU and synchronized frame time, so plain
+indexing is not adopted. The original report incorrectly described mode 2 as
+cache-enabled. The [follow-up comparison](pbr-index-cache.md) explicitly enables
+and verifies reordering and establishes substantially different results. GPU
+clocks, thermal state and scheduling are not locked; neither investigation
+identifies the hardware cause or establishes a universal indexed-draw cost.
