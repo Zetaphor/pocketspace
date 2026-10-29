@@ -123,6 +123,9 @@ checks before skipping farther objects.
 
 Evidence: [Frame follow-up output](gpu-skinning/picking-frame.txt) and
 [machine-readable picking summary](gpu-skinning/picking-summary.json). User
-accepted the earlier 32-model scene visually. Active-controller grabbing
-acceptance remains separate, using the
-[interaction scene](../scenes/gpu-skinning-interaction.js).
+accepted the earlier 32-model scene visually. The user also confirmed that both-hand grip/trigger selection, movement, release
+and A/X pause/resume worked in the
+[interaction scene](../scenes/gpu-skinning-interaction.js) on 2026-10-28
+(`83a0dc5` scene, `76edcd7` experiment executable). The demo was stopped after
+feedback. This confirms interaction behavior for this workload; it is not a
+controlled end-to-end grabbing performance measurement.

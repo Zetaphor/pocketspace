@@ -10,8 +10,8 @@ This roadmap contains future work, without prescribing an implementation order.
   CesiumMan instances from 50.4 to 88.3 FPS with conservative joint bounds and
   lazy exact picking; correctness checks and the 32-model visual check passed.
   Deterministic ray-candidate costs and synthetic multi-part/material checks
-  are recorded in the comparison. Validate active grabbing and broaden real-world
-  model coverage before adoption. Support additional influence sets and
+  are recorded in the comparison; active grabbing and pause/resume are also
+  accepted in headset. Broaden real-world model coverage before adoption. Support additional influence sets and
   morph-before-skin combinations, or retain explicit CPU fallback. Preserve
   transitions, per-instance poses, resource lifetime and coherent stereo
   color/depth rendering. Normal builds still use CPU skinning.
