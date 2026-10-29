@@ -8,14 +8,13 @@ This roadmap contains future work, without prescribing an implementation order.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.
-- Extend opt-in direct-light PBR with environment lighting/reflections and
-  advanced material extensions, including a physical replacement for the legacy
+- Extend opt-in PBR with advanced material extensions, including a physical replacement for the legacy
   approximate sheen tint. Restore geometry fast paths for lit assets only after
   they preserve surface seams, normal/tangent deformation, alpha and stereo
   occlusion, and demonstrate measured benefits. The initial lit path uses full
   expanded geometry and CPU animation; the interactive ToyCar, unlit and emissive visual checks are accepted.
-  Reflection-based tangent/mirrored-material validation still needs environment
-  illumination; dark pure-metal fixture sections are expected with direct light alone.
+  Recheck the reflection-based tangent and mirrored-material fixtures with the
+  implemented baked environment lighting; headset visual acceptance is pending.
 
 ## Scripted experiences
 

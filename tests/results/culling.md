@@ -53,7 +53,9 @@ is metallic with zero roughness, while its `Dark` dielectric has linear base col
 [.004, .008, .02]. Their darkness is consistent with direct-only lighting and the
 absence of reflected environment illumination. It does not establish a tangent
 failure or prove complete tangent correctness. The reflection-based diagnostic
-checks remain incomplete until environment lighting provides a useful reference. There is no environment map in the
+checks required environment lighting to provide a useful reference. The subsequent
+[environment validation](environment-lighting.md) found and corrected missing
+generated-tangent handedness conversion; live visual acceptance is still pending. There is no environment map in the
 first PBR implementation; the Khronos reflection-based reference images are not
 pixel goldens for its direct-light output.
 

@@ -82,12 +82,13 @@ script reload, like calibration writes.
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`.
-New captures use `version: 6`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 7`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
 models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
-requires v4. V1–v5 models restore with PBR disabled and default lighting.
+requires v4. V1–v5 models restore with PBR disabled and default lighting. V6 preserves
+direct PBR lighting; environment selection/intensity/rotation require v7.
 
 `models` is an array of at most 32 entries with required fields:
 
@@ -97,7 +98,7 @@ requires v4. V1–v5 models restore with PBR disabled and default lighting.
 | `eyePixels` | Integer multiple of 64, from 256 to 2048 |
 | `optimizeVertexCache`, `gpuInstancing`, `lod` | Booleans |
 | `pbr` | Boolean; required in v6. |
-| `lighting` | V6 object with three-component `direction` and `color` arrays, plus numeric `intensity`, `ambient`, and `exposure`; ranges match [model lighting](lighting-api.md). Cached PBR lighting must match. |
+| `lighting` | V6 object with three-component `direction` and `color` arrays, plus numeric `intensity`, `ambient`, and `exposure`; ranges match [model lighting](lighting-api.md). V7 also requires the `environment` path (empty when disabled), `environmentIntensity` and `environmentRotation`. Cached PBR lighting must match. |
 
 `objects` is an array of at most 256 entries with required fields:
 

@@ -37,6 +37,8 @@ dt = floats([.1, .2, -.1] * 3, 'VEC3', 3)
 time = floats([0, 1], 'SCALAR', 2)
 accessors[time].update(min=[0], max=[1])
 weights = floats([0, 1], 'SCALAR', 2)
+flat_normal = floats([0, 0, 1] * 3, 'VEC3', 3)
+gltf_tangent = floats([1, 0, 0, -1] * 3, 'VEC4', 3)
 
 def chunk(kind, data):
     return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
@@ -44,6 +46,9 @@ def chunk(kind, data):
 png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0))
        + chunk(b'IDAT', zlib.compress(b'\0\x80\x80\xff\xff')) + chunk(b'IEND', b''))
 image = view(png)
+normal_png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0))
+              + chunk(b'IDAT', zlib.compress(b'\0\x80\xc0\xee\xff')) + chunk(b'IEND', b''))
+strong_image = view(normal_png)
 primitive = {'attributes': {'POSITION': position, 'NORMAL': normal, 'TANGENT': tangent,
                              'TEXCOORD_0': uv}, 'material': 0,
              'targets': [{'POSITION': dp, 'NORMAL': dn, 'TANGENT': dt}]}
@@ -85,3 +90,15 @@ zero = copy.deepcopy(doc)
 zero['extensionsUsed'] = ['KHR_texture_transform']
 zero['materials'][0]['normalTexture']['extensions'] = {'KHR_texture_transform': {'scale': [0, 1]}}
 save('ZeroNormalUVScale.glb', zero)
+
+generated = copy.deepcopy(missing)
+generated['images'].append({'bufferView': strong_image, 'mimeType': 'image/png'})
+generated['textures'].append({'source': 1})
+generated['materials'][0]['normalTexture']['index'] = 1
+attrs = generated['meshes'][0]['primitives'][0]['attributes']
+attrs['NORMAL'] = flat_normal
+attrs.pop('TANGENT')
+save('GeneratedTangents.glb', generated)
+supplied = copy.deepcopy(generated)
+supplied['meshes'][0]['primitives'][0]['attributes']['TANGENT'] = gltf_tangent
+save('SuppliedTangents.glb', supplied)

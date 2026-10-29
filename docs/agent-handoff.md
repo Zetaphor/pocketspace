@@ -421,8 +421,8 @@ not justify adoption. Production planner and thresholds remain unchanged.
 `loadModel(..., {pbr: true})` selects a separate material/surface-frame path.
 `setModelLighting` stages a copy before reading script properties and resolves
 its asset again before publishing. Asset-cache conflicts include explicit PBR
-choice; snapshot v6 also requires matching lighting for cached lit models. Older
-snapshots default to unlit rendering. Failed restores must not change lighting
+choice; snapshot v6 also requires matching lighting for cached lit models. V1–v5
+snapshots default to unlit rendering; v6 retains direct PBR lighting. Failed restores must not change lighting
 on already-visible objects.
 
 PBR retains expanded normals, tangents/handedness and UV0 separately from legacy
@@ -448,3 +448,37 @@ state remains valid. Node reflections change winding without changing object
 Euler rotations. Rigid merging must stop when single-sided animated parts have
 different winding; experimental combined-material instancing must reject
 incompatible sidedness/winding. Do not cull panels or controller laser geometry.
+
+## Baked environment lighting
+
+`setModelLighting` stages environment file loading before publishing either the
+lighting struct or its shared resource pointer. V7 snapshots include its path,
+intensity and Y rotation; v6 defaults to no environment. Cached lighting must
+match. Missing-environment failures while restoring new model assets must leave
+the scene, assets, IDs and active lighting intact.
+
+`LightingEnvironment` owns the CPU bake plus one RGB16F cubemap and RG16F BRDF LUT.
+Its weak path cache does not retain scene resources. Uploads happen with a live
+GLES context; destruction must run before EGL teardown, like model textures.
+Reload candidates can share a live environment without mutating it. Keep the
+format bounded and validate all dimensions, levels, payload lengths, float/half
+values before any upload. SH coefficients may be negative; radiance/LUT data may
+not. Specular mips are GGX convolutions, not ordinary image mipmaps. Diffuse SH
+stores cosine-convolved radiance divided by pi; do not divide it again at shading.
+
+PBR uses texture units 6/7 and restores their bindings to zero afterward. All
+active sampler types need distinct compatible units even with IBL disabled.
+The per-asset rotation is applied inversely to sampling directions; it does not
+rotate geometry or follow the user's head. Unlit materials bypass IBL. Count
+shared environment allocation once per resource, not per model or object. The
+original studio bake and reproducible tool are in `assets/environments/` and
+`tools/generate-environment.py`; custom external image licenses remain the
+contributor's responsibility.
+
+Convert MikkTSpace-generated tangent handedness to glTF by negating the generated
+w component. Do not apply that conversion to imported glTF tangents. Normal-map
+UV transforms and negative node determinants still apply their own frame
+transforms. The paired GeneratedTangents/SuppliedTangents fixtures intentionally
+use a strong green normal-map component; they must produce the same frame and
+pixels under environment lighting. Orthogonality/unit-length checks alone do not
+catch an inverted bitangent. See the [Khronos reference implementation](https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/main/source/gltf/primitive.js).

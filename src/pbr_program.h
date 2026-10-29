@@ -1,5 +1,6 @@
 #pragma once
 #include "model_shaders.h"
+#include <cmath>
 #include <map>
 #include <string>
 // A separate program keeps legacy shaders, storage and their fast paths intact.
@@ -40,6 +41,12 @@ vec3 rotateSurface(vec3 v){
 precision highp float;
 in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView;in highp float tangentSign;
 uniform sampler2D material,normalMap,metalRoughMap,occlusionMap,emissiveMap;
+uniform highp samplerCube environmentMap;
+uniform highp sampler2D environmentBrdf;
+uniform bool environmentEnabled;
+uniform float environmentIntensity,environmentMaxLod;
+uniform vec2 environmentRotationCS;
+uniform vec3 environmentDiffuse[9];
 uniform bool hasNormal,hasMetalRough,hasOcclusion,hasEmissive,materialUnlit,doubleSided;
 uniform mat3 normalUV,metalRoughUV,occlusionUV,emissiveUV;
 uniform vec4 factor;uniform int alphaMode;uniform float alphaCutoff;
@@ -49,6 +56,10 @@ out vec4 color;
 const float PI=3.141592653589793;
 vec3 safeUnit(vec3 v,vec3 fallback){float d=dot(v,v);return d>1e-16?v*inversesqrt(d):fallback;}
 vec3 encodeSRGB(vec3 c){return mix(12.92*c,1.055*pow(max(c,vec3(0)),vec3(1./2.4))-.055,step(vec3(.0031308),c));}
+vec3 environmentDirection(vec3 d){float c=environmentRotationCS.x,s=environmentRotationCS.y;return vec3(c*d.x-s*d.z,d.y,s*d.x+c*d.z);}
+vec3 diffuseEnvironment(vec3 n){
+ return max(vec3(0),environmentDiffuse[0]*.2820947918+environmentDiffuse[1]*(.4886025119*n.y)+environmentDiffuse[2]*(.4886025119*n.z)+environmentDiffuse[3]*(.4886025119*n.x)+environmentDiffuse[4]*(1.0925484306*n.x*n.y)+environmentDiffuse[5]*(1.0925484306*n.y*n.z)+environmentDiffuse[6]*(.3153915653*(3.*n.z*n.z-1.))+environmentDiffuse[7]*(1.0925484306*n.x*n.z)+environmentDiffuse[8]*(.5462742153*(n.x*n.x-n.y*n.y)));
+}
 void main(){
  vec4 base=texture(material,t)*factor;
  if(alphaMode==1&&base.a<alphaCutoff)discard;
@@ -72,6 +83,15 @@ void main(){
   float ao=hasOcclusion?mix(1.,texture(occlusionMap,(occlusionUV*vec3(mapUV,1)).xy).r,occlusionStrength):1.;
   vec3 emission=emissive*(hasEmissive?texture(emissiveMap,(emissiveUV*vec3(mapUV,1)).xy).rgb:vec3(1));
   result=(diffuse+distribution*visibility*f)*lightColor*intensity*nl+ambient*base.rgb*(1.-metal)*ao+emission;
+  if(environmentEnabled){
+   vec3 en=environmentDirection(n),reflection=environmentDirection(reflect(-v,n));
+   vec3 filtered=textureLod(environmentMap,reflection,r*environmentMaxLod).rgb;
+   vec2 brdf=texture(environmentBrdf,vec2(nv,r)).rg;
+   vec3 fresnel=f0+(max(vec3(1.-r),f0)-f0)*pow(1.-nv,5.);
+   vec3 indirectDiffuse=(1.-fresnel)*(1.-metal)*base.rgb*diffuseEnvironment(en);
+   vec3 indirectSpecular=filtered*(f0*brdf.x+brdf.y);
+   result+=(indirectDiffuse+indirectSpecular)*environmentIntensity*ao;
+  }
   result=vec3(1)-exp(-max(result,vec3(0))*exposure);
  }
  color=vec4(clamp(encodeSRGB(result),0.,1.),alpha);if(alphaMode==1)color.rgb*=alpha;
@@ -97,10 +117,17 @@ void main(){
   const auto &l=asset.lighting;vector("lightDirection",l.direction);vector("lightColor",l.color);scalar("intensity",l.intensity);scalar("ambient",l.ambient);scalar("exposure",l.exposure);
   const char *samplers[]={"normalMap","metalRoughMap","occlusionMap","emissiveMap"},*present[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive"},*uv[]={"normalUV","metalRoughUV","occlusionUV","emissiveUV"};
   for(int i=0;i<4;i++){integer(samplers[i],i+2);integer(present[i],p.maps[i].texture!=0);glUniformMatrix3fv(location(uv[i]),1,GL_FALSE,p.maps[i].uv);glActiveTexture(GL_TEXTURE0+i+2);glBindTexture(GL_TEXTURE_2D,p.maps[i].texture);}
+  integer("environmentMap",6);integer("environmentBrdf",7);
+  const auto &env=asset.environment;
+  const bool enabled=!p.materialUnlit&&env&&l.environmentIntensity>0&&env->upload();integer("environmentEnabled",enabled);
+  if(enabled){
+   scalar("environmentIntensity",l.environmentIntensity);glUniform2f(location("environmentRotationCS"),std::cos(l.environmentRotation),std::sin(l.environmentRotation));scalar("environmentMaxLod",float(env->levels-1));glUniform3fv(location("environmentDiffuse"),9,env->diffuse.data());
+   glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,env->cube);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,env->lut);
+  }
   glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,p.texture);
   glBindBuffer(GL_ARRAY_BUFFER,geometry.surfaceVbo);
   glEnableVertexAttribArray(8);glEnableVertexAttribArray(9);glEnableVertexAttribArray(10);
   glVertexAttribPointer(8,3,GL_FLOAT,GL_FALSE,9*sizeof(float),nullptr);glVertexAttribPointer(9,4,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float)));glVertexAttribPointer(10,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(7*sizeof(float)));
  }
- void release()const{for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
+ void release()const{glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
 };

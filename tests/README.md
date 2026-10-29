@@ -1016,3 +1016,25 @@ GPU disjoint/error flags and reports GPU, enqueue and synchronized frame times.
 It opens no OpenVR session, creates no overlays and captures no pointer input.
 Use an awake/worn headset for meaningful native performance measurements; these
 are offscreen rendering costs, not compositor FPS or sustained thermal results.
+
+## Baked environments
+
+Run `python3 tests/environment-bake-test.py` on a host with NumPy. The original
+studio resource can be regenerated with `tools/generate-environment.py`; runtime
+and tests do not need NumPy to load an existing bake.
+
+Build the excluded `environment-regression` target after reconfiguring CMake.
+Run it from the repository root with the same GLES environment as `pbr-regression`.
+Set `SF_ENV_IMAGES=/tmp/environment-images` for four bounded first-view PPMs.
+`--benchmark` adds one/sixteen ToyCar comparisons with a 768×768 offscreen view,
+full-detail PBR geometry, fixed transforms/camera and alternating eyes. Each
+stage warms 30 frames and measures 120 in off/on/on/off order, with the same
+already-uploaded environment storage in every stage. GPU-disjoint and GL-error
+checks must pass. These measurements compare the incremental lighting feature;
+IBL changes appearance and the measurements are not compositor FPS. No OpenVR
+session, overlays or pointer capture are used. Keep the headset awake and worn.
+
+For visual acceptance, `tests/scenes/pbr-materials.js` now selects the baked
+studio environment. Compare tangent-test highlights and horizon orientation,
+negative-scale check marks/spheres, matching encoding-test columns, invariant
+unlit colors and increasing emissive brightness. It remains non-interactive.

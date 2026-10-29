@@ -256,7 +256,20 @@ base-color textures/factors, UV transforms, alpha modes, and an approximate
 sheen tint. Opt-in PBR assets use `src/pbr_asset.h`, `src/surface_frame.h` and
 `src/pbr_program.h`: retained normals/tangents and morph deltas, MikkTSpace tangent
 generation, a separate expanded surface-frame VBO, sRGB color/emissive textures,
-linear data textures, and a directional-light GGX metallic/roughness shader.
+linear data textures, and a directional-light GGX metallic/roughness shader with optional baked image-based
+lighting. `src/lighting_environment.cpp` validates SFENV001 resources, shares them
+by exact path through weak cache entries, and lazily uploads an HDR prefiltered
+cubemap and BRDF lookup. The [split-sum IBL design](https://google.github.io/filament/Filament.html)
+separates roughness-filtered radiance from the integrated BRDF.
+The offline NumPy baker supplies GGX roughness levels
+and nine diffuse SH coefficients; the render loop performs no convolution.
+Intensity and Y rotation belong to each model asset; shared environment data is
+immutable. Rotation sine/cosine are prepared on the CPU. Environment upload
+preserves caller texture bindings and unpack alignment. Units 6/7 are reserved
+for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
+estimates count each referenced environment once, with RGB16F padding allowance.
+[Native correctness and incremental cost](../tests/results/environment-lighting.md)
+are recorded separately from pending headset visual acceptance.
 Material UV0 transforms and sampler settings are independent. Surface frames use
 inverse-transpose normals and orthogonalized tangents, including mirrored node
 handedness. PBR CPU poses update surface buffers alongside positions and bounds;
@@ -274,7 +287,8 @@ reloads do not compile a new shader after committing their candidate scene.
 The separate program restores legacy program, texture-unit and attribute state
 before subsequent objects/panels. Both member-color and external occluder passes
 use the same geometry and alpha policy. Lighting state is per shared asset and
-is captured in snapshot v6, with transactional cache-conflict validation.
+is captured in snapshot v7, with transactional cache-conflict validation; v6
+retains its direct-light behavior with environments disabled.
 See [lighting API](lighting-api.md) for controls, color mapping and limitations.
 
 Ordered GPU instancing is enabled by default for eligible consecutive same-asset,
