@@ -62,6 +62,9 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
 - Check for an existing engine/demo process before launching another. Stop the
   relevant demo when requested, and verify that it exited. Avoid broad process
   kills or restarting SteamVR unless the task calls for it.
+- After the user finishes headset verification, stop the relevant demo and verify
+  that it exited before completing the task. Do not leave it running unless the
+  user explicitly asks to keep it running.
 - A request to stop a demo does not authorize relaunching it after subsequent
   code changes; wait for the user to continue headset testing.
 - Prefer automated checks before asking the user to validate behavior in VR.
