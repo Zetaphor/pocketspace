@@ -5,15 +5,12 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Integrate narrowly ordered adjacent rigid-part batching after final validation.
-  The [matched Frame prototype](../tests/results/rigid-batches.md) improved 256
-  InterpolationTest actors from 20.31 to 68.23 FPS, with 80% fewer draws and exact
-  images. It only merges adjacent identical untextured opaque/masked rigid parts.
-  Prototype blending, pause/resume and grabbing are accepted in headset. Remove
-  duplicate experimental buffers/uploads and verify stream lifetime, partial
-  updates, reload/restore, picking and mixed
-  fallbacks before adoption. Production remains unchanged. Uniform and VAO caching
-  did not help; broader multi-material batching remains unproven.
+- Complete the final normal-engine mixed-scene check for adjacent rigid batching.
+  The [production stream comparison](../tests/results/rigid-batches.md) improved
+  256 actors from 23.80 to 69.61 FPS with no duplicate storage/uploads. Exact
+  images, stream updates, 21,000 picking checks and 30 mixed reload/restore cycles
+  pass on Frame. Batching is enabled in the normal build; verify visual continuity,
+  grabbing, pause/resume and restored stream rendering before closing this item.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.

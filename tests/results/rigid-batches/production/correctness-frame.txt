@@ -1,0 +1,5 @@
+PASS rigid adjacent batches: 864 exact stereo views, opaque/masked/blended materials, static/rigid/morph/GPU skin, instancing switches and material barriers, stream ranges, clip changes and cleanup
+PASS GPU production lifecycle: 30 mixed-scene reloads, failed reload rollback, independent live/frozen snapshots, CPU fallbacks, independent owned streams and resource cleanup
+PASS GPU skinning: 5 assets, 21000 exact picking comparisons, transform-feedback vertices, conservative bounds, stereo/material pixels, pose cache, palette uploads, resource cleanup and CPU fallback
+PASS rigid primitive cache: all clips, frozen transitions, repeated/pre-upload evaluations, exact vertices/bounds/BVH and GPU buffer contents
+PASS animation profiling: real rigid/skin/morph evaluation and uploads, exact counters, clean-pose skip, aggregation and workload/epoch boundaries

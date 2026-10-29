@@ -1,9 +1,9 @@
 # Adjacent identical-material rigid batches
 
-Measured on Steam Frame on 2026-10-28 at `1eb9172`. This isolated prototype shows
-a substantial throughput gain on the targeted rigid workload. Production
-integration and removal of duplicate prototype storage/uploads remain unfinished.
-Normal builds compile out `SF_RIGID_BATCH_EXPERIMENT`.
+Measured on Steam Frame on 2026-10-28 at `1eb9172`. This initial prototype showed
+a substantial throughput gain on the targeted rigid workload. Its duplicate
+storage/uploads have since been replaced by the production stream described
+below. Only the comparison switch/counters remain experimental.
 
 ## Candidate and constraints
 
@@ -98,3 +98,76 @@ Do not generalize the measured gain to textured/PBR or mixed-material models.
 - [Frame image check](rigid-batches/pixels-frame.txt)
 
 Scene/analyzer checks, documentation lint/site build and whitespace checks pass.
+
+
+## Production single-stream integration
+
+Follow-up measured on Steam Frame on **2026-10-29**, executable `191b0d8` and
+unchanged `rigid-pose-profile.js`. Eligible rigid poses now own exactly one
+`geometry.batchVbo`; their per-part VBOs are zero. Fixed primitive offsets select
+unmerged draws or adjacent batches from the same buffer. Upload each changed
+range once, preserving cache dirtiness, current CPU geometry, BVH and bounds.
+The stream is counted once and deleted once. No aliasing GL name is stored in
+per-part ownership. Grouped draws are now enabled by default in the normal build;
+its final mixed-scene headset check remains pending.
+
+### Production correctness
+
+Local and Frame checks pass:
+
+- 864 exact stereo comparisons using production batching code with test counters,
+  without `SF_RIGID_BATCH_EXPERIMENT`; current stream contents match CPU ranges.
+- All nine rigid clips, repeated/pre-upload evaluations and frozen transitions:
+  exact vertices, bounds, BVH and mapped GPU ranges. Eligible poses have no
+  per-part VBOs.
+- 21,000 exact picking comparisons across the GPU/reference suite; unchanged
+  accurate CPU geometry remains available for rigid objects.
+- 30 mixed reload/restore cycles: independent restored streams and exact sizes,
+  live/frozen playback state, failed reload rollback, container removal and
+  deletion of old streams on successful reload/close. Morph/skin/static fallback
+  ownership remains covered.
+- CPU animation, blending, scene persistence (including panels/physics) and
+  483 exact instancing comparisons pass locally; normal engine builds.
+
+### Production performance
+
+Same scene/method as the prototype: 256 independently phased Linear Scale actors,
+768 reference eye pixels, one group/HUD, no physics; 20 seconds animated then
+20 paused per mode. The comparison executable selects individual versus batched
+draws from the **same single stream**, not mirrored buffers. Both runs completed
+and timed processes were stopped. Mean CPU times below are ms/frame.
+
+| Mode | Playback | FPS | Upload submission | Render submission | Completion wait | Work |
+| --- | --- | --- | --- | --- | --- | --- |
+| Individual ranges | Animated | 23.80 | 0.244 | 15.687 | 23.953 | 42.008 |
+| Batched ranges | Animated | 69.61 | 0.164 | 3.156 | 9.572 | 14.359 |
+| Individual ranges | Paused | 24.65 | 0 | 16.117 | 23.686 | 40.559 |
+| Batched ranges | Paused | 71.71 | 0 | 3.212 | 10.317 | 13.930 |
+
+Animated throughput increases 2.92 times, paused throughput 2.91 times.
+Draw counts remain 5,120 versus 1,024 (80% reduction). Both animated stages now
+upload **184,320 bytes/frame**, half the mirrored prototype amount; both evaluate
+9,216 changed vertices per frame. Every stage ends at **213,036,052 bytes**
+estimated engine GPU allocation: 1,689,600 fewer bytes than the prototype and
+the same vertex-storage budget as the original per-part layout. No shaders,
+materials, geometry detail or density settings change.
+
+The baseline animated stage retains only **one 120-frame steady window** after
+warmup; baseline paused retains two, batched stages eight each (960 frames).
+This bounded rerun supports the large gain also seen in the earlier prototype;
+it is not a significance study or a broad textured-model claim. Endpoint RSS is
+about 70 MiB in both modes; it does not establish memory savings. Driver VRAM
+is unavailable. Completion waits are not GPU timestamp durations. Matching
+allocations do not fix live head pose or exact animation timing.
+
+Evidence: [individual log](rigid-batches/production/full-frame.txt),
+[individual summary](rigid-batches/production/full-summary.json),
+[batched log](rigid-batches/production/on-frame.txt),
+[batched summary](rigid-batches/production/on-summary.json), and
+[Frame correctness results](rigid-batches/production/correctness-frame.txt).
+
+The final normal-engine check uses the existing
+[mixed acceptance scene](../scenes/gpu-skinning-production.js), now selecting
+Linear Scale for rigid actors. Bumper restore rebuilds streams, A/X pauses/resumes,
+and both hands can grab. Prototype visual acceptance remains recorded above;
+production ownership/stream acceptance will be recorded separately.

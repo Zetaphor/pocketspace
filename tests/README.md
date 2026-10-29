@@ -858,8 +858,8 @@ Keep the view steady; B/Y aborts. Stop after completion and use the animation
 analyzer. `RIGID_BATCH_DRAWS` reports CPU-pose draws and merged source parts for
 one frame. Require matching allocations and pixels before attributing a gain.
 The nine untextured cubes in InterpolationTest can merge into one draw; its
-textured plane stays separate. The stream implementation is compiled into normal builds; grouped draws remain
-disabled by default pending final production validation. Environment toggles and
+textured plane stays separate. The single-stream implementation and adjacent rigid grouping are enabled in
+normal builds. Environment toggles and
 draw counters exist only in the excluded comparison executable. The pixel target
 uses production code with test counters, without the experiment definition.
 This is independent of the rejected multi-material shader experiment.
@@ -870,3 +870,9 @@ absence of per-part VBOs, exact allocation size, and buffer deletion through 30
 successful/failed reload and live/frozen snapshot cycles. The rigid phase test
 maps individual stream ranges across all nine rigid clips and preserves pending
 updates through repeated pose evaluations.
+
+
+The normal-engine mixed acceptance scene now selects Linear Scale for its rigid
+actors. It checks GPU skins, morph fallbacks and adjacent rigid batches together;
+bumper save/restore rebuilds independently owned streams. Use the existing
+[normal-engine instructions](#normal-engine-mixed-backend-acceptance).
