@@ -36,6 +36,58 @@ int main() {
       checkedCall(host.update, 1, &dt);
       JS_FreeValue(host.ctx, dt);
     }
+    // Exercise lifecycle controls before the general button smoke check disposes owners.
+    std::string controls;
+    const auto name = entry.path().filename();
+    if(name=="containers.js") controls=R"(
+      toggleTool();
+      if(tool!==0||getEngineStats().objectCount!==0)throw Error('tool disposal');
+      toggleTool();
+      if(getSceneContainerState(tool).objectIds.length!==4||!getSceneContainerState(tool).inputCallback)throw Error('tool recreation');
+    )";
+    if(name=="scene-snapshot.js") controls=R"(
+      for(let n=0;n<3;n++){
+        inputEventForExample('/input/bumper/click');
+        const previous=box;
+        inputEventForExample('/input/a/click');
+        if(box===previous||getSceneContainerState(tool).disposed)throw Error('snapshot fresh handles');
+      }
+    )";
+    if(name=="container-transfer.js") controls=R"(
+      inputEventForExample('/input/b/click');
+      if(side!==1||getSceneContainerState(owners[1]).objectIds.length!==1)throw Error('ownership transfer');
+      inputEventForExample('/input/a/click');
+      if(getSceneContainerState(owners[1]).disposed)throw Error('destination survived');
+    )";
+    if(name=="physics-controls.js") controls=R"(
+      inputEventForExample('/input/b/click');
+      if(getObjectPhysics(ball)!==null)throw Error('body removal');
+      inputEventForExample('/input/b/click');
+      if(!getObjectPhysics(ball))throw Error('body recreation');
+    )";
+    if(name=="panel-placement.js") controls=R"(
+      inputEventForExample('/input/b/click');
+      if(head!==null)throw Error('panel removal');
+      inputEventForExample('/input/b/click');
+      if(!head)throw Error('panel recreation');
+    )";
+    if(name=="animation.js") controls=R"(
+      inputEventForExample('/input/b/click');
+      if(getAnimationState(object).clip!==null)throw Error('animation stop');
+      inputEventForExample('/input/a/click');
+      pauseAnimation(object);seekAnimation(object,.25);
+      if(Math.abs(getAnimationState(object).time-.25)>.0001)throw Error('animation seek');
+    )";
+    if(!controls.empty()){
+      JSValue global=JS_GetGlobalObject(host.ctx);
+      JS_SetPropertyStr(host.ctx,global,"exampleCallback",JS_DupValue(host.ctx,inputCallback));
+      JS_FreeValue(host.ctx,global);
+      JSValue result;
+      controls="globalThis.inputEventForExample=control=>exampleCallback({type:'controller.button',down:true,control});\n"+controls;
+      result=JS_Eval(host.ctx,controls.c_str(),controls.size(),"example-controls",JS_EVAL_TYPE_GLOBAL);
+      if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"%s controls: %s\n",entry.path().c_str(),message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+      assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+    }
     // Cover the animation switches and the panel's retained redraw callback.
     if (inputCallbackCtx == host.ctx) {
       for (const char *control : {"/input/bumper/click", "/input/a/click", "/input/x/click", "left"}) {

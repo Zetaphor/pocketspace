@@ -43,7 +43,7 @@ header = '| Script | Demonstrates |'
 if header not in example_inventory:
     errors.append('docs/examples.md: missing examples table')
 else:
-    table = example_inventory.split(header, 1)[1].strip().splitlines()
+    table = re.split(r'^## ', example_inventory.split(header, 1)[1], maxsplit=1, flags=re.M)[0].strip().splitlines()
     for row in table:
         if not re.fullmatch(r'\|[^|\n]+\|[^|\n]+\|', row):
             errors.append('docs/examples.md: interrupted or malformed examples table')
@@ -54,6 +54,8 @@ for script in sorted((ROOT / 'scripts').glob('*')):
     else:
         if f'(../scripts/{script.name})' not in example_inventory:
             errors.append(f'example missing from docs/examples.md: {script.name}')
+        if not script.read_text().lstrip().startswith(('//', '/*')):
+            errors.append(f'{script.relative_to(ROOT)}: missing explanatory header comment')
         for asset in re.findall(r'[\"\'](assets/[^\"\']+)[\"\']', script.read_text()):
             if not (ROOT / asset).is_file():
                 errors.append(f'{script.relative_to(ROOT)}: missing asset {asset}')

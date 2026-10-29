@@ -1,3 +1,5 @@
+// Pull grabbable weights free of spring connections and report break forces.
+// Bumper resets and reconnects both weights when neither is held.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.93, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 const links = [
@@ -12,6 +14,7 @@ const links = [
   setObjectInteraction(id, {handRotationAxes: {pitch: true, yaw: true, roll: true}});
   return {id, anchor, x, options: {type: 'distance', minDistance, maxDistance: .3, spring: {frequency: 2, damping: .35}, breakForce}};
 });
+// Broken IDs remain safe to remove, so reconnecting uses the same cleanup path.
 function connect() { for (const link of links) link.joint = createPhysicsJoint(link.anchor, link.id, link.options); }
 connect();
 setLaserVisible('left', true);
@@ -19,6 +22,7 @@ setLaserVisible('right', true);
 onInputEvent(event => {
   if (event.type === 'physics.jointBreak') print(`Joint ${event.jointId} broke at ${event.force.toFixed(1)} N`);
   if (event.type !== 'controller.button' || !event.down || event.control !== '/input/bumper/click') return;
+  // Do not teleport a body while a hand still owns its grab.
   if (links.some(({id}) => getObjectPhysics(id).held)) return;
   for (const link of links) {
     removePhysicsJoint(link.joint);

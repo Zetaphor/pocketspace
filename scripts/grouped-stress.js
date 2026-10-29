@@ -1,4 +1,6 @@
-// Compact body groups can subdivide as their members spread apart.
+// Spawn up to 240 physics boxes in adaptive shared render groups with a statistics HUD.
+// Bumper adds 10, A/X adds 40, B/Y clears; grip/trigger grabs individual bodies.
+// Logical groups remain stable while their native surfaces split, merge or rebalance.
 for (let group = 1; group <= 4; group++) setRenderGroupAutoSplit(group, {maxSurfaces: 2, targetEyePixels: 2048, merge: true, rebalance: true});
 const LIMIT = 240;
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.55, 0, 1.2, {renderGroup: 5});
@@ -12,6 +14,7 @@ function add(count) {
     let id;
     try {
       const n = sequence++;
+      // Assign each grid quadrant its own group; ownership and physics stay per object.
       id = createObject(assets[n % assets.length], ((n % 8) - 3.5) * .12, -.2 + Math.floor(objects.length / 64) * .12, (Math.floor(n / 8) % 8 - 3.5) * .12, .1, {renderGroup: 1 + Math.floor((n % 8) / 4) + 2 * Math.floor((Math.floor(n / 8) % 8) / 4)});
       setObjectPhysics(id, {mass: .2, restitution: .1});
       enableObjectInteraction(id, {grabButton: 'both'});
@@ -32,12 +35,14 @@ function update() {
     nextPrune = Date.now() + 100;
     for (let i = objects.length - 1; i >= 0; i--) {
       const p = getObjectPhysics(objects[i]).position;
+      // Remove escaped bodies and their resources, rather than merely hiding them.
       if (p.y < -1.2 || p.x * p.x + p.y * p.y + p.z * p.z > 9) {
         removeObject(objects[i]); objects.splice(i, 1); nextDraw = 0;
       }
     }
   }
   if (Date.now() < nextDraw) return;
+  // Redraw the HUD twice per second instead of uploading its texture every frame.
   nextDraw = Date.now() + 500;
   const s = getEngineStats(), c = panel.canvas;
   c.clear(12, 18, 29, 255);

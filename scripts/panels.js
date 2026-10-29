@@ -1,3 +1,5 @@
+// Draw a retained canvas with text, shapes and an image; count button clicks.
+// Use SteamVR pointer input on the green rectangle to redraw the panel.
 const panel = createPanel({
   widthPixels: 640, heightPixels: 360, widthMeters: .8, interactive: true
 });
@@ -12,9 +14,11 @@ function draw() {
   c.text(48, 130, `Clicks: ${clicks}`, 255, 255, 255, 255, 28);
   c.circle(530, 150, 36, 240, 190, 80, 255, false);
   c.image(24, 240, 'assets/panel-icon.png');
+  // Drawing changes retained pixels; present requests their upload only after a redraw.
   c.present();
 }
 draw();
+// Panel event coordinates are pixels, unlike model surface pointer coordinates.
 onInputEvent(event => {
   if (event.type === 'panel.pointerDown' && event.objectId === panel.id &&
       event.control === 'left' && event.x >= 24 && event.x <= 464 &&

@@ -1,4 +1,4 @@
-// Three model assets with independent object transforms.
+// Load three assets and animate their object transforms independently.
 const box = loadModel("assets/samples/Box/Box.glb");
 const car = loadModel("assets/samples/ToyCar/ToyCar.glb");
 const lantern = loadModel("assets/samples/Lantern/Lantern.glb");
@@ -10,4 +10,6 @@ function update(dt) {
   angle += dt * 0.35;
   setObjectYaw(boxObject, angle);
   setObjectYaw(carObject, angle * 0.5);
+  // Scale is the model's normalized maximum extent in meters.
+  setObjectScale(lanternObject, .3 + Math.sin(angle) * .03);
 }

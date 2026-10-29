@@ -1,3 +1,5 @@
+// Change a live hinge limit and spring response without recreating their joints.
+// Bumper toggles length/angle limits; A/X toggles damping. Grip/trigger grabs.
 const floor = createObject(loadModel('assets/physics/ThinPlatform.glb'), 0, -.63, 0, 1.2);
 setObjectPhysics(floor, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
 function body(path, x, y, scale, type) {
@@ -11,6 +13,7 @@ setObjectRotation(door, Math.PI / 2, 0, 0);
 const top = body('assets/samples/Box/Box.glb', .25, .3, .06, 'static');
 const ball = body('assets/physics/YellowSphere.glb', .25, 0, .12, 'dynamic');
 setObjectPhysics(ball, {shape: 'sphere'});
+// Joint anchors are specified in scene meters, not object-local coordinates.
 const hinge = createPhysicsJoint(pivot, door, {type: 'hinge', anchor: {x: -.5, y: 0, z: 0}, minAngle: -.4, maxAngle: .4});
 const spring = createPhysicsJoint(top, ball, {type: 'distance', minDistance: .25, maxDistance: .25, spring: {frequency: 2, damping: .3}});
 for (const id of [door, ball]) {
@@ -30,5 +33,6 @@ onInputEvent(event => {
   } else if (event.control === '/input/a/click' || event.control === '/input/x/click') {
     damped = !damped;
     setPhysicsJoint(spring, {spring: {frequency: damped ? 3 : 2, damping: damped ? 1 : .3}});
-  }
+  } else return;
+  print(`Spring separation: ${getPhysicsJoint(spring).distance.toFixed(3)} m`);
 });

@@ -1,3 +1,5 @@
+// Use explicit box/sphere collider dimensions with a thin floor and rotated walls.
+// Grip/trigger grabs; bumper resets unheld bodies.
 const platformAsset = loadModel('assets/physics/ThinPlatform.glb');
 const platform = createObject(platformAsset, 0, -.43, 0, 1.2);
 setObjectPhysics(platform, {type: 'static', halfExtents: {x: .6, y: .03, z: .6}});
@@ -6,6 +8,7 @@ for (const [x, path] of [[-.6, 'assets/physics/ThinWallBlue.glb'], [.6, 'assets/
   setObjectRotation(wall, 0, 0, Math.PI / 2);
   setObjectPhysics(wall, {type: 'static', halfExtents: {x: .3, y: .015, z: .3}});
 }
+// Explicit dimensions are already in meters, not multiplied by object scale.
 const bodies = [
   {path: 'assets/samples/Box/Box.glb', x: -.18, scale: .16, collider: {halfExtents: {x: .08, y: .08, z: .08}}},
   {path: 'assets/physics/YellowSphere.glb', x: .18, scale: .18, collider: {shape: 'sphere', radius: .09}}

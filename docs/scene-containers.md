@@ -3,7 +3,8 @@
 Containers give related objects, panels and an optionally owned input callback
 one lifetime. They are flat cleanup scopes, independent of render groups and
 object transforms. Existing scripts omit ownership and keep the same root-scene
-lifetime. Persistence/save files and nested containers are not part of this API.
+lifetime. Containers are not nested; [scene persistence](scene-persistence.md) provides
+in-memory snapshots and named file saves.
 
 ```js
 const model = loadModel('assets/samples/Box/Box.glb');
