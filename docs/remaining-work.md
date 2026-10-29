@@ -5,20 +5,14 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Reduce upload and draw submission overhead in dense multi-part rigid animation
-  scenes. The [completed 64/256-actor profile](../tests/results/rigid-morph-profile.md)
-  measured 256 rigid actors at 5.75 ms upload submission and 20.84 ms render
-  submission, versus 1.54 ms deformation/refits. The
-  [rigid primitive cache comparison](../tests/results/rigid-pose-cache.md)
-  reduced upload submission to 0.57 ms on a matched continuous-animation run;
-  the cache is now accepted in headset and enabled by default. Investigate bounded
-  primitive draw/vertex-state submission reductions while preserving draw order,
-  exact picking, independent transitions and matched surface density. The
-  [uniform cache comparison](../tests/results/draw-uniforms.md) and
-  [owned vertex array comparison](../tests/results/vertex-arrays.md) preserved
-  pixels but did not establish throughput gains; both remain experimental.
-  Investigate actual draw count/driver cost and narrowly ordered reductions.
-  The prior combined multi-part stream also did not justify general adoption.
+- Integrate narrowly ordered adjacent rigid-part batching after final validation.
+  The [matched Frame prototype](../tests/results/rigid-batches.md) improved 256
+  InterpolationTest actors from 20.31 to 68.23 FPS, with 80% fewer draws and exact
+  images. It only merges adjacent identical untextured opaque/masked rigid parts.
+  Validate the prototype visually, remove duplicate experimental buffers/uploads,
+  and verify stream lifetime, partial updates, reload/restore, picking and mixed
+  fallbacks before adoption. Production remains unchanged. Uniform and VAO caching
+  did not help; broader multi-material batching remains unproven.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.

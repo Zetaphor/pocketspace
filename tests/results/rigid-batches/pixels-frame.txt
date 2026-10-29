@@ -1,0 +1,1 @@
+PASS rigid adjacent batches: 864 exact stereo views, opaque/masked/blended materials, static/rigid/morph/GPU skin, instancing switches and material barriers, stream ranges, clip changes and cleanup
