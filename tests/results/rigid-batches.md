@@ -82,8 +82,12 @@ shader, material or geometry reduction.
 
 ## Adoption work and evidence
 
-Before production adoption, validate blending/grabbing in headset and replace
-the duplicate prototype VBO arrangement with an owned stream design that keeps
+The user confirmed correct clip switching/blending, A/X pause/resume and
+grabbing in headset on 2026-10-28, using `scripts/blending.js` with batching
+enabled in the `1eb9172` experiment executable. The demo was stopped after
+feedback. This acceptance applies to the prototype.
+
+Before production adoption, replace the duplicate prototype VBO arrangement with an owned stream design that keeps
 partial-update caching, fallback draws, resource accounting, reload/restore and
 precise picking intact. Recheck exact images and performance after that change.
 Do not generalize the measured gain to textured/PBR or mixed-material models.
