@@ -9,8 +9,9 @@ This roadmap contains future work, without prescribing an implementation order.
   The [matched Frame prototype](../tests/results/rigid-batches.md) improved 256
   InterpolationTest actors from 20.31 to 68.23 FPS, with 80% fewer draws and exact
   images. It only merges adjacent identical untextured opaque/masked rigid parts.
-  Validate the prototype visually, remove duplicate experimental buffers/uploads,
-  and verify stream lifetime, partial updates, reload/restore, picking and mixed
+  Prototype blending, pause/resume and grabbing are accepted in headset. Remove
+  duplicate experimental buffers/uploads and verify stream lifetime, partial
+  updates, reload/restore, picking and mixed
   fallbacks before adoption. Production remains unchanged. Uniform and VAO caching
   did not help; broader multi-material batching remains unproven.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
