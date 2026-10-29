@@ -769,3 +769,29 @@ constant values. One group, 768 reference eye pixels, same grid/size/materials;
 B/Y aborts. Use the existing animation analyzer, compare allocation estimates,
 and reject FPS attribution if surface allocations differ. The mode environment
 switch is compiled only into this excluded target. No draw ordering changes.
+
+## Draw uniform submission comparison
+
+Build excluded targets `draw-submit-experiment` and `draw-uniform-pixels`.
+`EGL_PLATFORM=surfaceless ./build/draw-uniform-pixels` compares 288 exact stereo
+images across static, rigid, morph and GPU-skinned models, opaque/masked/blended
+materials, depth passes, instancing switches and external uniform writes between
+passes. Pass-local caches must always start invalid; they never cache textures
+or retain state across frames/program replacement. No draw reordering/batching
+or geometry/shader changes are made. Object uniform writes can be omitted when
+that object has no primitive in the current pass.
+
+Using Frame's normal display/library environment, run the same binary/scene with
+`SF_DRAW_UNIFORM_CACHE=0` and then `1`:
+
+```sh
+SF_DRAW_UNIFORM_CACHE=0 ./build/draw-submit-experiment tests/scenes/rigid-pose-profile.js > /tmp/draw-full.log 2>&1
+SF_DRAW_UNIFORM_CACHE=1 ./build/draw-submit-experiment tests/scenes/rigid-pose-profile.js > /tmp/draw-cache.log 2>&1
+```
+
+Each mode takes 40 seconds (256 Linear Scale actors, animated then paused).
+Keep the view steady; B/Y aborts. Stop after the completion marker. Use the
+animation analyzer; compare allocation estimates before attributing FPS changes.
+`DRAW_UNIFORMS` periodically reports issued/skipped object/material uniform
+calls for one frame. The toggle and counters are excluded from normal builds;
+normal rendering retains full uniform writes until measurement/acceptance.

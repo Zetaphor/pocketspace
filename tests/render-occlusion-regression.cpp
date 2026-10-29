@@ -72,7 +72,9 @@ struct Renderer {
     ScissorRegion region{};if(cull)region=projectedScissor(combined,planeCenter,eyePosition,r,u,f,1.2f*gridScale,pixels);
     if(primitiveVisibility){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);primitiveBounds.update(scene,anchor,head,eyes);}
     if(clusterBounds.mode!=ClusterVisibilityExperiment::Off){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);clusterBounds.update(scene,anchor,head,eyes);}
+    const ModelDrawLocations drawLocations(program);
     auto draw=[&](int key,int pass){
+      ModelDrawUniforms uniforms(drawLocations,drawUniformCachingEnabled);
       auto selected=[&](const Object &object){
         if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))return false;
         if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))return false;
@@ -80,13 +82,13 @@ struct Renderer {
       };
       auto drawObject=[&](const Object &object){
         const auto &asset=scene.assets[object.asset-1];
-        vector("offset",object.x,object.y+.2f,object.z);
-        glUniform1f(glGetUniformLocation(program,"yaw"),object.yaw);glUniform1f(glGetUniformLocation(program,"pitch"),object.pitch);glUniform1f(glGetUniformLocation(program,"roll"),object.roll);glUniform1f(glGetUniformLocation(program,"modelScale"),object.scale);
+        if(uniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
+        uniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
         for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
           const auto &part=asset.primitives[primitive];
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           if(primitiveVisibility&&pass<0&&!primitiveBounds.mayDraw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels))continue;
-          glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);
+          uniforms.material(part);
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
           if(pass<0&&clusterBounds.draw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels,[](unsigned){}))continue;
           const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
@@ -94,7 +96,10 @@ struct Renderer {
             special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
-          drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);if(special)glUseProgram(program);
+          if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
+          }else drawModelPrimitive(part,object.animationPose?object.animationPose->geometry.primitives[primitive].vbo:0,object.lodLevel);
+          if(special)glUseProgram(program);
         }
       };
       if(instanceExperiment.mode!=ModelInstancing::Off){
