@@ -627,7 +627,7 @@ static JSValue jsSetModelLighting(JSContext *ctx,JSValueConst,int argc,JSValueCo
   // Copy before running user getters, which may append/reallocate shared assets.
   const auto path=currentScene->assets[id-1].path;auto candidate=currentScene->assets[id-1].lighting;
   if(!currentScene->assets[id-1].pbr)return JS_ThrowTypeError(ctx,"lighting requires a model loaded with pbr: true");
-  for(auto [name,destination,low,high]:{std::tuple{"intensity",&candidate.intensity,0.f,64.f},std::tuple{"ambient",&candidate.ambient,0.f,16.f},std::tuple{"exposure",&candidate.exposure,.001f,64.f}}){
+  for(auto [name,destination,low,high]:{std::tuple{"intensity",&candidate.intensity,0.f,64.f},std::tuple{"ambient",&candidate.ambient,0.f,16.f},std::tuple{"exposure",&candidate.exposure,.001f,64.f},std::tuple{"environmentIntensity",&candidate.environmentIntensity,0.f,64.f},std::tuple{"environmentRotation",&candidate.environmentRotation,-10000.f,10000.f}}){
     JSValue v=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(v))return v;
     float n=0;bool missing=JS_IsUndefined(v),valid=missing||(JS_IsNumber(v)&&number(ctx,v,n)&&n>=low&&n<=high);JS_FreeValue(ctx,v);
     if(!valid)return JS_ThrowRangeError(ctx,"invalid lighting %s",name);if(!missing)*destination=n;
@@ -640,9 +640,20 @@ static JSValue jsSetModelLighting(JSContext *ctx,JSValueConst,int argc,JSValueCo
     for(int i=0;i<3&&valid;i++){JSValue component=JS_GetPropertyUint32(ctx,v,i);if(JS_IsException(component)){JS_FreeValue(ctx,v);return component;}float n=0;valid=JS_IsNumber(component)&&number(ctx,component,n)&&n>=(isColor?0.f:-64.f)&&n<=64;JS_FreeValue(ctx,component);if(valid)destination[i]=n;}
     JS_FreeValue(ctx,v);if(!valid)return JS_ThrowRangeError(ctx,"lighting %s must be an array of three finite numbers",name);
   }
+  JSValue environment=JS_GetPropertyStr(ctx,argv[1],"environment");if(JS_IsException(environment))return environment;
+  if(JS_IsNull(environment))candidate.environment.clear();
+  else if(!JS_IsUndefined(environment)){
+    if(!JS_IsString(environment)){JS_FreeValue(ctx,environment);return JS_ThrowTypeError(ctx,"environment must be a path string or null");}
+    size_t size=0;const char *path=JS_ToCStringLen(ctx,&size,environment);if(!path){JS_FreeValue(ctx,environment);return JS_EXCEPTION;}
+    candidate.environment.assign(path,size);JS_FreeCString(ctx,path);
+    if(candidate.environment.empty()||candidate.environment.size()>4096||candidate.environment.find('\0')!=std::string::npos){JS_FreeValue(ctx,environment);return JS_ThrowRangeError(ctx,"invalid environment path");}
+  }
+  JS_FreeValue(ctx,environment);
   double length=0;for(float v:candidate.direction)length+=double(v)*v;if(length<1e-12)return JS_ThrowRangeError(ctx,"light direction must be nonzero");
   if(size_t(id)>currentScene->assets.size()||currentScene->assets[id-1].path!=path)return JS_ThrowRangeError(ctx,"model changed during lighting option evaluation");
-  currentScene->assets[id-1].lighting=candidate;return JS_UNDEFINED;
+  auto stagedEnvironment=candidate.environment.empty()?std::shared_ptr<LightingEnvironment>{}:loadLightingEnvironment(candidate.environment);
+  if(!candidate.environment.empty()&&!stagedEnvironment)return JS_ThrowTypeError(ctx,"could not load environment: %s",candidate.environment.c_str());
+  currentScene->assets[id-1].lighting=candidate;currentScene->assets[id-1].environment=std::move(stagedEnvironment);return JS_UNDEFINED;
 }
 static JSValue jsSetRenderGroupAutoSplit(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   double group=0;
@@ -2758,6 +2769,8 @@ int main(int argc,char **argv) {
         for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
       }
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
+      std::set<const LightingEnvironment*> countedEnvironments;
+      for(const auto &asset:script.scene.assets)if(asset.environment&&countedEnvironments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

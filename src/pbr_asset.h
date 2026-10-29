@@ -50,7 +50,7 @@ static bool generateTangents(PrimitiveAsset &p){
  api.m_getPosition=[](const SMikkTSpaceContext *c,float *o,int f,int v){const auto &p=*static_cast<PrimitiveAsset*>(c->m_pUserData);std::copy_n(p.localVertices.data()+(f*3+v)*5,3,o);};
  api.m_getNormal=[](const SMikkTSpaceContext *c,float *o,int f,int v){const auto &p=*static_cast<PrimitiveAsset*>(c->m_pUserData);std::copy_n(p.localSurface.data()+(f*3+v)*9,3,o);};
  api.m_getTexCoord=[](const SMikkTSpaceContext *c,float *o,int f,int v){const auto &p=*static_cast<PrimitiveAsset*>(c->m_pUserData);const float *s=p.localSurface.data()+(f*3+v)*9+7;const float *m=p.maps[0].uv;o[0]=m[0]*s[0]+m[3]*s[1]+m[6];o[1]=m[1]*s[0]+m[4]*s[1]+m[7];};
- api.m_setTSpaceBasic=[](const SMikkTSpaceContext *c,const float *t,float sign,int f,int v){auto &p=*static_cast<PrimitiveAsset*>(c->m_pUserData);float *o=p.localSurface.data()+(f*3+v)*9+3;std::copy_n(t,3,o);o[3]=sign;};
+ api.m_setTSpaceBasic=[](const SMikkTSpaceContext *c,const float *t,float sign,int f,int v){auto &p=*static_cast<PrimitiveAsset*>(c->m_pUserData);float *o=p.localSurface.data()+(f*3+v)*9+3;std::copy_n(t,3,o);o[3]=-sign; /* Convert MikkTSpace handedness to glTF. */};
  SMikkTSpaceContext context{&api,&p};return genTangSpaceDefault(&context)!=0;
 }
 static bool readPbrSurface(const cgltf_primitive &src,const cgltf_accessor *positions,const cgltf_accessor *uv,const cgltf_node &node,PrimitiveAsset &p,const animation::Matrix &world,const std::vector<std::vector<animation::Matrix>> &palettes){

@@ -5,6 +5,7 @@
 #include "picking_bvh.h"
 #include "animation.h"
 #include "surface_frame.h"
+#include "lighting_environment.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
 #include "rigid_batching.h"
@@ -23,6 +24,8 @@ struct MaterialMap {
 struct ModelLighting {
   float direction[3]={-.4f,.8f,.5f},color[3]={1,1,1};
   float intensity=3,ambient=.15f,exposure=1;
+  std::string environment;
+  float environmentIntensity=1,environmentRotation=0;
   bool operator==(const ModelLighting &)const=default;
 };
 struct PrimitiveAsset {
@@ -82,6 +85,7 @@ struct ModelAsset {
   bool lod=true;
   bool pbr=false;
   ModelLighting lighting;
+  std::shared_ptr<LightingEnvironment> environment;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);

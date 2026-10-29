@@ -53,7 +53,7 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 | Script | Demonstrates |
 | --- | --- |
-| [pbr.js](scripts/pbr.js) | Opt-in metallic/roughness lighting, normal maps, and hand rotation |
+| [pbr.js](scripts/pbr.js) | Opt-in PBR lighting, environment reflections, and hand rotation |
 | [avocado.js](scripts/avocado.js) | Load and place one model |
 | [sample-gallery.js](scripts/sample-gallery.js) | Multiple assets and animated object transforms |
 | [full-sphere-gallery.js](scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |

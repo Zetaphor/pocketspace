@@ -10,7 +10,10 @@ setModelLighting(car, {
   direction: [-.4, .8, .5],
   color: [1, .95, .85],
   intensity: 3,
-  ambient: .15,
+  ambient: 0,
+  environment: 'assets/environments/studio.sfenv',
+  environmentIntensity: 1,
+  environmentRotation: 0,
   exposure: 1
 });
 const object = createObject(car, 0, 0, 0, .3);
@@ -36,10 +39,13 @@ changes are published. Getter side effects remain ordinary script actions.
 | `intensity` | Directional light multiplier | `3`; 0 through 64 |
 | `ambient` | Constant diffuse ambient multiplier | `.15`; 0 through 16 |
 | `exposure` | Exposure before the exponential tone curve | `1`; .001 through 64 |
+| `environment` | Path to a baked `.sfenv` lighting environment; `null` disables it | Disabled; nonempty string up to 4096 bytes, or `null` |
+| `environmentIntensity` | Diffuse and specular environment multiplier | `1`; 0 through 64 |
+| `environmentRotation` | Rotate the environment around scene +Y, in radians | `0`; −10000 through 10000 |
 
 Direction is normalized by the shader. All numeric values must be finite.
-Lighting is not a new scene object: this first implementation provides one
-unshadowed directional light and constant diffuse ambient light per asset.
+Lighting is not a new scene object: it provides one unshadowed directional
+light, constant diffuse ambient light and an optional baked environment per asset.
 Emissive materials do not illuminate other objects.
 
 ## Imported materials and surface geometry
@@ -55,7 +61,7 @@ rejected.
 
 Supplied normals and tangent handedness are retained. Missing normals produce
 flat triangle normals. Missing tangents use MikkTSpace, with the normal map's UV
-transform. Surface frames account for node transforms, including nonuniform and
+transform and glTF handedness conversion. Imported glTF tangent signs are retained. Surface frames account for node transforms, including nonuniform and
 negative scaling, and imported normal/tangent morph deltas. Animated models use
 independent CPU-deformed surface frames, positions, picking and bounds.
 
@@ -67,14 +73,63 @@ blending keep the existing compositor conventions. Single-sided materials cull
 back faces in both the lit and unlit paths; two-sided materials reverse back-face normals. `KHR_materials_unlit` bypasses
 lighting and tone mapping, and `KHR_materials_emissive_strength` scales emission.
 
+## Environment lighting and reflections
+
+The supplied studio bake has a clear horizon and bright windows, so metals
+reflect a recognizable environment even away from the directional-light
+highlight. Diffuse surfaces receive low-frequency environment illumination too.
+It is not a reflection of nearby engine objects, the headset camera, or the real
+room. No background skybox is drawn.
+
+The environment stays aligned with the scene anchor. Rotating an object changes
+its reflections; moving your head changes the viewing angle; `environmentRotation`
+rotates the lighting around +Y. Intensity zero removes environment lighting while
+retaining its selection; `environment: null` releases that asset's reference.
+Omitted fields keep their current values. `KHR_materials_unlit` ignores all lighting.
+Occlusion textures attenuate both diffuse and specular environment terms.
+
+The exact file path is shared between model assets and live reload candidates.
+Loading validates the complete bounded file before changing an asset's lighting.
+A missing, malformed or unsupported file throws without publishing partial
+lighting changes. As with model paths, cached files are immutable while they are
+referenced; choose a new path to load different content. Scene snapshots store
+the path and controls, not the environment pixels. Keep the file available when
+restoring on another device. Older v1–v6 snapshots restore without an environment.
+
+At runtime the engine uploads a prefiltered HDR cubemap and BRDF lookup once per
+shared environment. Shading uses a roughness-selected cube sample, one BRDF
+lookup and nine diffuse spherical-harmonic coefficients. Baking and convolution
+happen offline. Environment textures are included once in the GPU allocation
+estimate, including a conservative allowance for RGB16F padding. The supplied
+bake occupies about 1.06 MiB of estimated GPU storage regardless of how many
+models share it. Actual renderer/driver allocation may differ.
+
+### Baking a custom environment
+
+Python with NumPy is required for the offline tool, not for engine runtime:
+
+```sh
+python3 tools/generate-environment.py assets/environments/studio.sfenv
+python3 tools/generate-environment.py assets/environments/custom.sfenv --input lighting.npy
+```
+
+`lighting.npy` must contain a finite, nonnegative H×W×3 linear HDR equirectangular
+RGB array. Values must fit half precision (maximum 65504). The image's top is +Y;
+center longitude is +X and the right quarter is +Z. Convert source HDR/EXR images
+before baking; raw HDR/EXR/KTX files are not accepted by this runtime loader.
+The tool accepts cube and LUT sizes of 16, 32, 64, 128 or 256, and 64–4096 samples.
+Defaults are 128/128 with 256 samples. Reuse one bake across assets.
+
+[The studio source and provenance](../assets/environments/README.md) are included.
+
 ## Current limits and performance
 
 This is a direct-light PBR implementation, not a complete glTF material renderer.
-There are no shadows, image-based reflections/environment maps, punctual-light
-imports, bloom, transmission, clearcoat, physical sheen, or other advanced
-material extensions. Unsupported optional material extensions use the core
-metallic/roughness fallback. Metals can look dark away from their direct-light
-highlight because there is no reflected environment.
+There are no shadows, live reflection probes, local/parallax-corrected
+reflections, punctual-light imports, bloom, transmission, clearcoat, physical
+sheen, or other advanced material extensions. Unsupported optional material extensions use the core
+metallic/roughness fallback. Metals can look dark away from their direct-light highlight when an environment
+is disabled. Environment lighting must be explicitly selected.
 
 Lit assets currently use full-detail expanded geometry to preserve normal and
 UV seams. The unlit position/UV indexer, automatic LOD, ordered instancing, rigid
@@ -86,7 +141,8 @@ is implied.
 
 Scene-container snapshots preserve the PBR choice and lighting settings. Restore
 rejects a conflicting cached asset instead of changing existing objects' shared
-lighting. Older snapshots restore unlit models. See [scene persistence](scene-persistence.md).
+lighting. V1–v5 snapshots restore unlit models; v6 retains direct PBR lighting without an
+environment. See [scene persistence](scene-persistence.md).
 
 See [pbr.js](../scripts/pbr.js) for a concise interactive example. The separate
 [Khronos material test scene](../tests/scenes/pbr-materials.js) covers the lighter
