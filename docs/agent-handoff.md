@@ -1,5 +1,9 @@
 # Maintainer handoff
 
+Read the root [AGENTS.md](../AGENTS.md) for contributor workflow, verification,
+documentation, and headset testing instructions. This handoff covers detailed
+implementation contracts.
+
 Start with the [README](../README.md) for build/run commands and examples, the
 [JavaScript API](javascript-api.md) for exposed behavior, and
 [remaining work](remaining-work.md) for future scope. Keep current contracts in
