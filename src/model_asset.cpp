@@ -335,7 +335,11 @@ void deleteModel(ModelAsset &asset){
   asset.uploaded=false;
 }
 
+#ifdef SF_VERTEX_ARRAY_EXPERIMENT
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel,const PrimitiveAsset *deformed){
+#else
+void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel){
+#endif
 #ifdef SF_VERTEX_ARRAY_EXPERIMENT
   const auto *owner=expandedVbo?deformed:&part;
   const int level=!expandedVbo&&modelLodLevel(part,lodLevel)?lodLevel:0;
