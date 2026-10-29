@@ -42,6 +42,8 @@ static void profilePicking(){
  scene.objects.clear();currentScene=liveScene=nullptr;
 }
 int main(int argc,char **argv){
+ rigidPoseCachingEnabled=true;
+
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  std::vector<std::string> paths={"assets/samples/CesiumMan/CesiumMan.glb"};
  for(const char *name:{"Fox","RiggedSimple","RiggedFigure"})paths.push_back(std::string("assets/samples/")+name+"/"+name+".glb");

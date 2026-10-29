@@ -5,7 +5,7 @@ function fixture(file='tests/scenes/animation-profile.js'){
   let now=0,next=1,callback;
   const actors=new Map(),logs=[];
   const context=vm.createContext({Date:{now:()=>now},
-    loadModel:()=>1,getAnimations:()=>[{duration:2}],
+    loadModel:()=>1,getAnimations:()=>[{duration:2,name:"Step Scale"},{duration:2,name:"Linear Scale"}],
     createObject:()=>{const id=next++;actors.set(id,{});return id;},
     removeObject:id=>assert(actors.delete(id)),
     playAnimation:id=>{actors.get(id).playing=true;},pauseAnimation:id=>{actors.get(id).playing=false;},
@@ -36,3 +36,8 @@ for(const [count,playing] of [[64,true],[64,false],[256,false],[256,true],[64,fa
 }
 assert.equal(mixed.actors.size,0);assert(mixed.logs.includes('ANIMATION_PROFILE_DONE'));
 const mixedAbort=fixture('tests/scenes/rigid-morph-profile.js');mixedAbort.abort();mixedAbort.advance();assert.equal(mixedAbort.actors.size,0);
+
+const rigid=fixture('tests/scenes/rigid-pose-profile.js');
+assert.equal(rigid.actors.size,256);assert([...rigid.actors.values()].every(actor=>actor.playing));
+assert.equal(JSON.parse(rigid.logs.find(line=>line.startsWith('ANIMATION_STAGE ')).slice(16)).clip,'Linear Scale');
+rigid.advance();assert([...rigid.actors.values()].every(actor=>!actor.playing));rigid.advance();assert.equal(rigid.actors.size,0);

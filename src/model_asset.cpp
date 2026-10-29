@@ -336,10 +336,16 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
 #ifdef SF_ANIMATION_PROFILE
   const auto profileDeformStart=AnimationProfileClock::now();
 #endif
+  pose.parts.resize(asset.primitives.size());bool changed=false;
   pose.radius=0;
   for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::numeric_limits<float>::max();pose.geometry.high[axis]=-std::numeric_limits<float>::max();}
   for(size_t i=0;i<asset.primitives.size();i++){
     const auto &source=asset.primitives[i];auto &target=pose.geometry.primitives[i];const auto &matrix=pose.world[source.node];
+    auto &cache=pose.parts[i];
+    const bool update=!rigidPoseCachingEnabled||source.skin>=0||!source.morphPositions.empty()||!cache.valid||cache.world!=matrix;
+    if(update){
+      changed=true;cache.uploadDirty=true;cache.radius=0;
+      for(int axis=0;axis<3;axis++){cache.low[axis]=std::numeric_limits<float>::max();cache.high[axis]=-std::numeric_limits<float>::max();}
     for(size_t v=0;v<source.localVertices.size();v+=5){
       const float *base=source.localVertices.data()+v;float p[3]={base[0],base[1],base[2]};float radiusSquared=0;
       for(size_t t=0;t<source.morphPositions.size();t++)for(int axis=0;axis<3;axis++)p[axis]+=pose.nodes[source.node].weights[t]*source.morphPositions[t][v/5*3+axis];
@@ -347,16 +353,24 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
       for(int axis=0;axis<3;axis++){
         const float value=(world[axis]-asset.center[axis])*asset.normalization;
         target.vertices[v+axis]=value;radiusSquared+=value*value;
-        pose.geometry.low[axis]=std::min(pose.geometry.low[axis],value);pose.geometry.high[axis]=std::max(pose.geometry.high[axis],value);
+        cache.low[axis]=std::min(cache.low[axis],value);cache.high[axis]=std::max(cache.high[axis],value);
       }
-      pose.radius=std::max(pose.radius,std::sqrt(radiusSquared));
+      cache.radius=std::max(cache.radius,std::sqrt(radiusSquared));
     }
+      cache.world=matrix;cache.valid=true;
+#ifdef SF_ANIMATION_PROFILE
+      if(animationProfileFrame)animationProfileFrame->vertices+=source.localVertices.size()/5;
+#endif
+    }
+    pose.radius=std::max(pose.radius,cache.radius);
+    for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::min(pose.geometry.low[axis],cache.low[axis]);pose.geometry.high[axis]=std::max(pose.geometry.high[axis],cache.high[axis]);}
   }
 #ifdef SF_ANIMATION_PROFILE
-  if(animationProfileFrame){animationProfileFrame->deformBoundsMs+=animationProfileMs(profileDeformStart);for(const auto &part:asset.primitives)animationProfileFrame->vertices+=part.localVertices.size()/5;}
+  if(animationProfileFrame)animationProfileFrame->deformBoundsMs+=animationProfileMs(profileDeformStart);
   const auto profileBvhStart=AnimationProfileClock::now();
 #endif
-  picking::refit(pose.geometry);pose.dirty=true;
+  if(changed)picking::refit(pose.geometry);
+  pose.dirty=std::any_of(pose.parts.begin(),pose.parts.end(),[](const auto &part){return part.uploadDirty;});
 #ifdef SF_ANIMATION_PROFILE
   if(animationProfileFrame)animationProfileFrame->bvhMs+=animationProfileMs(profileBvhStart);
 #endif
@@ -390,12 +404,18 @@ void uploadModelPose(ModelPose &pose){
   if(pose.gpuSkin){uploadSkinPose(pose);return;}
 #ifdef SF_ANIMATION_PROFILE
   const auto profileUploadStart=AnimationProfileClock::now();
-  if(animationProfileFrame){animationProfileFrame->uploads++;for(const auto &part:pose.geometry.primitives)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);}
+  if(animationProfileFrame)animationProfileFrame->uploads++;
 #endif
-  for(auto &part:pose.geometry.primitives){
+  for(size_t i=0;i<pose.geometry.primitives.size();i++){
+    auto &part=pose.geometry.primitives[i];auto &cache=pose.parts[i];
+    if(part.vbo&&!cache.uploadDirty)continue;
+#ifdef SF_ANIMATION_PROFILE
+    if(animationProfileFrame)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);
+#endif
     part.gpuVertexCount=part.vertexCount;
     if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
     else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
+    cache.uploadDirty=false;
   }
   pose.dirty=false;
 #ifdef SF_ANIMATION_PROFILE

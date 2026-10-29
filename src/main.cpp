@@ -1830,6 +1830,10 @@ static float meshHit(const Object &object,const ModelAsset &asset,const Controll
   return best==miss?miss:best*object.scale;
 }
 int main(int argc,char **argv) {
+#ifdef SF_RIGID_POSE_EXPERIMENT
+  rigidPoseCachingEnabled=!(std::getenv("SF_RIGID_POSE_CACHE")&&std::string(std::getenv("SF_RIGID_POSE_CACHE"))=="0");
+  std::fprintf(stdout,"RIGID_POSE_CACHE enabled=%d\n",rigidPoseCachingEnabled);
+#endif
 #ifdef SF_GPU_SKIN_EXPERIMENT
   gpuSkinningEnabled=std::getenv("SF_GPU_SKINNING")&&std::string(std::getenv("SF_GPU_SKINNING"))=="1";
   std::fprintf(stdout,"GPU_SKINNING mode=%s (eligible single-set skins; matched conservative bounds)\n",gpuSkinningEnabled?"gpu":"cpu");

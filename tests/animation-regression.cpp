@@ -49,6 +49,8 @@ static void testSkins(const char *fixtures){
  puts("PASS skin integration: CesiumMan deformation, 1600 animated picking comparisons, independent poses, multi-set packed weights, inverse binds, ignored mesh transform, static skins and malformed rigs");
 }
 int main(int argc,char **argv){
+ rigidPoseCachingEnabled=true;
+
  gpuSkinningEnabled=false; // Retained CPU reference path.
 
  testSkins(argc>1?argv[1]:nullptr);
