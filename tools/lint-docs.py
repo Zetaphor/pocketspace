@@ -30,6 +30,24 @@ for doc in docs:
         if not (ROOT / 'scripts' / name).is_file():
             errors.append(f'{doc.relative_to(ROOT)}: missing script {name}')
 
+# API reference sections must lead readers to usage, including subsections.
+api_guides = [*sorted((ROOT / 'docs').glob('*api.md')),
+              *[ROOT / 'docs' / name for name in (
+                  'panels.md', 'scene-containers.md', 'scene-persistence.md',
+                  'eye-calibration.md')]]
+for guide in api_guides:
+    text = guide.read_text()
+    # Mask heading-like comments inside fences without changing offsets.
+    visible = re.sub(r'^```[^\n]*\n.*?^```[^\n]*$',
+                     lambda match: re.sub(r'^#', ' ', match.group(), flags=re.M),
+                     text, flags=re.M | re.S)
+    headings = list(re.finditer(r'^#{1,6} (.+)$', visible, re.M))
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(text)
+        body = text[heading.end():end]
+        if not re.search(r'```(?:js|javascript|sh)\b|\]\(\.\./scripts/[^)]+\.js\)', body):
+            errors.append(f'{guide.relative_to(ROOT)}: section lacks a usage example: {heading.group(1)}')
+
 combined = '\n'.join(p.read_text() for p in docs)
 bindings = re.findall(r'bind\(candidate.ctx,"([^"]+)"', (ROOT / 'src/main.cpp').read_text())
 for name in bindings:

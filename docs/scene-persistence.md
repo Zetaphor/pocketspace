@@ -5,6 +5,8 @@ bodies and joints into versioned JSON and restore them into a new container. Mov
 and load it in a later run. Positions use the current scene anchor: a save does
 not preserve an absolute room location across launches or recentering.
 
+Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.js).
+
 ## API
 
 - `captureSceneContainer(containerId)` returns a detached JSON-compatible v7
@@ -80,6 +82,8 @@ contents, callbacks, cached assets, and ID counters unchanged. JSON conversion c
 or `toJSON`; their own side effects are ordinary script actions and cannot be
 rolled back. File saves are external side effects and survive a later failed
 script reload, like calibration writes.
+
+Save supported body and joint state while keeping callbacks in the script: [physics-save.js](../scripts/physics-save.js).
 
 ## Format and compatibility
 
@@ -316,3 +320,5 @@ from the save. Vertex arrays and GPU buffers remain external to the snapshot.
 V1–v4 saves restore without a transition; a non-null transition in those older
 versions is rejected rather than silently discarded. Existing v3 playback and
 v4 panel requirements continue to apply.
+
+Save and restore playback state; see [blending.js](../scripts/blending.js) for creating transitions: [animation-save.js](../scripts/animation-save.js).

@@ -10,6 +10,8 @@ when actual elapsed time matters. Native animation uses elapsed wall time.
 `print(...values)` writes to the engine log. Relative asset paths resolve from
 the process working directory; the launcher uses the repository root.
 
+Start with a complete model-loading scene: [avocado.js](../scripts/avocado.js).
+
 ## Engine statistics
 
 `getEngineStats()` returns the latest cached, process-wide sample and current-scene physics timings. Process counters are
@@ -59,6 +61,8 @@ memory is unavailable it explicitly displays the allocation estimate instead.
 [Scene containers](scene-containers.md) group objects, panels and an optionally
 owned input callback for cleanup. Ownership is independent of render grouping.
 
+Transfer object and panel ownership between cleanup scopes: [container-transfer.js](../scripts/container-transfer.js).
+
 ## Coordinates and models
 
 Scene coordinates are meters: +X right, +Y up, +Z forward. The fixed standing-space
@@ -105,6 +109,7 @@ overlay handle and interaction state; the native intersection mask retains its
 reference physical extent within the cropped surface. Allocation estimates count
 the actual current buffers, including crops.
 
+Load several models and update their transforms: [sample-gallery.js](../scripts/sample-gallery.js).
 
 ### Choosing an object rendering approach
 
@@ -336,6 +341,7 @@ Already-started handoffs finish even if a script subsequently disables the polic
 Each configuration call replaces that group's options; omitted options return to
 their defaults, including `merge: false` and `rebalance: false`.
 
+Try adaptive groups with merging and rebalancing enabled: [grouped-stress.js](../scripts/grouped-stress.js).
 
 ### Shared model geometry
 
@@ -592,6 +598,8 @@ returns success. Both numbers must be finite within `[0, 1]`; availability
 still depends on native action bindings. All hand arguments use `'left'` or
 `'right'`.
 
+Read controller poses and raw input, and request haptics: [input.js](../scripts/input.js).
+
 ## Events
 
 `onInputEvent(callback, options = {})` replaces the single callback. Optional
@@ -623,6 +631,8 @@ or zero. That field is not a promise that the hand owns or selected that object.
 Panel IDs and object IDs are separate numeric namespaces; distinguish them by
 `type`. Animation does not emit completion events; inspect playback state.
 
+Combine a scoped pointer callback with the independent polled queue: [containers.js](../scripts/containers.js).
+
 ## Additional APIs
 
 - [Panels](panels.md): `createPanel`, canvas drawing, `panelLoadFont`,
@@ -642,11 +652,15 @@ Panel IDs and object IDs are separate numeric namespaces; distinguish them by
   `getEyeTrackingCalibration`.
 - [Lifecycle](lifecycle.md): reload and resource ownership.
 
+Combine model interaction and physics in a complete script: [physics-controls.js](../scripts/physics-controls.js).
+
 ## Scene persistence
 
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v5 schema (including v1–v4 compatibility), panels and pixels, animation
+v7 schema (including v1–v6 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
+
+Capture and restore an in-memory scene with fresh handles: [scene-snapshot.js](../scripts/scene-snapshot.js).

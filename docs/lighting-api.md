@@ -48,6 +48,8 @@ Lighting is not a new scene object: it provides one unshadowed directional
 light, constant diffuse ambient light and an optional baked environment per asset.
 Emissive materials do not illuminate other objects.
 
+Configure lighting on a shared asset and rotate a lit model: [pbr.js](../scripts/pbr.js).
+
 ## Imported materials and surface geometry
 
 The lit path uses glTF's metallic/roughness factors and embedded base-color,
@@ -72,6 +74,8 @@ orientation. Occlusion affects ambient diffuse light. Lit colors pass through
 blending keep the existing compositor conventions. Single-sided materials cull
 back faces in both the lit and unlit paths; two-sided materials reverse back-face normals. `KHR_materials_unlit` bypasses
 lighting and tone mapping, and `KHR_materials_emissive_strength` scales emission.
+
+View the imported car materials under environment lighting: [pbr.js](../scripts/pbr.js).
 
 ## Environment lighting and reflections
 
@@ -103,6 +107,8 @@ happen offline. Environment textures are included once in the GPU allocation
 estimate, including a conservative allowance for RGB16F padding. The supplied
 bake occupies about 1.06 MiB of estimated GPU storage regardless of how many
 models share it. Actual renderer/driver allocation may differ.
+
+Load a baked environment and configure its lighting: [pbr.js](../scripts/pbr.js).
 
 ### Baking a custom environment
 
@@ -230,3 +236,5 @@ header. The payload layout and lighting data are unchanged. The loader also
 accepts legacy `SFENV001` files, so existing `.sfenv` environments remain usable.
 New bakes and examples use `.psenv`. The bundled `studio.sfenv` path remains a
 compatibility alias for existing scene saves; new scenes should use `studio.psenv`.
+
+Use the current .psenv environment path in a complete scene: [pbr.js](../scripts/pbr.js).

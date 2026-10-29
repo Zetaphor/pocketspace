@@ -27,6 +27,8 @@ font loading occurs when text is drawn. Canvas text defaults to 32 pixels
 unless supplied explicitly. The legacy `panelText` default uses the stored
 font size. Font files must exist on the runtime host.
 
+Draw and present a retained canvas with a clickable button: [panels.js](../scripts/panels.js).
+
 ## Placement
 
 `panelSetTransform(panel, mode, x, y, z)` supports:
@@ -49,6 +51,8 @@ once per update, placement is submitted when its computed transform changes,
 and visibility is submitted on transitions. Head-locked and viewer-facing panels
 continue following the headset. Content changed while hidden appears when the
 panel is shown again. Failed submissions are retried automatically.
+
+Compare placement modes, rotation, visibility and removal: [panel-placement.js](../scripts/panel-placement.js).
 
 ## Pointer events and compatibility
 

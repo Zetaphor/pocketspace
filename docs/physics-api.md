@@ -47,6 +47,8 @@ host flow, rather than exposing a second script-controlled simulation clock.
 This covers our implemented physics layer; it is not a binding for the entire
 upstream Jolt library.
 
+Explore gravity, impulses, kinematic targets and body lifecycle: [physics-controls.js](../scripts/physics-controls.js).
+
 ## Body configuration
 
 `setObjectPhysics(objectId, options = {})` creates or replaces a body and returns
@@ -446,6 +448,8 @@ sizes/centers follow the new model scale; explicit sizes/offsets stay unchanged.
 Visibility affects drawing/selection; a hidden body remains in the simulation.
 Collision event delivery is opt-in as described below.
 
+Apply impulses and toggle gravity or a live physics body: [physics-controls.js](../scripts/physics-controls.js).
+
 ## Collision events
 
 `setPhysicsCollisionEvents(enabled, options = {})` controls contact events for
@@ -525,12 +529,16 @@ reload destroys the old world; a failed candidate leaves the active world alone.
 Scenes without physics allocate no world. Personal gravity settings reset on
 scene replacement.
 
+Grab, throw and reset unheld dynamic objects: [physics.js](../scripts/physics.js).
+
 ## Building
 
 CMake 3.20 or newer downloads the pinned, SHA-256-verified Jolt archive on first
 configuration. For offline builds, pass
 `-DFETCHCONTENT_SOURCE_DIR_JOLT=/absolute/path/to/JoltPhysics` with that revision.
 The bundled [license](../third_party/Jolt-LICENSE) covers the dependency.
+
+After building, run a complete grabbable physics scene: [physics.js](../scripts/physics.js).
 
 ## Performance
 
@@ -550,6 +558,8 @@ physics advance, not the one-second process sample. Solver time includes waiting
 for worker completion; advance time also includes targets, contact reconciliation,
 and joint breaking inside the physics world (excluding host pose synchronization).
 A frame without a fixed step reports zero solver time, steps, and workers.
+
+Inspect engine and physics statistics as you add and remove bodies: [stress.js](../scripts/stress.js).
 
 ## Saving a physics tool
 

@@ -38,6 +38,8 @@ already disposed IDs. Resources must be live when transferred. Removing a member
 individually automatically removes it from the reported membership. Container
 handles are local to one script scene and reset on successful scene replacement.
 
+Transfer live objects and panels, then dispose either owner: [container-transfer.js](../scripts/container-transfer.js).
+
 ## Input callbacks
 
 `onInputEvent(callback, {container: id})` assigns the existing single input
@@ -54,6 +56,8 @@ events have no callback to invoke unless a replacement has been registered.
 The independent `pollInputEvents()` queue remains available to the root script.
 Disposal does not erase JavaScript variables, closures or the global `update()`
 function; scripts must stop using their removed resource handles.
+
+Keep a tool-owned callback safe across closing and reopening: [containers.js](../scripts/containers.js).
 
 ## Cleanup and shared resources
 
@@ -89,3 +93,5 @@ named files. See [scene save and restore](scene-persistence.md) for the complete
 v5 schema (including v1–v4 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
+
+Capture and restore a tool without a save file: [scene-snapshot.js](../scripts/scene-snapshot.js).
