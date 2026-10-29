@@ -106,19 +106,69 @@ models share it. Actual renderer/driver allocation may differ.
 
 ### Baking a custom environment
 
-Python with NumPy is required for the offline tool, not for engine runtime:
+Bake on your desktop before deploying to the headset. The offline tools need
+Python; the engine does not. From the repository root, install into a virtual
+environment:
 
 ```sh
-python3 tools/generate-environment.py assets/environments/studio.sfenv
-python3 tools/generate-environment.py assets/environments/custom.sfenv --input lighting.npy
+python3 -m venv /tmp/sf-environment-venv
+/tmp/sf-environment-venv/bin/pip install -r tools/requirements-environment.txt
 ```
 
-`lighting.npy` must contain a finite, nonnegative H×W×3 linear HDR equirectangular
-RGB array. Values must fit half precision (maximum 65504). The image's top is +Y;
-center longitude is +X and the right quarter is +Z. Convert source HDR/EXR images
-before baking; raw HDR/EXR/KTX files are not accepted by this runtime loader.
-The tool accepts cube and LUT sizes of 16, 32, 64, 128 or 256, and 64–4096 samples.
-Defaults are 128/128 with 256 samples. Reuse one bake across assets.
+Start with a full-sphere equirectangular panorama (usually 2:1), such as a `.hdr`
+or `.exr` lighting image. Convert it, then precompute the reflections and diffuse
+lighting:
+
+```sh
+/tmp/sf-environment-venv/bin/python tools/convert-environment.py /path/to/panorama.hdr /tmp/lighting.npy --color-space linear
+/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/custom.sfenv --input /tmp/lighting.npy
+```
+
+Use `--color-space linear` for linear HDR radiance, or `--color-space srgb` for
+an ordinary sRGB PNG/JPEG panorama. The converter normalizes integer image data
+through OpenImageIO and decodes sRGB when requested. Alpha is discarded. It does
+not tone-map, rescale exposure, reproject cube crosses or convert color primaries:
+convert ACEScg/wide-gamut sources to linear Rec.709/sRGB primaries first. An LDR
+image works but cannot recover bright light sources clipped in the original.
+Keep upstream image credits and redistribution licenses with custom assets.
+
+The intermediate `.npy` contains finite, nonnegative H×W×3 linear RGB values,
+maximum 65504. Existing arrays can be passed directly to the baker; only NumPy is
+needed in that case. The image's top is +Y; center longitude is +X and the right
+quarter is +Z. Neither tool flips or rotates the panorama. Raw HDR/EXR/KTX files
+are not accepted by the runtime loader.
+
+The baker accepts `--size` and `--lut-size` of 16, 32, 64, 128 or 256, and
+`--samples` from 64 to 4096. Defaults are 128/128 with 256 samples. Larger cubes
+retain sharper reflections and cost more storage; more samples reduce filtering
+noise and take longer offline. Bake once and reuse the result across assets.
+Both tools overwrite their output paths; use a new filename to preserve an old
+bake. To generate the original procedural studio without an external image:
+
+```sh
+/tmp/sf-environment-venv/bin/python tools/generate-environment.py assets/environments/my-studio.sfenv
+```
+
+Ship the resulting `.sfenv` with your application and select it on a PBR asset:
+
+```js
+const asset = loadModel('assets/samples/ToyCar/ToyCar.glb', 768, {pbr: true});
+setModelLighting(asset, {
+  environment: 'assets/environments/custom.sfenv',
+  environmentIntensity: 1,
+  environmentRotation: 0,
+  ambient: 0,
+});
+```
+
+Paths resolve from the engine's working directory. Copy the bake to the same
+relative path on the headset; Python and the source panorama are not needed
+there. Adjust intensity and rotation without rebaking. The environment lights
+materials but does not draw a background. Paths are cached while referenced: use
+a new path when replacing a bake in a running scene. Scene saves reference the
+path, so retain the file for later restores. Keep personal source images,
+intermediate arrays and generated custom bakes out of Git unless intentionally
+shipping them as licensed application assets.
 
 [The studio source and provenance](../assets/environments/README.md) are included.
 

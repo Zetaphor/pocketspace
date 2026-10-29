@@ -1019,6 +1019,13 @@ are offscreen rendering costs, not compositor FPS or sustained thermal results.
 
 ## Baked environments
 
+For the external-image conversion workflow, install
+`tools/requirements-environment.txt` in a virtual environment, then run
+`python3 tests/environment-convert-test.py` using that environment. It creates
+small temporary HDR, EXR and PNG panoramas, checks linear radiance and sRGB
+conversion, bakes a custom environment, and rejects HDR mislabeled as sRGB.
+It does not require a headset or download images.
+
 Run `python3 tests/environment-bake-test.py` on a host with NumPy. The original
 studio resource can be regenerated with `tools/generate-environment.py`; runtime
 and tests do not need NumPy to load an existing bake.

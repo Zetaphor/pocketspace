@@ -15,10 +15,7 @@ The default bake uses a 128-pixel cubemap, eight GGX-filtered roughness levels,
 128×128 split-sum BRDF lookup. The file is 852,084 bytes. SHA-256:
 `61a7e69b4d767e5d4c9a476ba15a756512429edc66fbb83dacdee50ddac24da9`.
 
-To bake a custom environment, pass `--input image.npy`. The input must be an
-H×W×3 linear HDR RGB equirectangular NumPy array, not sRGB pixels. Its top row is
-+Y, center longitude is +X and the right quarter is +Z. Convert external HDR/EXR
-images to that representation before baking; the runtime does not decode those
-formats. Check the source image's licensing before redistributing a custom bake.
-
-See [model lighting](../../docs/lighting-api.md) for loading and rotation controls.
+For custom HDR/EXR or sRGB panoramas, use `tools/convert-environment.py` followed
+by `tools/generate-environment.py`. See the [complete custom-environment workflow](../../docs/lighting-api.md#baking-a-custom-environment)
+for dependencies, color spaces, quality settings, deployment and API usage.
+Check the source image's licensing before redistributing a custom bake.
