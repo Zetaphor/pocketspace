@@ -2,7 +2,8 @@
 
 Read the root [AGENTS.md](../AGENTS.md) for contributor workflow, verification,
 documentation, and headset testing instructions. This handoff covers detailed
-implementation contracts.
+implementation contracts. The [engine architecture](architecture.md) explains
+the complete pipeline and production optimization policies.
 
 Start with the [README](../README.md) for build/run commands and examples, the
 [JavaScript API](javascript-api.md) for exposed behavior, and

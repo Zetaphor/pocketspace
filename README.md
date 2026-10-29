@@ -88,6 +88,8 @@ Run any example with `./run-overlay-engine.sh scripts/<name>.js`.
 
 ## Documentation
 
+- [Engine architecture](docs/architecture.md): complete runtime, rendering, ownership, and optimization pipeline.
+
 - [JavaScript API](docs/javascript-api.md): runtime, engine statistics, models, interaction, controllers, and events.
 - [Automatic group subdivision](docs/javascript-api.md#automatic-render-group-subdivision): split, merge, and rebalance group tiles without lowering sampling density.
 - [Panels](docs/panels.md): canvas commands, transforms, and pointer events.
