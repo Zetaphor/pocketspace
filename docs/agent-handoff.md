@@ -383,5 +383,6 @@ scenes serialize playback, not GL resources; rebuild independent streams through
 normal restore/upload. The excluded `rigid-batch-experiment` alone exposes a draw
 mode switch and counters. The pixel test uses production code with test counters.
 See [prototype and production measurements](../tests/results/rigid-batches.md).
-The single-stream production comparison and lifecycle checks pass on Frame; the
-final normal-engine visual/save-restore check remains pending.
+The single-stream production comparison and lifecycle checks pass on Frame. The
+normal-engine mixed scene passed user-confirmed visual, grabbing, pause/resume and
+save/restore acceptance on 2026-10-29; the demo was stopped afterward.

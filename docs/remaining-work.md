@@ -5,12 +5,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Complete the final normal-engine mixed-scene check for adjacent rigid batching.
-  The [production stream comparison](../tests/results/rigid-batches.md) improved
-  256 actors from 23.80 to 69.61 FPS with no duplicate storage/uploads. Exact
-  images, stream updates, 21,000 picking checks and 30 mixed reload/restore cycles
-  pass on Frame. Batching is enabled in the normal build; verify visual continuity,
-  grabbing, pause/resume and restored stream rendering before closing this item.
 - Revisit GPU morph deformation only when a higher-detail workload establishes
   meaningful CPU cost. The completed feature-sample profile measured only
   0.29 ms deformation/refits at 256 morph cubes; it does not justify a GPU port.
