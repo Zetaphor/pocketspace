@@ -91,6 +91,14 @@ physics sleeping/collider caches run automatically. They have no public script
 switch. The [architecture](architecture.md) explains their eligibility and
 pipeline contracts.
 
+With at least four active, nonzero lights, local point/spot lights are filtered
+automatically per object: lights whose
+range cannot reach its conservative current bounds are omitted from that draw.
+This keeps the same illumination and eight-light scene limit; broad overlapping
+lights still require the full loop. See the
+[lighting guide](lighting-api.md#dynamic-point-lights) and
+[measured comparison](../tests/results/light-work.md).
+
 Test-only shader, culling, shared-depth, VAO, uniform-cache and synchronization
 experiments are not supported production options. Their environment switches
 apply only to the corresponding excluded diagnostic targets. Use the

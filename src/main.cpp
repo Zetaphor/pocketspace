@@ -2175,7 +2175,7 @@ int main(int argc,char **argv) {
 #endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  std::vector<Surface*> ready;FrameBoundsCache frameBounds;
+  std::vector<Surface*> ready;FrameBoundsCache frameBounds;std::vector<ObjectLightSet> frameObjectLights;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
   ModelInstancing instanceExperiment(ModelInstancing::Instanced);
 
@@ -2416,6 +2416,7 @@ int main(int argc,char **argv) {
         selectDetail(modelLod::select(pixels,nearest,object.lodLevel));
       }
       const auto frameLights=resolvePointLights(script.scene);
+      updateObjectLights(script.scene,frameLights,frameObjectLights);
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
 #ifdef SF_GPU_SYNC_EXPERIMENT
@@ -2671,7 +2672,7 @@ int main(int argc,char **argv) {
                   auto &activePbr=fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram;
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-                  if(pass>=0)activePbr.lights(frameLights,surfaceX,surfaceY,surfaceZ);
+                  if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
                   activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);

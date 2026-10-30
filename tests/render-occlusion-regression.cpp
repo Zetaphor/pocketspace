@@ -18,6 +18,11 @@ constexpr int pixels=768;
 struct Renderer {
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+  bool optimizeLightWork=false;
+  bool selectLocalLights=true;
+#endif
+  std::vector<ObjectLightSet> objectLightSets;
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
 #if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
@@ -60,6 +65,11 @@ struct Renderer {
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
 #endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
+    const auto frameLights=resolvePointLights(scene);
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+    if(selectLocalLights)
+#endif
+    updateObjectLights(scene,frameLights,objectLightSets);
     const GLuint generalProgram=program;
     if(ordinaryRouting&&!specialize&&!drawUniformCachingEnabled&&ordinaryProgram.select(false))program=ordinaryProgram.id();
     ScopeExit restorePrimary{[&]{program=generalProgram;glUseProgram(program);}};
@@ -125,10 +135,19 @@ struct Renderer {
             if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
 #endif
-            const bool depthOnly=fastPbrDepth&&pass<0;auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;assert(activePbr.init(depthOnly));
+            const bool depthOnly=fastPbrDepth&&pass<0;auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;assert(activePbr.init(depthOnly
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+            ,optimizeLightWork
+#endif
+            ));
             activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
-            if(pass>=0)activePbr.lights(resolvePointLights(scene),0,-.2f,0);
+            if(pass>=0){
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+              if(!selectLocalLights)activePbr.lights(frameLights,0,-.2f,0);else
+#endif
+              activePbr.lights(objectLightSets[size_t(&object-scene.objects.data())].values(),0,-.2f,0);
+            }
             activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;

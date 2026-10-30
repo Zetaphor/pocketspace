@@ -116,7 +116,16 @@ remap to restored object IDs. Root lights are not captured. Older v1–v7 snapsh
 restore without point lights. Restore stages the whole light set and requires
 room within the eight-light limit while the original tool is still live.
 
-The initial implementation uses a bounded forward loop over enabled, nonzero
+With four or more active, nonzero lights, the engine conservatively excludes
+lights whose range cannot
+reach an object's current full/deformed bounds. This automatic filter preserves
+light order and is shared by both eyes, LODs and surfaces; it does not reduce
+range, cone width or quality. Objects close to the cutoff retain the light, and
+invalid bounds retain all lights. It is most useful when several local lights
+illuminate different parts of a scene. Broad lights reaching every object keep
+the full list. Spot cone rejection still happens in the shader.
+
+The renderer uses a bounded forward loop over the remaining enabled, nonzero
 lights for each lit fragment. More lights and more screen coverage increase GPU
 work; there is no tiled-light system, shadow pass, or automatic light selection.
 The external-depth pass skips point-light setup. Start with one or two lights

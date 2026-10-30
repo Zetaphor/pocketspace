@@ -557,3 +557,19 @@ avoid zero division. V9 requires type and spotlight fields; v8 accepts point lig
 only. Invalid mixed sets must leave scene resources and counters intact. See the
 [spotlight regression](../tests/spotlight-regression.cpp) and
 [API](lighting-api.md#dynamic-spotlights).
+
+## Per-object light range selection
+
+Keep full lists below four active lights; the small-count comparison did not
+establish a consistent benefit. Build ordered object light sets once after
+animation/interaction/physics, alongside
+frame bounds. Use current full/deformed geometry bounds, not visual LOD bounds.
+The origin-centered sphere is rotation-invariant; retain cutoff padding and
+invalid-bound fallback. Range rejection must prove no contributing fragment was
+removed. Do not drop lights just because their centers or spot axes miss an object.
+Preserve retained-light order. Rebuild counts after removals/reloads and reuse
+sets across both eyes, all primitives and surface passes; no callbacks mutate
+scene vectors during rendering. Frame array indices match current scene order,
+not persistent object IDs. The shader-work alternative remains test-only after
+inconsistent/regressing measurements; normal builds keep the original BRDF loop.
+See [light-work-regression.cpp](../tests/light-work-regression.cpp).
