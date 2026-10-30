@@ -7,6 +7,9 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Material support
 
+- Remove legacy `.sfenv` compatibility from the engine, environment-generation
+  tools, assets/tests and documentation. Keep `.psenv` as the sole supported
+  lighting-environment format; remove pre-rename aliases and migration guidance.
 - Implement physical glTF sheen in the PBR path, including sheen color/roughness
   textures and factors. The current imported sheen color is only used by the
   legacy approximate tint; it is not physical PBR sheen.
@@ -19,11 +22,6 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 - Define collider behavior for skeletal/morph deformation when experiences need
   it. Existing colliders remain rigid and use default-pose geometry; updating
   their shape with animation is not implemented.
-- Add nested container ownership if tools require hierarchical disposal.
-  Existing containers are flat cleanup scopes with resource ownership transfer.
-- Add explicit shared-asset release/lifetime controls if long-lived scenes need
-  to reclaim models without replacing the scene. Container disposal currently
-  removes instances, not cached shared assets.
 
 ## Tracking and input
 

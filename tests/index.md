@@ -432,3 +432,18 @@ native throughput, superseding the lazy prototype policy.
 The [dense PBR pass refresh](results/pbr-pass-refresh.md) records fixed/adaptive
 32-car attribution with precompiled shaders enabled, including rejected peak-
 storage mismatches and the next depth-only shader investigation.
+
+## Nested containers and model lifetime
+
+- [container-hierarchy-api-smoke.js](container-hierarchy-api-smoke.js): parent
+  creation/reparenting, cycle rejection, direct membership, recursive disposal,
+  cross-subtree joints/attachments, v11 hierarchy maps, malformed hierarchy
+  rollback, legacy flat restore, named saves and child-owned callback cleanup.
+- [asset-lifetime-regression.cpp](asset-lifetime-regression.cpp): runs that API
+  fixture with real bindings, then verifies GPU buffer/texture deletion, physics
+  shape-cache release, hidden/live-user rejection, stable invalid IDs, getter and
+  reload rollback, repeated unload/reload and restoration after release. Build
+  `asset-lifetime-regression` explicitly; run from the repo root with
+  `DISPLAY=:0 EGL_PLATFORM=x11` and the native SteamVR library path.
+- [Validation results](results/containers-assets.md): automated resource and
+  rollback checks plus user-confirmed nested-container and unload/restore tests.

@@ -66,6 +66,7 @@ public:
   void set(int id,const Settings&,const Pose&,Vec3 low,Vec3 high,GeometrySource source={});
   bool hasConvexHull(int key) const;
   bool hasMesh(int key) const;
+  void releaseGeometry(int key); // Caller guarantees no object still uses this asset.
   void remove(int id);
   bool contains(int id) const;
   State get(int id) const;

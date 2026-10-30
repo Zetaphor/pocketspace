@@ -85,7 +85,14 @@ struct Object {
 };
 #include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+static size_t loadedAssetCount(const Scene &scene){return std::count_if(scene.assets.begin(),scene.assets.end(),[](const ModelAsset &asset){return !asset.path.empty();});}
+static bool loadedAsset(const Scene &scene,int id){return id>0&&size_t(id)<=scene.assets.size()&&!scene.assets[size_t(id)-1].path.empty();}
+static std::set<int> containerSubtree(const Scene &scene,int root){
+ std::set<int> result;if(!scene.containers.count(root))return result;result.insert(root);
+ bool changed=true;while(changed){changed=false;for(auto [child,parent]:scene.containerParents)if(result.count(parent))changed|=result.insert(child).second;}
+ return result;
+}
 #include "model_instancing.h"
 #include "pbr_program.h"
 #include "pbr_variants.h"
@@ -464,7 +471,7 @@ static Object *animationObject(JSContext *ctx,int argc,JSValueConst *argv){
   auto *object=findObject(id);if(!object)JS_ThrowRangeError(ctx,"unknown object id");return object;
 }
 static JSValue jsGetAnimations(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||id<1||size_t(id)>currentScene->assets.size())return JS_ThrowRangeError(ctx,"getAnimations(assetId) requires a loaded asset");
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!loadedAsset(*currentScene,id))return JS_ThrowRangeError(ctx,"getAnimations(assetId) requires a loaded asset");
   JSValue array=JS_NewArray(ctx);const auto &clips=currentScene->assets[size_t(id)-1].animations;
   for(size_t i=0;i<clips.size();i++){
     const auto &clip=clips[i];JSValue item=JS_NewObject(ctx);
@@ -581,7 +588,7 @@ static bool number(JSContext *ctx,JSValueConst value,float &out){
   double n=0;if(JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n))return false;out=(float)n;return std::isfinite(out);
 }
 static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  if(!currentScene||argc<1||currentScene->assets.size()>=32)return JS_ThrowRangeError(ctx,"loadModel(path) requires a path; limit is 32 assets");
+  if(!currentScene||argc<1)return JS_ThrowTypeError(ctx,"loadModel(path) requires a path");
   const char *path=JS_ToCString(ctx,argv[0]);if(!path)return JS_EXCEPTION;
   std::string name(path);JS_FreeCString(ctx,path);
   int eyePixels=kDefaultEyePixels;
@@ -616,6 +623,7 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
     if(explicitLod&&currentScene->assets[i].lod!=lod)return JS_ThrowRangeError(ctx,"model already loaded with different lod options");
     return JS_NewInt32(ctx,(int)i+1);
   }
+  if(loadedAssetCount(*currentScene)>=32||currentScene->assets.size()>=size_t(INT_MAX-1))return JS_ThrowRangeError(ctx,"model asset limit reached (32 live assets)");
   ModelAsset asset;asset.pbr=pbr;
   if(!loadModelFile(name,asset))return JS_ThrowTypeError(ctx,"could not load model: %s",name.c_str());
   asset.eyePixels=eyePixels;
@@ -623,9 +631,16 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
 }
+static JSValue jsUnloadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+ double value=0;int id=0;if(!argc||!JS_IsNumber(argv[0])||JS_ToFloat64(ctx,&value,argv[0])<0||!std::isfinite(value)||value<1||value>=INT_MAX||value!=std::floor(value)||!loadedAsset(*currentScene,id=int(value)))return JS_ThrowRangeError(ctx,"unloadModel requires a live asset ID");
+ if(std::any_of(currentScene->objects.begin(),currentScene->objects.end(),[&](const Object &object){return object.asset==id;}))return JS_ThrowRangeError(ctx,"model is used by a live object");
+ if(currentScene->physics)currentScene->physics->releaseGeometry(id);
+ auto &asset=currentScene->assets[size_t(id)-1];deleteModel(asset);asset=ModelAsset{};asset.uploaded=true;currentScene->assetsReleased=true;
+ return JS_UNDEFINED;
+}
 static JSValue jsSetModelLighting(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;
-  if(!currentScene||argc<2||JS_ToInt32(ctx,&id,argv[0])<0||id<1||size_t(id)>currentScene->assets.size())return JS_ThrowRangeError(ctx,"unknown asset id");
+  if(!currentScene||argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!loadedAsset(*currentScene,id))return JS_ThrowRangeError(ctx,"unknown asset id");
   if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"lighting options must be an object");
   // Copy before running user getters, which may append/reallocate shared assets.
   const auto path=currentScene->assets[id-1].path;auto candidate=currentScene->assets[id-1].lighting;
@@ -682,7 +697,7 @@ static JSValue jsSetRenderGroupAutoSplit(JSContext *ctx,JSValueConst,int argc,JS
 }
 static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<4||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs asset, x, y, z; limit is 256 objects");
-  int asset=0;if(JS_ToInt32(ctx,&asset,argv[0])<0||asset<1||asset>(int)currentScene->assets.size())return JS_ThrowRangeError(ctx,"unknown asset id");
+  int asset=0;if(JS_ToInt32(ctx,&asset,argv[0])<0||!loadedAsset(*currentScene,asset))return JS_ThrowRangeError(ctx,"unknown asset id");
   float values[4]={0,0,0,.55f};
   for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
   if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
@@ -695,6 +710,7 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
     JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"renderGroup must be an integer from 0 to 256");group=int(number);
   }
   if(owner&&!currentScene->containers.count(owner))return JS_ThrowRangeError(ctx,"scene container was disposed during object option evaluation");
+  if(!loadedAsset(*currentScene,asset))return JS_ThrowRangeError(ctx,"model unloaded during object option evaluation");
   int tile=0;double nearest=INFINITY;
   if(group)for(const auto &other:currentScene->objects)if(other.renderGroup==group){
     const double dx=double(other.x)-values[0],dy=double(other.y)-values[1],dz=double(other.z)-values[2],distance=dx*dx+dy*dy+dz*dz;
@@ -1043,9 +1059,23 @@ static JSValue jsRemoveObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"removeObject(id)");
   if(!findObject(id))return JS_ThrowRangeError(ctx,"unknown object id");removeSceneObject(id);return JS_UNDEFINED;
 }
-static JSValue jsCreateSceneContainer(JSContext *ctx,JSValueConst,int,JSValueConst*){
-  if(currentScene->containers.size()>=256||currentScene->nextContainerId==std::numeric_limits<int>::max())return JS_ThrowRangeError(ctx,"scene container limit reached");
-  const int id=currentScene->nextContainerId++;currentScene->containers.insert(id);return JS_NewInt32(ctx,id);
+static JSValue jsCreateSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+ int parent=0;
+ if(argc&&!JS_IsUndefined(argv[0])){
+  if(!JS_IsObject(argv[0])||JS_IsNull(argv[0]))return JS_ThrowTypeError(ctx,"container options must be an object");
+  JSValue value=JS_GetPropertyStr(ctx,argv[0],"parent");if(JS_IsException(value))return value;
+  const bool valid=JS_IsUndefined(value)||containerId(ctx,value,parent);JS_FreeValue(ctx,value);if(!valid)return JS_EXCEPTION;
+ }
+ if(parent&&!currentScene->containers.count(parent))return JS_ThrowRangeError(ctx,"parent container was disposed");
+ if(currentScene->containers.size()>=256||currentScene->nextContainerId==INT_MAX)return JS_ThrowRangeError(ctx,"scene container limit reached");
+ const int id=currentScene->nextContainerId;currentScene->containers.insert(id);currentScene->containerParents[id]=parent;++currentScene->nextContainerId;return JS_NewInt32(ctx,id);
+}
+static JSValue jsSetSceneContainerParent(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+ int id=0,parent=0;if(argc<2)return JS_ThrowTypeError(ctx,"setSceneContainerParent(id, parent)");
+ if(!containerId(ctx,argv[0],id)||!containerId(ctx,argv[1],parent))return JS_EXCEPTION;
+ if(!id)return JS_ThrowRangeError(ctx,"root cannot be reparented");
+ if(containerSubtree(*currentScene,id).count(parent))return JS_ThrowRangeError(ctx,"container cycle");
+ currentScene->containerParents[id]=parent;return JS_UNDEFINED;
 }
 static JSValue jsGetSceneContainerState(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"getSceneContainerState(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
@@ -1055,6 +1085,8 @@ static JSValue jsGetSceneContainerState(JSContext *ctx,JSValueConst,int argc,JSV
   for(const auto &panel:currentScene->panels)if(panel.container==id)JS_SetPropertyUint32(ctx,panels,n++,JS_NewInt32(ctx,panel.id));
   n=0;for(const auto &light:currentScene->lights)if(light.container==id)JS_SetPropertyUint32(ctx,lights,n++,JS_NewInt32(ctx,light.id));
   JS_SetPropertyStr(ctx,state,"lightIds",lights);
+  JSValue children=JS_NewArray(ctx);uint32_t childIndex=0;for(auto [child,parent]:currentScene->containerParents)if(parent==id)JS_SetPropertyUint32(ctx,children,childIndex++,JS_NewInt32(ctx,child));
+  JS_SetPropertyStr(ctx,state,"childIds",children);JS_SetPropertyStr(ctx,state,"parentId",JS_NewInt32(ctx,currentScene->containerParents.count(id)?currentScene->containerParents.at(id):0));
   JS_SetPropertyStr(ctx,state,"id",JS_NewInt32(ctx,id));JS_SetPropertyStr(ctx,state,"disposed",JS_NewBool(ctx,!currentScene->containers.count(id)));
   JS_SetPropertyStr(ctx,state,"objectIds",objects);JS_SetPropertyStr(ctx,state,"panelIds",panels);
   JS_SetPropertyStr(ctx,state,"inputCallback",JS_NewBool(ctx,inputCallbackCtx==ctx&&inputCallbackContainer==id));return state;
@@ -1062,13 +1094,14 @@ static JSValue jsGetSceneContainerState(JSContext *ctx,JSValueConst,int argc,JSV
 static JSValue jsDisposeSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   int id=0;if(argc<1)return JS_ThrowTypeError(ctx,"disposeSceneContainer(id)");if(!containerId(ctx,argv[0],id,true))return JS_EXCEPTION;
   if(!id)return JS_ThrowRangeError(ctx,"root is not a disposable scene container");
-  if(!currentScene->containers.erase(id))return JS_UNDEFINED;
-  std::erase_if(currentScene->lights,[&](const PointLight &light){return light.container==id;});
-  if(inputCallbackCtx==ctx&&inputCallbackContainer==id)clearInputCallback(ctx);
-  std::vector<int> objects;for(const auto &object:currentScene->objects)if(object.container==id)objects.push_back(object.id);
+  const auto owners=containerSubtree(*currentScene,id);if(owners.empty())return JS_UNDEFINED;
+  for(int owner:owners){currentScene->containers.erase(owner);currentScene->containerParents.erase(owner);}
+  std::erase_if(currentScene->lights,[&](const PointLight &light){return owners.count(light.container);});
+  if(inputCallbackCtx==ctx&&owners.count(inputCallbackContainer))clearInputCallback(ctx);
+  std::vector<int> objects;for(const auto &object:currentScene->objects)if(owners.count(object.container))objects.push_back(object.id);
   for(int object:objects)removeSceneObject(object);
   auto &panels=currentScene->panels;
-  for(auto it=panels.begin();it!=panels.end();)if(it->container==id){currentScene->retiredPanels.push_back(std::move(*it));it=panels.erase(it);}else ++it;
+  for(auto it=panels.begin();it!=panels.end();)if(owners.count(it->container)){currentScene->retiredPanels.push_back(std::move(*it));it=panels.erase(it);}else ++it;
   return JS_UNDEFINED;
 }
 static JSValue jsSetObjectContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -1184,7 +1217,9 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"restoreSceneContainer",jsRestoreSceneContainer,1);
   bind(candidate.ctx,"saveSceneContainer",jsSaveSceneContainer,2);
   bind(candidate.ctx,"loadSceneContainer",jsLoadSceneContainer,1);
-  bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,0);
+  bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,1);
+  bind(candidate.ctx,"setSceneContainerParent",jsSetSceneContainerParent,2);
+  bind(candidate.ctx,"unloadModel",jsUnloadModel,1);
   bind(candidate.ctx,"disposeSceneContainer",jsDisposeSceneContainer,1);
   bind(candidate.ctx,"getSceneContainerState",jsGetSceneContainerState,1);
   bind(candidate.ctx,"setObjectContainer",jsSetObjectContainer,2);
@@ -2408,6 +2443,13 @@ int main(int argc,char **argv) {
     try{updateScenePhysics(script.scene,animationDt);}
     catch(const std::exception &error){fprintf(stderr,"[physics] %s\n",error.what());running=false;break;}
     physicsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-physicsStart).count();
+    if(script.scene.assetsReleased){
+      instanceExperiment.reset();
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      primitiveExperiment.reset();clusterExperiment.reset();
+#endif
+      script.scene.assetsReleased=false;
+    }
     for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
     for(auto &object:script.scene.objects)if(object.animationPose)uploadModelPose(*object.animationPose);
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);

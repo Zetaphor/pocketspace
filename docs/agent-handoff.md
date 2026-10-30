@@ -66,7 +66,7 @@ type, anchors, and axis remain creation-only. The
 RAM, and FPS, optional GPU driver totals, and the separate GPU allocation estimate.
 The [stress scene](../scripts/stress.js) includes controller spawning, a HUD,
 and automatic removal of fallen/distant objects. Its shared model assets remain
-cached until scene replacement, while instance resources are released on removal.
+cached until scene replacement or explicit unused-model release, while instance resources are released on removal.
 
 Object surfaces retain three compositor-facing color buffers and one owned depth
 attachment shared by their FBOs. Only color is imported by the compositor; keep
@@ -605,3 +605,23 @@ Failed reload must retain the existing cache; successful reload clears stale key
 and prepares at most 16 slots (including compile failures). Shader state contains
 no scene pointers. Keep program teardown before EGL destruction and preserve
 per-program uniform caches when alternating specialized and general draws.
+
+## Nested ownership and explicit asset release
+
+Parent links are scene-owned integer metadata, acyclic and independent of
+transforms/render grouping. Resolve the complete subtree before disposal and
+use ordinary removal paths for members. Direct state arrays stay direct;
+`childIds`/`parentId` expose the hierarchy. V11 captures subtree resource owners,
+stages fresh hierarchy maps before native reservation, and commits them with
+resource publication. Older snapshots remain flat. Never retain container/object
+pointers across getters or mutation.
+
+Unloaded assets leave empty, uploaded-marked slots; IDs are never reused or
+renumbered. Validate live slots both before and after option getters. Count live
+paths for the 32-asset limit, including pending restore models; pending IDs still
+append after all issued slots. Reject unload while any object (hidden or animated)
+uses the asset. Delete model GPU resources, release asset-keyed Jolt hull/mesh
+caches and drop CPU/environment ownership. Reset instance/diagnostic geometry
+caches before subsequent rendering. Prepared programs own no asset pointers.
+Avoid re-uploading empty slots or resurrecting stale IDs. Snapshots reload paths,
+not handles. See [lifetime regression](../tests/asset-lifetime-regression.cpp).

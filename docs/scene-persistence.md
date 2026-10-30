@@ -1,7 +1,7 @@
 # Scene save and restore
 
 Scene containers can capture model instances, panels, animation playback, physics
-bodies, joints and point lights into versioned JSON and restore them into a new container. Move or grab objects, save their arrangement,
+bodies, joints and scene lights into versioned JSON and restore them into a new container subtree. Move or grab objects, save their arrangement,
 and load it in a later run. Positions use the current scene anchor: a save does
 not preserve an absolute room location across launches or recentering.
 
@@ -9,10 +9,10 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v10
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v11
   snapshot. The ID must name an active positive container; root `0` is rejected.
-- `restoreSceneContainer(snapshot)` creates a new container and returns
-  `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
+- `restoreSceneContainer(snapshot)` creates a new container subtree and returns
+  `{containerId, containerIds, containerMap, objectIds, objectMap, renderGroups, jointIds, jointMap,
   panelIds, panelMap, panels, lightIds, lightMap}`. `objectIds` follows snapshot
   order. `objectMap` maps source object IDs to fresh IDs, and `renderGroups` maps
   positive source groups to available positive groups. `jointIds` follows snapshot
@@ -61,7 +61,8 @@ membership; and all current object interaction flags, including grip/trigger
 selection and hand rotation axes. Model paths retain their normal working-directory
 semantics; asset files are referenced, not embedded. Keep them available when
 loading on another device. Exact cached paths reuse the shared asset only when
-all saved loading options match. Cached assets remain scene-owned after disposal.
+all saved loading options match. Cached assets remain scene-owned after disposal
+unless explicitly released with `unloadModel` when unused.
 
 Owned point lights preserve settings and remap object attachments.
 Owned panels preserve their retained RGBA canvas and layout. Animated model
@@ -91,7 +92,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
 this identifier and its legacy default save directory for compatibility with
 existing snapshots and named saves.
-New captures use `version: 10`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 11`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
@@ -177,7 +178,7 @@ frames, hinge zero angle, and fixed-joint reference orientation after objects
 move or rotate. Keep these fields intact when editing a captured snapshot.
 Restored joints receive fresh IDs; use `jointMap` to reconnect script behavior.
 Already broken or removed joints are absent. A joint crossing the container
-boundary makes capture/save throw: put both endpoints in the same container or
+boundary makes capture/save throw: put both endpoints in the captured subtree or
 remove the connection before saving. External root bodies are never implicitly
 copied or reattached.
 
@@ -378,8 +379,42 @@ All three light types share the eight-light limit, snapshot ordering, fresh
 stages the entire set before publication; invalid fields, capacity overflow or
 attachments outside the snapshot leave the active scene and ID counters intact.
 V9 point/spot and v8 point-only documents remain readable. Directional entries
-in v9 or earlier are rejected. New captures use v10 even when they contain no
+in v9 or earlier are rejected. New captures use v11 even when they contain no
 lights.
 
 Capture and restore an attached directional key and an independent fill light:
 [directional-lights.js](../scripts/directional-lights.js).
+
+## Nested container subtrees (v11)
+
+V11 captures a root container and all descendants, including empty containers.
+`rootContainer` identifies the source root. `containers` lists `{id, parent}`
+records with unique positive IDs; the captured root has parent `0`, and every
+other record must reach that root without a cycle. Object, panel and light
+entries contain their direct source `container`. Resource owners must appear
+in the captured hierarchy. Transforms remain scene-relative.
+
+```js
+const saved = captureSceneContainer(tool);
+const restored = restoreSceneContainer(saved);
+const newChild = restored.containerMap[child];
+print(getSceneContainerState(newChild).parentId);
+disposeSceneContainer(restored.containerId); // Includes restored descendants.
+```
+
+Restore returns `containerId` for the new root, `containerIds` in fresh-ID order,
+and `containerMap` from source IDs. Resource arrays continue following snapshot
+order, across the whole subtree. Joint endpoints and light attachments may cross
+child boundaries inside the captured subtree, but may not cross its outer
+boundary. The active-plus-restored hierarchy must fit the 256-container limit.
+Validation and hierarchy staging precede publication; malformed parents, cycles,
+unknown owners and native resource failures leave active IDs/resources intact.
+
+V1–v10 restore as one flat container, with one `containerIds` entry and an empty
+`containerMap`. Input callbacks and JavaScript closures remain outside snapshots.
+Model assets are referenced by path/options; an explicitly unloaded asset can be
+loaded again during restoration without reviving its old ID. The live asset limit
+is 32, independent of previously released IDs.
+
+Run [nested-containers.js](../scripts/nested-containers.js) or
+[asset-lifetime.js](../scripts/asset-lifetime.js).

@@ -183,6 +183,7 @@ World::World(){initialize();impl=std::make_unique<Impl>();}
 World::~World(){while(!impl->bodies.empty())remove(impl->bodies.begin()->first);}
 bool World::contains(int id)const{return impl->bodies.contains(id);}
 bool World::hasConvexHull(int key)const{return impl->hulls.contains(key);}
+void World::releaseGeometry(int key){impl->hulls.erase(key);impl->meshes.erase(key);}
 bool World::hasMesh(int key)const{return impl->meshes.contains(key);}
 void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,GeometrySource source){
   if(hasJoints(id))throw std::invalid_argument("remove attached joints before replacing or scaling a physics body");
