@@ -1271,3 +1271,30 @@ the blue handle with grip/trigger and rotate it to aim across the car. Bumper
 switches width, A/X toggles, and B/Y captures then restores. Check head motion,
 cone falloff and restored attachment behavior. Stop the demo immediately after
 verification.
+
+## Light shading work comparison
+
+Build `light-work-regression` explicitly after reconfiguring CMake. It compares
+production per-object light lists with the same shader receiving all scene
+lights. It also retains the rejected shader-work experiment behind a test-only
+`--profile-shader` mode. It opens no overlays and captures no input:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target light-work-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/light-work-regression
+```
+
+Pixel checks use detailed cars plus generated-tangent and surface-frame fixtures,
+point/spot/mixed lights, both eyes, head movement, alpha modes and unlit materials.
+Boundary, invalid-bound fallback and deformed-pose bounds are checked separately.
+Alpha must match exactly and RGB may differ by at most one byte per channel.
+Add `--profile` only with an active, worn headset for ABBA comparisons on 16
+full-detail cars at 768 pixels. Each configuration has 30 warmup and 90 measured
+frames per stage, alternating eyes, with identical geometry, view and lighting.
+ABBA stages interleave within each frame to limit clock/power drift. Range-list
+timings toggle selection on the same renderer/program/buffers; separate reference
+and candidate renderers are used for pixel checks and the rejected shader mode.
+Light counts are 0, 1, 4 and 8. Broad-range and spatially local lights are
+compared separately; GPU timer disjoint results reject the run.
+The measured wall time includes submission and GPU completion, not just CPU work.

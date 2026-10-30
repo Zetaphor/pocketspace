@@ -283,6 +283,10 @@ the bounded non-interactive
   verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
   exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
+- [light-work-regression.cpp](light-work-regression.cpp): all-light versus per-object
+  range selection, stereo/material pixels and optional matched ABBA GPU timing
+  for broad/local point, spot and mixed lights; retains the rejected shader-work
+  comparison in a diagnostic mode. See [light-work results](results/light-work.md).
 - [spotlight-regression.cpp](spotlight-regression.cpp): real stereo cone pixels,
   hard edges, direction/attachment rotation, point-light equivalence, unlit/depth
   invariance, type-safe APIs, mixed capacity, getter rollback and v9/v8 persistence.

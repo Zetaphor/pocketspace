@@ -3,6 +3,9 @@
 #include <cmath>
 #include <map>
 #include <string>
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+#include "../tests/light-work-reference.h"
+#endif
 // A separate program keeps legacy shaders, storage and their fast paths intact.
 class PbrProgram {
  GLuint program=0;
@@ -19,7 +22,11 @@ class PbrProgram {
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
  ~PbrProgram(){if(program)glDeleteProgram(program);}
- bool init(bool fastDepth=false){
+ bool init(bool fastDepth=false
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+ ,bool optimizeLightWork=false
+#endif
+ ){
   if(program)return true;
   std::string vertex=modelVertexShader;
   vertex.insert(vertex.find("layout(location=6)"),R"(
@@ -126,6 +133,9 @@ void main(){
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
   std::string fragmentSource=fragment;
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+  if(optimizeLightWork){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,rejectedLightLoop);}
+#endif
   if(fastDepth){
     fragmentSource.insert(fragmentSource.find("void main(){"),"uniform bool depthOnly;\n");
     fragmentSource.insert(fragmentSource.find(" vec4 base=")," if(depthOnly&&alphaMode==0){color=vec4(0);return;}\n");
@@ -148,7 +158,7 @@ void main(){
   float axes[3][3];for(int column=0;column<3;column++)for(int row=0;row<3;row++)axes[column][row]=anchor.m[row][column]*(column==2?-1.f:1.f);
   vector("right",axes[0]);vector("up",axes[1]);vector("forward",axes[2]);integer("skinEnabled",0);integer("material",0);
  }
- void lights(const std::vector<ResolvedPointLight> &lights,float x=0,float y=0,float z=0)const{
+ void lights(std::span<const ResolvedPointLight> lights,float x=0,float y=0,float z=0)const{
   std::array<float,104> payload{};int count=0;
   for(const auto &light:lights){if(count==8)break;const int i=count++*4;
    payload[i]=light.position[0]-x;payload[i+1]=light.position[1]-y;payload[i+2]=-(light.position[2]-z);payload[i+3]=light.range;

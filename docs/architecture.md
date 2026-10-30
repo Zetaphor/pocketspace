@@ -274,6 +274,15 @@ are recorded as separate validation evidence.
 Scene point lights and spotlights are logical CPU records (up to eight combined), with independent IDs
 and container ownership. The renderer resolves object-local meter offsets after
 interaction/physics into one frame snapshot, shared by all eyes and surfaces.
+A reusable frame-local array builds an ordered light subset for each visible
+PBR object. Fewer than four active lights keep the full list to avoid selection
+and per-object upload overhead. A double-precision range/sphere test uses the full current pose's
+origin-centered bounds, with conservative padding and invalid-bound fallback.
+Only lights unable to reach the enclosing sphere are removed; spot cone rejection
+remains in the shader. These subsets are reused across eyes, primitives, LODs
+and surfaces without per-draw selection or allocations. Empty light frames clear
+counts without rebuilding geometry tests. No scene IDs or light settings change. See the
+[range-selection validation and measured comparison](../tests/results/light-work.md).
 PBR shaders receive positions relative to each surface in the same model axes as
 surface normals. Cached uniform payloads avoid repeated uploads at unchanged
 surface origins. The bounded forward loop adds GGX point illumination with smooth
