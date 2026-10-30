@@ -41,6 +41,9 @@ struct Renderer {
 #endif
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+  PbrProgram minimalDepthProgram;bool minimalDepth=false;
+#endif
 #if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
   uint64_t pbrDepthDraws=0,pbrColorDraws=0,pbrDepthTriangles=0,pbrColorTriangles=0;
 #endif
@@ -165,6 +168,9 @@ struct Renderer {
             auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
 #elif defined(SF_PBR_LIGHT_INVARIANT_EXPERIMENT)
             auto &activePbr=reusePbrLightInvariants?(depthOnly?invariantDepthPbrProgram:invariantPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
+#elif defined(SF_PBR_MINIMAL_DEPTH_EXPERIMENT)
+            if(depthOnly&&minimalDepth)assert(minimalDepthProgram.initMinimalDepth());
+            auto &activePbr=depthOnly?(minimalDepth?minimalDepthProgram:depthPbrProgram):pbrProgram;
 #else
             auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;
 #endif
