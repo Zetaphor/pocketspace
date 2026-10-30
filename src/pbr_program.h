@@ -29,6 +29,9 @@ public:
 #ifdef SF_PBR_TRANSFORM_EXPERIMENT
  ,bool prepareRotation=false
 #endif
+#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
+ ,bool reuseLightInvariants=false
+#endif
  ){
   if(program)return true;
   std::string vertex=modelVertexShader;
@@ -148,6 +151,18 @@ void main(){
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
   std::string fragmentSource=fragment;
+#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
+  if(reuseLightInvariants){
+   const std::string expression="sqrt(nv*nv*(1.-a2)+a2)";
+   size_t at=0;while((at=fragmentSource.find(expression,at))!=std::string::npos){fragmentSource.replace(at,expression.size(),"viewVisibilityRoot");at+=18;}
+   const std::string marker="  float visibility=";
+   fragmentSource.insert(fragmentSource.find(marker),"  float viewVisibilityRoot="+expression+";\n");
+   const std::string diffuse="vec3 diffuse=(1.-f)*(1.-metal)*base.rgb/PI;";
+   fragmentSource.replace(fragmentSource.find(diffuse),diffuse.size(),"vec3 materialDiffuse=(1.-metal)*base.rgb/PI;vec3 diffuse=(1.-f)*materialDiffuse;");
+   const std::string lightDiffuse="(1.-pf)*(1.-metal)*base.rgb/PI";
+   fragmentSource.replace(fragmentSource.find(lightDiffuse),lightDiffuse.size(),"(1.-pf)*materialDiffuse");
+  }
+#endif
 #ifdef SF_LIGHT_WORK_EXPERIMENT
   if(optimizeLightWork){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,rejectedLightLoop);}
 #endif

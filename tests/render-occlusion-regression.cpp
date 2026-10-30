@@ -28,6 +28,10 @@ struct Renderer {
   bool preparePbrRotation=false;
   PbrProgram preparedPbrProgram,preparedDepthPbrProgram;
 #endif
+#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
+  bool reusePbrLightInvariants=false;
+  PbrProgram invariantPbrProgram,invariantDepthPbrProgram;
+#endif
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
 #if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
@@ -149,6 +153,8 @@ struct Renderer {
             const bool depthOnly=fastPbrDepth&&pass<0;
 #ifdef SF_PBR_TRANSFORM_EXPERIMENT
             auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
+#elif defined(SF_PBR_LIGHT_INVARIANT_EXPERIMENT)
+            auto &activePbr=reusePbrLightInvariants?(depthOnly?invariantDepthPbrProgram:invariantPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
 #else
             auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;
 #endif
@@ -158,6 +164,9 @@ struct Renderer {
 #endif
 #ifdef SF_PBR_TRANSFORM_EXPERIMENT
             ,preparePbrRotation
+#endif
+#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
+            ,reusePbrLightInvariants
 #endif
             ));
             activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
