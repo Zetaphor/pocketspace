@@ -235,7 +235,9 @@ rejects paired storage and geometry mismatches. Actual triangle/LOD counts must
 remain stable and equal, with complete stereo member geometry. Automatic LOD is
 enabled; use `--no-lod` to isolate passes when movement crosses LOD thresholds.
 Add `--instancing` to include production ordered instancing (the historical profile omitted it).
-The runner clears inherited `SF_GPU_*` experiment options before each run.
+The runner clears inherited `SF_GPU_*` experiment options before each run and
+explicitly enables the shipped prepared-PBR policy in the excluded engine.
+It records bounded program-cache accounting in addition to buffer allocations.
 Keep the headset awake and the view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
 
 For a dense moving-car PBR profile, add `--case 32-cars-fixed --no-lod
@@ -250,6 +252,13 @@ These runs create grouped overlays but enable no interaction or pointer capture,
 and terminate after the configured duration. Compare allocations and geometry
 across light counts as well as within instrumentation pairs; live head motion
 and time-based trajectories remain sources of variation.
+
+For a smaller fixed/adaptive detailed workload, use `--case 32-cars-fixed
+--case 32-cars-adaptive --no-lod --instancing --pbr-lights 8` on one command line.
+This preserves full geometry while exposing repeated PBR occluder cost. Keep
+instrumentation comparisons within a grouping mode; layouts can allocate different
+sampling densities. Grouped peak mismatch rejects a pair even when median owned
+storage matches. See [the prepared-PBR refresh](results/pbr-pass-refresh.md).
 
 `RENDER_PASS_SAMPLE` arrays are ordered occluder, opaque, blended. GPU times sum
 the elapsed queries for each category; CPU values measure render-thread CPU time

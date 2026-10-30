@@ -31,8 +31,9 @@ if args.case and '128-models-two-groups' in args.case:
     configurations.append((128, True, False, False, 2))
 if args.case and '128-avocados-two-groups' in args.case:
     configurations.append((128, True, False, True, 2))
-if args.case and '32-cars-fixed' in args.case:
-    configurations.append((32, True, False, False, 0, True))
+for adaptive in (False, True):
+    if args.case and f'32-cars-{"adaptive" if adaptive else "fixed"}' in args.case:
+        configurations.append((32, True, adaptive, False, 0, True))
 for configuration in configurations:
     count, models, adaptive, simple = configuration[:4]
     cars = len(configuration) > 5 and configuration[5]
@@ -41,7 +42,7 @@ for configuration in configurations:
     if groups:
         name = f'{count}-' + ('avocados' if simple else 'models') + '-two-groups'
     if cars:
-        name = f'{count}-cars-fixed'
+        name = f'{count}-cars-' + ('adaptive' if adaptive else 'fixed')
     if args.case and name not in args.case:
         continue
     with tempfile.TemporaryDirectory(prefix='sf-motion-') as temp:

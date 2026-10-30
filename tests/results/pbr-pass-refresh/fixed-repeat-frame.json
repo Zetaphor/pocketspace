@@ -1,0 +1,124 @@
+[
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 8,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 10,
+    "fpsMedian": 27.599387119646405,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "preparedPbr": true,
+    "programs": 15,
+    "programBinaryBytes": 441495,
+    "compileMs": 15.3082,
+    "fallbackDraws": 0,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 1.6960225,
+    "waitMs": 34.0034195,
+    "submitMs": 0.0519115,
+    "wholeRenderGpuMs": 27.9236475,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  },
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 8,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 29.241908920976826,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "preparedPbr": true,
+    "programs": 15,
+    "programBinaryBytes": 441495,
+    "compileMs": 8.1608,
+    "fallbackDraws": 0,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 1.667116,
+    "waitMs": 31.9155035,
+    "submitMs": 0.023808,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.001561,
+      26.697967,
+      0.000806
+    ],
+    "threadCpuMs": [
+      0.0016145,
+      0.9400805,
+      0.007239499999999999
+    ],
+    "draws": [
+      0.0,
+      192.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      6971904.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 6.865425550753478e-05,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  }
+]

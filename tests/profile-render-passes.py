@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import statistics
 import subprocess
@@ -30,7 +31,7 @@ for round_index in range(args.rounds):
         for passes in ((False, True) if round_index % 2 == 0 else (True, False)):
             directory = args.output / f'r{round_index}-{case}-passes-{int(passes)}'
             env = {k: v for k, v in os.environ.items() if not k.startswith('SF_GPU_')}
-            env.update(SF_GPU_PROFILE_PASSES=str(int(passes)), SF_GPU_SYNC_MODE='finish')
+            env.update(SF_GPU_PROFILE_PASSES=str(int(passes)), SF_GPU_SYNC_MODE='finish', SF_GPU_PBR_VARIANTS='1')
             command = [sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                        '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
                        '--vertex-cache']
@@ -49,6 +50,10 @@ for round_index in range(args.rounds):
             whole = samples('GPU_SYNC_SAMPLE ')
             if len(whole) < 3 or any(s['glError'] or s['fenceFailures'] or s['disjointSamples'] for s in whole):
                 raise RuntimeError(f'{directory}: missing or invalid whole-render samples')
+            cache=re.search(r'PBR_VARIANTS_CACHE programs=(\d+) binary_bytes=(\d+) compile_ms=([\d.]+) fallback_draws=(\d+)', log)
+            if not cache or int(cache[1]) > 16:
+                raise RuntimeError(f'{directory}: missing/invalid prepared program accounting')
+            result.update(preparedPbr=True, programs=int(cache[1]), programBinaryBytes=int(cache[2]), compileMs=float(cache[3]), fallbackDraws=int(cache[4]))
             result['work']=summarize_work(log, int(case.split('-',1)[0]))
             result.update(round=round_index, passProfiling=passes,
                           **{key: statistics.median(s[key] for s in whole)
