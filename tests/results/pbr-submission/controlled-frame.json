@@ -1,0 +1,554 @@
+[
+  {
+    "control": false,
+    "stage": 0,
+    "instrumented": false,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        237.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        8605944.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-4",
+        "0.550",
+        "512"
+      ],
+      [
+        "-3",
+        "0.550",
+        "512"
+      ],
+      [
+        "-2",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-4",
+        "0.550",
+        "768"
+      ],
+      [
+        "-3",
+        "0.587",
+        "768"
+      ],
+      [
+        "-2",
+        "0.555",
+        "768"
+      ],
+      [
+        "-1",
+        "0.532",
+        "768"
+      ]
+    ],
+    "groupBufferPeakBytes": 83886080,
+    "gpuAllocatedEstimateBytes": 115651138,
+    "samples": 10,
+    "gpuMs": 43.3519815,
+    "enqueueMs": 3.1640734999999998,
+    "enqueueThreadCpuMs": 1.6957849999999999,
+    "waitMs": 46.570839,
+    "waitThreadCpuMs": 0.142855,
+    "submitMs": 0.0473885,
+    "matchingWorkAndStorage": true
+  },
+  {
+    "control": false,
+    "stage": 1,
+    "instrumented": true,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        237.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        8605944.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-4",
+        "0.550",
+        "512"
+      ],
+      [
+        "-3",
+        "0.550",
+        "512"
+      ],
+      [
+        "-2",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-4",
+        "0.550",
+        "768"
+      ],
+      [
+        "-3",
+        "0.587",
+        "768"
+      ],
+      [
+        "-2",
+        "0.555",
+        "768"
+      ],
+      [
+        "-1",
+        "0.532",
+        "768"
+      ]
+    ],
+    "groupBufferPeakBytes": 83886080,
+    "gpuAllocatedEstimateBytes": 115651138,
+    "samples": 10,
+    "gpuMs": 43.585098,
+    "enqueueMs": 3.304314,
+    "enqueueThreadCpuMs": 1.7608575,
+    "waitMs": 46.6021605,
+    "waitThreadCpuMs": 0.1439245,
+    "submitMs": 0.051698,
+    "pbrSamples": 9,
+    "pbrThreadCpuMs": [
+      0.733962,
+      1.145102,
+      0.0
+    ],
+    "pbrDraws": [
+      237,
+      192,
+      0
+    ],
+    "matchingWorkAndStorage": true,
+    "pbrTotalThreadCpuMs": 1.8886
+  },
+  {
+    "control": false,
+    "stage": 2,
+    "instrumented": true,
+    "work": {
+      "workSamples": 9,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        237.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        8605944.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-4",
+        "0.550",
+        "512"
+      ],
+      [
+        "-3",
+        "0.550",
+        "512"
+      ],
+      [
+        "-2",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-4",
+        "0.550",
+        "768"
+      ],
+      [
+        "-3",
+        "0.587",
+        "768"
+      ],
+      [
+        "-2",
+        "0.555",
+        "768"
+      ],
+      [
+        "-1",
+        "0.532",
+        "768"
+      ]
+    ],
+    "groupBufferPeakBytes": 83886080,
+    "gpuAllocatedEstimateBytes": 115651138,
+    "samples": 9,
+    "gpuMs": 43.122347,
+    "enqueueMs": 3.298094,
+    "enqueueThreadCpuMs": 1.765853,
+    "waitMs": 46.088072,
+    "waitThreadCpuMs": 0.138286,
+    "submitMs": 0.050824,
+    "pbrSamples": 9,
+    "pbrThreadCpuMs": [
+      0.615371,
+      0.993026,
+      0.0
+    ],
+    "pbrDraws": [
+      237,
+      192,
+      0
+    ],
+    "matchingWorkAndStorage": true,
+    "pbrTotalThreadCpuMs": 1.602817
+  },
+  {
+    "control": false,
+    "stage": 3,
+    "instrumented": false,
+    "work": {
+      "workSamples": 9,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        237.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        8605944.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-4",
+        "0.550",
+        "512"
+      ],
+      [
+        "-3",
+        "0.550",
+        "512"
+      ],
+      [
+        "-2",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-4",
+        "0.550",
+        "768"
+      ],
+      [
+        "-3",
+        "0.587",
+        "768"
+      ],
+      [
+        "-2",
+        "0.555",
+        "768"
+      ],
+      [
+        "-1",
+        "0.532",
+        "768"
+      ]
+    ],
+    "groupBufferPeakBytes": 83886080,
+    "gpuAllocatedEstimateBytes": 115651138,
+    "samples": 9,
+    "gpuMs": 43.204039,
+    "enqueueMs": 3.30145,
+    "enqueueThreadCpuMs": 1.744913,
+    "waitMs": 46.310055,
+    "waitThreadCpuMs": 0.149565,
+    "submitMs": 0.050097,
+    "matchingWorkAndStorage": true
+  },
+  {
+    "control": true,
+    "stage": 0,
+    "instrumented": false,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "1280"
+      ]
+    ],
+    "groupBufferPeakBytes": 60817408,
+    "gpuAllocatedEstimateBytes": 92582466,
+    "samples": 10,
+    "gpuMs": 20.105319,
+    "enqueueMs": 1.6164435,
+    "enqueueThreadCpuMs": 1.013423,
+    "waitMs": 23.950432,
+    "waitThreadCpuMs": 0.11052300000000001,
+    "submitMs": 0.0318475,
+    "matchingWorkAndStorage": true
+  },
+  {
+    "control": true,
+    "stage": 1,
+    "instrumented": true,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "1280"
+      ]
+    ],
+    "groupBufferPeakBytes": 60817408,
+    "gpuAllocatedEstimateBytes": 92582466,
+    "samples": 10,
+    "gpuMs": 19.8367605,
+    "enqueueMs": 1.5968555,
+    "enqueueThreadCpuMs": 1.018824,
+    "waitMs": 23.7461575,
+    "waitThreadCpuMs": 0.113422,
+    "submitMs": 0.037884,
+    "pbrSamples": 9,
+    "pbrThreadCpuMs": [
+      0.0,
+      0.980046,
+      0.0
+    ],
+    "pbrDraws": [
+      0,
+      192,
+      0
+    ],
+    "matchingWorkAndStorage": true,
+    "pbrTotalThreadCpuMs": 0.980046
+  },
+  {
+    "control": true,
+    "stage": 2,
+    "instrumented": true,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "1280"
+      ]
+    ],
+    "groupBufferPeakBytes": 60817408,
+    "gpuAllocatedEstimateBytes": 92582466,
+    "samples": 10,
+    "gpuMs": 19.636849499999997,
+    "enqueueMs": 1.537767,
+    "enqueueThreadCpuMs": 0.9807325,
+    "waitMs": 23.533048,
+    "waitThreadCpuMs": 0.10739,
+    "submitMs": 0.028569499999999998,
+    "pbrSamples": 10,
+    "pbrThreadCpuMs": [
+      0.0,
+      0.80941,
+      0.0
+    ],
+    "pbrDraws": [
+      0,
+      192,
+      0
+    ],
+    "matchingWorkAndStorage": true,
+    "pbrTotalThreadCpuMs": 0.80941
+  },
+  {
+    "control": true,
+    "stage": 3,
+    "instrumented": false,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "surfaceGenerations": [
+      [
+        "-1",
+        "0.550",
+        "512"
+      ],
+      [
+        "-1",
+        "0.550",
+        "1280"
+      ]
+    ],
+    "groupBufferPeakBytes": 60817408,
+    "gpuAllocatedEstimateBytes": 92582466,
+    "samples": 10,
+    "gpuMs": 19.477430499999997,
+    "enqueueMs": 1.5469475,
+    "enqueueThreadCpuMs": 0.9773855,
+    "waitMs": 23.3025925,
+    "waitThreadCpuMs": 0.1067185,
+    "submitMs": 0.030641500000000002,
+    "matchingWorkAndStorage": true
+  }
+]

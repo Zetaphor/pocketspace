@@ -478,6 +478,12 @@ check complete member geometry; matching allocation estimates alone does not
 establish equivalent work. A [grouping tie-break comparison](../tests/results/group-occluder-policy.md)
 retains these guards and remains experimental after negligible native gains.
 
+PBR assets continue to use original draws rather than the ordinary instancing
+path. The [PBR submission profile](../tests/results/pbr-submission.md) distinguishes
+render-thread CPU, enqueue wall time and GPU time; it does not establish a
+submission bottleneck in the tested workloads. PBR batching remains conditional
+on compatible light/material state, preserved ordering and measured benefit.
+
 Measurements are workload-specific, not FPS guarantees. Tests/results document
 correctness, measured performance, and user headset acceptance separately.
 Normal builds do not enable the rejected uniform-cache, owned-VAO, primitive or

@@ -1,0 +1,343 @@
+{
+  "name": "128-avocados-fixed",
+  "pbrLights": 8,
+  "lod": true,
+  "lodIndexBytes": 0,
+  "vertexCache": true,
+  "gpuInstancing": true,
+  "samples": [
+    {
+      "seconds": 6.063733,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 73,
+      "gpuSamples": 73,
+      "gpuMs": 5.975074,
+      "enqueueMs": 1.757953,
+      "enqueueThreadCpuMs": 1.249094,
+      "waitMs": 11.36746,
+      "waitThreadCpuMs": 0.103306,
+      "submitMs": 0.025591,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 7.064186,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 72,
+      "gpuSamples": 72,
+      "gpuMs": 5.953622,
+      "enqueueMs": 1.692121,
+      "enqueueThreadCpuMs": 1.183899,
+      "waitMs": 11.479566,
+      "waitThreadCpuMs": 0.10553,
+      "submitMs": 0.028204,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 8.064258,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 71,
+      "gpuSamples": 71,
+      "gpuMs": 6.193421,
+      "enqueueMs": 1.675868,
+      "enqueueThreadCpuMs": 1.240594,
+      "waitMs": 11.637688,
+      "waitThreadCpuMs": 0.10222,
+      "submitMs": 0.028635,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 9.077711,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 72,
+      "gpuSamples": 72,
+      "gpuMs": 6.224648,
+      "enqueueMs": 1.896158,
+      "enqueueThreadCpuMs": 1.285457,
+      "waitMs": 11.516483,
+      "waitThreadCpuMs": 0.09769,
+      "submitMs": 0.023363,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 10.091291,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 73,
+      "gpuSamples": 73,
+      "gpuMs": 5.972748,
+      "enqueueMs": 1.825491,
+      "enqueueThreadCpuMs": 1.267547,
+      "waitMs": 11.269399,
+      "waitThreadCpuMs": 0.103438,
+      "submitMs": 0.031306,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 11.09163,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 72,
+      "gpuSamples": 72,
+      "gpuMs": 5.910162,
+      "enqueueMs": 1.842904,
+      "enqueueThreadCpuMs": 1.331199,
+      "waitMs": 11.285606,
+      "waitThreadCpuMs": 0.095622,
+      "submitMs": 0.025766,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 12.106507,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 73,
+      "gpuSamples": 73,
+      "gpuMs": 5.897443,
+      "enqueueMs": 1.790813,
+      "enqueueThreadCpuMs": 1.247866,
+      "waitMs": 11.376202,
+      "waitThreadCpuMs": 0.098956,
+      "submitMs": 0.026377,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 13.116495,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 71,
+      "gpuSamples": 71,
+      "gpuMs": 6.566937,
+      "enqueueMs": 1.764113,
+      "enqueueThreadCpuMs": 1.193882,
+      "waitMs": 11.723297,
+      "waitThreadCpuMs": 0.096947,
+      "submitMs": 0.024712,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 14.117776,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 70,
+      "gpuSamples": 70,
+      "gpuMs": 6.516001,
+      "enqueueMs": 1.741388,
+      "enqueueThreadCpuMs": 1.238175,
+      "waitMs": 11.75413,
+      "waitThreadCpuMs": 0.102549,
+      "submitMs": 0.026935,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    },
+    {
+      "seconds": 15.118833,
+      "timeoutMs": 100,
+      "glError": 0,
+      "mode": "finish",
+      "frames": 72,
+      "gpuSamples": 72,
+      "gpuMs": 5.951032,
+      "enqueueMs": 1.640966,
+      "enqueueThreadCpuMs": 1.184443,
+      "waitMs": 11.546311,
+      "waitThreadCpuMs": 0.091714,
+      "submitMs": 0.022252,
+      "disjointSamples": 0,
+      "fenceFailures": 0
+    }
+  ],
+  "fpsMedian": 71.92417501735058,
+  "gpuEstimateMiBMedian": 508.6922492980957,
+  "groupBufferPeakMiB": 468.0,
+  "deferredAllocations": 2,
+  "surfaceCreations": 2,
+  "work": {
+    "workSamples": 10,
+    "stableSceneGeometry": true,
+    "completeMemberGeometry": true,
+    "sceneTriangles": 87296.0,
+    "lodObjects": [
+      128.0,
+      0.0,
+      0.0
+    ],
+    "draws": [
+      0.0,
+      256.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      174592.0,
+      0.0
+    ]
+  },
+  "pbrSamples": 10,
+  "pbrDraws": [
+    0,
+    256,
+    0
+  ],
+  "pbrTotalThreadCpuMs": 1.2096115,
+  "gpuMs": 5.973911,
+  "enqueueMs": 1.761033,
+  "enqueueThreadCpuMs": 1.24423,
+  "waitMs": 11.4980245,
+  "waitThreadCpuMs": 0.10058800000000001,
+  "submitMs": 0.0260715,
+  "resolutionCeilingWarnings": 8,
+  "replacementDeferrals": 2,
+  "pbrSubmitSamples": [
+    {
+      "seconds": 6.078384,
+      "threadCpuMs": [
+        0.0,
+        1.159576,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 7.07732,
+      "threadCpuMs": [
+        0.0,
+        1.373338,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 8.077646,
+      "threadCpuMs": [
+        0.0,
+        1.103545,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 9.090485,
+      "threadCpuMs": [
+        0.0,
+        1.299265,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 10.105463,
+      "threadCpuMs": [
+        0.0,
+        1.204015,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 11.106259,
+      "threadCpuMs": [
+        0.0,
+        1.215208,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 12.11922,
+      "threadCpuMs": [
+        0.0,
+        1.236621,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 13.131166,
+      "threadCpuMs": [
+        0.0,
+        0.91776,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 14.131725,
+      "threadCpuMs": [
+        0.0,
+        1.690261,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    },
+    {
+      "seconds": 15.132786,
+      "threadCpuMs": [
+        0.0,
+        0.973856,
+        0.0
+      ],
+      "draws": [
+        0,
+        256,
+        0
+      ]
+    }
+  ]
+}

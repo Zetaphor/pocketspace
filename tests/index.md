@@ -354,6 +354,13 @@ the bounded non-interactive
   reverses the ABBA program order. The excluded `gpu-sync-experiment` accepts
   `SF_PBR_MINIMAL_DEPTH=1` for engine integration; normal builds ignore it.
 
+- [profile-pbr-submission.py](profile-pbr-submission.py): fixed-view PBR
+  submission attribution with probes off/on/on/off, preserving exact work and
+  storage. The excluded engine's `SF_GPU_PROFILE_PBR_SUBMIT=1` samples PBR
+  render-thread CPU once per second; `enqueueThreadCpuMs` distinguishes CPU
+  execution from enqueue wall time. See the
+  [submission cost report](results/pbr-submission.md) for scope and the separate
+  128-Avocado check. This measures existing draws, not an instancing prototype.
 - [profile-minimal-depth.py](profile-minimal-depth.py): bounded actual-engine
   ABBA comparison with a canonical camera, identical static geometry, eight
   lights and exact external/member work plus storage validation. Uses

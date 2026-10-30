@@ -88,6 +88,13 @@ These are deferred investigations, not unimplemented fixes ready to enable.
   CPU generation improvements before adding a GPU implementation; preserve
   material boundaries, UV quality, error limits and the retained full mesh.
 
+- Consider static PBR instancing only when a target workload establishes
+  meaningful submission cost. The [submission profile](../tests/results/pbr-submission.md)
+  does not establish a render-thread submission bottleneck in the tested cars or
+  repeated Avocados. A prototype must preserve filtered light sets, material/map
+  state, surface frames and object/part order, and demonstrate GPU/FPS benefits;
+  fewer draws alone do not establish a gain.
+
 - Revisit multi-part batching only with evidence that lower submission overhead
   outweighs material selection and additional geometry-buffer costs. The
   [combined multi-material stream experiment](../tests/results/multipart-instancing.md)
