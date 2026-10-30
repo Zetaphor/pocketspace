@@ -5,7 +5,7 @@ struct PointLight {
  int id=0,container=0,objectId=0;
  std::array<float,3> position{0,0,0},color{1,1,1};
  float intensity=1,range=1;
- bool enabled=true,spot=false;
+ bool enabled=true,spot=false,directional=false;
  std::array<float,3> direction{0,0,1};
  float innerConeAngle=.35f,outerConeAngle=.6f;
 };
@@ -34,7 +34,7 @@ static std::vector<ResolvedPointLight> resolvePointLights(const SceneType &scene
   }
   const float length=std::sqrt(direction[0]*direction[0]+direction[1]*direction[1]+direction[2]*direction[2]);
   for(auto &component:direction)component/=length;
-  result.push_back({position,light.color,light.intensity,light.range,direction,std::cos(light.innerConeAngle),light.spot?std::cos(light.outerConeAngle):-2.f});
+  result.push_back({position,light.color,light.intensity,light.directional?-1.f:light.range,direction,std::cos(light.innerConeAngle),light.spot?std::cos(light.outerConeAngle):-2.f});
  }
  return result;
 }
@@ -67,6 +67,8 @@ static ObjectLightSet selectObjectLights(const ObjectType &object,const Geometry
  const double radius=std::sqrt(radius2)*object.scale;
  ObjectLightSet result;
  for(const auto &light:lights){
+  // Negative range marks an infinite directional source; never range/cone-cull it.
+  if(light.range<0){if(result.count<result.lights.size())result.lights[result.count++]=light;continue;}
   const double dx=double(light.position[0])-object.x,dy=double(light.position[1])-object.y,dz=double(light.position[2])-object.z;
   const double magnitude=std::max({std::abs(double(object.x)),std::abs(double(object.y)),std::abs(double(object.z)),std::abs(double(light.position[0])),std::abs(double(light.position[1])),std::abs(double(light.position[2]))});
   const double reach=radius+light.range+1e-4+1e-5*(radius+magnitude);

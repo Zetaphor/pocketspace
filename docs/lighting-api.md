@@ -46,14 +46,14 @@ changes are published. Getter side effects remain ordinary script actions.
 Direction is normalized by the shader. All numeric values must be finite.
 These per-asset settings provide one unshadowed directional
 light, constant diffuse ambient light and an optional baked environment per asset.
-Scene point lights below add illumination independently of those settings.
+Scene point, spot and directional lights below add illumination independently of those settings.
 Emissive materials do not illuminate other objects.
 
 Configure lighting on a shared asset and rotate a lit model: [pbr.js](../scripts/pbr.js).
 
 ## Dynamic point lights
 
-Create scene-wide point lights, sharing a limit of eight lights with spotlights. They illuminate every PBR model,
+Create scene-wide point lights, sharing a limit of eight lights with spotlights and scene directional lights. They illuminate every PBR model,
 including animated models, in addition to its existing per-asset directional,
 ambient and environment lighting. Unlit assets, `KHR_materials_unlit` materials,
 panels and laser geometry ignore them. Lights do not draw visible bulbs or cast
@@ -79,7 +79,7 @@ change its color, toggle it, and capture/restore the lit tool.
 
 | Function | Behavior |
 | --- | --- |
-| `createPointLight(options = {})` | Return a fresh positive light ID. Up to eight live point/spot lights combined per scene, including disabled lights. |
+| `createPointLight(options = {})` | Return a fresh positive light ID. Up to eight live point/spot/directional lights combined per scene, including disabled lights. |
 | `setPointLight(id, options)` | Update only supplied fields. Invalid options throw before publishing the update. |
 | `getPointLight(id)` | Return a detached snapshot `{id, type: 'point', position, color, intensity, range, enabled, objectId, container}`. |
 | `removePointLight(id)` | Remove a live light; unknown or removed IDs throw. |
@@ -138,8 +138,8 @@ before using all eight.
 
 Spotlights illuminate a cone rather than all directions. They share the same
 PBR receivers, intensity/range behavior, attachments, container cleanup and
-eight-light scene budget as point lights. Neither type casts shadows or draws a
-visible beam through empty space. A cone appears where it illuminates geometry.
+eight-light scene budget as point and directional lights. Scene lights do not
+cast shadows or draw a visible beam through empty space. A cone appears where it illuminates geometry.
 
 ```js
 const flashlight = createSpotLight({
@@ -183,16 +183,70 @@ point light's distance attenuation. The equal-angle case uses a step instead of
 dividing by zero. Cone width does not renormalize intensity: narrowing the beam
 keeps the center brightness unchanged.
 
-Snapshot v9 stores a `type` for every light and the spotlight direction/cones.
+Snapshots v9 and later store a `type` for every light and the spotlight direction/cones.
+New captures use v10, which also supports scene directional lights.
 Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
 V8 snapshots retain their point-light behavior; v1–v7 restore without scene
-lights. Ownership and cross-container snapshot rules are identical for both types.
+lights. Ownership and cross-container snapshot rules are identical for all scene light types.
 
 Run [spotlights.js](../scripts/spotlights.js): grip/trigger grabs the blue handle,
 bumper switches cone width, A/X toggles the light, and B/Y captures then restores
 the tool. Rotate the handle to aim the beam across the car. Cone rejection can
 avoid BRDF work outside the beam, but adds direction/cone math; profile the
 intended scene rather than assuming a spotlight is faster than a point light.
+
+## Scene directional lights
+
+Use directional lights for sunlight, fill or broad illumination. They affect all
+PBR models without distance falloff, in addition to per-asset lighting. Point,
+spot and directional lights share one eight-light scene limit, including disabled
+lights. They cast no shadows, draw no geometry and do not affect unlit materials,
+panels or lasers.
+
+```js
+const sky = createDirectionalLight({
+  direction: [.4, -.8, 1], color: [1, .9, .75], intensity: 2
+});
+setDirectionalLight(sky, {direction: [-.4, -.8, 1]});
+print(JSON.stringify(getDirectionalLight(sky)));
+setDirectionalLight(sky, {enabled: false});
+removeDirectionalLight(sky);
+```
+
+| Function | Behavior |
+| --- | --- |
+| `createDirectionalLight(options = {})` | Return a fresh positive ID from the shared scene-light namespace. |
+| `setDirectionalLight(id, options)` | Update supplied fields; invalid options throw before publishing. |
+| `getDirectionalLight(id)` | Return a detached `{id, type: 'directional', direction, color, intensity, enabled, objectId, container}` snapshot. |
+| `removeDirectionalLight(id)` | Remove illumination; leave any attachment object in place. |
+
+| Option | Default | Meaning and limits |
+| --- | --- | --- |
+| `direction` | `[0, 0, 1]` | Direction rays **travel**, in scene axes: +X right, +Y up, +Z forward. Three finite components from −64 through 64, with length at least .000001; normalized for rendering. |
+| `color` | `[1, 1, 1]` | Linear RGB, three finite components from 0 through 64. |
+| `intensity` | `1` | Finite multiplier from 0 through 64; no range or inverse-square attenuation. |
+| `enabled` | `true` | Boolean switch; disabled lights retain their settings and consume a slot. |
+| `objectId` | `null` | Live object to follow, or `null` to detach. Only its orientation affects illumination. |
+| `container` | `0` | Active cleanup owner; zero is root ownership. |
+
+Direction matches the spotlight ray convention. It differs from the existing
+`setModelLighting().direction`, which points **toward** the per-asset light in
+model axes. Attached directions rotate in object-local axes, independently of
+translation, visibility and scale. Detaching preserves the stored direction,
+now interpreted in scene axes; supply a new direction in the same call if needed.
+`position`, `range` and cone fields are unsupported and throw when supplied.
+Typed point/spot/directional APIs reject IDs belonging to another light type.
+
+Removal, container transfer/disposal and attachment cleanup follow the point-light
+rules. V10 snapshots preserve directional type, direction, color, intensity,
+enabled state and remapped attachments. Earlier point/spot snapshots remain
+readable; directional entries require v10. Directional lights always contribute
+to each eligible PBR object's light set; distance/cone rejection never removes
+them. More lights still add per-fragment work, so profile the intended scene.
+
+Run [directional-lights.js](../scripts/directional-lights.js): rotate the blue
+handle to aim the key light, move it to see that distance does not change
+brightness, use bumper for color, A/X to toggle, and B/Y to capture/restore.
 
 ## Imported materials and surface geometry
 

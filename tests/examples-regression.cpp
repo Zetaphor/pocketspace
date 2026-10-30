@@ -47,6 +47,11 @@ int main() {
       toggleTool();
       if(getSceneContainerState(tool).objectIds.length!==4||!getSceneContainerState(tool).inputCallback)throw Error('tool recreation');
     )";
+    if(name=="directional-lights.js") controls=R"(
+      inputEventForExample('/input/b/click');const previousSun=light;
+      inputEventForExample('/input/b/click');
+      if(light===previousSun||getDirectionalLight(light).objectId===handle)throw Error('directional restore');
+    )";
     if(name=="spotlights.js") controls=R"(
       inputEventForExample('/input/b/click');const previousSpot=light;
       inputEventForExample('/input/b/click');

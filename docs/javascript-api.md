@@ -662,7 +662,7 @@ Combine model interaction and physics in a complete script: [physics-controls.js
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v9 schema (including v1–v8 compatibility), panels and pixels, animation
+v10 schema (including v1–v9 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

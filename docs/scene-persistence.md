@@ -9,7 +9,7 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v9
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v10
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container and returns
   `{containerId, objectIds, objectMap, renderGroups, jointIds, jointMap,
@@ -91,7 +91,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
 this identifier and its legacy default save directory for compatibility with
 existing snapshots and named saves.
-New captures use `version: 9`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 10`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
@@ -362,3 +362,24 @@ ID counters on failure.
 
 Try mixed-type persistence in the native regression, or run the grabbable
 flashlight capture/restore example: [spotlights.js](../scripts/spotlights.js).
+
+## Scene directional lights (v10)
+
+V10 adds `type: 'directional'` to the shared `lights` array. Directional entries
+store `id`, `direction`, `color`, `intensity`, `enabled`, `container` and
+`objectId` as captured by the [directional API](lighting-api.md#scene-directional-lights).
+The source `container` is informational; restore assigns the new owner.
+They omit `position`, `range` and cone angles; restoration rejects those fields
+when supplied. The nonzero direction uses the same finite component limits as
+the API. Point and spot entries retain their previous schema.
+
+All three light types share the eight-light limit, snapshot ordering, fresh
+`lightIds`/`lightMap`, cleanup ownership and attachment remapping. Validation
+stages the entire set before publication; invalid fields, capacity overflow or
+attachments outside the snapshot leave the active scene and ID counters intact.
+V9 point/spot and v8 point-only documents remain readable. Directional entries
+in v9 or earlier are rejected. New captures use v10 even when they contain no
+lights.
+
+Capture and restore an attached directional key and an independent fill light:
+[directional-lights.js](../scripts/directional-lights.js).

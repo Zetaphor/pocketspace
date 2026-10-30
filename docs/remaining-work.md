@@ -5,10 +5,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Rendering and animation
 
-- Extend dynamic lighting beyond the implemented bounded point lights and spotlights as needed:
-  consider additional directional lights or scalable light
-  selection only after profiling the intended scene. Both types currently
-  affect PBR models, do not cast shadows and have an eight-light scene limit.
+- Consider scalable light selection beyond the shared eight-light scene limit
+  only when an intended workload requires it and profiling supports a design.
+  Point, spot and scene directional lights currently illuminate PBR models
+  without casting shadows.
 
 - Deferred: opt-in spotlight shadows. Start with one shadow-casting spotlight,
   configurable shadow resolution and explicit GPU memory/performance limits.

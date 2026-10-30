@@ -99,6 +99,8 @@ lights still require the full loop. See the
 [lighting guide](lighting-api.md#dynamic-point-lights) and
 [range comparison](../tests/results/light-work.md) and
 [spotlight cone comparison](../tests/results/spotlight-cone-selection.md).
+Scene directional lights remain in every eligible object’s light set; distance
+and cone tests never reject them.
 
 Test-only shader, culling, shared-depth, VAO, uniform-cache and synchronization
 experiments are not supported production options. Their environment switches

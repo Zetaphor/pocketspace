@@ -40,6 +40,10 @@ struct Renderer {
   PbrVariantPrograms pbrVariants;
 #endif
   PbrProgram pbrProgram;
+#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
+  PbrProgram referenceLightProgram,referenceLightDepthProgram;bool referenceLightLoop=false,preparedDirectional=false;
+  PbrVariantPrograms directionalVariants;
+#endif
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
   PbrProgram minimalDepthProgram;bool minimalDepth=false;
@@ -168,6 +172,10 @@ struct Renderer {
             auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
 #elif defined(SF_PBR_LIGHT_INVARIANT_EXPERIMENT)
             auto &activePbr=reusePbrLightInvariants?(depthOnly?invariantDepthPbrProgram:invariantPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
+#elif defined(SF_DIRECTIONAL_LIGHT_VALIDATION)
+            if(referenceLightLoop)assert(depthOnly?referenceLightDepthProgram.initLightReference(true):referenceLightProgram.initLightReference());
+            auto *prepared=preparedDirectional&&!depthOnly?directionalVariants.ready(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count,pixels):nullptr;
+            auto &activePbr=referenceLightLoop?(depthOnly?referenceLightDepthProgram:referenceLightProgram):(prepared?*prepared:(depthOnly?depthPbrProgram:pbrProgram));
 #elif defined(SF_PBR_MINIMAL_DEPTH_EXPERIMENT)
             if(depthOnly&&minimalDepth)assert(minimalDepthProgram.initMinimalDepth());
             auto &activePbr=depthOnly?(minimalDepth?minimalDepthProgram:depthPbrProgram):pbrProgram;
