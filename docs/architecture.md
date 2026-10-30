@@ -356,6 +356,11 @@ material state; rigid merging stops at incompatible animated winding. Culling an
 front-face state reset before panel/other passes. The [native comparison](../tests/results/culling.md)
 found no repeatable overall throughput gain; this policy implements glTF sidedness. Unlike the old unlit path,
 single-sided back faces are now culled for unlit assets too.
+The [bounded PBR shader-variant prototype](../tests/results/pbr-variants.md)
+remains isolated to excluded test targets. Production uses the general PBR color
+program; specialization still needs bounded prewarming, lighter-workload routing
+and lifecycle/headset validation before adoption.
+
 Legacy, PBR color and PBR depth programs link during startup, before live scene publication;
 reloads do not compile a new shader after committing their candidate scene.
 The separate program restores legacy program, texture-unit and attribute state
