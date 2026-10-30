@@ -68,7 +68,7 @@ public:
  template<class SceneType>void update(const SceneType &scene){
   active=false;spotShadowDiagnostics.active=false;
   const PointLight *source=nullptr;
-  for(const auto &light:scene.lights)if(light.spot&&light.enabled&&light.intensity>0&&light.shadow.enabled){source=&light;break;}
+  for(const auto &light:scene.lights)if((light.spot||light.directional)&&light.enabled&&light.intensity>0&&light.shadow.enabled){source=&light;break;}
   if(!source){reset();return;}
   auto &stats=spotShadowDiagnostics;stats.lightId=source->id;stats.status="preparing";
   if(source->id!=lightId||source->shadowRevision!=revision||!(source->shadow==settings)){releaseMap();settings=source->shadow;revision=source->shadowRevision;lightId=source->id;warmFrames=0;blocked=false;gpuBudget.reset();stats.gpuMs.reset();stats.bytes=0;stats.resolution=0;}
@@ -88,9 +88,16 @@ public:
   auto d=found->direction;d[2]=-d[2];std::array<float,3> up=std::abs(d[1])>.99f?std::array<float,3>{1,0,0}:std::array<float,3>{0,1,0};
   auto cross=[](const auto &a,const auto &b){return std::array<float,3>{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]};};
   auto right=cross(d,up);float length=std::sqrt(right[0]*right[0]+right[1]*right[1]+right[2]*right[2]);for(auto &c:right)c/=length;up=cross(right,d);
-  const float tangent=std::tan(source->outerConeAngle),a=(source->range+settings.nearPlane)/(source->range-settings.nearPlane),b=-2*source->range*settings.nearPlane/(source->range-settings.nearPlane);
-  const std::array<float,3> position={found->position[0],found->position[1],-found->position[2]};matrix={};
-  for(int c=0;c<3;c++){matrix[c*4]=right[c]/tangent;matrix[c*4+1]=up[c]/tangent;matrix[c*4+2]=d[c]*a;matrix[c*4+3]=d[c];matrix[12]-=matrix[c*4]*position[c];matrix[13]-=matrix[c*4+1]*position[c];matrix[14]-=matrix[c*4+2]*position[c];matrix[15]-=matrix[c*4+3]*position[c];}matrix[14]+=b;
+  if(source->directional){
+   // Fixed world center avoids head-dependent movement/swimming. Size is the
+   // full square width/height, depth the full extent along the light direction.
+   const std::array<float,3> center={settings.center[0],settings.center[1],-settings.center[2]};matrix={};
+   for(int c=0;c<3;c++){matrix[c*4]=right[c]*2/settings.size;matrix[c*4+1]=up[c]*2/settings.size;matrix[c*4+2]=d[c]*2/settings.depth;matrix[12]-=matrix[c*4]*center[c];matrix[13]-=matrix[c*4+1]*center[c];matrix[14]-=matrix[c*4+2]*center[c];}matrix[15]=1;
+  }else{
+   const float tangent=std::tan(source->outerConeAngle),a=(source->range+settings.nearPlane)/(source->range-settings.nearPlane),b=-2*source->range*settings.nearPlane/(source->range-settings.nearPlane);
+   const std::array<float,3> position={found->position[0],found->position[1],-found->position[2]};matrix={};
+   for(int c=0;c<3;c++){matrix[c*4]=right[c]/tangent;matrix[c*4+1]=up[c]/tangent;matrix[c*4+2]=d[c]*a;matrix[c*4+3]=d[c];matrix[12]-=matrix[c*4]*position[c];matrix[13]-=matrix[c*4+1]*position[c];matrix[14]-=matrix[c*4+2]*position[c];matrix[15]-=matrix[c*4+3]*position[c];}matrix[14]+=b;
+  }
   bias=settings.bias;normalBias=settings.normalBias;
   const bool timed=warmFrames++>=3&&!pending;if(timed)begin(GL_TIME_ELAPSED_EXT,query);
   glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(0,0,resolution,resolution);glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_CULL_FACE);glFrontFace(GL_CCW);glCullFace(GL_BACK);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glDepthMask(GL_TRUE);glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glClearDepthf(1);glClear(GL_DEPTH_BUFFER_BIT);glUseProgram(program);glGenVertexArrays(1,&vao);glBindVertexArray(vao);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);

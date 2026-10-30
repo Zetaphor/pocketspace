@@ -4,6 +4,9 @@
 #include "render-occlusion-regression.cpp"
 static size_t darker(const std::vector<unsigned char> &lit,const std::vector<unsigned char> &shadow){size_t count=0;assert(lit.size()==shadow.size());for(size_t i=0;i<lit.size();i+=4){if(lit[i+3]!=shadow[i+3]){fprintf(stderr,"alpha mismatch pixel=%zu lit=%d shadow=%d error=%x status=%s\n",i/4,int(lit[i+3]),int(shadow[i+3]),glGetError(),spotShadowDiagnostics.status);assert(false);}if(lit[i+3]&&int(lit[i])+lit[i+1]+lit[i+2]>int(shadow[i])+shadow[i+1]+shadow[i+2]+12)++count;}return count;}
 int main(int argc,char **argv){
+ const std::string mode=argc>1?argv[1]:"";
+ const bool directional=mode=="--directional"||mode=="--directional-benchmark";
+
  {SpotShadowGpuBudget budget;
   assert(!budget.add(4,2));
   for(unsigned i=1;i<SpotShadowGpuBudget::window*3;i++)assert(!budget.add(.02,2));
@@ -14,6 +17,7 @@ int main(int argc,char **argv){
 
  const auto dir=std::filesystem::temp_directory_path()/("pocketspace-shadow-"+std::to_string(getpid()));std::filesystem::create_directory(dir);scenePersistence::directory=dir.string();
  {ScriptHost host;assert(loadScript(host,"tests/spot-shadow-api-smoke.js"));assert(host.scene.lights.size()==1&&host.scene.lights[0].shadow.enabled);closeScript(host);currentScene=liveScene=nullptr;}
+ {ScriptHost host;assert(loadScript(host,"tests/directional-shadow-api-smoke.js"));assert(host.scene.lights.size()==1&&host.scene.lights[0].directional&&host.scene.lights[0].shadow.enabled);closeScript(host);currentScene=liveScene=nullptr;}
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  {
   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();for(auto &a:r.scene.assets)deleteModel(a);r.scene.assets.clear();
@@ -24,14 +28,21 @@ int main(int argc,char **argv){
   }
   Object receiver{},caster{};receiver.id=1;receiver.asset=1;receiver.scale=1.5;
   caster.id=2;caster.asset=2;caster.scale=.25f;caster.z=-.3f;r.scene.objects={receiver,caster};
-  PointLight light;light.id=1;light.spot=true;light.position={-.4f,.5f,-1.f};light.direction={.4f,-.5f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.6;light.outerConeAngle=.9;light.shadow.resolution=256;light.shadow.maxGpuMs=16;r.scene.lights={light};
+  PointLight light;light.id=1;light.spot=true;light.position={-.4f,.5f,-1.f};light.direction={.4f,-.5f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.6;light.outerConeAngle=.9;light.shadow.resolution=256;light.shadow.maxGpuMs=16;if(directional){light.spot=false;light.directional=true;light.shadow.size=2;light.shadow.depth=4;}r.scene.lights={light};
   auto baseline=r.renderSet({1},{0,0,-1.2f},0);assert(!r.spotShadows.texture);
   r.scene.lights[0].shadow.enabled=true;auto shaded=r.renderSet({1},{0,0,-1.2f},0);assert(r.spotShadows.active);const size_t solid=darker(baseline,shaded);printf("SHADOW opaque pixels=%zu\n",solid);assert(solid>100);
   for(int eye=0;eye<2;eye++){printf("STEREO eye=%d\n",eye);fflush(stdout);
    r.scene.lights[0].shadow.enabled=false;auto lit=r.renderSet({1},{.1f,.1f,-1.2f},eye);r.scene.lights[0].shadow.enabled=true;assert(darker(lit,r.renderSet({1},{.1f,.1f,-1.2f},eye))>100);
   }
   auto reference=[&]{r.scene.lights[0].shadow.enabled=false;auto image=r.renderSet({1},{0,0,-1.2f},0);r.scene.lights[0].shadow.enabled=true;return image;};
-  r.scene.objects[1].visible=false;baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))==0);r.scene.objects[1].visible=true;
+  // Default bias must keep the bare sloped receiver clean at every supported
+  // resolution, while an actual caster must still produce a visible shadow.
+  for(int resolution:{256,512,1024}){
+   r.scene.lights[0].shadow.resolution=resolution;
+   r.scene.objects[1].visible=false;baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))==0);
+   r.scene.objects[1].visible=true;baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))>100);
+  }
+  r.scene.lights[0].shadow.resolution=256;
   auto &part=r.scene.assets[1].primitives[0];part.alphaMode=2;baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))==0);
   part.alphaMode=1;part.factor[3]=0;baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))==0);part.factor[3]=1;
   unsigned char checker[]={255,255,255,255,255,255,255,0,255,255,255,0,255,255,255,255};glBindTexture(GL_TEXTURE_2D,part.texture);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,checker);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
@@ -42,6 +53,18 @@ int main(int argc,char **argv){
   // Filtered light sets and prepared shader routing retain the caster identity.
   for(int i=0;i<3;i++){auto extra=light;extra.id=i+2;extra.shadow.enabled=false;extra.intensity=.1f;r.scene.lights.push_back(extra);}
   r.specializePbr=false;auto general=r.renderSet({1},{0,0,-1.2f},0);r.specializePbr=true;auto specialized=r.renderSet({1},{0,0,-1.2f},0);assert(darker(general,specialized)==0&&darker(specialized,general)==0);r.specializePbr=false;r.scene.lights.resize(1);
+  if(directional){
+   // World-space coverage remains fixed under attachment translation. Direction
+   // rotates with the attachment, while moving the center moves only coverage.
+   auto &sun=r.scene.lights[0];sun.objectId=2;r.spotShadows.update(r.scene);const auto fixed=r.spotShadows.matrix;
+   r.scene.objects[1].x=.2f;r.spotShadows.update(r.scene);assert(r.spotShadows.matrix==fixed);
+   r.scene.objects[1].yaw=.3f;r.spotShadows.update(r.scene);assert(r.spotShadows.matrix!=fixed);
+   r.scene.objects[1].x=0;r.scene.objects[1].yaw=0;sun.objectId=0;
+   sun.shadow.center={10,0,0};baseline=reference();assert(darker(baseline,r.renderSet({1},{0,0,-1.2f},0))==0);
+   sun.shadow.center={0,0,0};
+   for(auto direction:{std::array<float,3>{0,-1,0},std::array<float,3>{0,1,0}}){sun.direction=direction;r.spotShadows.update(r.scene);for(float v:r.spotShadows.matrix)assert(std::isfinite(v));}
+   sun.direction=light.direction;
+  }
   // Animated casters use the current pose. Compare GPU skinning to independent
   // CPU deformation on the same receiver; permit only sparse raster edge changes.
   for(const char *name:{"Fox","AnimatedMorphCube","InterpolationTest"}){
@@ -85,11 +108,11 @@ int main(int argc,char **argv){
   std::ofstream(file)<<valid;assert(loadScript(host,file.string(),[&]{committed=true;map.reset();}));assert(committed&&!map.active&&!map.texture&&!glIsTexture(previous));for(auto &a:host.scene.assets)uploadModel(a);map.update(host.scene);assert(map.active);
   closeScript(host);currentScene=liveScene=nullptr;map.update(host.scene);assert(!map.texture);
  }
- if(argc>1&&std::string(argv[1])=="--benchmark"){
+ if(mode=="--benchmark"||mode=="--directional-benchmark"){
   Renderer r;r.ordinaryRouting=false;r.updateShadows=false;r.scene.objects.clear();
   r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.optimizeVertexCache=true;
   assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.lighting.intensity=0;asset.lighting.ambient=.02;
-  PointLight light;light.id=1;light.spot=true;light.position={-.4f,.7f,-1.f};light.direction={.4f,-.7f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.5;light.outerConeAngle=1;light.shadow.maxGpuMs=16;light.shadow.maxTriangles=1000000;
+  PointLight light;light.id=1;light.spot=true;light.position={-.4f,.7f,-1.f};light.direction={.4f,-.7f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.5;light.outerConeAngle=1;light.shadow.maxGpuMs=16;light.shadow.maxTriangles=1000000;if(directional){light.spot=false;light.directional=true;light.shadow.size=2;light.shadow.depth=4;}
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{1,4})for(int resolution:{256,512,1024}){
    r.scene.objects.clear();std::vector<int> members;
@@ -103,10 +126,10 @@ int main(int argc,char **argv){
      GLuint64 ns=0;result(query,GL_QUERY_RESULT_EXT,&ns);GLint disjoint=0;glGetIntegerv(GL_GPU_DISJOINT_EXT,&disjoint);assert(!disjoint&&glGetError()==GL_NO_ERROR);assert(!r.scene.lights[0].shadow.enabled||r.spotShadows.active);
      if(frame>=12){gpu+=double(ns)/1e6;shadow+=spotShadowDiagnostics.gpuMs.value_or(0);cpu+=std::chrono::duration<double,std::milli>(queued-start).count();wall+=std::chrono::duration<double,std::milli>(finished-start).count();}
     }
-    destroy(1,&query);printf("SPOT_SHADOW_SAMPLE objects=%d resolution=%d stage=%d enabled=%d eye_pixels=768 frames=36 shadow_gpu_ms=%.6f color_gpu_ms=%.6f enqueue_ms=%.6f wall_ms=%.6f map_bytes=%llu\n",count,resolution,stage,int(r.scene.lights[0].shadow.enabled),shadow/36,gpu/36,cpu/36,wall/36,(unsigned long long)spotShadowDiagnostics.bytes);fflush(stdout);
+    destroy(1,&query);printf("SHADOW_SAMPLE directional=%d objects=%d resolution=%d stage=%d enabled=%d eye_pixels=768 frames=36 shadow_gpu_ms=%.6f color_gpu_ms=%.6f enqueue_ms=%.6f wall_ms=%.6f map_bytes=%llu\n",int(directional),count,resolution,stage,int(r.scene.lights[0].shadow.enabled),shadow/36,gpu/36,cpu/36,wall/36,(unsigned long long)spotShadowDiagnostics.bytes);fflush(stdout);
    }
   }
  }
  assert(glGetError()==GL_NO_ERROR);eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);std::filesystem::remove_all(dir);
- puts("PASS spotlight shadows: API rollback, capacity/snapshots, stereo, alpha cutouts, groups, shader variants, GL state, work/time budgets and cleanup");
+ puts(directional?"PASS directional shadows: orthographic coverage, attachment basis, stereo, alpha, animation, budgets and cleanup":"PASS spotlight shadows: API rollback, capacity/snapshots, stereo, alpha cutouts, groups, shader variants, GL state, work/time budgets and cleanup");
 }

@@ -154,16 +154,30 @@ vec3 layerSheen(vec3 base,vec3 tint,float r,float nv,float nl,float nh,float ev,
  float strength=max(tint.r,max(tint.g,tint.b));
  return base*max(0.,1.-strength*max(ev,el))+tint*sheenBrdf(nv,nl,nh,r)*normalization;
 }
-float spotlightVisibility(vec3 n){
+// Compute before alpha discard and per-light branches: derivatives are undefined
+// in divergent control flow. Use geometry rather than normal-map perturbations.
+vec2 shadowReceiverSlope(){
+ vec4 clip=spotShadowMatrix*vec4(litPosition+spotShadowOrigin,1);
+ vec3 q=clip.xyz/(abs(clip.w)>1e-8?clip.w:1e-8)*.5+.5;
+ vec3 dx=dFdx(q),dy=dFdy(q);
+ float determinant=dx.x*dy.y-dx.y*dy.x;
+ if(abs(determinant)<1e-12)return vec2(0);
+ return vec2(dx.z*dy.y-dy.z*dx.y,dx.x*dy.z-dy.x*dx.z)/determinant;
+}
+float spotlightVisibility(vec3 n,vec2 slope){
  vec4 clip=spotShadowMatrix*vec4(litPosition+spotShadowOrigin+n*shadowNormalBias,1);
  if(clip.w<=0.)return 1.;
  vec3 q=clip.xyz/clip.w*.5+.5;
  if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.;
+ // Four bilinear comparison taps reach up to 1.5 texels from the receiver.
+ // Cover that plane-depth variation so coarse maps do not shadow the plane itself.
+ float receiverBias=shadowBias+1.5*shadowTexel*(abs(slope.x)+abs(slope.y));
  float visibility=0.;
- for(int y=0;y<2;y++)for(int x=0;x<2;x++)visibility+=texture(spotShadowMap,vec3(q.xy+(vec2(x,y)-.5)*shadowTexel,q.z-shadowBias));
+ for(int y=0;y<2;y++)for(int x=0;x<2;x++)visibility+=texture(spotShadowMap,vec3(q.xy+(vec2(x,y)-.5)*shadowTexel,q.z-receiverBias));
  return visibility*.25;
 }
 void main(){
+ vec2 shadowSlope=shadowLightIndex>=0?shadowReceiverSlope():vec2(0);
  vec4 base=texture(material,t)*factor;
  if(alphaMode==1&&base.a<alphaCutoff)discard;
  float alpha=alphaMode==0?1.:base.a;
@@ -214,7 +228,7 @@ void main(){
     float window=max(1.-pow(distance2/(range*range),2.),0.);
     attenuation=cone*window*window/max(distance2,.0001);
    }
-   result+=layerSheen((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf,sheenTint,sr,nv,pnl,pnh,ev,normalization)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation*(i==shadowLightIndex?spotlightVisibility(n):1.);
+   result+=layerSheen((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf,sheenTint,sr,nv,pnl,pnh,ev,normalization)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation*(i==shadowLightIndex?spotlightVisibility(n,shadowSlope):1.);
   }
   if(environmentEnabled){
    vec3 en=environmentDirection(n),reflection=environmentDirection(reflect(-v,n));
@@ -262,6 +276,8 @@ void main(){
   if(optimizeLightWork){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,rejectedLightLoop);}
 #endif
   if(fastDepth){
+    const std::string slopeCondition="shadowLightIndex>=0?shadowReceiverSlope():vec2(0)";
+    fragmentSource.replace(fragmentSource.find(slopeCondition),slopeCondition.size(),"(!depthOnly&&shadowLightIndex>=0)?shadowReceiverSlope():vec2(0)");
     fragmentSource.insert(fragmentSource.find("void main(){"),"uniform bool depthOnly;\n");
     fragmentSource.insert(fragmentSource.find(" vec4 base=")," if(depthOnly&&alphaMode==0){color=vec4(0);return;}\n");
     fragmentSource.insert(fragmentSource.find(" float alpha=")," if(depthOnly){color=vec4(0);return;}\n");

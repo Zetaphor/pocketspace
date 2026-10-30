@@ -130,7 +130,8 @@ Retained spotlights use the same per-fragment cone falloff in the shader.
 
 The renderer uses a bounded forward loop over the remaining enabled, nonzero
 lights for each lit fragment. More lights and more screen coverage increase GPU
-work; there is no tiled-light system or shadow pass. The external-depth pass
+work; there is no tiled-light system. Opt-in spot/directional shadows use a separate
+bounded pass. The external-depth pass
 skips light setup. Start with one or two lights and profile your intended scene
 before using all eight.
 
@@ -185,7 +186,7 @@ dividing by zero. Cone width does not renormalize intensity: narrowing the beam
 keeps the center brightness unchanged.
 
 Snapshots v9 and later store a `type` for every light and the spotlight direction/cones.
-New captures use v12, which also preserves spotlight shadow settings.
+New captures use v13, preserving spotlight and directional shadow settings.
 Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
 V8 snapshots retain their point-light behavior; v1–v7 restore without scene
 lights. Ownership and cross-container snapshot rules are identical for all scene light types.
@@ -218,11 +219,12 @@ setSpotLight(flashlight, {shadow: {enabled: false}});
 
 `createSpotLight` and `setSpotLight` accept a partial `shadow` options object.
 `getSpotLight` returns the full settings, even when shadows are disabled.
-Point and directional lights reject the `shadow` option.
+Point lights reject the `shadow` option. Directional lights support
+[orthographic shadow coverage](#directional-light-shadows).
 
 | Shadow option | Default | Meaning and limits |
 | --- | --- | --- |
-| `enabled` | `false` | Boolean opt-in. At most one enabled spotlight can have shadows enabled, including zero-intensity lights. Disabled lights retain their configuration without occupying the shadow slot. |
+| `enabled` | `false` | Boolean opt-in. At most one enabled spotlight or directional light can have shadows enabled, including zero-intensity lights. Disabled lights retain their configuration without occupying the shadow slot. |
 | `resolution` | `512` | Square depth-map size: 256, 512 or 1024. Active depth storage is estimated at 0.25, 1 or 4 MiB respectively; driver/program overhead and in-flight retired storage are additional. |
 | `near` | `.05` | Near clipping distance in meters, .001–1, strictly less than light range when shadows are enabled. Geometry before this plane does not cast into the map. |
 | `bias` | `.0005` | Normalized depth comparison offset, 0–.05. Larger values reduce acne but can separate shadows from objects. |
@@ -241,7 +243,10 @@ map. Static, rigid-animated, CPU-deformed and GPU-skinned meshes cast from their
 full geometry. Opaque surfaces cast solid shadows; alpha-mask surfaces preserve
 texture holes and alpha cutoff. Alpha-blended surfaces do not cast shadows in
 this version. Hidden objects do not cast. glTF sidedness and mirrored winding
-are honored. Receivers use four comparison-filtered taps; this smooths map edges
+are honored. Receivers apply a geometry-slope correction over the filter footprint
+in addition to configured bias, scaled to map resolution. This suppresses
+self-shadow patterns on coarse maps; grazing surfaces may still need bias tuning.
+Receivers use four comparison-filtered taps; this smooths map edges
 but does not simulate area-light penumbrae or transparent shadow transmission.
 
 Geometry-budget exhaustion, failed allocation or unavailable GPU timers produce
@@ -275,7 +280,8 @@ light, bumper cycles resolution, and B/Y captures then restores the tool.
 Use directional lights for sunlight, fill or broad illumination. They affect all
 PBR models without distance falloff, in addition to per-asset lighting. Point,
 spot and directional lights share one eight-light scene limit, including disabled
-lights. They cast no shadows, draw no geometry and do not affect unlit materials,
+lights. They support [opt-in bounded shadows](#directional-light-shadows), draw no geometry
+and do not affect unlit materials,
 panels or lasers.
 
 ```js
@@ -322,6 +328,57 @@ them. More lights still add per-fragment work, so profile the intended scene.
 Run [directional-lights.js](../scripts/directional-lights.js): rotate the blue
 handle to aim the key light, move it to see that distance does not change
 brightness, use bumper for color, A/X to toggle, and B/Y to capture/restore.
+
+
+## Directional-light shadows
+
+Directional shadows use one orthographic map over an explicit world-space
+volume. They share the single shadow slot with spotlights: only one enabled
+light of either type can reserve it. Directional lighting remains infinite and
+has no distance falloff; only shadow coverage is bounded.
+
+```js
+const sun = createDirectionalLight({
+  direction: [.35, -.85, .55], intensity: 2,
+  shadow: {enabled: true, resolution: 512,
+    center: [0, -.2, .1], size: 1.5, depth: 3}
+});
+setDirectionalLight(sun, {shadow: {size: 2}});
+print(JSON.stringify(getDirectionalLight(sun).shadow));
+```
+
+`createDirectionalLight` and `setDirectionalLight` accept partial shadow options;
+`getDirectionalLight` returns the full configuration. Common `enabled`,
+`resolution`, `bias`, `normalBias`, `maxTriangles` and `maxGpuMs` options have the
+same defaults, validation and [budgets](#spotlight-shadows) as spotlight shadows.
+Directional lights use these additional settings instead of `near`:
+
+| Option | Default | Meaning and limits |
+| --- | --- | --- |
+| `center` | `[0, 0, 0]` | Fixed world-space center in meters; three finite coordinates from -10000 to 10000. |
+| `size` | `2` | Full square width/height perpendicular to the resolved light direction, .01–64 meters. |
+| `depth` | `4` | Full depth along that direction, .01–64 meters, centered symmetrically around `center`. |
+
+`near` is rejected on directional shadows; `center`, `size` and `depth` are
+rejected on spotlight shadows. Attachments rotate the ray direction, but moving
+an attachment does not translate coverage. Update `shadow.center` explicitly to
+move coverage. Head movement never changes the volume. Rotating the light rotates
+the volume basis around its center.
+
+Both casters and receivers must fall within the volume to participate. Geometry
+outside it is clipped, and receivers outside it remain lit without this shadow.
+Choose enough depth to include upstream casters. Larger coverage at the same
+resolution reduces detail; bias is normalized to the selected depth. There are
+no cascades, automatic camera following, edge fading or area-light penumbrae.
+These limits favor small play spaces; crossing a coverage edge can visibly remove
+a shadow. Opaque/masked/animated casting, stereo sharing, resource cleanup,
+GPU watchdog and `getEngineStats().shadow` work as for spotlights.
+
+V13 snapshots preserve directional shadow settings and remap attachments;
+older directional snapshots restore with shadows disabled. Slot conflicts reject
+the entire restore. [directional-shadows.js](../scripts/directional-shadows.js)
+demonstrates grabbing a caster and rotating a sunlight handle, A/X shadow toggle,
+bumper resolution changes and B/Y save/restore with slot recovery.
 
 ## Imported materials and surface geometry
 

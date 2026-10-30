@@ -1525,3 +1525,17 @@ for performance measurements; no pointer input is captured.
 handle or yellow box, toggle shadows with A/X, cycle resolution with bumper,
 and capture/restore with B/Y. Check ground contact, head motion, moving light and
 caster, and the status/time HUD. Stop the demo after visual verification.
+
+## Directional shadows
+
+Run `spot-shadow-regression --directional` in the same native GLES environment
+as the spotlight checks. `--directional-benchmark` adds bounded paired one/four-car
+comparisons at 256/512/1024 map pixels, using a fixed 2-meter square and 4-meter
+depth. Runs are offscreen and capture no input. Keep the headset awake and worn
+for timing. The shared API suite includes `directional-shadow-api-smoke.js`.
+
+Run `./run-pocketspace.sh scripts/directional-shadows.js` for interaction. Move
+the yellow caster and rotate the blue handle; its translation does not move
+world-space coverage. A/X toggles shadows, bumper cycles resolution, B/Y saves
+then restores. Check stable head motion, parallel shadows and active HUD status;
+stop after user verification.

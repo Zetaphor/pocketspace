@@ -306,7 +306,8 @@ point lights bypass the cone branch. Directional lights use normalized ray trave
 direction, unit attenuation and the same GGX BRDF; translation/range/cones do not
 affect them. They always survive per-object range/cone filtering. The existing
 uniform payload uses an internal negative-range sentinel, keeping the eight-light
-layout and prepared-program keys unchanged. Lights cast no shadows. V10 snapshots
+layout and prepared-program keys unchanged. Spot/directional lights can opt into
+the [shared shadow pass](#spotlight-shadow-pipeline). V10 snapshots
 add directional records; v9 stores point/spot types and cones, and v8 retains points.
 Snapshots stage owned lights, remap attachments and
 publish fresh IDs; cross-container capture attachments are rejected. Removal,
@@ -576,12 +577,12 @@ before publishing shared environment resources.
 `src/spot_shadows.h` owns one depth-only framebuffer/texture, a transient private VAO,
 prepared caster program and asynchronous timer query. Settings are logical light
 state in `src/spot_shadow_settings.h`, with transactional API/snapshot validation.
-At most one enabled spotlight reserves the slot; point/directional shadows are
-unsupported. The normal engine compiles the caster program during startup.
+At most one enabled spotlight or directional light reserves the slot; point
+shadows are unsupported. The normal engine compiles the caster program during startup.
 
 After animation/physics and GPU pose uploads, the engine renders full visible
 opaque/masked geometry into one scene-space light projection, once per frame
-before surface/eye rendering. The light's range and outer cone define the camera;
+before surface/eye rendering. The spotlight's range and outer cone define its perspective camera;
 attachments are resolved by ID. CPU poses and GPU skinning use the same current
 geometry as color rendering. Alpha blend casters are skipped. A private VAO and
 scoped framebuffer, viewport, texture, program, depth, mask, blend, scissor and
@@ -591,7 +592,11 @@ update so its attribute/index bindings cannot retain unloaded asset or removed
 pose buffers between frames.
 
 PBR general/prepared programs sample texture unit 11 using four comparison-
-filtered taps. A per-draw light index is resolved from the filtered light IDs;
+filtered taps. Geometry derivatives, evaluated before alpha discard and light
+branches, determine receiver-plane depth variation across the filter footprint.
+The resulting resolution-scaled slope bias supplements configured bias without
+using normal-map perturbations; external-depth draws skip this calculation.
+A per-draw light index is resolved from the filtered light IDs;
 other lights, IBL and emission stay unshadowed. The matrix consumes scene-space
 coordinates, including each surface origin, and is shared across both eyes. PBR
 release clears unit 11. No shadow state is added to the shader variant key.
@@ -608,6 +613,22 @@ light disable/re-enable or successful script reload reset the watchdog. Disabled
 removed, disposed or unresolved lights release their map; failed reload leaves
 the active resources intact. Map storage is counted once in engine estimates.
 
-V12 snapshots store logical shadow settings only. Conflicting restores are
+V13 snapshots store logical shadow settings for both light types; v12 supports
+spotlights. Conflicting restores are
 rejected before native reservation. See [public API and example](lighting-api.md#spotlight-shadows)
 and [shadow regression](../tests/spot-shadow-regression.cpp).
+
+### Directional shadow coverage
+
+The shared shadow pass also accepts directional lights. A fixed world-space
+center and explicit square size/depth define an orthographic volume in the
+resolved light basis, with symmetric depth around the center. Attachment rotation
+aims rays and rotates that basis; attachment translation and headset motion do
+not move coverage. Receivers outside the volume remain unshadowed, and casters
+outside are clipped. There are no cascades or camera-relative fitting. The
+existing comparison sampler, surface-origin transform, filtered light ID lookup,
+full-pose casters, allocation/work/watchdog limits and resource lifetime are
+shared with spotlights. No additional map or shader variant is introduced.
+
+See [directional shadow API](lighting-api.md#directional-light-shadows) and
+[example](../scripts/directional-shadows.js).

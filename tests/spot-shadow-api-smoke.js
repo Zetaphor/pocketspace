@@ -16,13 +16,13 @@ check(JSON.stringify(getSpotLight(spot))===initial);
 fails(()=>setSpotLight(spot,{outerConeAngle:Math.PI/2}));
 fails(()=>setSpotLight(spot,{range:.01}));
 fails(()=>createPointLight({shadow:{enabled:true}}));
-fails(()=>createDirectionalLight({shadow:{enabled:true}}));
+fails(()=>createDirectionalLight({shadow:{enabled:true}})); // Existing spotlight owns the shared slot.
 fails(()=>createSpotLight({shadow:{enabled:true}}));
 const second=createSpotLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setSpotLight(second,{enabled:true}));check(!getSpotLight(second).enabled);
 setSpotLight(spot,{enabled:false});setSpotLight(second,{enabled:true});
 fails(()=>setSpotLight(spot,{enabled:true}));setSpotLight(second,{shadow:{enabled:false}});setSpotLight(spot,{enabled:true});removeSpotLight(second);
-const snapshot=captureSceneContainer(owner);check(snapshot.version===12&&snapshot.lights[0].shadow.enabled);
+const snapshot=captureSceneContainer(owner);check(snapshot.version===13&&snapshot.lights[0].shadow.enabled);
 const before=JSON.stringify(snapshot),state=JSON.stringify(getSceneContainerState(owner));
 fails(()=>restoreSceneContainer(snapshot));check(JSON.stringify(captureSceneContainer(owner))===before);
 for(const mutate of [s=>delete s.lights[0].shadow,s=>s.lights[0].shadow.resolution=2048,s=>s.lights[0].shadow.maxTriangles=0,s=>s.lights[0].shadow.maxGpuMs=0,s=>s.lights[0].shadow.near=4,s=>s.lights[0].type='point']) {
