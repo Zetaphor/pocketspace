@@ -7,9 +7,9 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Material support
 
-- Implement physical glTF sheen in the PBR path, including sheen color/roughness
-  textures and factors. The current imported sheen color is only used by the
-  legacy approximate tint; it is not physical PBR sheen.
+- Add Charlie-prefiltered environment sheen when a target experience needs sharp
+  directional HDR fabric reflections. The current indirect sheen uses diffuse SH
+  irradiance and directional albedo.
 - Add other advanced glTF material extensions, such as clearcoat and transmission,
   when a target experience requires them. Define rendering/compositing and
   performance limits before implementation.

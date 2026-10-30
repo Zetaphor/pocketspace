@@ -41,6 +41,11 @@ int main() {
     // Exercise lifecycle controls before the general button smoke check disposes owners.
     std::string controls;
     const auto name = entry.path().filename();
+    if(name=="sheen.js") controls=R"(
+      environment=true;lighting();
+      enabled=false;lighting();
+      environment=false;enabled=true;lighting();
+    )";
     if(name=="containers.js") controls=R"(
       toggleTool();
       if(tool!==0||getEngineStats().objectCount!==0)throw Error('tool disposal');

@@ -6,6 +6,7 @@
 #include "animation.h"
 #include "surface_frame.h"
 #include "lighting_environment.h"
+#include "sheen.h"
 #include "pbr_lod_budget.h"
 #include "animation_profile.h"
 #include "gpu_skinning.h"
@@ -34,7 +35,7 @@ struct PrimitiveAsset {
   // Expanded normal.xyz, tangent.xyzw, UV0; separate from legacy xyz/UV.
   std::vector<float> surface,localSurface;
   std::vector<std::vector<float>> morphNormals,morphTangents;
-  MaterialMap maps[4]; // normal, metallic/roughness, occlusion, emissive
+  MaterialMap maps[6]; // normal, metallic/roughness, occlusion, emissive, sheen color/roughness
   GLuint surfaceVbo=0;
   float metallic=1,roughness=1,normalScale=1,occlusionStrength=1,emissive[3]={};
   bool materialUnlit=false,flatNormals=false,surfaceMirrored=false;
@@ -51,6 +52,7 @@ struct PrimitiveAsset {
   int width=1,height=1;
   float factor[4]={1,1,1,1};
   float sheen[3]={0,0,0};
+  float sheenRoughness=0;
   int alphaMode=0; // 0 opaque, 1 mask, 2 blend
   float alphaCutoff=.5f;
   bool doubleSided=false;
@@ -87,6 +89,7 @@ struct ModelAsset {
   bool pbr=false;
   ModelLighting lighting;
   std::shared_ptr<LightingEnvironment> environment;
+  std::shared_ptr<SheenLookup> sheenLookup;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);

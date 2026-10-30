@@ -13,6 +13,7 @@
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
+ mutable bool sheenTexturesBound=false;
 #ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
  bool originalLightLoop=false;
 #endif
@@ -101,6 +102,10 @@ vec3 rotateSurface(vec3 v){
 precision highp float;
 in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView,litPosition;in highp float tangentSign;
 uniform sampler2D material,normalMap,metalRoughMap,occlusionMap,emissiveMap;
+uniform sampler2D sheenColorMap,sheenRoughnessMap,sheenAlbedo;
+uniform bool sheenEnabled,hasSheenColor,hasSheenRoughness;
+uniform mat3 sheenColorUV,sheenRoughnessUV;
+uniform vec3 sheenColor;uniform float sheenRoughness;
 uniform highp samplerCube environmentMap;
 uniform highp sampler2D environmentBrdf;
 uniform bool environmentEnabled;
@@ -123,6 +128,28 @@ vec3 environmentDirection(vec3 d){float c=environmentRotationCS.x,s=environmentR
 vec3 diffuseEnvironment(vec3 n){
  return max(vec3(0),environmentDiffuse[0]*.2820947918+environmentDiffuse[1]*(.4886025119*n.y)+environmentDiffuse[2]*(.4886025119*n.z)+environmentDiffuse[3]*(.4886025119*n.x)+environmentDiffuse[4]*(1.0925484306*n.x*n.y)+environmentDiffuse[5]*(1.0925484306*n.y*n.z)+environmentDiffuse[6]*(.3153915653*(3.*n.z*n.z-1.))+environmentDiffuse[7]*(1.0925484306*n.x*n.z)+environmentDiffuse[8]*(.5462742153*(n.x*n.x-n.y*n.y)));
 }
+float sheenLambda(float cosine,float a){
+ cosine=clamp(cosine,0.,1.);
+ float q=(1.-a)*(1.-a);
+ float A=mix(21.5473,25.3245,q),B=mix(3.82987,3.32435,q),C=mix(.19823,.16801,q);
+ float D=mix(-1.97760,-1.27393,q),E=mix(-4.32054,-4.85967,q);
+ float x=cosine<.5?cosine:1.-cosine;
+ float fitted=A/(1.+B*pow(x,C))+D*x+E;
+ float middle=A/(1.+B*pow(.5,C))+.5*D+E;
+ return exp(cosine<.5?fitted:2.*middle-fitted);
+}
+float sheenBrdf(float nv,float nl,float nh,float r){
+ if(nv<=0.||nl<=0.)return 0.;
+ float a=r*r,inv=1./a;
+ float distribution=(2.+inv)*pow(max(0.,1.-nh*nh),inv*.5)/(2.*PI);
+ return distribution*min(1.,1./((1.+sheenLambda(nv,a)+sheenLambda(nl,a))*4.*nv*nl));
+}
+vec3 layerSheen(vec3 base,vec3 tint,float r,float nv,float nl,float nh,float ev,float normalization){
+ if(!sheenEnabled)return base;
+ float el=texture(sheenAlbedo,vec2(nl,r)).r;
+ float strength=max(tint.r,max(tint.g,tint.b));
+ return base*max(0.,1.-strength*max(ev,el))+tint*sheenBrdf(nv,nl,nh,r)*normalization;
+}
 void main(){
  vec4 base=texture(material,t)*factor;
  if(alphaMode==1&&base.a<alphaCutoff)discard;
@@ -143,9 +170,14 @@ void main(){
   float visibility=.5/max(nl*sqrt(nv*nv*(1.-a2)+a2)+nv*sqrt(nl*nl*(1.-a2)+a2),1e-6);
   vec3 f0=mix(vec3(.04),base.rgb,metal),f=f0+(1.-f0)*pow(1.-vh,5.);
   vec3 diffuse=(1.-f)*(1.-metal)*base.rgb/PI;
+  vec3 sheenTint=sheenEnabled?sheenColor*(hasSheenColor?texture(sheenColorMap,(sheenColorUV*vec3(mapUV,1)).xy).rgb:vec3(1)):vec3(0);
+  float sr=clamp(sheenRoughness*(hasSheenRoughness?texture(sheenRoughnessMap,(sheenRoughnessUV*vec3(mapUV,1)).xy).a:1.),.07,1.);
+  vec2 sheenEnergy=sheenEnabled?texture(sheenAlbedo,vec2(nv,sr)).rg:vec2(0,1);
+  float ev=sheenEnergy.r,normalization=sheenEnergy.g;
+  float viewScale=1.-max(sheenTint.r,max(sheenTint.g,sheenTint.b))*ev;
   float ao=hasOcclusion?mix(1.,texture(occlusionMap,(occlusionUV*vec3(mapUV,1)).xy).r,occlusionStrength):1.;
   vec3 emission=emissive*(hasEmissive?texture(emissiveMap,(emissiveUV*vec3(mapUV,1)).xy).rgb:vec3(1));
-  result=(diffuse+distribution*visibility*f)*lightColor*intensity*nl+ambient*base.rgb*(1.-metal)*ao+emission;
+  result=layerSheen(diffuse+distribution*visibility*f,sheenTint,sr,nv,nl,nh,ev,normalization)*lightColor*intensity*nl+ambient*base.rgb*(1.-metal)*ao*viewScale+emission;
   for(int i=0;i<8;i++){
    if(i>=pointLightCount)break;
    vec3 delta=pointPositionRange[i].xyz-litPosition;
@@ -169,7 +201,7 @@ void main(){
     float window=max(1.-pow(distance2/(range*range),2.),0.);
     attenuation=cone*window*window/max(distance2,.0001);
    }
-   result+=((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
+   result+=layerSheen((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf,sheenTint,sr,nv,pnl,pnh,ev,normalization)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
   }
   if(environmentEnabled){
    vec3 en=environmentDirection(n),reflection=environmentDirection(reflect(-v,n));
@@ -178,7 +210,9 @@ void main(){
    vec3 fresnel=f0+(max(vec3(1.-r),f0)-f0)*pow(1.-nv,5.);
    vec3 indirectDiffuse=(1.-fresnel)*(1.-metal)*base.rgb*diffuseEnvironment(en);
    vec3 indirectSpecular=filtered*(f0*brdf.x+brdf.y);
-   result+=(indirectDiffuse+indirectSpecular)*environmentIntensity*ao;
+   // Indirect sheen uses low-frequency SH irradiance, not GGX-filtered specular.
+   vec3 indirectSheen=sheenTint*diffuseEnvironment(en)*ev;
+   result+=((indirectDiffuse+indirectSpecular)*viewScale+indirectSheen)*environmentIntensity*ao;
   }
   result=vec3(1)-exp(-max(result,vec3(0))*exposure);
  }
@@ -247,7 +281,7 @@ void main(){
   depthSupport=fastDepth;
   if(depthSupport){
     GLint previous=0;glGetIntegerv(GL_CURRENT_PROGRAM,&previous);glUseProgram(program);
-    integer("material",0);integer("normalMap",2);integer("metalRoughMap",3);integer("occlusionMap",4);integer("emissiveMap",5);integer("environmentMap",6);integer("environmentBrdf",7);
+    integer("material",0);integer("normalMap",2);integer("metalRoughMap",3);integer("occlusionMap",4);integer("emissiveMap",5);integer("environmentMap",6);integer("environmentBrdf",7);integer("sheenColorMap",8);integer("sheenRoughnessMap",9);integer("sheenAlbedo",10);
     glUseProgram(GLuint(previous));
   }
   return true;
@@ -283,11 +317,15 @@ void main(){
     }
   }
   scalar("metallic",p.metallic);scalar("roughness",p.roughness);scalar("normalScale",p.normalScale);scalar("occlusionStrength",p.occlusionStrength);vector("emissive",p.emissive);
+  vector("sheenColor",p.sheen);scalar("sheenRoughness",p.sheenRoughness);
+  const bool hasSheen=!p.materialUnlit&&asset.sheenLookup&&std::any_of(p.sheen,p.sheen+3,[](float c){return c>0;});
+  integer("sheenEnabled",hasSheen);
+  if(hasSheen){sheenTexturesBound=true;asset.sheenLookup->upload();glActiveTexture(GL_TEXTURE10);glBindTexture(GL_TEXTURE_2D,asset.sheenLookup->texture);}
   integer("materialUnlit",p.materialUnlit);integer("doubleSided",p.doubleSided);
   const auto &l=asset.lighting;vector("lightDirection",l.direction);vector("lightColor",l.color);scalar("intensity",l.intensity);scalar("ambient",l.ambient);scalar("exposure",l.exposure);
-  const char *samplers[]={"normalMap","metalRoughMap","occlusionMap","emissiveMap"},*present[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive"},*uv[]={"normalUV","metalRoughUV","occlusionUV","emissiveUV"};
-  for(int i=0;i<4;i++){integer(samplers[i],i+2);integer(present[i],p.maps[i].texture!=0);glUniformMatrix3fv(location(uv[i]),1,GL_FALSE,p.maps[i].uv);glActiveTexture(GL_TEXTURE0+i+2);glBindTexture(GL_TEXTURE_2D,p.maps[i].texture);}
-  integer("environmentMap",6);integer("environmentBrdf",7);
+  const char *samplers[]={"normalMap","metalRoughMap","occlusionMap","emissiveMap","sheenColorMap","sheenRoughnessMap"},*present[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive","hasSheenColor","hasSheenRoughness"},*uv[]={"normalUV","metalRoughUV","occlusionUV","emissiveUV","sheenColorUV","sheenRoughnessUV"};
+  for(int i=0;i<6;i++){const int unit=i<4?i+2:i+4;integer(samplers[i],unit);integer(present[i],p.maps[i].texture!=0&&(i<4||hasSheen));if(i>=4&&!hasSheen)continue;glUniformMatrix3fv(location(uv[i]),1,GL_FALSE,p.maps[i].uv);glActiveTexture(GL_TEXTURE0+unit);glBindTexture(GL_TEXTURE_2D,p.maps[i].texture);}
+  integer("environmentMap",6);integer("environmentBrdf",7);integer("sheenColorMap",8);integer("sheenRoughnessMap",9);integer("sheenAlbedo",10);
   const auto &env=asset.environment;
   const bool enabled=!p.materialUnlit&&env&&l.environmentIntensity>0&&env->upload();integer("environmentEnabled",enabled);
   if(enabled){
@@ -300,5 +338,5 @@ void main(){
   glEnableVertexAttribArray(8);glEnableVertexAttribArray(9);glEnableVertexAttribArray(10);
   glVertexAttribPointer(8,3,GL_FLOAT,GL_FALSE,9*sizeof(float),nullptr);glVertexAttribPointer(9,4,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float)));glVertexAttribPointer(10,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(7*sizeof(float)));
  }
- void release()const{glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
+ void release()const{glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}if(sheenTexturesBound){for(int i=8;i<=10;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}sheenTexturesBound=false;}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
 };

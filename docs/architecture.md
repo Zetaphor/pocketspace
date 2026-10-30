@@ -534,6 +534,32 @@ production default. Keep exact implementation invariants in the
 in [recorded results](../tests/index.md). Follow [AGENTS.md](../AGENTS.md) for
 verification and resource-lifetime rules.
 
+## Fabric sheen pipeline
+
+PBR import reads `KHR_materials_sheen` color/roughness factors and embedded maps
+into material slots 4/5. Sheen color uses sRGB storage; roughness is linear alpha.
+Map transforms and UV0 validation follow the other PBR maps. Legacy rendering
+keeps its approximate sheen tint.
+
+`src/sheen.h` numerically integrates the Charlie BRDF/visibility into a shared
+32×32 directional-albedo table during first owning asset load. The table uses
+32 elevation × 64 azimuth midpoint samples per entry. Upload uses one RG16F
+texture (4 KiB), storing albedo and a reciprocal, roughness-dependent
+normalization for excess grazing energy in the fitted visibility. Asset ownership and a weak cache govern its lifetime. It is
+included once in estimated GPU storage, and last-owner unload releases it.
+
+`src/pbr_program.h` layers direct sheen over the base BRDF with incident/view
+albedo attenuation. Roughness is bounded to 0.07–1. Indirect sheen uses diffuse
+SH irradiance times view albedo, a low-frequency approximation rather than a
+Charlie-prefiltered environment cubemap. The base GGX environment path remains
+separate. Zero sheen and unlit materials bypass the layer. General and prepared
+variant programs use the same sheen uniforms, so sheen changes do not add shader
+variant keys or draw-time compilation. Texture units 8/9 hold the two maps and
+10 holds the lookup; PBR release clears them and restores active unit zero.
+
+See [fabric API and example](lighting-api.md#fabric-sheen) and the
+[sheen regression](../tests/sheen-regression.cpp).
+
 ## Pocketspace compatibility identifiers
 
 The public executable, launcher and documentation use Pocketspace. The legacy

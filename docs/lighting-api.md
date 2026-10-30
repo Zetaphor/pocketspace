@@ -376,12 +376,57 @@ shipping them as licensed application assets.
 
 [The studio source and provenance](../assets/environments/README.md) are included.
 
+## Fabric sheen
+
+Models loaded with `{pbr: true}` import `KHR_materials_sheen` automatically.
+Sheen adds a fabric reflection layer above the metallic/roughness material:
+
+- `sheenColorFactor` is linear RGB; its optional embedded color texture is
+  sampled as sRGB and multiplied by the factor. A zero color disables the layer.
+- `sheenRoughnessFactor` is independent of base roughness. Its optional embedded
+  texture uses the alpha channel as linear data. The default factor is zero.
+- Both maps support independent UV0 transforms and glTF sampler settings.
+  Unsupported UV sets and invalid factors fail model loading transactionally.
+
+Direct model lighting and scene point, spot and directional lights use the
+Charlie microfiber BRDF with Charlie visibility. A shared directional-albedo
+lookup attenuates the underlying layer to balance reflected energy. A
+roughness-dependent normalization bounds excess grazing energy in the fitted
+visibility model while preserving reciprocity. Perceptual
+sheen roughness is clamped to 0.07–1 for numerical stability.
+
+Indirect sheen uses the baked environment's diffuse spherical harmonics and
+view-dependent directional albedo. This is a low-frequency approximation: sharp
+windows and other small HDR lights do not produce separate sheen reflections.
+The base material retains its existing GGX environment reflections. Emissive
+and unlit behavior remain independent of sheen; non-PBR loading retains the
+legacy approximate color tint.
+
+Sheen maps add up to two material textures. Assets share a 32×32 half-float
+albedo lookup (4 KiB GPU payload), prepared during asset loading/upload and
+released after its last owning asset. Sheen BRDF work applies only to materials
+with nonzero sheen color. Model lighting, scene snapshots and asset unloading
+use the existing APIs; no script-side sheen override is required.
+
+```js
+const fabric = loadModel('assets/samples/CompareSheen/CompareSheen.glb', 768,
+  {pbr: true});
+setModelLighting(fabric, {direction: [-.6, .3, .7], intensity: 3, ambient: 0});
+const object = createObject(fabric, 0, 0, 0, .6);
+enableObjectInteraction(object, {grabButton: 'both'});
+```
+
+Try [sheen.js](../scripts/sheen.js) to switch between direct and environment
+lighting while rotating the material. See the
+[Khronos extension](https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_sheen)
+for authoring parameters.
+
 ## Current limits and performance
 
 This is a direct-light PBR implementation, not a complete glTF material renderer.
 There are no shadows, live reflection probes, local/parallax-corrected
-reflections, punctual-light imports, bloom, transmission, clearcoat, physical
-sheen, or other advanced material extensions. Unsupported optional material extensions use the core
+reflections, punctual-light imports, bloom, transmission, clearcoat,
+or other unsupported advanced material extensions. Unsupported optional material extensions use the core
 metallic/roughness fallback. Metals can look dark away from their direct-light highlight when an environment
 is disabled. Environment lighting must be explicitly selected.
 

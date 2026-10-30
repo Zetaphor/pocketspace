@@ -127,6 +127,7 @@ static bool appendPrimitive(const cgltf_node &node,const cgltf_primitive &source
   part.vertexCount=(GLsizei)count;
   if(out.pbr&&!readPbrSurface(source,positions,uvs,node,part,transform,bindPalettes))return false;
   if(source.targets_count)out.hasMorph=true;
+  if(out.pbr&&!part.materialUnlit&&std::any_of(part.sheen,part.sheen+3,[](float c){return c>0;}))out.sheenLookup=sharedSheenLookup();
   out.primitives.push_back(std::move(part));
   return true;
 }
@@ -363,6 +364,7 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
 } catch(const std::bad_alloc&){return false;}
 #include "pbr_lod.h"
 void uploadModel(ModelAsset &asset){
+  if(asset.sheenLookup)asset.sheenLookup->upload();
   if(asset.uploaded)return;
   for(auto &part:asset.primitives){
     if(!uploadIndexedPbr(asset,part)){
@@ -398,9 +400,9 @@ void uploadModel(ModelAsset &asset){
     if(asset.pbr){
       if(!part.surfaceVbo)uploadSurface(part,GL_STATIC_DRAW);
       pbrLod::upload(asset,part);
-      for(size_t i=0;i<4;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
+      for(size_t i=0;i<6;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
         glGenTextures(1,&map.texture);glBindTexture(GL_TEXTURE_2D,map.texture);
-        glTexImage2D(GL_TEXTURE_2D,0,i==3?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());
+        glTexImage2D(GL_TEXTURE_2D,0,(i==3||i==4)?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,map.minFilter);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,map.magFilter);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,map.wrapS);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,map.wrapT);glGenerateMipmap(GL_TEXTURE_2D);map.rgba.clear();
       }

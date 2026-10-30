@@ -19,6 +19,12 @@ static bool readPbrMaterial(const cgltf_material *m,const cgltf_texture_view *ba
  p.materialUnlit=m->unlit;p.metallic=m->pbr_metallic_roughness.metallic_factor;p.roughness=m->pbr_metallic_roughness.roughness_factor;
  p.normalScale=m->normal_texture.scale;p.occlusionStrength=m->occlusion_texture.scale;
  for(int i=0;i<3;i++)p.emissive[i]=m->emissive_factor[i]*(m->has_emissive_strength?m->emissive_strength.emissive_strength:1.f);
+ if(m->has_sheen){
+  p.sheenRoughness=m->sheen.sheen_roughness_factor;
+  if(!std::isfinite(p.sheenRoughness)||p.sheenRoughness<0||p.sheenRoughness>1)return false;
+  for(float value:p.sheen)if(!std::isfinite(value)||value<0||value>1)return false;
+  if(!readMaterialMap(m->sheen.sheen_color_texture,p.maps[4])||!readMaterialMap(m->sheen.sheen_roughness_texture,p.maps[5]))return false;
+ }
  // Normal-map tangent frames must use its independently transformed UV0.
  if(m->normal_texture.texture&&m->normal_texture.has_transform){const auto &t=m->normal_texture.transform;if(t.scale[0]==0||t.scale[1]==0)return false;}
  return readMaterialMap(m->normal_texture,p.maps[0])&&readMaterialMap(m->pbr_metallic_roughness.metallic_roughness_texture,p.maps[1])&&readMaterialMap(m->occlusion_texture,p.maps[2])&&readMaterialMap(m->emissive_texture,p.maps[3]);
