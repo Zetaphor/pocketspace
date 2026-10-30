@@ -43,8 +43,10 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Investigate quality-preserving PBR vertex-transform preparation and reuse of
-  invariant material/light arithmetic. The completed
+- Investigate quality-preserving reuse of invariant PBR material/light arithmetic.
+  The [rotation-preparation comparison](../tests/results/pbr-transform.md) is
+  complete without adoption: CPU preparation failed pixels, and GPU reuse had
+  inconsistent gains. The completed
   [geometry/pixel sensitivity study](../tests/results/pbr-cost.md) shows substantial
   geometry cost and increasing pixel/light cost at larger viewports. The
   [moving-car lighting profile](../tests/results/dense-pbr-lights.md) identifies

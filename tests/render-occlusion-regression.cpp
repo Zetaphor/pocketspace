@@ -24,6 +24,10 @@ struct Renderer {
   bool selectLocalLights=true,selectConeLights=true;
 #endif
   std::vector<ObjectLightSet> objectLightSets;
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+  bool preparePbrRotation=false;
+  PbrProgram preparedPbrProgram,preparedDepthPbrProgram;
+#endif
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
 #if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
@@ -142,9 +146,18 @@ struct Renderer {
             if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
 #endif
-            const bool depthOnly=fastPbrDepth&&pass<0;auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;assert(activePbr.init(depthOnly
+            const bool depthOnly=fastPbrDepth&&pass<0;
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+            auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
+#else
+            auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;
+#endif
+            assert(activePbr.init(depthOnly
 #ifdef SF_LIGHT_WORK_EXPERIMENT
             ,optimizeLightWork
+#endif
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+            ,preparePbrRotation
 #endif
             ));
             activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);

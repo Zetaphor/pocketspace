@@ -359,3 +359,9 @@ sensitivity with fixed storage and identical moving poses, zero/eight lights,
 and full/reduced geometry. Reduced quality is diagnostic only; see the
 [run instructions](README.md#pbr-geometry-and-pixel-cost-diagnostic) and
 [measured sensitivity](results/pbr-cost.md).
+
+[pbr-transform-experiment.cpp](pbr-transform-experiment.cpp) compares
+GPU rotation reuse against production shader expressions, with strict stereo
+pixels before matched ABBA timings. See the
+[run instructions](README.md#pbr-prepared-rotation-experiment) and
+[rejected-candidate results](results/pbr-transform.md).
