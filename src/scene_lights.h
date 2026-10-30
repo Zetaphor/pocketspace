@@ -43,8 +43,23 @@ struct ObjectLightSet {
  std::array<ResolvedPointLight,maxPointLights> lights{};size_t count=0;
  std::span<const ResolvedPointLight> values()const{return {lights.data(),count};}
 };
+// An infinite convex cone lies behind each tangent plane at its side and apex.
+// Reject only if the entire padded sphere is outside one such plane.
+static bool sphereOutsideSpotlight(const ResolvedPointLight &light,double x,double y,double z,double radius){
+ if(!(light.outerCos>0&&light.outerCos<=1))return false; // Points and hemispherical/wider cones.
+ const auto &axis=light.direction;
+ const double length=std::sqrt(double(axis[0])*axis[0]+double(axis[1])*axis[1]+double(axis[2])*axis[2]);
+ if(!std::isfinite(length)||length<1e-8)return false;
+ const double along=(x*axis[0]+y*axis[1]+z*axis[2])/length;
+ // The GPU uses the stored float direction without renormalizing it. Widen the
+ // CPU cone slightly to cover its length/rounding and shader dot-product error.
+ const double cosine=std::clamp(double(light.outerCos)/length-1e-6,0.,1.);
+ const double sine=std::sqrt(std::max(0.,1.-cosine*cosine));
+ const double radial=std::sqrt(std::max(0.,x*x+y*y+z*z-along*along));
+ return along < -radius || radial*cosine-along*sine > radius;
+}
 template<class ObjectType,class Geometry>
-static ObjectLightSet selectObjectLights(const ObjectType &object,const Geometry &geometry,std::span<const ResolvedPointLight> lights){
+static ObjectLightSet selectObjectLights(const ObjectType &object,const Geometry &geometry,std::span<const ResolvedPointLight> lights,bool filterCones=true){
  // Origin-centered sphere encloses every full/deformed mesh corner under rotation.
  // Double arithmetic and a small meter-space margin keep boundary cases conservative.
  bool valid=std::isfinite(object.scale)&&object.scale>0;
@@ -56,12 +71,13 @@ static ObjectLightSet selectObjectLights(const ObjectType &object,const Geometry
   const double magnitude=std::max({std::abs(double(object.x)),std::abs(double(object.y)),std::abs(double(object.z)),std::abs(double(light.position[0])),std::abs(double(light.position[1])),std::abs(double(light.position[2]))});
   const double reach=radius+light.range+1e-4+1e-5*(radius+magnitude);
   if(valid&&std::isfinite(radius)&&dx*dx+dy*dy+dz*dz>reach*reach)continue;
+  if(filterCones&&valid&&std::isfinite(radius)&&sphereOutsideSpotlight(light,-dx,-dy,-dz,reach-light.range))continue;
   if(result.count<result.lights.size())result.lights[result.count++]=light;
  }
  return result;
 }
 template<class SceneType>
-static void updateObjectLights(const SceneType &scene,std::span<const ResolvedPointLight> lights,std::vector<ObjectLightSet> &sets){
+static void updateObjectLights(const SceneType &scene,std::span<const ResolvedPointLight> lights,std::vector<ObjectLightSet> &sets,bool filterCones=true){
  sets.resize(scene.objects.size());
  if(lights.empty()){for(auto &set:sets)set.count=0;return;}
  for(size_t i=0;i<scene.objects.size();i++){
@@ -69,6 +85,6 @@ static void updateObjectLights(const SceneType &scene,std::span<const ResolvedPo
   if(!object.visible||!asset.pbr){sets[i].count=0;continue;}
   if(lights.size()<4){auto &set=sets[i];set.count=lights.size();std::copy(lights.begin(),lights.end(),set.lights.begin());continue;}
   const auto &geometry=object.animationPose?object.animationPose->geometry:asset;
-  sets[i]=selectObjectLights(object,geometry,lights);
+  sets[i]=selectObjectLights(object,geometry,lights,filterCones);
  }
 }

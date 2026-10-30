@@ -283,6 +283,10 @@ the bounded non-interactive
   verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
   exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
+- [spotlight-cone-regression.cpp](spotlight-cone-regression.cpp): conservative
+  sphere/cone tests, sampled lit-point rejection checks, stereo/material and
+  attachment pixels, plus matched range-only versus cone-filter GPU timings.
+  See [cone-selection results](results/spotlight-cone-selection.md).
 - [light-work-regression.cpp](light-work-regression.cpp): all-light versus per-object
   range selection, stereo/material pixels and optional matched ABBA GPU timing
   for broad/local point, spot and mixed lights; retains the rejected shader-work

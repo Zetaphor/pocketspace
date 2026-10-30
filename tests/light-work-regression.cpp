@@ -38,7 +38,7 @@ int main(int argc,char **argv){
 
  {
   for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","tests/fixtures/pbr/GeneratedTangents.glb","tests/fixtures/pbr/SurfaceFrames.glb","assets/samples/AlphaBlendModeTest/AlphaBlendModeTest.glb"}){
-   Renderer reference,candidate;reference.optimizeLightWork=false;candidate.optimizeLightWork=shader;reference.selectLocalLights=false;candidate.selectLocalLights=!shader;
+   Renderer reference,candidate;reference.optimizeLightWork=false;candidate.optimizeLightWork=shader;reference.selectLocalLights=false;candidate.selectLocalLights=!shader;reference.selectConeLights=candidate.selectConeLights=false;
    const bool detailed=std::string(path).find("ToyCar")!=std::string::npos;populate(reference,path,detailed?16:1);populate(candidate,path,detailed?16:1);
    std::vector<int> ids;for(const auto &o:reference.scene.objects)ids.push_back(o.id);
    for(bool local:{false,true}){if(shader&&local)continue;localRange=local;

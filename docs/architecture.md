@@ -278,11 +278,15 @@ A reusable frame-local array builds an ordered light subset for each visible
 PBR object. Fewer than four active lights keep the full list to avoid selection
 and per-object upload overhead. A double-precision range/sphere test uses the full current pose's
 origin-centered bounds, with conservative padding and invalid-bound fallback.
-Only lights unable to reach the enclosing sphere are removed; spot cone rejection
-remains in the shader. These subsets are reused across eyes, primitives, LODs
+Only lights unable to reach the enclosing sphere are removed. For spotlights,
+conservative cone tangent/apex-plane tests can reject the entire sphere too.
+Direction length and a widened CPU cone account for the shader's float inputs;
+hemispherical/wider or invalid cones retain range-only behavior. Per-fragment
+spotlight falloff remains unchanged. These subsets are reused across eyes, primitives, LODs
 and surfaces without per-draw selection or allocations. Empty light frames clear
 counts without rebuilding geometry tests. No scene IDs or light settings change. See the
-[range-selection validation and measured comparison](../tests/results/light-work.md).
+[range-selection validation and measured comparison](../tests/results/light-work.md)
+and [cone-selection comparison](../tests/results/spotlight-cone-selection.md).
 PBR shaders receive positions relative to each surface in the same model axes as
 surface normals. Cached uniform payloads avoid repeated uploads at unchanged
 surface origins. The bounded forward loop adds GGX point illumination with smooth

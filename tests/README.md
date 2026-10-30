@@ -1298,3 +1298,29 @@ and candidate renderers are used for pixel checks and the rejected shader mode.
 Light counts are 0, 1, 4 and 8. Broad-range and spatially local lights are
 compared separately; GPU timer disjoint results reject the run.
 The measured wall time includes submission and GPU completion, not just CPU work.
+
+## Spotlight cone selection
+
+Build `spotlight-cone-regression` explicitly after reconfiguring CMake. It uses
+real GLES without opening an OpenVR session or capturing input:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target spotlight-cone-regression
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/spotlight-cone-regression
+```
+
+CPU checks cover cone sides, tangency, apex overlap, behind-light spheres,
+hemispheres and invalid axes, plus 288,000 deterministic points sampled in/on
+spheres. A sphere containing a lit point must never be rejected. Rendering checks
+compare range-only and range/cone lists across detailed cars, tangent/surface
+fixtures, alpha modes, both eyes, head movement and attached-light rotation.
+Alpha must match exactly; RGB differences are bounded to one byte per channel.
+
+With the headset awake and worn, add `--profile` for the fixed 16-car, 768-square
+workload. Broad, narrow, mixed and backward-pointing lights use 0/1/4/8 counts.
+ABBA reference/candidate stages interleave within each frame on the same renderer,
+shader and buffers, with 30 warmup and 90 measured frames per stage. GPU disjoint
+queries reject the run. Wall time includes submission and GPU completion. The
+reference retains range filtering and disables only cone filtering. No lighting,
+geometry or sample density changes between modes.
