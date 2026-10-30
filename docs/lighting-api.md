@@ -333,8 +333,8 @@ brightness, use bumper for color, A/X to toggle, and B/Y to capture/restore.
 ## Directional-light shadows
 
 Directional shadows use one orthographic map over an explicit world-space
-volume. They share the single shadow slot with spotlights: only one enabled
-light of either type can reserve it. Directional lighting remains infinite and
+volume. They share the single shadow slot with point lights and spotlights: only one
+enabled light of any type can reserve it. Directional lighting remains infinite and
 has no distance falloff; only shadow coverage is bounded.
 
 ```js
@@ -556,7 +556,7 @@ for authoring parameters.
 ## Current limits and performance
 
 This is a direct-light PBR implementation, not a complete glTF material renderer.
-Shadows are limited to one opt-in spotlight. There are no live reflection probes, local/parallax-corrected
+Shadows are limited to one opt-in point, spotlight or directional light. There are no live reflection probes, local/parallax-corrected
 reflections, punctual-light imports, bloom, transmission, clearcoat,
 or other unsupported advanced material extensions. Unsupported optional material extensions use the core
 metallic/roughness fallback. Metals can look dark away from their direct-light highlight when an environment
