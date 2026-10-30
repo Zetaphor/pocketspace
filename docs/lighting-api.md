@@ -427,13 +427,11 @@ See [pbr.js](../scripts/pbr.js) for a concise interactive example. The separate
 diagnostic models without capturing controller input. The two high-triangle
 metal/roughness grids stay in offscreen regression checks.
 
-## Environment file compatibility
+## Environment file format
 
-Pocketspace bakes lighting environments as `.psenv` files with the `PSENV001`
-header. The payload layout and lighting data are unchanged. The loader also
-accepts legacy `SFENV001` files, so existing `.sfenv` environments remain usable.
-New bakes and examples use `.psenv`. The bundled `studio.sfenv` path remains a
-compatibility alias for existing scene saves; new scenes should use `studio.psenv`.
+Pocketspace lighting environments use `.psenv` files with the `PSENV001`
+header. The loader validates dimensions, payload size and finite lighting values
+before publishing an environment. The generator requires a `.psenv` output path.
 
 Use the current .psenv environment path in a complete scene: [pbr.js](../scripts/pbr.js).
 

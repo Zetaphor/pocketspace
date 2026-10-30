@@ -117,3 +117,17 @@ flicker, black patches or missing parts. The user reported “Looks correct.”
 This adds headset visual acceptance to conversion, precomputation and native
 loading/upload checks; no controlled performance measurement was made for this
 environment. The earlier diagnostic-gallery acceptance used the procedural bake.
+
+## Current environment format validation — October 30, 2026
+
+The engine now accepts only `PSENV001` lighting data, and the offline generator
+requires a `.psenv` output path. The obsolete bundled filename alias is removed.
+Paths in the earlier measurements above record the format used at that time.
+
+The native `environment-regression` target passed on Steam Frame, including
+explicit rejection of the obsolete header, GLES illumination and stereo views,
+transactional API/restore failure checks, and shared texture cleanup. The normal
+`pocketspace` target rebuilt successfully. Host bake and HDR/EXR/PNG conversion
+checks passed, including CLI generation of `PSENV001` and rejection of an
+obsolete output filename before creating files. No interactive demo or new
+performance comparison was needed for this format cleanup.

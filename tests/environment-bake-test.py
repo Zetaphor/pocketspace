@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Independent constant-radiance, cube orientation and energy checks for the baker."""
 import importlib.util
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 import numpy as np
 
@@ -25,3 +28,16 @@ sharp = bake.studio(bake.face_directions(2, 32))
 rough = bake.prefilter(bake.studio, bake.face_directions(2, 32), 1, 512)
 assert sharp.max()-sharp.min() > rough.max()-rough.min()
 print('PASS environment bake: constant radiance, diffuse SH normalization, six cube axes, bounded BRDF energy, equirectangular sampling and GGX roughness filtering')
+
+# Reject an obsolete output name before baking or creating directories/files.
+with tempfile.TemporaryDirectory() as directory:
+    output = Path(directory)/'not-created'/'studio.sfenv'
+    rejected = subprocess.run([sys.executable, str(Path(bake.__file__)), str(output)],
+                              capture_output=True, text=True)
+    assert rejected.returncode != 0 and '.psenv extension' in rejected.stderr
+    assert not output.parent.exists()
+    output = Path(directory)/'studio.psenv'
+    subprocess.run([sys.executable, str(Path(bake.__file__)), str(output),
+                    '--size', '16', '--lut-size', '16', '--samples', '64'], check=True)
+    assert output.read_bytes()[:8] == b'PSENV001'
+print('PASS environment format: PSENV001 CLI bake and invalid output rejection')

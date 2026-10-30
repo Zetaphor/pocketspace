@@ -19,5 +19,3 @@ For custom HDR/EXR or sRGB panoramas, use `tools/convert-environment.py` followe
 by `tools/generate-environment.py`. See the [complete custom-environment workflow](../../docs/lighting-api.md#baking-a-custom-environment)
 for dependencies, color spaces, quality settings, deployment and API usage.
 Check the source image's licensing before redistributing a custom bake.
-
-`studio.sfenv` remains a compatibility symlink for existing scene saves.

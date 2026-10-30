@@ -12,8 +12,7 @@ int main(int argc,char **argv){
  {
   std::string legacy=data;legacy.replace(0,8,"SFENV001");const auto oldFile=dir/"legacy.sfenv";
   std::ofstream(oldFile,std::ios::binary).write(legacy.data(),legacy.size());
-  auto old=loadLightingEnvironment(oldFile.string());assert(old&&old->diffuse==env->diffuse&&old->specular==env->specular&&old->brdf==env->brdf);
-  auto alias=loadLightingEnvironment("assets/environments/studio.sfenv");assert(alias&&alias->diffuse==env->diffuse&&alias->specular==env->specular&&alias->brdf==env->brdf);
+  assert(!loadLightingEnvironment(oldFile.string()));
  }
  for(int variant=0;variant<5;variant++){
   std::string bad=data;if(variant==0)bad[0]='?';if(variant==1)bad.resize(127);if(variant==2)bad[8]=3;if(variant==3){bad[128]=0;bad[129]=char(0x7c);}if(variant==4)bad.push_back('x');
