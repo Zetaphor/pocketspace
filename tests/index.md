@@ -353,3 +353,9 @@ the bounded non-interactive
 
 The [dense PBR lighting profile](results/dense-pbr-lights.md) attributes moving-car
 rendering cost across zero, four and eight mixed scene lights.
+
+[pbr-cost-profile.cpp](pbr-cost-profile.cpp) isolates PBR viewport/geometry
+sensitivity with fixed storage and identical moving poses, zero/eight lights,
+and full/reduced geometry. Reduced quality is diagnostic only; see the
+[run instructions](README.md#pbr-geometry-and-pixel-cost-diagnostic) and
+[measured sensitivity](results/pbr-cost.md).

@@ -1354,3 +1354,31 @@ cone width, and bumper resets positions. Changing those settings intentionally
 changes illumination; check continuity while moving with a fixed setting. Release
 held objects before resetting. The HUD is non-interactive; only this interactive
 scene's model selection uses pointer input. Stop the demo after user verification.
+
+## PBR geometry and pixel cost diagnostic
+
+Build the excluded `pbr-cost-profile` target after reconfiguring CMake:
+
+```sh
+cmake -S . -B build
+cmake --build build -j2 --target pbr-cost-profile
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  ./build/pbr-cost-profile
+```
+
+Run with the headset awake and worn for normal power. This offscreen GLES harness
+opens no OpenVR overlays and captures no input. It renders 32 PBR ToyCars with
+zero/eight mixed lights, fixed full/reduced geometry and 384/768/2048-square viewports.
+All cases retain the same backing framebuffer and asset allocations, shader,
+projection, and deterministic moving-pose/eye sequence. Case order reverses each
+frame; each case has 30 warmup and 90 measured frames, alternating eyes. Repeat
+whole runs to check consistency. GPU disjoint/GL errors fail the run; switching
+back to the baseline must reproduce its pixels exactly.
+
+Reduced resolution and geometry intentionally change quality for attribution.
+They are not optimization candidates or equivalent-quality throughput results.
+Viewport sensitivity includes pixel coverage, textures, shading and raster work;
+LOD sensitivity includes vertex/index work and changes in rasterization/coverage.
+Neither proves a pure hardware bottleneck or predicts additive savings. GPU query
+time excludes compositor work; wall time includes `glFinish`. No pixel readback
+occurs inside measured frames. Production defaults and shaders remain unchanged.

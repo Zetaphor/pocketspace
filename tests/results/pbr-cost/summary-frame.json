@@ -1,0 +1,242 @@
+[
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 0,
+    "pixels": 768,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 6.693071,
+    "wallMs": 9.617427
+  },
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 0,
+    "pixels": 384,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 6.729455,
+    "wallMs": 9.737874
+  },
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 0,
+    "pixels": 2048,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 9.228074,
+    "wallMs": 12.176602
+  },
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 2,
+    "pixels": 768,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 4.711379,
+    "wallMs": 7.664066
+  },
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 2,
+    "pixels": 384,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 4.275442,
+    "wallMs": 7.261516
+  },
+  {
+    "run": 1,
+    "lights": 0,
+    "level": 2,
+    "pixels": 2048,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 6.879759,
+    "wallMs": 10.051994
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 0,
+    "pixels": 768,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 7.788057,
+    "wallMs": 11.024976
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 0,
+    "pixels": 384,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 7.566546,
+    "wallMs": 10.433594
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 0,
+    "pixels": 2048,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 13.331884,
+    "wallMs": 16.477426
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 2,
+    "pixels": 768,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 6.051199,
+    "wallMs": 9.000193
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 2,
+    "pixels": 384,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 5.066524,
+    "wallMs": 8.389052
+  },
+  {
+    "run": 1,
+    "lights": 8,
+    "level": 2,
+    "pixels": 2048,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 11.135032,
+    "wallMs": 14.238069
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 0,
+    "pixels": 768,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 6.643911,
+    "wallMs": 9.653172
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 0,
+    "pixels": 384,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 6.670634,
+    "wallMs": 9.495342
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 0,
+    "pixels": 2048,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 8.848913,
+    "wallMs": 11.81621
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 2,
+    "pixels": 768,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 4.725316,
+    "wallMs": 7.678305
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 2,
+    "pixels": 384,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 3.89426,
+    "wallMs": 7.003694
+  },
+  {
+    "run": 2,
+    "lights": 0,
+    "level": 2,
+    "pixels": 2048,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 6.981619,
+    "wallMs": 10.063336
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 0,
+    "pixels": 768,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 7.916189,
+    "wallMs": 10.825821
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 0,
+    "pixels": 384,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 6.697353,
+    "wallMs": 9.753225
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 0,
+    "pixels": 2048,
+    "triangles": 3485952,
+    "frames": 90,
+    "gpuMs": 12.986414,
+    "wallMs": 16.212605
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 2,
+    "pixels": 768,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 5.517314,
+    "wallMs": 8.536602
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 2,
+    "pixels": 384,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 4.706028,
+    "wallMs": 7.77607
+  },
+  {
+    "run": 2,
+    "lights": 8,
+    "level": 2,
+    "pixels": 2048,
+    "triangles": 2176704,
+    "frames": 90,
+    "gpuMs": 10.964749,
+    "wallMs": 14.272207
+  }
+]
