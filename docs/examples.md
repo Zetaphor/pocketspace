@@ -71,7 +71,8 @@ ownership, input-source differences and other behavior that is easy to misread.
 - Joint types, motors, springs, breaking and live settings/state: `joints`, `motors`, `springs`, `breakable-joints`, `joint-controls`.
 - Gravity, impulses, kinematic targets and body lifecycle: `physics-controls`.
 - Container ownership, callback lifetime, transfers, memory/file snapshots: `containers`, `nested-containers`, `asset-lifetime`, `container-transfer`, `scene-snapshot`, and the `*-save` examples.
-- Scene lighting: `lights`, `spotlights`, `shadows`, `directional-lights`.
+- Scene lighting: `lights`, `spotlights`, `directional-lights`, `shadows`,
+  `directional-shadows`, `point-shadows`.
 - PBR/environment lighting, automatic LOD, instancing and adaptive grouping: `pbr`, `sheen`, `lod`, `instances`, `grouped-stress`.
 - Engine statistics, worker policy and bounded object cleanup: `stress`, `grouped-stress`.
 - Raw/corrected gaze, foveation, finger sensing and calibration generation: `tracking`, `eye-calibration`.

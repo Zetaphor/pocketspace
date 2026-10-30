@@ -535,7 +535,7 @@ One point, spotlight or directional light can opt into shadows through a shared 
 see [spotlight shadows](lighting-api.md#spotlight-shadows),
 [directional coverage](lighting-api.md#directional-light-shadows),
 [point shadows](lighting-api.md#point-light-shadows),
-[shadows.js](../scripts/shadows.js) and
+[shadows.js](../scripts/shadows.js), [point-shadows.js](../scripts/point-shadows.js) and
 [directional-shadows.js](../scripts/directional-shadows.js) for controls and diagnostics.
 
 | Light type | Controls | Guide and complete example |
