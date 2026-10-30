@@ -36,8 +36,8 @@ they do not replace it.
 
 The production point-light, spotlight and prior range-selection regressions
 provide compatibility checks. The normal engine builds with the new default.
-Documentation lint/site build are separate checks. No new interactive headset
-acceptance was performed for this automatic optimization; no demo was launched.
+Documentation lint/site build are separate checks. The combined four-light
+headset scene was subsequently accepted; see the acceptance section below.
 
 ## Matched performance comparison
 
@@ -77,3 +77,13 @@ Broad cones retain all pairs and show no meaningful repeatable total-frame gain.
 Zero/small-count controls expose measurement noise; small differences are not
 claimed as improvements. These are workload-specific gains over range filtering,
 not general headset FPS guarantees or justification for increasing the light cap.
+
+## Combined headset acceptance
+
+On 2026-10-29 the user verified the normal-engine
+[light-filtering scene](../scenes/light-filtering.js): two point lights, two
+spotlights, a grabbable car and normal-map target, and grabbable light markers.
+Instructions covered cone-edge and range-boundary movement, aiming the spotlights,
+head motion and range/cone controls. The user reported everything looked correct.
+The demo was stopped immediately afterward and its exit verified. This acceptance
+is distinct from the automated pixel and performance comparisons above.

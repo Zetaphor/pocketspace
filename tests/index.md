@@ -283,6 +283,9 @@ the bounded non-interactive
   verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
   exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
   optional native ABBA comparison.
+- [scenes/light-filtering.js](scenes/light-filtering.js): interactive combined
+  acceptance of range/cone filtering with four active point/spot lights, movable
+  car/normal-map targets and grabbable light markers.
 - [spotlight-cone-regression.cpp](spotlight-cone-regression.cpp): conservative
   sphere/cone tests, sampled lit-point rejection checks, stereo/material and
   attachment pixels, plus matched range-only versus cone-filter GPU timings.

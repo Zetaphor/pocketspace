@@ -17,6 +17,7 @@ int main() {
   scenes.emplace_back("tests/scenes/overlay-comparison.js");
   scenes.emplace_back("tests/scenes/auto-split.js");
   scenes.emplace_back("tests/scenes/fast-motion.js");
+  scenes.emplace_back("tests/scenes/light-filtering.js");
   for (const auto &entry : scenes) {
     if (entry.path().extension() != ".js") continue;
     ScriptHost host;
