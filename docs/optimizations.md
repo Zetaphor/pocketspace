@@ -91,6 +91,16 @@ physics sleeping/collider caches run automatically. They have no public script
 switch. The [architecture](architecture.md) explains their eligibility and
 pipeline contracts.
 
+PBR shader preparation is also automatic. Scenes starting with at least four
+active lights prepare up to 16 color programs during loading and successful
+reload. Ready variants serve lit draws with at least four contributing lights
+and at least 1024 allocated pixels per eye. Other draws and unknown combinations
+use general PBR; drawing never compiles a new variant. There is no script switch
+or quality reduction. See [shader preparation](lighting-api.md#shader-preparation)
+for an inline example and [architecture](architecture.md) for ownership/fallback
+contracts. PBR assets use ordinary draws; ordered instancing applies to eligible
+static assets loaded with `pbr: false`.
+
 With at least four active, nonzero lights, local point/spot lights are filtered
 automatically per object: lights whose range cannot reach its conservative current bounds are omitted from that draw.
 Spotlights whose entire cone misses the bounds are omitted too, with conservative
