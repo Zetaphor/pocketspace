@@ -637,3 +637,21 @@ Charlie BRDF evaluation and CPU albedo integration in agreement. The current
 indirect sheen path is a diffuse-SH approximation, not a sheen-prefiltered cube.
 See [architecture](architecture.md#fabric-sheen-pipeline) and
 [material API](lighting-api.md#fabric-sheen).
+
+## Spotlight shadow invariants
+
+One enabled spotlight can reserve shadow rendering. Validate this after option
+getters and before snapshot native reservations; older snapshots default off.
+`SpotShadows` retains no scene/object pointers. Resolve attachment poses by ID and
+render once after pose upload, before eye/surface draws. Use full caster geometry,
+current CPU/GPU deformation, masked alpha and normal sidedness. BLEND casters are
+excluded. Receiver matrices include the surface origin; filtered light IDs, not
+original vector indices, select the shadowed contribution. Clear texture unit 11
+after PBR draws and restore all shadow-pass GL state, including the VAO.
+
+Budget, allocation and capability failures render unshadowed lighting, never a
+stale texture. Reset the GPU watchdog only on explicit configuration changes or
+lifecycle reset. Successful reload releases the map; failed reload does not.
+Keep map bytes in engine statistics once and release map/query resources when
+lighting ownership disappears. See [architecture](architecture.md#spotlight-shadow-pipeline)
+and [API limits](lighting-api.md#spotlight-shadows).

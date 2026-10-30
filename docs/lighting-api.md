@@ -138,8 +138,9 @@ before using all eight.
 
 Spotlights illuminate a cone rather than all directions. They share the same
 PBR receivers, intensity/range behavior, attachments, container cleanup and
-eight-light scene budget as point and directional lights. Scene lights do not
-cast shadows or draw a visible beam through empty space. A cone appears where it illuminates geometry.
+eight-light scene budget as point and directional lights. They can opt into
+[spotlight shadows](#spotlight-shadows). They do not draw a visible beam through
+empty space; a cone appears where it illuminates geometry.
 
 ```js
 const flashlight = createSpotLight({
@@ -184,7 +185,7 @@ dividing by zero. Cone width does not renormalize intensity: narrowing the beam
 keeps the center brightness unchanged.
 
 Snapshots v9 and later store a `type` for every light and the spotlight direction/cones.
-New captures use v10, which also supports scene directional lights.
+New captures use v12, which also preserves spotlight shadow settings.
 Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
 V8 snapshots retain their point-light behavior; v1–v7 restore without scene
 lights. Ownership and cross-container snapshot rules are identical for all scene light types.
@@ -194,6 +195,80 @@ bumper switches cone width, A/X toggles the light, and B/Y captures then restore
 the tool. Rotate the handle to aim the beam across the car. Cone rejection can
 avoid BRDF work outside the beam, but adds direction/cone math; profile the
 intended scene rather than assuming a spotlight is faster than a point light.
+
+## Spotlight shadows
+
+Spotlights can opt into a shared light-space depth map. Shadows affect only that
+spotlight's contribution to PBR materials: model lights, other scene lights,
+ambient/environment illumination and emissive colors remain independent. Unlit
+models can cast shadows but retain their unlit appearance. Panels and lasers do
+not cast or receive shadows.
+
+```js
+const flashlight = createSpotLight({
+  position: [0, .6, -.6], direction: [0, -1, 1], range: 3,
+  intensity: 2, innerConeAngle: .3, outerConeAngle: .8,
+  shadow: {enabled: true, resolution: 512}
+});
+setSpotLight(flashlight, {shadow: {resolution: 256}});
+print(JSON.stringify(getSpotLight(flashlight).shadow));
+print(JSON.stringify(getEngineStats().shadow));
+setSpotLight(flashlight, {shadow: {enabled: false}});
+```
+
+`createSpotLight` and `setSpotLight` accept a partial `shadow` options object.
+`getSpotLight` returns the full settings, even when shadows are disabled.
+Point and directional lights reject the `shadow` option.
+
+| Shadow option | Default | Meaning and limits |
+| --- | --- | --- |
+| `enabled` | `false` | Boolean opt-in. At most one enabled spotlight can have shadows enabled, including zero-intensity lights. Disabled lights retain their configuration without occupying the shadow slot. |
+| `resolution` | `512` | Square depth-map size: 256, 512 or 1024. Active depth storage is estimated at 0.25, 1 or 4 MiB respectively; driver/program overhead and in-flight retired storage are additional. |
+| `near` | `.05` | Near clipping distance in meters, .001–1, strictly less than light range when shadows are enabled. Geometry before this plane does not cast into the map. |
+| `bias` | `.0005` | Normalized depth comparison offset, 0–.05. Larger values reduce acne but can separate shadows from objects. |
+| `normalBias` | `.002` | Receiver offset along its shading normal, in meters, 0–.1. |
+| `maxTriangles` | `500000` | Full-detail caster-triangle budget, integer 1–1000000. The pass also permits at most 128 visible caster objects. |
+| `maxGpuMs` | `2` | GPU-time watchdog threshold, .001–16 ms. After three warmup updates, a rolling average of 24 valid elapsed-time results above the threshold disables the shadow pass until explicitly retried. |
+
+A shadow-enabled light requires `outerConeAngle <= 1.5` radians. All supplied
+settings are validated before publishing; invalid updates and shadow-slot
+conflicts leave the previous light unchanged. To transfer the slot, disable
+shadows on the old light before enabling them on another.
+
+The map updates once per engine frame using current object/animation poses,
+independently of eye, render group or overlay method. Both eyes sample the same
+map. Static, rigid-animated, CPU-deformed and GPU-skinned meshes cast from their
+full geometry. Opaque surfaces cast solid shadows; alpha-mask surfaces preserve
+texture holes and alpha cutoff. Alpha-blended surfaces do not cast shadows in
+this version. Hidden objects do not cast. glTF sidedness and mirrored winding
+are honored. Receivers use four comparison-filtered taps; this smooths map edges
+but does not simulate area-light penumbrae or transparent shadow transmission.
+
+Geometry-budget exhaustion, failed allocation or unavailable GPU timers produce
+unshadowed lighting for that frame; a stale map is never sampled. The GPU
+watchdog uses asynchronous `EXT_disjoint_timer_query` results and ignores disjoint
+samples. After three warmup updates it requires a full 24-result rolling average
+above the limit, so brief spikes alone do not disable shadows. It is a delayed safeguard, not a hard deadline or GPU preemption: warmup
+and work queued before a result arrives can exceed the threshold. On a watchdog
+trip, the map is released and the pass remains disabled. Retry with a smaller
+resolution/workload, or a suitable threshold, by supplying `shadow` options again
+(e.g. `{shadow: {enabled: true}}`), or disable/re-enable the light. Geometry-budget
+fallback retries automatically when the scene fits again.
+
+`getEngineStats().shadow` reports the most recently processed frame:
+`{active, lightId, status, resolution, triangles, gpuBytes, gpuMs}`. `lightId` and
+`gpuMs` can be null. Status is `disabled`, `active`, `geometry-budget`,
+`gpu-budget`, `timer-unavailable`, `shader-unavailable`, `allocation-failed`,
+`unresolved` or transiently `preparing`. `triangles` counts all visible opaque
+and masked caster geometry before budgeting, not only geometry inside the cone.
+The map's estimated storage is also included once in `gpuAllocatedEstimateBytes`.
+
+V12 snapshots preserve the settings and remap attachments. Older snapshots restore
+without shadows. Restoring an enabled shadow light while the slot is occupied
+fails transactionally. [shadows.js](../scripts/shadows.js) demonstrates releasing
+the old tool's slot, restoring, and recovering its settings on failure. Its HUD
+shows current shadow status and time. A/X toggles shadows without turning off the
+light, bumper cycles resolution, and B/Y captures then restores the tool.
 
 ## Scene directional lights
 
@@ -424,7 +499,7 @@ for authoring parameters.
 ## Current limits and performance
 
 This is a direct-light PBR implementation, not a complete glTF material renderer.
-There are no shadows, live reflection probes, local/parallax-corrected
+Shadows are limited to one opt-in spotlight. There are no live reflection probes, local/parallax-corrected
 reflections, punctual-light imports, bloom, transmission, clearcoat,
 or other unsupported advanced material extensions. Unsupported optional material extensions use the core
 metallic/roughness fallback. Metals can look dark away from their direct-light highlight when an environment

@@ -54,7 +54,7 @@ static JSValue capture(JSContext *ctx,int owner){
   const auto owners=containerSubtree(*currentScene,owner);
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,11));
+  put(ctx,result,"version",JS_NewInt32(ctx,12));
   put(ctx,result,"rootContainer",JS_NewInt32(ctx,owner));
   Value hierarchy(ctx,JS_NewArray(ctx));uint32_t hierarchyIndex=0;
   for(int id:owners){Value item(ctx,JS_NewObject(ctx));put(ctx,item,"id",JS_NewInt32(ctx,id));put(ctx,item,"parent",JS_NewInt32(ctx,id==owner?0:currentScene->containerParents.at(id)));putIndex(ctx,hierarchy,hierarchyIndex++,JS_DupValue(ctx,item));}
@@ -104,7 +104,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,11,true));
+  const int version=int(number(ctx,root,"version",1,12,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   std::map<int,int> containerMap,newParents;int restoredRoot=scene.nextContainerId;
@@ -210,9 +210,19 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
       for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,direction,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=-64&&n<=64,"invalid spotlight direction");light.direction[c]=float(n);magnitude+=n*n;}
       require(magnitude>=1e-12,"spotlight direction must be nonzero");
     }
+    auto shadow=field(ctx,item,"shadow");
+    if(version>=12&&light.spot){
+      light.shadow.enabled=boolean(ctx,shadow,"enabled");
+      light.shadow.resolution=int(number(ctx,shadow,"resolution",256,1024,true));require((light.shadow.resolution&(light.shadow.resolution-1))==0,"invalid shadow resolution");
+      light.shadow.maxTriangles=int(number(ctx,shadow,"maxTriangles",1,1000000,true));
+      light.shadow.nearPlane=float(number(ctx,shadow,"near",.001f,1));light.shadow.bias=float(number(ctx,shadow,"bias",0,.05f));light.shadow.normalBias=float(number(ctx,shadow,"normalBias",0,.1f));light.shadow.maxGpuMs=float(number(ctx,shadow,"maxGpuMs",.001f,16));
+      require(!light.shadow.enabled||(light.shadow.nearPlane<light.range&&light.outerConeAngle<=1.5f),"invalid shadow camera");
+    }else if(!JS_IsUndefined(shadow))require(light.spot&&!boolean(ctx,shadow,"enabled"),"shadows require snapshot version 12 and a spotlight");
     auto attachment=field(ctx,item,"objectId");if(!JS_IsNull(attachment)){const int id=int(number(ctx,item,"objectId",1,INT_MAX-1,true));require(objectIds.count(id),"light attachment must be inside snapshot");light.objectId=objectIds.at(id);}
     restoredLights.push_back(light);
   }
+  size_t shadowSlots=0;for(const auto &lights:{std::cref(scene.lights),std::cref(restoredLights)})for(const auto &light:lights.get())shadowSlots+=light.spot&&light.enabled&&light.shadow.enabled;
+  require(shadowSlots<=1,"only one enabled shadow-casting spotlight is supported");
   // Load CPU data only after the entire schema has passed. No shared cache or
   // native overlays change until every asset is available.
   for(auto &a:pending){const auto path=a.path;require(loadModelFile(path,a),"could not load snapshot model");if(!a.lighting.environment.empty()){a.environment=loadLightingEnvironment(a.lighting.environment);require(bool(a.environment),"could not load snapshot environment");}}

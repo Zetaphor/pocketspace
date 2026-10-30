@@ -37,6 +37,9 @@ the GPU. Scene counts are current at the time of the query.
 FPS, CPU, RAM, and memory estimates are `null` until sampled. Unavailable measured
 counters remain `null`. The GPU estimate excludes driver/compositor overhead,
 allocator padding except measured color-buffer stride, and small utility textures.
+[Spotlight shadow diagnostics](lighting-api.md#spotlight-shadows) are available
+as `getEngineStats().shadow`, including active status, map storage and measured GPU time.
+
 It assumes four bytes per depth pixel, counts shared depth attachments once,
 and is not measured GPU residency. RAM and
 GPU values can overlap on systems with shared memory; do not add them together.
@@ -527,8 +530,9 @@ See [lod.js](../scripts/lod.js) for a detailed grabbable-model example and
 
 Load receivers with `{pbr: true}` to use scene-wide lighting. Lights add to each
 asset's `setModelLighting` settings; they do not affect unlit models, panels or
-lasers. All three types share eight live slots, including disabled lights, and
-cast no shadows.
+lasers. All three types share eight live slots, including disabled lights.
+One spotlight can opt into [shadows](lighting-api.md#spotlight-shadows); see
+[shadows.js](../scripts/shadows.js) for movement, controls and budget diagnostics.
 
 | Light type | Controls | Guide and complete example |
 | --- | --- | --- |
@@ -688,7 +692,7 @@ Combine model interaction and physics in a complete script: [physics-controls.js
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v11 schema (including v1–v10 compatibility), panels and pixels, animation
+v12 schema (including v1–v11 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

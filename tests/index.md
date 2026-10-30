@@ -458,3 +458,18 @@ shader equivalence, Khronos Compare Sheen import and shared lookup cleanup.
 Build `sheen-regression` explicitly and run from the repository root with the
 native GLES environment. No overlays or pointer input are used.
 See the [correctness and bounded profile report](results/sheen.md).
+
+## Spotlight shadows
+
+- [spot-shadow-api-smoke.js](spot-shadow-api-smoke.js): atomic option validation,
+  getters, one-light capacity, attachments, v12 snapshots, conflicts and legacy restore.
+- [spot-shadow-regression.cpp](spot-shadow-regression.cpp): native depth shadows,
+  stereo coverage, alpha holes, hidden/BLEND exclusion, cross-group casters,
+  prepared shaders, animation, GL-state restoration, resolution/work/time limits
+  and resource cleanup. Build `spot-shadow-regression` explicitly. Run from the
+  repo root with the native GLES environment; `--benchmark` adds bounded
+  one/four-car 256/512/1024 comparisons without overlays or input capture.
+- [shadows.js](../scripts/shadows.js): interactive light/object movement, resolution
+  and shadow enable controls, status HUD and snapshot replacement.
+
+See the [correctness, performance and headset report](results/spotlight-shadows.md).

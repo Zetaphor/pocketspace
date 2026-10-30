@@ -41,6 +41,14 @@ int main() {
     // Exercise lifecycle controls before the general button smoke check disposes owners.
     std::string controls;
     const auto name = entry.path().filename();
+    if(name=="shadows.js") controls=R"(
+      inputEventForExample('/input/b/click');const oldTool=tool,oldLight=light;
+      inputEventForExample('/input/b/click');
+      if(tool===oldTool||light===oldLight||!getSceneContainerState(oldTool).disposed||!getSpotLight(light).shadow.enabled)throw Error('shadow restore');
+      inputEventForExample('/input/a/click');if(getSpotLight(light).shadow.enabled)throw Error('shadow disable');
+      inputEventForExample('/input/a/click');inputEventForExample('/input/bumper/click');
+      if(!getSpotLight(light).shadow.enabled||getSpotLight(light).shadow.resolution!==1024)throw Error('shadow resolution');
+    )";
     if(name=="sheen.js") controls=R"(
       environment=true;lighting();
       enabled=false;lighting();

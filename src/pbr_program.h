@@ -1,5 +1,6 @@
 #pragma once
 #include "model_shaders.h"
+#include "spot_shadow_settings.h"
 #include <cmath>
 #include <map>
 #include <string>
@@ -13,7 +14,7 @@
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
- mutable bool sheenTexturesBound=false;
+ mutable bool sheenTexturesBound=false,shadowBound=false;
 #ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
  bool originalLightLoop=false;
 #endif
@@ -118,6 +119,9 @@ uniform vec4 factor;uniform int alphaMode;uniform float alphaCutoff;
 uniform float metallic,roughness,normalScale,occlusionStrength,intensity,ambient,exposure;
 uniform vec3 emissive,lightDirection,lightColor;
 uniform int pointLightCount;
+uniform highp sampler2DShadow spotShadowMap;
+uniform mat4 spotShadowMatrix;uniform vec3 spotShadowOrigin;
+uniform int shadowLightIndex;uniform float shadowBias,shadowNormalBias,shadowTexel;
 uniform vec4 pointPositionRange[8],pointColorIntensity[8],spotDirectionOuter[8];
 uniform float spotInner[8];
 out vec4 color;
@@ -149,6 +153,15 @@ vec3 layerSheen(vec3 base,vec3 tint,float r,float nv,float nl,float nh,float ev,
  float el=texture(sheenAlbedo,vec2(nl,r)).r;
  float strength=max(tint.r,max(tint.g,tint.b));
  return base*max(0.,1.-strength*max(ev,el))+tint*sheenBrdf(nv,nl,nh,r)*normalization;
+}
+float spotlightVisibility(vec3 n){
+ vec4 clip=spotShadowMatrix*vec4(litPosition+spotShadowOrigin+n*shadowNormalBias,1);
+ if(clip.w<=0.)return 1.;
+ vec3 q=clip.xyz/clip.w*.5+.5;
+ if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.;
+ float visibility=0.;
+ for(int y=0;y<2;y++)for(int x=0;x<2;x++)visibility+=texture(spotShadowMap,vec3(q.xy+(vec2(x,y)-.5)*shadowTexel,q.z-shadowBias));
+ return visibility*.25;
 }
 void main(){
  vec4 base=texture(material,t)*factor;
@@ -201,7 +214,7 @@ void main(){
     float window=max(1.-pow(distance2/(range*range),2.),0.);
     attenuation=cone*window*window/max(distance2,.0001);
    }
-   result+=layerSheen((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf,sheenTint,sr,nv,pnl,pnh,ev,normalization)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
+   result+=layerSheen((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf,sheenTint,sr,nv,pnl,pnh,ev,normalization)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation*(i==shadowLightIndex?spotlightVisibility(n):1.);
   }
   if(environmentEnabled){
    vec3 en=environmentDirection(n),reflection=environmentDirection(reflect(-v,n));
@@ -279,9 +292,9 @@ void main(){
   program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);
   if(!ok){glDeleteProgram(program);program=0;return false;}
   depthSupport=fastDepth;
-  if(depthSupport){
+  {
     GLint previous=0;glGetIntegerv(GL_CURRENT_PROGRAM,&previous);glUseProgram(program);
-    integer("material",0);integer("normalMap",2);integer("metalRoughMap",3);integer("occlusionMap",4);integer("emissiveMap",5);integer("environmentMap",6);integer("environmentBrdf",7);integer("sheenColorMap",8);integer("sheenRoughnessMap",9);integer("sheenAlbedo",10);
+    integer("material",0);integer("normalMap",2);integer("metalRoughMap",3);integer("occlusionMap",4);integer("emissiveMap",5);integer("environmentMap",6);integer("environmentBrdf",7);integer("sheenColorMap",8);integer("sheenRoughnessMap",9);integer("sheenAlbedo",10);integer("spotShadowMap",11);integer("shadowLightIndex",-1);
     glUseProgram(GLuint(previous));
   }
   return true;
@@ -302,6 +315,13 @@ void main(){
   integer("pointLightCount",count);
   if(count){glUniform4fv(location("pointPositionRange"),count,payload.data());glUniform4fv(location("pointColorIntensity"),count,payload.data()+32);glUniform4fv(location("spotDirectionOuter"),count,payload.data()+64);glUniform1fv(location("spotInner"),count,payload.data()+96);}
   pointCount=count;pointPayload=payload;
+ }
+ void shadows(const SpotShadowFrame &frame,std::span<const ResolvedPointLight> lights,float x=0,float y=0,float z=0)const{
+  int index=-1;if(frame.active)for(size_t i=0;i<lights.size();i++)if(lights[i].id==frame.lightId){index=int(i);break;}
+  integer("shadowLightIndex",index);
+  if(index<0)return;
+  integer("spotShadowMap",11);glUniformMatrix4fv(location("spotShadowMatrix"),1,GL_FALSE,frame.matrix.data());glUniform3f(location("spotShadowOrigin"),x,y,-z);scalar("shadowBias",frame.bias);scalar("shadowNormalBias",frame.normalBias);scalar("shadowTexel",1.f/frame.resolution);
+  glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,frame.texture);glActiveTexture(GL_TEXTURE0);shadowBound=true;
  }
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
@@ -338,5 +358,5 @@ void main(){
   glEnableVertexAttribArray(8);glEnableVertexAttribArray(9);glEnableVertexAttribArray(10);
   glVertexAttribPointer(8,3,GL_FLOAT,GL_FALSE,9*sizeof(float),nullptr);glVertexAttribPointer(9,4,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float)));glVertexAttribPointer(10,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(7*sizeof(float)));
  }
- void release()const{glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}if(sheenTexturesBound){for(int i=8;i<=10;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}sheenTexturesBound=false;}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
+ void release()const{if(shadowBound){glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,0);shadowBound=false;}glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}if(sheenTexturesBound){for(int i=8;i<=10;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}sheenTexturesBound=false;}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
 };

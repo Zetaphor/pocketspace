@@ -32,10 +32,10 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Deferred lighting features
 
-- Add opt-in spotlight shadows when revisiting shadows. Start with one
-  shadow-casting spotlight, configurable resolution and explicit GPU memory/time
-  limits. Preserve stereo/alpha occlusion, attachments and save/restore. Point
-  shadows require multiple shadow views and remain a later investigation.
+- Add point-light or directional-light shadows only when a target experience
+  requires them. Point lights need multiple shadow views; directional sources
+  need a bounded coverage/cascade policy. Preserve explicit memory/work/time
+  budgets, stereo/alpha correctness, attachments and persistence.
 - Design scalable light selection beyond the shared eight-light limit only
   when an intended scene requires it and profiling supports the design.
 
