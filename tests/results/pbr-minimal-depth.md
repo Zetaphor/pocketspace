@@ -87,5 +87,15 @@ member draws. External depth work varied from 93.11 to 98.86 draws per frame
 member geometry/storage, **not exact external-work comparisons**. The mixed whole
 results do not establish a repeatable FPS gain; averaging the later slower
 baseline into a claimed speedup would hide this limitation. Further adoption
-requires controlled engine comparisons and user headset acceptance. Production
+requires controlled engine comparisons. Production
 remains on the shipped fast-depth program.
+
+## Headset visual acceptance
+
+The user accepted the candidate in `tests/scenes/pbr-depth.js`: grip/trigger
+movement and rotation, head motion, cutout holes and overlaps against the blue
+background looked correct. The profiling engine confirmed minimal depth enabled,
+with no reported GL errors, disjoint timer samples or fence failures. The demo
+was stopped after acceptance and its exit verified: 3,706 completed frames and
+zero remaining grouped-buffer charges. This establishes visual acceptance,
+separately from the inconclusive whole-engine performance comparison.
