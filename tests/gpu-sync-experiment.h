@@ -10,7 +10,9 @@ class GpuSyncExperiment {
   PFNGLGETQUERYOBJECTUI64VEXTPROC getResult=nullptr;
   Clock::time_point epoch=Clock::now(),window=epoch,start{},waitEnd{};
   unsigned frames=0,gpuSamples=0,disjointSamples=0,fenceFailures=0;
-  double enqueueMs=0,waitMs=0,waitCpuMs=0,submitMs=0,gpuMs=0;
+  double enqueueMs=0,enqueueCpuMs=0,enqueueCpuStart=0,waitMs=0,waitCpuMs=0,submitMs=0,gpuMs=0;
+  bool profilePbr=false,capturePbr=false;
+  double pbrCpuStart=0,pbrCpuMs[3]{};uint64_t pbrDraws[3]{};
   bool passes=false,capturePasses=false;
   int drawCategory=0;
   uint64_t workDraws[3]{},workTriangles[3]{},lodObjects[3]{},sceneTriangles=0,sceneFrames=0;
@@ -33,6 +35,7 @@ public:
   GpuSyncExperiment(){
     const char *mode=std::getenv("SF_GPU_SYNC_MODE");fence=mode&&std::strcmp(mode,"fence")==0;
     const char *profile=std::getenv("SF_GPU_PROFILE_PASSES");passes=profile&&std::strcmp(profile,"1")==0;
+    const char *pbr=std::getenv("SF_GPU_PROFILE_PBR_SUBMIT");profilePbr=pbr&&std::strcmp(pbr,"1")==0;
     const char *timeout=std::getenv("SF_GPU_SYNC_WAIT_MS");if(timeout&&std::strcmp(timeout,"1")==0)fenceWaitNs=1000000;
     GLint count=0;glGetIntegerv(GL_NUM_EXTENSIONS,&count);
     for(int i=0;i<count;i++)if(std::strcmp(reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS,i)),"GL_EXT_disjoint_timer_query")==0)timer=true;
@@ -43,9 +46,11 @@ public:
   }
   ~GpuSyncExperiment(){if(active)glEndQuery(GL_TIME_ELAPSED_EXT);if(query)glDeleteQueries(1,&query);for(auto &p:passQueries)glDeleteQueries(1,&p.id);}
   void begin(){
-    poll();start=Clock::now();
-    capturePasses=passes&&timer&&start>=nextPassFrame;passCount=0;
-    if(capturePasses)nextPassFrame=start+std::chrono::seconds(1);
+    poll();start=Clock::now();enqueueCpuStart=threadMilliseconds();
+    const bool sampled=(passes||profilePbr)&&timer&&start>=nextPassFrame;
+    capturePasses=passes&&sampled;capturePbr=profilePbr&&sampled;passCount=0;
+    for(int i=0;i<3;i++){pbrCpuMs[i]=0;pbrDraws[i]=0;}
+    if(sampled)nextPassFrame=start+std::chrono::seconds(1);
     if(timer&&!pending&&!passes){glBeginQuery(GL_TIME_ELAPSED_EXT,query);active=true;}
   }
   template<class Scene> void scene(const Scene &scene){
@@ -68,10 +73,14 @@ public:
     if(capturePasses){auto &q=passQueries[passCount];++q.draws;q.triangles+=vertices/3;}
   }
   void endPass(){if(capturePasses){passQueries[passCount].cpuMs=threadMilliseconds()-passCpuStart;glEndQuery(GL_TIME_ELAPSED_EXT);++passCount;}}
+  // One sampled frame per second: shader/material/draw/state-restore CPU only.
+  // Thread CPU excludes blocked time and work done by separate driver threads.
+  void beginPbr(){if(capturePbr)pbrCpuStart=threadMilliseconds();}
+  void endPbr(){if(capturePbr){pbrCpuMs[drawCategory]+=threadMilliseconds()-pbrCpuStart;++pbrDraws[drawCategory];}}
   void complete(){
     if(active){glEndQuery(GL_TIME_ELAPSED_EXT);active=false;pending=true;}
     const auto waitStart=Clock::now();enqueueMs+=milliseconds(waitStart-start);
-    const double cpuStart=threadMilliseconds();
+    const double cpuStart=threadMilliseconds();enqueueCpuMs+=cpuStart-enqueueCpuStart;
     if(fence){
       GLsync sync=glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE,0);
       GLenum result=GL_WAIT_FAILED;
@@ -84,6 +93,11 @@ public:
     }else glFinish();
     waitEnd=Clock::now();waitMs+=milliseconds(waitEnd-waitStart);waitCpuMs+=threadMilliseconds()-cpuStart;
     poll();
+    if(capturePbr){
+      printf("PBR_SUBMIT_SAMPLE {\"seconds\":%.6f,\"threadCpuMs\":[%.6f,%.6f,%.6f],\"draws\":[%llu,%llu,%llu]}\n",
+        std::chrono::duration<double>(waitEnd-epoch).count(),pbrCpuMs[0],pbrCpuMs[1],pbrCpuMs[2],
+        (unsigned long long)pbrDraws[0],(unsigned long long)pbrDraws[1],(unsigned long long)pbrDraws[2]);fflush(stdout);
+    }
     if(capturePasses){
       GLint disjoint=0;glGetIntegerv(GL_GPU_DISJOINT_EXT,&disjoint);
       double gpu[3]{},cpu[3]{};uint64_t draws[3]{},triangles[3]{};bool valid=!disjoint;
@@ -103,13 +117,13 @@ public:
     if(now-window<std::chrono::seconds(1))return;
     char gpu[40]="null";if(gpuSamples)std::snprintf(gpu,sizeof(gpu),"%.6f",gpuMs/gpuSamples);
     const auto error=glGetError();
-    printf("GPU_SYNC_SAMPLE {\"seconds\":%.6f,\"timeoutMs\":%llu,\"glError\":%u,\"mode\":\"%s\",\"frames\":%u,\"gpuSamples\":%u,\"gpuMs\":%s,\"enqueueMs\":%.6f,\"waitMs\":%.6f,\"waitThreadCpuMs\":%.6f,\"submitMs\":%.6f,\"disjointSamples\":%u,\"fenceFailures\":%u}\n",std::chrono::duration<double>(now-epoch).count(),(unsigned long long)(fenceWaitNs/1000000),unsigned(error),fence?"fence":"finish",frames,gpuSamples,gpu,enqueueMs/frames,waitMs/frames,waitCpuMs/frames,submitMs/frames,disjointSamples,fenceFailures);fflush(stdout);
+    printf("GPU_SYNC_SAMPLE {\"seconds\":%.6f,\"timeoutMs\":%llu,\"glError\":%u,\"mode\":\"%s\",\"frames\":%u,\"gpuSamples\":%u,\"gpuMs\":%s,\"enqueueMs\":%.6f,\"enqueueThreadCpuMs\":%.6f,\"waitMs\":%.6f,\"waitThreadCpuMs\":%.6f,\"submitMs\":%.6f,\"disjointSamples\":%u,\"fenceFailures\":%u}\n",std::chrono::duration<double>(now-epoch).count(),(unsigned long long)(fenceWaitNs/1000000),unsigned(error),fence?"fence":"finish",frames,gpuSamples,gpu,enqueueMs/frames,enqueueCpuMs/frames,waitMs/frames,waitCpuMs/frames,submitMs/frames,disjointSamples,fenceFailures);fflush(stdout);
     printf("RENDER_WORK_SAMPLE {\"seconds\":%.6f,\"frames\":%u,\"sceneFrames\":%llu,\"drawsPerFrame\":[%.6f,%.6f,%.6f],\"trianglesPerFrame\":[%.6f,%.6f,%.6f],\"lodObjectsPerFrame\":[%.6f,%.6f,%.6f],\"sceneTrianglesPerFrame\":%.6f}\n",
       std::chrono::duration<double>(now-epoch).count(),frames,(unsigned long long)sceneFrames,
       double(workDraws[0])/frames,double(workDraws[1])/frames,double(workDraws[2])/frames,
       double(workTriangles[0])/frames,double(workTriangles[1])/frames,double(workTriangles[2])/frames,
       double(lodObjects[0])/frames,double(lodObjects[1])/frames,double(lodObjects[2])/frames,double(sceneTriangles)/frames);fflush(stdout);
     for(int i=0;i<3;i++){workDraws[i]=workTriangles[i]=lodObjects[i]=0;}sceneTriangles=sceneFrames=0;
-    window=now;frames=gpuSamples=disjointSamples=fenceFailures=0;enqueueMs=waitMs=waitCpuMs=submitMs=gpuMs=0;
+    window=now;frames=gpuSamples=disjointSamples=fenceFailures=0;enqueueMs=enqueueCpuMs=waitMs=waitCpuMs=submitMs=gpuMs=0;
   }
 };

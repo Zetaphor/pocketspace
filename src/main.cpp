@@ -2699,6 +2699,9 @@ int main(int argc,char **argv) {
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
 #endif
                 if(asset.pbr){
+#ifdef SF_GPU_SYNC_EXPERIMENT
+                  gpuSync.beginPbr();ScopeExit finishPbrTiming{[&]{gpuSync.endPbr();}};
+#endif
                   auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
                   auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?selectedDepthProgram:pbrProgram);
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
