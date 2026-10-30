@@ -43,16 +43,15 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Investigate quality-preserving reuse of invariant PBR material/light arithmetic.
-  The [rotation-preparation comparison](../tests/results/pbr-transform.md) is
-  complete without adoption: CPU preparation failed pixels, and GPU reuse had
-  inconsistent gains. The completed
-  [geometry/pixel sensitivity study](../tests/results/pbr-cost.md) shows substantial
-  geometry cost and increasing pixel/light cost at larger viewports. The
-  [moving-car lighting profile](../tests/results/dense-pbr-lights.md) identifies
-  costly opaque GPU work. Require pixel correctness and matched throughput at
-  multiple densities; measure adaptive occlusion separately. Neither fixed-group
-  profile contains external occluder draws.
+- Investigate bounded PBR shader specialization for actual material features and
+  scene light counts. Measure program memory and mixed-state routing costs as
+  well as throughput at multiple densities; preserve normal maps, alpha,
+  deformation, attachments and changing light counts. The completed
+  [invariant-arithmetic comparison](../tests/results/pbr-light-invariant.md) and
+  [rotation comparison](../tests/results/pbr-transform.md) did not justify adoption.
+  The [geometry/pixel study](../tests/results/pbr-cost.md) shows substantial
+  geometry cost and growing pixel/light cost at larger viewports. Measure adaptive
+  occlusion separately; these fixed-group profiles contain no external occluders.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The

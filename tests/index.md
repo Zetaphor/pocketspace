@@ -365,3 +365,9 @@ GPU rotation reuse against production shader expressions, with strict stereo
 pixels before matched ABBA timings. See the
 [run instructions](README.md#pbr-prepared-rotation-experiment) and
 [rejected-candidate results](results/pbr-transform.md).
+
+[pbr-light-invariant-experiment.cpp](pbr-light-invariant-experiment.cpp) tests
+per-fragment visibility/diffuse-factor reuse with stereo pixels across light counts before
+matched ABBA measurements. See the
+[run instructions](README.md#pbr-invariant-light-arithmetic-experiment) and
+[comparison results](results/pbr-light-invariant.md).

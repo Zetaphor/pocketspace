@@ -1405,3 +1405,25 @@ geometry, framebuffer and moving poses at 768/2048 pixels with zero/eight lights
 Each stage alternates eyes, with 30 warmup and 90 measured frames. GPU disjoint
 and GL errors fail the run. Repeat runs; do not adopt based on a single case or
 GPU timing alone. Wall time includes draw submission and `glFinish`.
+
+## PBR invariant-light arithmetic experiment
+
+Build the excluded `pbr-light-invariant-experiment` target after reconfiguring
+CMake. Run with the EGL/library environment used for `pbr-cost-profile`, and an
+awake, worn headset for normal GPU power. This offscreen target opens no overlays
+and captures no input.
+
+The candidate evaluates `sqrt(nv*nv*(1-a2)+a2)` once per fragment and reuses it in
+directional and point/spot visibility terms. It also factors the material's
+`(1-metal)*baseColor/PI` term out of per-light diffuse calculations. The latter
+changes floating-point grouping and must pass the pixel gate. Only `SF_PBR_LIGHT_INVARIANT_EXPERIMENT` exposes this test
+choice; normal builds retain the production shader. Pixel comparisons precede
+profiling and require exact alpha plus at most one-byte RGB differences across
+stereo/LOD/deformation/normal maps/alpha/attachments and zero/one/four/eight lights.
+
+Matched ABBA timings share the renderer, buffers, shader inputs, projection and
+moving poses, with full/LOD-2 geometry at 768/2048 pixels and zero/eight lights.
+Each stage has 30 warmup and 90 measured frames, alternating eyes. Repeat runs;
+GPU/disjoint/GL checks must pass. Wall time includes `glFinish`. Source-level
+reuse may already be performed by the compiler, so correctness alone does not
+justify adoption.
