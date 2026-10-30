@@ -36,7 +36,7 @@ struct Renderer {
   PbrProgram invariantPbrProgram,invariantDepthPbrProgram;
 #endif
 #ifdef SF_PBR_VARIANT_EXPERIMENT
-  bool specializePbr=false;
+  bool specializePbr=false,prewarmedPbr=false;
   PbrVariantPrograms pbrVariants;
 #endif
   PbrProgram pbrProgram;
@@ -159,7 +159,7 @@ struct Renderer {
 #endif
             const bool depthOnly=fastPbrDepth&&pass<0;
 #ifdef SF_PBR_VARIANT_EXPERIMENT
-            auto *variant=specializePbr&&!depthOnly?pbrVariants.get(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count):nullptr;
+            auto *variant=specializePbr&&!depthOnly?(prewarmedPbr?pbrVariants.ready(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count,pixels):pbrVariants.get(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count)):nullptr;
             auto &activePbr=variant?*variant:(depthOnly?depthPbrProgram:pbrProgram);
 #elif defined(SF_PBR_TRANSFORM_EXPERIMENT)
             auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);

@@ -5,7 +5,7 @@ setObjectRotation(back, Math.PI / 2, 0, 0);
 setObjectInteraction(back, {laserPassThrough: true, grabbable: false});
 const assets = [], targets = [], poses = [];
 for (const [name, x, y, group] of [['ToyCar', -.25, 0, 2], ['AlphaBlendModeTest', .25, 0, 3], ['NormalTangentTest', 0, .3, 4]]) {
-  const asset = loadModel(`assets/samples/${name}/${name}.glb`, 768, {pbr: true, optimizeVertexCache: true});
+  const asset = loadModel(`assets/samples/${name}/${name}.glb`, 1024, {pbr: true, optimizeVertexCache: true});
   assets.push(asset);
   const object = createObject(asset, x, y, 0, .3, {renderGroup: group});
   targets.push(object); poses.push([object, x, y, 0]);

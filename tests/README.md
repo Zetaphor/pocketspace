@@ -1439,8 +1439,10 @@ The candidate replaces material-feature flags, alpha mode, environment enable
 and the object's filtered light count with compile-time shader constants. It
 keeps the original expressions and draw order. The additional program cache has
 16 slots; overflow or a remembered compile failure falls back to general PBR.
-Depth passes retain the existing program. The cache and source specialization
-exist only under `SF_PBR_VARIANT_EXPERIMENT`, with no production runtime option.
+Depth passes retain the existing program. The prepared cache and source
+specialization live in `src/pbr_variants.h` and `src/pbr_program.h`; production
+uses ready variants automatically under the guarded policy. The test macro
+exposes lazy compilation/failure injection solely for comparisons.
 
 Stereo comparisons cover normal maps, alpha modes, morph deformation, LOD,
 attached mixed lighting, environment on/off, and unlit materials at zero/one/four/
@@ -1452,8 +1454,10 @@ change by at most one byte. Failure stops timing.
 Matched ABBA measurements include selection/uniform/draw overhead and use the
 same assets, buffers, framebuffer, projection and moving poses. Full/LOD-2 cars
 run at 768/2048 pixels with zero/eight lights. Each stage has 30 warmup and 90
-measured frames, alternating eyes. New variants can compile during warmup;
-steady-state gains do not establish acceptable first-use latency. Repeat runs.
+measured frames, alternating eyes. The current timing path prepares the set
+before measurement and asserts compile
+time remains unchanged during draws. The 1024-pixel/four-light guard routes lighter
+cases to general PBR. Repeat runs.
 The cache reports linked-program count, compile time and program-binary lengths;
 binary length is not total driver GPU/RAM storage. The 16-slot bound applies to
 additional owned programs, excluding existing general/depth programs and any
@@ -1468,14 +1472,16 @@ steady GPU samples start at six seconds. It rejects GL/disjoint/fence, geometry,
 allocation and shutdown-accounting failures, and records program counts, binary
 lengths, total compile time and fallback draws. Inherited `SF_GPU_*` options are
 cleared. Only this excluded engine reads `SF_GPU_PBR_VARIANTS=0/1`. No interaction
-is enabled, and every run terminates automatically. First-use compilation can
-still occur as moving objects acquire previously unseen filtered-light counts;
-the totals do not prove that compilation is absent from measurement windows.
+is enabled, and every run terminates automatically. The prepared policy compiles only at startup/successful reload; previously unseen
+filtered counts use general fallback. The earlier lazy-policy reports are retained
+separately and must not be confused with the prepared measurements.
 
 ### Interactive PBR variant validation
 
-Run `tests/scenes/pbr-variants.js` with the excluded `gpu-sync-experiment` and
-`SF_GPU_PBR_VARIANTS=1` after the automated variant checks pass. It shows a car,
+Run `./run-pocketspace.sh tests/scenes/pbr-variants.js` after the automated
+variant checks pass. The normal engine now exercises the prepared policy;
+`gpu-sync-experiment` with `SF_GPU_PBR_VARIANTS=1` remains an equivalent diagnostic
+entry point. It shows a car,
 normal-map fixture and alpha-mode model on independent surfaces against blue,
 with four grabbable handles carrying eight point/spot lights. Grip/trigger moves
 models or handles; A/X cycles eight/four/zero lights; B/Y toggles the HDR
@@ -1484,7 +1490,15 @@ environment; bumper resets poses (release held objects first).
 Check head movement, approach/distance and LOD, rotation, overlaps, cutout holes,
 reflections, and stable rendering after light-count/environment changes. Lighting
 changes intentionally between settings. Look for stale state, flicker, missing
-parts or incorrectly filled cutouts. First-use compilation is still synchronous
-in this prototype and is not validated as a production latency policy. The
+parts or incorrectly filled cutouts. Shader variants are prepared at startup/successful reload; state changes use
+ready programs or general fallback without compiling in the render path. The
 16-slot cache can fall back to general PBR while switching states. Stop the demo
 immediately after user verification and confirm its process exited.
+
+
+`pbr-variants-lifecycle.py --output /tmp/pbr-variant-lifecycle.log` runs a bounded
+native restore/removal, unknown environment/new-asset fallback, invalid reload
+and successful reload check. It requires two preparation generations, unchanged
+compile time after the last preparation, nonzero fallback, clean GPU status and
+zero grouped charges on shutdown. Use the same EGL/library environment and an
+active headset; it enables no interaction and stops automatically.

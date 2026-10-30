@@ -382,3 +382,24 @@ New bakes and examples use `.psenv`. The bundled `studio.sfenv` path remains a
 compatibility alias for existing scene saves; new scenes should use `studio.psenv`.
 
 Use the current .psenv environment path in a complete scene: [pbr.js](../scripts/pbr.js).
+
+
+### Shader preparation
+
+For scenes that start with at least four active lights, the engine prepares a
+bounded set of PBR shader variants during scene loading and successful script
+reload. Larger surfaces can use ready variants for their material features and
+filtered light counts. Lightweight draws, new material/environment combinations
+and cache misses use the general shader automatically; drawing never compiles a
+new variant. No script option or quality reduction is involved. Existing light
+and environment setters keep their normal behavior. See the
+[interactive validation scene](../tests/scenes/pbr-variants.js) for mixed materials,
+light-count changes and HDR toggles.
+
+```js
+const asset = loadModel('assets/samples/ToyCar/ToyCar.glb', 768, {pbr: true});
+createObject(asset, 0, 0, 0, .3);
+for (let i = 0; i < 4; i++) {
+  createPointLight({position: [(i - 1.5) * .2, .2, -.4], range: 1, intensity: .1});
+}
+```

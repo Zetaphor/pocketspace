@@ -43,14 +43,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Integrate the promising [bounded PBR shader-variant prototype](../tests/results/pbr-variants.md)
-  only after preparing variants outside steady-state rendering and protecting
-  lighter workloads. Preserve bounded program ownership, general-program fallback,
-  mixed materials, environment/light-count changes, reload/restore and cleanup.
-  Repeat matched native comparisons and validate the eventual production integration
-  in the headset before adoption. The prototype already passes pixels and headset
-  visual acceptance and improves larger lit workloads, but
-  first-use compilation and a smaller-workload wall regression remain unresolved.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The

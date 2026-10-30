@@ -88,9 +88,7 @@ struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge
 struct Scene {std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 #include "model_instancing.h"
 #include "pbr_program.h"
-#ifdef SF_PBR_VARIANT_EXPERIMENT
-#include "../tests/pbr-variants-experiment.h"
-#endif
+#include "pbr_variants.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
@@ -2032,9 +2030,14 @@ int main(int argc,char **argv) {
   // Validate color and depth material programs before publishing a live scene.
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
-#if defined(SF_GPU_SYNC_EXPERIMENT) && defined(SF_PBR_VARIANT_EXPERIMENT)
+#ifdef SF_GPU_SYNC_EXPERIMENT
   const bool pbrVariantsEnabled=std::getenv("SF_GPU_PBR_VARIANTS")&&std::strcmp(std::getenv("SF_GPU_PBR_VARIANTS"),"1")==0;
+#else
+  constexpr bool pbrVariantsEnabled=true;
+#endif
   PbrVariantPrograms pbrVariants;
+  if(pbrVariantsEnabled){for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);pbrVariants.prepare(script.scene);}
+#ifdef SF_PBR_VARIANT_EXPERIMENT
   ScopeExit variantReport{[&]{printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",pbrVariants.programs.size(),(unsigned long long)pbrVariants.binaryBytes(),pbrVariants.compileMs,pbrVariants.fallbackDraws);}};
 #endif
 #ifdef SF_PBR_DEPTH_EXPERIMENT
@@ -2262,6 +2265,7 @@ int main(int argc,char **argv) {
           clusterExperiment.reset();
 #endif
         });
+        if(loaded&&pbrVariantsEnabled){for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);pbrVariants.prepare(script.scene);}
         if(!loaded)script.mtime=modified;
       }
     }
@@ -2677,12 +2681,8 @@ int main(int argc,char **argv) {
                 if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
 #endif
                 if(asset.pbr){
-#if defined(SF_GPU_SYNC_EXPERIMENT) && defined(SF_PBR_VARIANT_EXPERIMENT)
-                  auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.get(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count):nullptr;
+                  auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
                   auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram);
-#else
-                  auto &activePbr=fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram;
-#endif
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
                   if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
@@ -2790,6 +2790,7 @@ int main(int argc,char **argv) {
       gpuSync.submitted();
 #endif
       ++frame;
+      if(frame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
