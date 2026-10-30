@@ -2066,6 +2066,12 @@ int main(int argc,char **argv) {
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
   auto anchor=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
   for(int r=0;r<3;r++)anchor.m[r][3]+=anchor.m[r][1]*-.2f+anchor.m[r][2]*-1.f;
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+  // Profiling only: a canonical scene basis removes cross-run tracking noise.
+  const bool fixedDepthView=std::getenv("SF_PBR_DEPTH_FIXED_VIEW")&&std::strcmp(std::getenv("SF_PBR_DEPTH_FIXED_VIEW"),"1")==0;
+  if(fixedDepthView){anchor={};for(int axis=0;axis<3;axis++)anchor.m[axis][axis]=1;}
+  printf("PBR_DEPTH_FIXED_VIEW enabled=%d\n",int(fixedDepthView));
+#endif
   trackingAnchor=anchor;trackingAnchorValid=true;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
@@ -2403,6 +2409,9 @@ int main(int argc,char **argv) {
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+      if(fixedDepthView){head=anchor;head.m[1][3]=.2f;head.m[2][3]=1.f;}
+#endif
       for(int hand=0;hand<2;hand++){
         auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
         auto device=system->GetTrackedDeviceIndexForControllerRole(role);
