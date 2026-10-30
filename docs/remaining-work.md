@@ -43,6 +43,12 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
+- Investigate a minimal PBR depth-only program against the shipped fast-depth
+  path, preserving full geometry, masks and stereo occlusion. The
+  [post-preparation pass profile](../tests/results/pbr-pass-refresh.md) identifies
+  substantial repeated external-occluder GPU work in adaptive groups. Require
+  strict pixels and matched geometry/storage before adoption; keep the rejected
+  general opaque-shader and shared-depth experiments disabled.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The

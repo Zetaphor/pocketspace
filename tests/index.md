@@ -395,3 +395,7 @@ compilation and shutdown accounting. See the
 The [prepared PBR report](results/pbr-prewarm.md) records bounded startup/reload
 precompilation, guarded ready-only routing, lifecycle validation and matched
 native throughput, superseding the lazy prototype policy.
+
+The [dense PBR pass refresh](results/pbr-pass-refresh.md) records fixed/adaptive
+32-car attribution with precompiled shaders enabled, including rejected peak-
+storage mismatches and the next depth-only shader investigation.
