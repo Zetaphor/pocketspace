@@ -14,7 +14,8 @@ struct SpotShadowSettings {
 #include <optional>
 struct SpotShadowFrame {
  uint32_t texture=0;int lightId=0,resolution=0;bool active=false;
- float bias=0,normalBias=0;
+ float bias=0,normalBias=0;bool point=false;
+ std::array<float,3> position{};std::array<std::array<float,16>,6> faces{};
  std::array<float,16> matrix{};
 };
 struct SpotShadowDiagnostics {

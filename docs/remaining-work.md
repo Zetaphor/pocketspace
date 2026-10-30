@@ -32,10 +32,9 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Deferred lighting features
 
-- Add point-light shadows only when a target experience requires them; multiple
-  shadow views need explicit memory/work/time budgets. Extend directional shadows
-  to cascades or automatic coverage only if fixed bounded coverage is insufficient.
-  Preserve stereo/alpha correctness, attachments and persistence.
+- Extend directional shadows to cascades or automatic coverage only if fixed
+  bounded coverage is insufficient. Preserve explicit memory/work/time budgets,
+  stereo/alpha correctness, attachments and persistence.
 - Design scalable light selection beyond the shared eight-light limit only
   when an intended scene requires it and profiling supports the design.
 

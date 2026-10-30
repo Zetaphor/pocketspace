@@ -18,7 +18,7 @@ const spot=createSpotLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setSpotLight(spot,{enabled:true}));
 setDirectionalLight(sun,{enabled:false});setSpotLight(spot,{enabled:true});
 fails(()=>setDirectionalLight(sun,{enabled:true}));setSpotLight(spot,{enabled:false});setDirectionalLight(sun,{enabled:true});removeSpotLight(spot);
-const saved=captureSceneContainer(owner);check(saved.version===13&&saved.lights[0].shadow.depth===5);
+const saved=captureSceneContainer(owner);check(saved.version===14&&saved.lights[0].shadow.depth===5);
 fails(()=>restoreSceneContainer(saved));
 setDirectionalLight(sun,{shadow:{enabled:false}});
 const state=JSON.stringify(getSceneContainerState(owner));

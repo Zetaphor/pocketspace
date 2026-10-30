@@ -6,7 +6,6 @@ static bool readSpotShadow(JSContext *ctx,JSValueConst options,PointLight &candi
  JSValue value=JS_GetPropertyStr(ctx,options,"shadow");if(JS_IsException(value))return false;
  ScopeExit release{[&]{JS_FreeValue(ctx,value);}};
  if(JS_IsUndefined(value))return true;
- if(!candidate.spot&&!candidate.directional){JS_ThrowTypeError(ctx,"only spotlights and directional lights support shadow");return false;}
  if(!JS_IsObject(value)||JS_IsNull(value)){JS_ThrowTypeError(ctx,"shadow must be an options object");return false;}
  JSValue enabled=JS_GetPropertyStr(ctx,value,"enabled");if(JS_IsException(enabled))return false;
  if(!JS_IsUndefined(enabled)){if(!JS_IsBool(enabled)){JS_FreeValue(ctx,enabled);JS_ThrowTypeError(ctx,"shadow.enabled must be boolean");return false;}candidate.shadow.enabled=JS_ToBool(ctx,enabled)>0;}JS_FreeValue(ctx,enabled);
@@ -43,8 +42,8 @@ static bool readSpotShadow(JSContext *ctx,JSValueConst options,PointLight &candi
  ++candidate.shadowRevision;return true;
 }
 static bool availableShadowSlot(const PointLight &candidate){
- if(!(candidate.spot||candidate.directional)||!candidate.enabled||!candidate.shadow.enabled)return true;
- return std::none_of(currentScene->lights.begin(),currentScene->lights.end(),[&](const PointLight &other){return other.id!=candidate.id&&(other.spot||other.directional)&&other.enabled&&other.shadow.enabled;});
+ if(!candidate.enabled||!candidate.shadow.enabled)return true;
+ return std::none_of(currentScene->lights.begin(),currentScene->lights.end(),[&](const PointLight &other){return other.id!=candidate.id&&other.enabled&&other.shadow.enabled;});
 }
 static bool readPointLight(JSContext *ctx,JSValueConst options,PointLight &candidate){
  if(!JS_IsObject(options)||JS_IsNull(options)){JS_ThrowTypeError(ctx,"light options must be an object");return false;}
@@ -92,6 +91,8 @@ static bool readPointLight(JSContext *ctx,JSValueConst options,PointLight &candi
   if(length<1e-12||(candidate.spot&&candidate.innerConeAngle>candidate.outerConeAngle)){JS_ThrowRangeError(ctx,"light requires nonzero direction and valid cone angles");return false;}
  }
  if(!readSpotShadow(ctx,options,candidate))return false;
+ if(!candidate.directional&&!candidate.spot&&candidate.shadow.resolution>512){JS_ThrowRangeError(ctx,"point shadow resolution must be 256 or 512");return false;}
+ if(!candidate.directional&&candidate.shadow.enabled&&candidate.shadow.nearPlane>=candidate.range){JS_ThrowRangeError(ctx,"shadow near must be less than range");return false;}
  if(candidate.spot&&candidate.shadow.enabled&&(candidate.shadow.nearPlane>=candidate.range||candidate.outerConeAngle>1.5f)){JS_ThrowRangeError(ctx,"shadow requires near < range and outerConeAngle <= 1.5 radians");return false;}
  // Revalidate after every script getter has run; none of the copied IDs hold pointers.
  if(candidate.container&&!currentScene->containers.count(candidate.container)){JS_ThrowRangeError(ctx,"light container was disposed");return false;}
@@ -102,7 +103,7 @@ static JSValue pointLightValue(JSContext *ctx,const PointLight &light){
  JSValue value=JS_NewObject(ctx);
  JS_SetPropertyStr(ctx,value,"type",JS_NewString(ctx,light.directional?"directional":light.spot?"spot":"point"));
  if(light.spot||light.directional){JSValue direction=JS_NewArray(ctx);for(int c=0;c<3;c++)JS_SetPropertyUint32(ctx,direction,c,JS_NewFloat64(ctx,light.direction[c]));JS_SetPropertyStr(ctx,value,"direction",direction);}
- if(light.spot||light.directional){JSValue shadow=JS_NewObject(ctx);JS_SetPropertyStr(ctx,shadow,"enabled",JS_NewBool(ctx,light.shadow.enabled));
+ {JSValue shadow=JS_NewObject(ctx);JS_SetPropertyStr(ctx,shadow,"enabled",JS_NewBool(ctx,light.shadow.enabled));
   JS_SetPropertyStr(ctx,shadow,"resolution",JS_NewInt32(ctx,light.shadow.resolution));JS_SetPropertyStr(ctx,shadow,"maxTriangles",JS_NewInt32(ctx,light.shadow.maxTriangles));
   for(auto [name,n]:{std::pair{"near",light.shadow.nearPlane},{"bias",light.shadow.bias},{"normalBias",light.shadow.normalBias},{"maxGpuMs",light.shadow.maxGpuMs}})if(!light.directional||std::string(name)!="near")JS_SetPropertyStr(ctx,shadow,name,JS_NewFloat64(ctx,n));
   if(light.directional){

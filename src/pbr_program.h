@@ -120,7 +120,7 @@ uniform float metallic,roughness,normalScale,occlusionStrength,intensity,ambient
 uniform vec3 emissive,lightDirection,lightColor;
 uniform int pointLightCount;
 uniform highp sampler2DShadow spotShadowMap;
-uniform mat4 spotShadowMatrix;uniform vec3 spotShadowOrigin;
+uniform mat4 spotShadowMatrix,pointShadowMatrices[6];uniform vec3 spotShadowOrigin,pointShadowPosition;uniform bool pointShadowEnabled;
 uniform int shadowLightIndex;uniform float shadowBias,shadowNormalBias,shadowTexel;
 uniform vec4 pointPositionRange[8],pointColorIntensity[8],spotDirectionOuter[8];
 uniform float spotInner[8];
@@ -154,26 +154,52 @@ vec3 layerSheen(vec3 base,vec3 tint,float r,float nv,float nl,float nh,float ev,
  float strength=max(tint.r,max(tint.g,tint.b));
  return base*max(0.,1.-strength*max(ev,el))+tint*sheenBrdf(nv,nl,nh,r)*normalization;
 }
+int pointShadowFace(vec3 delta){
+ vec3 a=abs(delta);
+ if(a.x>=a.y&&a.x>=a.z)return delta.x>=0.?0:1;
+ if(a.y>=a.z)return delta.y>=0.?2:3;
+ return delta.z>=0.?4:5;
+}
+mat4 receiverShadowMatrix(){
+ if(!pointShadowEnabled)return spotShadowMatrix;
+ return pointShadowMatrices[pointShadowFace(litPosition+spotShadowOrigin-pointShadowPosition)];
+}
 // Compute before alpha discard and per-light branches: derivatives are undefined
 // in divergent control flow. Use geometry rather than normal-map perturbations.
 vec2 shadowReceiverSlope(){
- vec4 clip=spotShadowMatrix*vec4(litPosition+spotShadowOrigin,1);
- vec3 q=clip.xyz/(abs(clip.w)>1e-8?clip.w:1e-8)*.5+.5;
- vec3 dx=dFdx(q),dy=dFdy(q);
+ // Different pixels may choose different cube faces. Differentiate world
+ // position first, then project both derivatives through this pixel's face.
+ mat4 projection=receiverShadowMatrix();
+ vec4 clip=projection*vec4(litPosition+spotShadowOrigin,1);
+ vec4 cx=projection*vec4(dFdx(litPosition),0),cy=projection*vec4(dFdy(litPosition),0);
+ float w=abs(clip.w)>1e-8?clip.w:1e-8;
+ vec3 dx=(cx.xyz*w-clip.xyz*cx.w)*(.5/(w*w));
+ vec3 dy=(cy.xyz*w-clip.xyz*cy.w)*(.5/(w*w));
  float determinant=dx.x*dy.y-dx.y*dy.x;
  if(abs(determinant)<1e-12)return vec2(0);
  return vec2(dx.z*dy.y-dy.z*dx.y,dx.x*dy.z-dy.x*dx.z)/determinant;
 }
 float spotlightVisibility(vec3 n,vec2 slope){
- vec4 clip=spotShadowMatrix*vec4(litPosition+spotShadowOrigin+n*shadowNormalBias,1);
+ vec4 clip=receiverShadowMatrix()*vec4(litPosition+spotShadowOrigin+n*shadowNormalBias,1);
  if(clip.w<=0.)return 1.;
  vec3 q=clip.xyz/clip.w*.5+.5;
- if(any(lessThan(q,vec3(0)))||any(greaterThan(q,vec3(1))))return 1.;
+ // Normal offset can move a receiver just beyond its selected cube face.
+ // Clamp those XY taps inside the face rather than leaking unshadowed light.
+ if(q.z<0.||q.z>1.)return 1.;
+ if(!pointShadowEnabled&&(any(lessThan(q.xy,vec2(0)))||any(greaterThan(q.xy,vec2(1)))))return 1.;
  // Four bilinear comparison taps reach up to 1.5 texels from the receiver.
  // Cover that plane-depth variation so coarse maps do not shadow the plane itself.
  float receiverBias=shadowBias+1.5*shadowTexel*(abs(slope.x)+abs(slope.y));
  float visibility=0.;
- for(int y=0;y<2;y++)for(int x=0;x<2;x++)visibility+=texture(spotShadowMap,vec3(q.xy+(vec2(x,y)-.5)*shadowTexel,q.z-receiverBias));
+ for(int y=0;y<2;y++)for(int x=0;x<2;x++){
+  vec2 uv=q.xy+(vec2(x,y)-.5)*shadowTexel;
+  if(pointShadowEnabled){
+   int face=pointShadowFace(litPosition+spotShadowOrigin-pointShadowPosition);
+   // Keep bilinear taps within their face; never read a neighboring atlas tile.
+   uv=(clamp(uv,vec2(.5*shadowTexel),vec2(1.-.5*shadowTexel))+vec2(face%3,face/3))/vec2(3,2);
+  }
+  visibility+=texture(spotShadowMap,vec3(uv,q.z-receiverBias));
+ }
  return visibility*.25;
 }
 void main(){
@@ -336,6 +362,8 @@ void main(){
   int index=-1;if(frame.active)for(size_t i=0;i<lights.size();i++)if(lights[i].id==frame.lightId){index=int(i);break;}
   integer("shadowLightIndex",index);
   if(index<0)return;
+  integer("pointShadowEnabled",frame.point);
+  if(frame.point){glUniformMatrix4fv(location("pointShadowMatrices[0]"),6,GL_FALSE,frame.faces[0].data());vector("pointShadowPosition",frame.position.data());}
   integer("spotShadowMap",11);glUniformMatrix4fv(location("spotShadowMatrix"),1,GL_FALSE,frame.matrix.data());glUniform3f(location("spotShadowOrigin"),x,y,-z);scalar("shadowBias",frame.bias);scalar("shadowNormalBias",frame.normalBias);scalar("shadowTexel",1.f/frame.resolution);
   glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,frame.texture);glActiveTexture(GL_TEXTURE0);shadowBound=true;
  }

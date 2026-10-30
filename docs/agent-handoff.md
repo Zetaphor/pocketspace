@@ -640,7 +640,7 @@ See [architecture](architecture.md#fabric-sheen-pipeline) and
 
 ## Spotlight shadow invariants
 
-One enabled spotlight or directional light can reserve shared shadow rendering. Validate this after option
+One enabled light of any type can reserve shared shadow rendering. Validate this after option
 getters and before snapshot native reservations; older snapshots default off.
 `SpotShadows` retains no scene/object pointers. Resolve attachment poses by ID and
 render once after pose upload, before eye/surface draws. Use full caster geometry,
@@ -660,3 +660,8 @@ Directional shadows use fixed world-space center/size/depth coverage. Attachment
 translation and headset motion must not translate it; only resolved direction
 rotates the orthographic basis. V13 stores directional settings; older directional
 snapshots default off. Preserve the shared slot and existing spot v12 compatibility.
+
+Point shadows use a six-face 3×2 atlas at 256/512 pixels per face. Budget all six
+submissions, time all views together, count full atlas bytes once, and keep PCF
+taps within the selected face. V14 stores point options; older points default off.
+Atlas shape must be part of allocation reuse, even when face resolution matches.

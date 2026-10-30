@@ -577,8 +577,7 @@ before publishing shared environment resources.
 `src/spot_shadows.h` owns one depth-only framebuffer/texture, a transient private VAO,
 prepared caster program and asynchronous timer query. Settings are logical light
 state in `src/spot_shadow_settings.h`, with transactional API/snapshot validation.
-At most one enabled spotlight or directional light reserves the slot; point
-shadows are unsupported. The normal engine compiles the caster program during startup.
+At most one enabled light of any type reserves the slot. The normal engine compiles the caster program during startup.
 
 After animation/physics and GPU pose uploads, the engine renders full visible
 opaque/masked geometry into one scene-space light projection, once per frame
@@ -613,7 +612,7 @@ light disable/re-enable or successful script reload reset the watchdog. Disabled
 removed, disposed or unresolved lights release their map; failed reload leaves
 the active resources intact. Map storage is counted once in engine estimates.
 
-V13 snapshots store logical shadow settings for both light types; v12 supports
+V14 snapshots add point-shadow settings; v13 supports directional and v12 supports
 spotlights. Conflicting restores are
 rejected before native reservation. See [public API and example](lighting-api.md#spotlight-shadows)
 and [shadow regression](../tests/spot-shadow-regression.cpp).
@@ -632,3 +631,24 @@ shared with spotlights. No additional map or shader variant is introduced.
 
 See [directional shadow API](lighting-api.md#directional-light-shadows) and
 [example](../scripts/directional-shadows.js).
+
+### Point shadow atlas
+
+Point lights reuse the prepared caster program, transient VAO and shared slot.
+Six 90-degree perspective views along shader-space ±X/±Y/±Z render into a 3×2
+DEPTH_COMPONENT24 atlas. Face resolution is bounded to 256/512 (1.5/6 MiB
+estimated payload). One timer brackets all views. Work budgeting multiplies
+eligible full-detail triangles by six before rendering; the 128-caster cap stays
+shared. Each face receives the current CPU/GPU pose and masked silhouettes.
+
+PBR receivers select a face by dominant light-relative coordinate, transform
+through that face matrix, and use the existing slope-aware comparison filter.
+World-position derivatives are projected through the selected face before computing
+receiver slope, avoiding discontinuous UV derivatives at face transitions. Normal
+offsets may cross XY face bounds; point receivers clamp those taps rather than
+returning unshadowed light. Taps clamp inside each face rather than crossing unrelated atlas tiles. Filtering
+is not seamless across cube edges. Unit 11 remains a 2D comparison texture, so
+no extra texture unit or shader variant is required. Map allocation includes atlas
+shape in its reuse condition, and existing state/lifetime/reset contracts apply.
+See [API](lighting-api.md#point-light-shadows) and
+[example](../scripts/point-shadows.js).

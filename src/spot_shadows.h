@@ -9,6 +9,7 @@
 // One light-space map is generated before all surface/eye passes. It never owns
 // or retains scene pointers, model buffers, animation poses or compositor images.
 class SpotShadows:public SpotShadowFrame {
+ bool allocatedPoint=false;
  GLuint program=0,fbo=0,vao=0,query=0;
  bool pending=false,blocked=false;int warmFrames=0;
  uint64_t revision=0;SpotShadowSettings settings;SpotShadowGpuBudget gpuBudget;
@@ -53,9 +54,9 @@ void main(){if(alphaMode==1&&texture(material,t).a*alpha<alphaCutoff)discard;}
   return true;
  }
  void releaseMap(){if(query&&destroy)destroy(1,&query);query=0;pending=false;if(fbo)glDeleteFramebuffers(1,&fbo);fbo=0;if(texture)glDeleteTextures(1,&texture);texture=0;resolution=0;active=false;}
- bool allocate(int size){
-  if(texture&&resolution==size)return true;
-  releaseMap();glGenTextures(1,&texture);glBindTexture(GL_TEXTURE_2D,texture);glTexStorage2D(GL_TEXTURE_2D,1,GL_DEPTH_COMPONENT24,size,size);
+ bool allocate(int size,bool pointMap){
+  if(texture&&resolution==size&&allocatedPoint==pointMap)return true;
+  releaseMap();allocatedPoint=pointMap;glGenTextures(1,&texture);glBindTexture(GL_TEXTURE_2D,texture);glTexStorage2D(GL_TEXTURE_2D,1,GL_DEPTH_COMPONENT24,size*(pointMap?3:1),size*(pointMap?2:1));
   glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_MODE,GL_COMPARE_REF_TO_TEXTURE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_COMPARE_FUNC,GL_LEQUAL);
   glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_TEXTURE_2D,texture,0);const GLenum none=GL_NONE;glDrawBuffers(1,&none);glReadBuffer(GL_NONE);
   if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE||glGetError()!=GL_NO_ERROR){releaseMap();return false;}resolution=size;gen(1,&query);return true;
@@ -68,7 +69,7 @@ public:
  template<class SceneType>void update(const SceneType &scene){
   active=false;spotShadowDiagnostics.active=false;
   const PointLight *source=nullptr;
-  for(const auto &light:scene.lights)if((light.spot||light.directional)&&light.enabled&&light.intensity>0&&light.shadow.enabled){source=&light;break;}
+  for(const auto &light:scene.lights)if(light.enabled&&light.intensity>0&&light.shadow.enabled){source=&light;break;}
   if(!source){reset();return;}
   auto &stats=spotShadowDiagnostics;stats.lightId=source->id;stats.status="preparing";
   if(source->id!=lightId||source->shadowRevision!=revision||!(source->shadow==settings)){releaseMap();settings=source->shadow;revision=source->shadowRevision;lightId=source->id;warmFrames=0;blocked=false;gpuBudget.reset();stats.gpuMs.reset();stats.bytes=0;stats.resolution=0;}
@@ -79,13 +80,18 @@ public:
   const auto lights=resolvePointLights(scene);auto found=std::find_if(lights.begin(),lights.end(),[&](const auto &light){return light.id==lightId;});if(found==lights.end()){stats.status="unresolved";return;}
   uint64_t triangles=0;size_t casters=0;
   for(const auto &object:scene.objects)if(object.visible){const auto &asset=scene.assets[size_t(object.asset)-1];bool caster=false;for(const auto &part:asset.primitives)if(part.alphaMode!=2){triangles+=uint64_t(part.vertexCount)/3;caster=true;}casters+=caster;}
+  point=!source->spot&&!source->directional;
+  if(point)triangles*=6; // Bound submitted triangle work across all six views.
   stats.triangles=triangles;
   if(triangles>uint64_t(settings.maxTriangles)||casters>128){releaseMap();stats.bytes=0;stats.resolution=0;stats.status="geometry-budget";return;}
   State state;
-  if(!allocate(settings.resolution)){stats.status="allocation-failed";return;}
-  stats.resolution=resolution;stats.bytes=uint64_t(resolution)*resolution*4;
+  if(!allocate(settings.resolution,point)){stats.status="allocation-failed";return;}
+  stats.resolution=resolution;stats.bytes=uint64_t(resolution)*resolution*4*(point?6:1);
+  position={found->position[0],found->position[1],-found->position[2]};
+  for(int face=0;face<(point?6:1);face++){
   // Scene-space +Z points away from the viewer; shader space uses its negation.
-  auto d=found->direction;d[2]=-d[2];std::array<float,3> up=std::abs(d[1])>.99f?std::array<float,3>{1,0,0}:std::array<float,3>{0,1,0};
+  auto d=found->direction;d[2]=-d[2];
+  if(point){static constexpr std::array<std::array<float,3>,6> directions={{{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}}};d=directions[face];}std::array<float,3> up=std::abs(d[1])>.99f?std::array<float,3>{1,0,0}:std::array<float,3>{0,1,0};
   auto cross=[](const auto &a,const auto &b){return std::array<float,3>{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]};};
   auto right=cross(d,up);float length=std::sqrt(right[0]*right[0]+right[1]*right[1]+right[2]*right[2]);for(auto &c:right)c/=length;up=cross(right,d);
   if(source->directional){
@@ -94,14 +100,19 @@ public:
    const std::array<float,3> center={settings.center[0],settings.center[1],-settings.center[2]};matrix={};
    for(int c=0;c<3;c++){matrix[c*4]=right[c]*2/settings.size;matrix[c*4+1]=up[c]*2/settings.size;matrix[c*4+2]=d[c]*2/settings.depth;matrix[12]-=matrix[c*4]*center[c];matrix[13]-=matrix[c*4+1]*center[c];matrix[14]-=matrix[c*4+2]*center[c];}matrix[15]=1;
   }else{
-   const float tangent=std::tan(source->outerConeAngle),a=(source->range+settings.nearPlane)/(source->range-settings.nearPlane),b=-2*source->range*settings.nearPlane/(source->range-settings.nearPlane);
+   const float tangent=(point?1.f:std::tan(source->outerConeAngle)),a=(source->range+settings.nearPlane)/(source->range-settings.nearPlane),b=-2*source->range*settings.nearPlane/(source->range-settings.nearPlane);
    const std::array<float,3> position={found->position[0],found->position[1],-found->position[2]};matrix={};
    for(int c=0;c<3;c++){matrix[c*4]=right[c]/tangent;matrix[c*4+1]=up[c]/tangent;matrix[c*4+2]=d[c]*a;matrix[c*4+3]=d[c];matrix[12]-=matrix[c*4]*position[c];matrix[13]-=matrix[c*4+1]*position[c];matrix[14]-=matrix[c*4+2]*position[c];matrix[15]-=matrix[c*4+3]*position[c];}matrix[14]+=b;
   }
+   faces[face]=matrix;
+  }
+  matrix=faces[0];
   bias=settings.bias;normalBias=settings.normalBias;
   const bool timed=warmFrames++>=3&&!pending;if(timed)begin(GL_TIME_ELAPSED_EXT,query);
   glBindFramebuffer(GL_FRAMEBUFFER,fbo);glViewport(0,0,resolution,resolution);glDisable(GL_SCISSOR_TEST);glDisable(GL_BLEND);glDisable(GL_CULL_FACE);glFrontFace(GL_CCW);glCullFace(GL_BACK);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glDepthMask(GL_TRUE);glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);glClearDepthf(1);glClear(GL_DEPTH_BUFFER_BIT);glUseProgram(program);glGenVertexArrays(1,&vao);glBindVertexArray(vao);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
-  glUniformMatrix4fv(location("lightMatrix"),1,GL_FALSE,matrix.data());glUniform1i(location("material"),0);glUniform1i(location("skinEnabled"),0);glUniform1i(location("skinPalette"),1);
+  for(int face=0;face<(point?6:1);face++){
+  glViewport(point?(face%3)*resolution:0,point?(face/3)*resolution:0,resolution,resolution);
+  glUniformMatrix4fv(location("lightMatrix"),1,GL_FALSE,faces[face].data());glUniform1i(location("material"),0);glUniform1i(location("skinEnabled"),0);glUniform1i(location("skinPalette"),1);
   {
    ModelCulling culling;
    for(const auto &object:scene.objects)if(object.visible){
@@ -114,6 +125,7 @@ public:
     }
    }
   }
+  } // All six point views share one map, query and resource budget.
   // A VAO retains its attribute/index buffers even after glDeleteBuffers in
   // another VAO. Drop these references now so removed poses/unloaded assets
   // cannot remain GPU-owned by the shadow pass between frames.
