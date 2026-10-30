@@ -19,7 +19,7 @@ std::shared_ptr<LightingEnvironment> loadLightingEnvironment(const std::string &
   std::ifstream file(path,std::ios::binary|std::ios::ate);if(!file)return {};
   const auto bytes=file.tellg();if(bytes<128||bytes>8*1024*1024)return {};file.seekg(0);
   auto asset=std::make_shared<LightingEnvironment>();asset->path=path;
-  char magic[8];file.read(magic,8);if(std::memcmp(magic,"PSENV001",8)&&std::memcmp(magic,"SFENV001",8))return {};
+  char magic[8];file.read(magic,8);if(std::memcmp(magic,"PSENV001",8))return {};
   file.read(reinterpret_cast<char*>(&asset->size),4);file.read(reinterpret_cast<char*>(&asset->levels),4);file.read(reinterpret_cast<char*>(&asset->lutSize),4);
   if(!file||!dimension(asset->size)||!dimension(asset->lutSize)||asset->levels!=std::bit_width(asset->size))return {};
   size_t elements=0;for(uint32_t s=asset->size;s;s/=2)elements+=size_t(s)*s*6*3;

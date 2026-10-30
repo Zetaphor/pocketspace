@@ -541,6 +541,6 @@ The public executable, launcher and documentation use Pocketspace. The legacy
 same runtime. Keep the existing SteamVR application key, overlay/mailbox keys,
 scene-container format string and default state directory stable across this
 branding change so bindings, input and named saves remain compatible.
-Lighting-environment writers emit `PSENV001` (`.psenv`); readers also accept the
-legacy `SFENV001` payload with unchanged size/value validation. The bundled old
-environment path is an alias rather than a second GPU-owned resource format.
+Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
+lighting-environment header. Readers validate dimensions, payload size and values
+before publishing shared environment resources.

@@ -338,11 +338,12 @@ the bounded non-interactive
   an end-to-end custom `.psenv` bake. Requires the offline tool dependencies.
 - [environment-bake-test.py](environment-bake-test.py): constant-radiance and
   diffuse SH normalization, cube orientation, BRDF energy, equirectangular
-  sampling, and GGX broadening checks for the offline baker.
+  sampling, GGX broadening, `.psenv` CLI output and obsolete filename rejection
+  for the offline baker.
 - [environment-regression.cpp](environment-regression.cpp): actual GLES metal
   illumination, rotation/intensity, unlit invariance, generated/imported tangent
   frame and pixel equivalence, Khronos stereo views,
-  malformed file rejection, shared texture cleanup, transactional setter/restore
+  malformed and obsolete-header rejection, shared texture cleanup, transactional setter/restore
   failures and v6/v7 snapshot compatibility. Optional `--benchmark` compares IBL
   off/on with one and sixteen full-detail PBR cars, without overlays or input.
 

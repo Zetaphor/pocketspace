@@ -7,9 +7,6 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Material support
 
-- Remove legacy `.sfenv` compatibility from the engine, environment-generation
-  tools, assets/tests and documentation. Keep `.psenv` as the sole supported
-  lighting-environment format; remove pre-rename aliases and migration guidance.
 - Implement physical glTF sheen in the PBR path, including sheen color/roughness
   textures and factors. The current imported sheen color is only used by the
   legacy approximate tint; it is not physical PBR sheen.

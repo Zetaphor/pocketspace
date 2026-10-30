@@ -149,6 +149,8 @@ if __name__ == '__main__':
     parser.add_argument('--lut-size', type=int, choices=[16, 32, 64, 128, 256], default=128)
     parser.add_argument('--samples', type=int, default=256)
     args = parser.parse_args()
+    if args.output.suffix != '.psenv':
+        parser.error('output must use the .psenv extension')
     if args.samples < 64 or args.samples > 4096:
         parser.error('samples must be between 64 and 4096')
     source = studio
