@@ -69,7 +69,7 @@ int main(int argc,char **argv){
    fails(()=>setPointLight(light,{get color(){throw Error('expected getter')}}));check(JSON.stringify(getPointLight(light))===initial);
    setPointLight(light,{get intensity(){for(let i=0;i<7;i++)createPointLight();return .4}});fails(()=>createPointLight());
    for(let id=2;id<=8;id++)removePointLight(id);
-   const snap=captureSceneContainer(owner);check(snap.version===12&&snap.lights.length===1);
+   const snap=captureSceneContainer(owner);check(snap.version===13&&snap.lights.length===1);
    saveSceneContainer(owner,'light');const disk=loadSceneContainer('light');check(getPointLight(disk.lightIds[0]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const restored=restoreSceneContainer(snap),copy=restored.lightIds[0];check(copy!==light&&restored.lightMap[light]===copy&&getPointLight(copy).objectId===restored.objectMap[object]);disposeSceneContainer(restored.containerId);fails(()=>getPointLight(copy));
    for(const mutate of [s=>s.lights[0].range=0,s=>s.lights[0].objectId=999,s=>s.lights[0].color=[1,2],s=>s.lights.push(s.lights[0])]){

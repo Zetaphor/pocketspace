@@ -473,3 +473,16 @@ See the [correctness and bounded profile report](results/sheen.md).
   and shadow enable controls, status HUD and snapshot replacement.
 
 See the [correctness, performance and headset report](results/spotlight-shadows.md).
+
+## Directional shadows
+
+- [directional-shadow-api-smoke.js](directional-shadow-api-smoke.js): world coverage
+  validation, shared spot/directional capacity, getter mutations and v13/legacy restore.
+- [spot-shadow-regression.cpp](spot-shadow-regression.cpp): `--directional` runs
+  orthographic stereo/alpha/animation/GL/budget checks, fixed coverage under
+  attachment translation, rotated basis and out-of-volume behavior.
+  `--directional-benchmark` adds bounded one/four-car map comparisons without overlays.
+- [directional-shadows.js](../scripts/directional-shadows.js): interactive sunlight
+  shadow coverage, caster/light movement, controls and snapshot replacement.
+
+See the [directional shadow validation report](results/directional-shadows.md).

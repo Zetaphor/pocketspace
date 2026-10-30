@@ -1,8 +1,11 @@
 #pragma once
+#include <array>
 struct SpotShadowSettings {
  bool enabled=false;
  int resolution=512,maxTriangles=500000;
  float nearPlane=.05f,bias=.0005f,normalBias=.002f,maxGpuMs=2;
+ // Directional coverage is a fixed world-space box in the resolved light basis.
+ std::array<float,3> center{0,0,0};float size=2,depth=4;
  bool operator==(const SpotShadowSettings &)const=default;
 };
 

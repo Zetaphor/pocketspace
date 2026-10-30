@@ -142,7 +142,7 @@ int main(int argc,char **argv){
    function check(v){if(!v)throw Error('index assertion');}
    const asset=loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true,optimizeVertexCache:true});
    const owner=createSceneContainer();createObject(asset,0,0,0,.3,{container:owner});
-   const saved=captureSceneContainer(owner);check(saved.version===12&&saved.models[0].optimizeVertexCache&&saved.models[0].lod);
+   const saved=captureSceneContainer(owner);check(saved.version===13&&saved.models[0].optimizeVertexCache&&saved.models[0].lod);
    const restored=restoreSceneContainer(saved);check(captureSceneContainer(restored.containerId).models[0].optimizeVertexCache);
    let failed=false;try{loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true,optimizeVertexCache:false});}catch(e){failed=true;}check(failed);
    function update(){}

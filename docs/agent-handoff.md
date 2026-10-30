@@ -640,7 +640,7 @@ See [architecture](architecture.md#fabric-sheen-pipeline) and
 
 ## Spotlight shadow invariants
 
-One enabled spotlight can reserve shadow rendering. Validate this after option
+One enabled spotlight or directional light can reserve shared shadow rendering. Validate this after option
 getters and before snapshot native reservations; older snapshots default off.
 `SpotShadows` retains no scene/object pointers. Resolve attachment poses by ID and
 render once after pose upload, before eye/surface draws. Use full caster geometry,
@@ -655,3 +655,8 @@ lifecycle reset. Successful reload releases the map; failed reload does not.
 Keep map bytes in engine statistics once and release map/query resources when
 lighting ownership disappears. See [architecture](architecture.md#spotlight-shadow-pipeline)
 and [API limits](lighting-api.md#spotlight-shadows).
+
+Directional shadows use fixed world-space center/size/depth coverage. Attachment
+translation and headset motion must not translate it; only resolved direction
+rotates the orthographic basis. V13 stores directional settings; older directional
+snapshots default off. Preserve the shared slot and existing spot v12 compatibility.
