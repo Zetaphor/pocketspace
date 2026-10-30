@@ -1,0 +1,226 @@
+[
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 4,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 26.883730308992533,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 0,
+    "passProfiling": false,
+    "enqueueMs": 1.656735,
+    "waitMs": 35.023430000000005,
+    "submitMs": 0.026663,
+    "wholeRenderGpuMs": 29.712998,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  },
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 4,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 27.64142307649418,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 0,
+    "passProfiling": true,
+    "enqueueMs": 1.619237,
+    "waitMs": 34.242444500000005,
+    "submitMs": 0.020854499999999998,
+    "profileSamples": 9,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.001613,
+      28.882029,
+      0.00078
+    ],
+    "threadCpuMs": [
+      0.001875,
+      0.801928,
+      0.006979
+    ],
+    "draws": [
+      0,
+      192,
+      0
+    ],
+    "triangles": [
+      0,
+      6971904,
+      0
+    ],
+    "occluderGpuShareMedian": 5.812679013306206e-05,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  },
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 4,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 11,
+    "fpsMedian": 26.60779513949769,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 1,
+    "passProfiling": true,
+    "enqueueMs": 1.634601,
+    "waitMs": 35.433252,
+    "submitMs": 0.0227125,
+    "profileSamples": 10,
+    "categoryOrder": [
+      "occluder",
+      "opaque",
+      "blend"
+    ],
+    "gpuMs": [
+      0.001587,
+      28.760415000000002,
+      0.000806
+    ],
+    "threadCpuMs": [
+      0.001927,
+      0.9422900000000001,
+      0.007343499999999999
+    ],
+    "draws": [
+      0.0,
+      192.0,
+      0.0
+    ],
+    "triangles": [
+      0.0,
+      6971904.0,
+      0.0
+    ],
+    "occluderGpuShareMedian": 5.595181151207354e-05,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  },
+  {
+    "name": "32-cars-fixed",
+    "pbrLights": 4,
+    "lod": false,
+    "lodIndexBytes": 0,
+    "vertexCache": true,
+    "gpuInstancing": true,
+    "samples": 10,
+    "fpsMedian": 27.018661025011802,
+    "gpuEstimateMiBMedian": 488.2935199737549,
+    "groupBufferPeakMiB": 468.0,
+    "deferredAllocations": 2,
+    "surfaceCreations": 2,
+    "work": {
+      "workSamples": 10,
+      "stableSceneGeometry": true,
+      "completeMemberGeometry": true,
+      "sceneTriangles": 3485952.0,
+      "lodObjects": [
+        32.0,
+        0.0,
+        0.0
+      ],
+      "draws": [
+        0.0,
+        192.0,
+        0.0
+      ],
+      "triangles": [
+        0.0,
+        6971904.0,
+        0.0
+      ]
+    },
+    "round": 1,
+    "passProfiling": false,
+    "enqueueMs": 1.65254,
+    "waitMs": 35.174586500000004,
+    "submitMs": 0.0325235,
+    "wholeRenderGpuMs": 30.182491499999998,
+    "matchingStorage": true,
+    "matchingGeometry": true
+  }
+]

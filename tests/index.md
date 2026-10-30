@@ -89,7 +89,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
 | [compare-vertex-cache.py](compare-vertex-cache.py) | Alternating mesh cache optimization off/on with matched instrumentation and allocation checks. |
 | [fast-motion.py](fast-motion.py) | Bounded continuously moving box/model workloads with throughput and error checks. |
-| [profile-render-passes.py](profile-render-passes.py) | Pairs whole-render GPU timing with sampled occluder, opaque, and blended draw attribution on moving models. |
+| [profile-render-passes.py](profile-render-passes.py) | Pairs whole-render GPU timing with sampled occluder, opaque, and blended draw attribution on moving models, including zero/four/eight-light PBR workloads. |
 | [lifecycle-runtime.py](lifecycle-runtime.py) | Runtime script reload, rollback, callbacks, object removal, overlay inventory, and shutdown. |
 | [regroup-lifecycle.py](regroup-lifecycle.py) | Runtime grouping changes, visibility, removal, and scene reload lifecycle. |
 | [soak-motion.py](soak-motion.py) | Repeated moving-model scene reloads with bounded duration, object counts, errors, and buffer accounting. |
@@ -350,3 +350,6 @@ the bounded non-interactive
 - [scenes/pbr-depth.js](scenes/pbr-depth.js): independent car and alpha-test
   surfaces against a blue backdrop for interactive external-depth inspection.
 - [Recorded comparison](results/pbr-depth.md): native depth-pass timings and scope.
+
+The [dense PBR lighting profile](results/dense-pbr-lights.md) attributes moving-car
+rendering cost across zero, four and eight mixed scene lights.

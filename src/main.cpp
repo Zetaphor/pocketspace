@@ -2677,7 +2677,7 @@ int main(int argc,char **argv) {
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
 #ifdef SF_GPU_SYNC_EXPERIMENT
-                  gpuSync.draw(unsigned(part.vertexCount));
+                  gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
 #endif
                   continue;
                 }

@@ -238,6 +238,19 @@ Add `--instancing` to include production ordered instancing (the historical prof
 The runner clears inherited `SF_GPU_*` experiment options before each run.
 Keep the headset awake and the view steady. Use `--case`, `--rounds`, and `--seconds` to select bounded workloads.
 
+For a dense moving-car PBR profile, add `--case 32-cars-fixed --no-lod
+--instancing --pbr-lights 0` (keep these options on one command line). Repeat
+with `--pbr-lights 4` and `--pbr-lights 8`, using separate output directories.
+The explicit zero-light option still enables PBR; omitting it retains the
+historical unlit workload. Mixed lights alternate points and spots, with fixed
+positions, two-meter ranges and .3/.6-radian spot half-angles. Geometry, material
+settings and trajectories stay the same across counts; illumination changes
+intentionally. Full detail isolates lighting cost from moving LOD thresholds.
+These runs create grouped overlays but enable no interaction or pointer capture,
+and terminate after the configured duration. Compare allocations and geometry
+across light counts as well as within instrumentation pairs; live head motion
+and time-based trajectories remain sources of variation.
+
 `RENDER_PASS_SAMPLE` arrays are ordered occluder, opaque, blended. GPU times sum
 the elapsed queries for each category; CPU values measure render-thread CPU time
 inside the same callbacks, including culling and driver calls. Draw/triangle
