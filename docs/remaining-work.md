@@ -43,15 +43,13 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Investigate bounded PBR shader specialization for actual material features and
-  scene light counts. Measure program memory and mixed-state routing costs as
-  well as throughput at multiple densities; preserve normal maps, alpha,
-  deformation, attachments and changing light counts. The completed
-  [invariant-arithmetic comparison](../tests/results/pbr-light-invariant.md) and
-  [rotation comparison](../tests/results/pbr-transform.md) did not justify adoption.
-  The [geometry/pixel study](../tests/results/pbr-cost.md) shows substantial
-  geometry cost and growing pixel/light cost at larger viewports. Measure adaptive
-  occlusion separately; these fixed-group profiles contain no external occluders.
+- Integrate the promising [bounded PBR shader-variant prototype](../tests/results/pbr-variants.md)
+  only after preparing variants outside steady-state rendering and protecting
+  lighter workloads. Preserve bounded program ownership, general-program fallback,
+  mixed materials, environment/light-count changes, reload/restore and cleanup.
+  Repeat matched native comparisons and obtain headset visual acceptance before
+  adoption. The prototype passes pixels and improves larger lit workloads, but
+  first-use compilation and a smaller-workload wall regression remain unresolved.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The

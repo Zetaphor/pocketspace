@@ -14,6 +14,9 @@
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
+#ifdef SF_PBR_VARIANT_EXPERIMENT
+#include "pbr-variants-experiment.h"
+#endif
 constexpr int pixels=768;
 struct Renderer {
   int samplePixels=::pixels,backingPixels=::pixels; // Test-only viewport sensitivity; backing storage stays fixed.
@@ -31,6 +34,10 @@ struct Renderer {
 #ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
   bool reusePbrLightInvariants=false;
   PbrProgram invariantPbrProgram,invariantDepthPbrProgram;
+#endif
+#ifdef SF_PBR_VARIANT_EXPERIMENT
+  bool specializePbr=false;
+  PbrVariantPrograms pbrVariants;
 #endif
   PbrProgram pbrProgram;
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
@@ -151,7 +158,10 @@ struct Renderer {
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
 #endif
             const bool depthOnly=fastPbrDepth&&pass<0;
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+#ifdef SF_PBR_VARIANT_EXPERIMENT
+            auto *variant=specializePbr&&!depthOnly?pbrVariants.get(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count):nullptr;
+            auto &activePbr=variant?*variant:(depthOnly?depthPbrProgram:pbrProgram);
+#elif defined(SF_PBR_TRANSFORM_EXPERIMENT)
             auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
 #elif defined(SF_PBR_LIGHT_INVARIANT_EXPERIMENT)
             auto &activePbr=reusePbrLightInvariants?(depthOnly?invariantDepthPbrProgram:invariantPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);

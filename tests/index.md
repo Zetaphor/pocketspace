@@ -371,3 +371,13 @@ per-fragment visibility/diffuse-factor reuse with stereo pixels across light cou
 matched ABBA measurements. See the
 [run instructions](README.md#pbr-invariant-light-arithmetic-experiment) and
 [comparison results](results/pbr-light-invariant.md).
+
+[pbr-variants-experiment.cpp](pbr-variants-experiment.cpp) and
+[pbr-variants-experiment.h](pbr-variants-experiment.h) test a bounded PBR
+material/light-count program cache, strict mixed-state pixels, fallback/cleanup,
+and matched throughput with program/compile accounting. See the
+[run instructions](README.md#bounded-pbr-shader-variant-experiment) and
+[pixel/performance results](results/pbr-variants.md).
+
+[compare-pbr-variants.py](compare-pbr-variants.py) measures the same variant cache
+in the real engine, reversing pair order and rejecting geometry/storage failures.

@@ -1427,3 +1427,47 @@ Each stage has 30 warmup and 90 measured frames, alternating eyes. Repeat runs;
 GPU/disjoint/GL checks must pass. Wall time includes `glFinish`. Source-level
 reuse may already be performed by the compiler, so correctness alone does not
 justify adoption.
+
+## Bounded PBR shader-variant experiment
+
+Reconfigure CMake, build the excluded `pbr-variants-experiment` target explicitly,
+and run with the same EGL/library environment as `pbr-cost-profile`. Keep the
+headset awake and worn for normal GPU power. The offscreen target opens no
+overlays and captures no input.
+
+The candidate replaces material-feature flags, alpha mode, environment enable
+and the object's filtered light count with compile-time shader constants. It
+keeps the original expressions and draw order. The additional program cache has
+16 slots; overflow or a remembered compile failure falls back to general PBR.
+Depth passes retain the existing program. The cache and source specialization
+exist only under `SF_PBR_VARIANT_EXPERIMENT`, with no production runtime option.
+
+Stereo comparisons cover normal maps, alpha modes, morph deformation, LOD,
+attached mixed lighting, environment on/off, and unlit materials at zero/one/four/
+eight lights. Each normal comparison requires specialization without fallback;
+separate checks exercise the slot cap, rejected compilation, exact fallback
+pixels, cache reset and program deletion. Alpha must match exactly and RGB may
+change by at most one byte. Failure stops timing.
+
+Matched ABBA measurements include selection/uniform/draw overhead and use the
+same assets, buffers, framebuffer, projection and moving poses. Full/LOD-2 cars
+run at 768/2048 pixels with zero/eight lights. Each stage has 30 warmup and 90
+measured frames, alternating eyes. New variants can compile during warmup;
+steady-state gains do not establish acceptable first-use latency. Repeat runs.
+The cache reports linked-program count, compile time and program-binary lengths;
+binary length is not total driver GPU/RAM storage. The 16-slot bound applies to
+additional owned programs, excluding existing general/depth programs and any
+driver cache. No production policy is inferred from this isolated test.
+
+`compare-pbr-variants.py --output /tmp/pbr-variants-live` runs the same candidate
+inside the excluded `gpu-sync-experiment` engine. It compares 32 moving full-detail
+cars at zero/eight lights, cache/fetch optimization and ordered instancing, with
+normal grouped allocation and compositor submission. Two repetitions reverse
+light-count and candidate/reference order. Each run lasts 16 seconds by default;
+steady GPU samples start at six seconds. It rejects GL/disjoint/fence, geometry,
+allocation and shutdown-accounting failures, and records program counts, binary
+lengths, total compile time and fallback draws. Inherited `SF_GPU_*` options are
+cleared. Only this excluded engine reads `SF_GPU_PBR_VARIANTS=0/1`. No interaction
+is enabled, and every run terminates automatically. First-use compilation can
+still occur as moving objects acquire previously unseen filtered-light counts;
+the totals do not prove that compilation is absent from measurement windows.
