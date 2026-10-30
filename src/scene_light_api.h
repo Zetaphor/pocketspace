@@ -2,6 +2,30 @@
 static bool pointLightId(JSContext *ctx,JSValueConst value,int &id){
  double n=0;if(!JS_IsNumber(value)||JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n)||n<1||n>=INT_MAX||n!=std::floor(n)){JS_ThrowRangeError(ctx,"light ID must be a positive integer");return false;}id=int(n);return true;
 }
+static bool readSpotShadow(JSContext *ctx,JSValueConst options,PointLight &candidate){
+ JSValue value=JS_GetPropertyStr(ctx,options,"shadow");if(JS_IsException(value))return false;
+ ScopeExit release{[&]{JS_FreeValue(ctx,value);}};
+ if(JS_IsUndefined(value))return true;
+ if(!candidate.spot){JS_ThrowTypeError(ctx,"only spotlights support shadow");return false;}
+ if(!JS_IsObject(value)||JS_IsNull(value)){JS_ThrowTypeError(ctx,"shadow must be an options object");return false;}
+ JSValue enabled=JS_GetPropertyStr(ctx,value,"enabled");if(JS_IsException(enabled))return false;
+ if(!JS_IsUndefined(enabled)){if(!JS_IsBool(enabled)){JS_FreeValue(ctx,enabled);JS_ThrowTypeError(ctx,"shadow.enabled must be boolean");return false;}candidate.shadow.enabled=JS_ToBool(ctx,enabled)>0;}JS_FreeValue(ctx,enabled);
+ for(auto [name,destination,lo,hi]:{std::tuple{"near",&candidate.shadow.nearPlane,.001f,1.f},std::tuple{"bias",&candidate.shadow.bias,0.f,.05f},std::tuple{"normalBias",&candidate.shadow.normalBias,0.f,.1f},std::tuple{"maxGpuMs",&candidate.shadow.maxGpuMs,.001f,16.f}}){
+  JSValue item=JS_GetPropertyStr(ctx,value,name);if(JS_IsException(item))return false;
+  const bool missing=JS_IsUndefined(item);float n=0;const bool valid=missing||(JS_IsNumber(item)&&number(ctx,item,n)&&n>=lo&&n<=hi);JS_FreeValue(ctx,item);
+  if(!valid){JS_ThrowRangeError(ctx,"invalid shadow.%s",name);return false;}if(!missing)*destination=n;
+ }
+ for(auto [name,destination,lo,hi]:{std::tuple{"resolution",&candidate.shadow.resolution,256,1024},std::tuple{"maxTriangles",&candidate.shadow.maxTriangles,1,1000000}}){
+  JSValue item=JS_GetPropertyStr(ctx,value,name);if(JS_IsException(item))return false;
+  const bool missing=JS_IsUndefined(item);double n=0;const bool valid=missing||(JS_IsNumber(item)&&JS_ToFloat64(ctx,&n,item)==0&&std::isfinite(n)&&n==std::floor(n)&&n>=lo&&n<=hi&&(std::string(name)!="resolution"||(int(n)&(int(n)-1))==0));JS_FreeValue(ctx,item);
+  if(!valid){JS_ThrowRangeError(ctx,"invalid shadow.%s",name);return false;}if(!missing)*destination=int(n);
+ }
+ ++candidate.shadowRevision;return true;
+}
+static bool availableShadowSlot(const PointLight &candidate){
+ if(!candidate.spot||!candidate.enabled||!candidate.shadow.enabled)return true;
+ return std::none_of(currentScene->lights.begin(),currentScene->lights.end(),[&](const PointLight &other){return other.id!=candidate.id&&other.spot&&other.enabled&&other.shadow.enabled;});
+}
 static bool readPointLight(JSContext *ctx,JSValueConst options,PointLight &candidate){
  if(!JS_IsObject(options)||JS_IsNull(options)){JS_ThrowTypeError(ctx,"light options must be an object");return false;}
  if(candidate.directional)for(const char *name:{"position","range","innerConeAngle","outerConeAngle"}){
@@ -47,6 +71,8 @@ static bool readPointLight(JSContext *ctx,JSValueConst options,PointLight &candi
   double length=0;for(float v:candidate.direction)length+=double(v)*v;
   if(length<1e-12||(candidate.spot&&candidate.innerConeAngle>candidate.outerConeAngle)){JS_ThrowRangeError(ctx,"light requires nonzero direction and valid cone angles");return false;}
  }
+ if(!readSpotShadow(ctx,options,candidate))return false;
+ if(candidate.spot&&candidate.shadow.enabled&&(candidate.shadow.nearPlane>=candidate.range||candidate.outerConeAngle>1.5f)){JS_ThrowRangeError(ctx,"shadow requires near < range and outerConeAngle <= 1.5 radians");return false;}
  // Revalidate after every script getter has run; none of the copied IDs hold pointers.
  if(candidate.container&&!currentScene->containers.count(candidate.container)){JS_ThrowRangeError(ctx,"light container was disposed");return false;}
  if(candidate.objectId&&!findObject(candidate.objectId)){JS_ThrowRangeError(ctx,"unknown light attachment object");return false;}
@@ -56,6 +82,11 @@ static JSValue pointLightValue(JSContext *ctx,const PointLight &light){
  JSValue value=JS_NewObject(ctx);
  JS_SetPropertyStr(ctx,value,"type",JS_NewString(ctx,light.directional?"directional":light.spot?"spot":"point"));
  if(light.spot||light.directional){JSValue direction=JS_NewArray(ctx);for(int c=0;c<3;c++)JS_SetPropertyUint32(ctx,direction,c,JS_NewFloat64(ctx,light.direction[c]));JS_SetPropertyStr(ctx,value,"direction",direction);}
+ if(light.spot){JSValue shadow=JS_NewObject(ctx);JS_SetPropertyStr(ctx,shadow,"enabled",JS_NewBool(ctx,light.shadow.enabled));
+  JS_SetPropertyStr(ctx,shadow,"resolution",JS_NewInt32(ctx,light.shadow.resolution));JS_SetPropertyStr(ctx,shadow,"maxTriangles",JS_NewInt32(ctx,light.shadow.maxTriangles));
+  for(auto [name,n]:{std::pair{"near",light.shadow.nearPlane},{"bias",light.shadow.bias},{"normalBias",light.shadow.normalBias},{"maxGpuMs",light.shadow.maxGpuMs}})JS_SetPropertyStr(ctx,shadow,name,JS_NewFloat64(ctx,n));
+  JS_SetPropertyStr(ctx,value,"shadow",shadow);
+ }
  if(light.spot){JS_SetPropertyStr(ctx,value,"innerConeAngle",JS_NewFloat64(ctx,light.innerConeAngle));JS_SetPropertyStr(ctx,value,"outerConeAngle",JS_NewFloat64(ctx,light.outerConeAngle));}
  for(auto [name,n]:{std::pair{"id",light.id},{"container",light.container}})JS_SetPropertyStr(ctx,value,name,JS_NewInt32(ctx,n));
  JS_SetPropertyStr(ctx,value,"objectId",light.objectId?JS_NewInt32(ctx,light.objectId):JS_NULL);
@@ -65,12 +96,14 @@ static JSValue pointLightValue(JSContext *ctx,const PointLight &light){
 static JSValue createSceneLight(JSContext *ctx,int argc,JSValueConst *argv,bool spot,bool directional=false){
  PointLight candidate;candidate.spot=spot;candidate.directional=directional;JSValue options=argc?JS_DupValue(ctx,argv[0]):JS_NewObject(ctx);const bool valid=readPointLight(ctx,options,candidate);JS_FreeValue(ctx,options);if(!valid)return JS_EXCEPTION;
  if(currentScene->lights.size()>=maxPointLights||currentScene->nextLightId==INT_MAX)return JS_ThrowRangeError(ctx,"scene light limit reached (8)");
+ if(!availableShadowSlot(candidate))return JS_ThrowRangeError(ctx,"only one enabled shadow-casting spotlight is supported");
  candidate.id=currentScene->nextLightId;currentScene->lights.push_back(candidate);++currentScene->nextLightId;return JS_NewInt32(ctx,candidate.id);
 }
 static JSValue setSceneLight(JSContext *ctx,int argc,JSValueConst *argv,bool spot,bool directional=false){
  int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"set light(id, options)");if(!pointLightId(ctx,argv[0],id))return JS_EXCEPTION;
  auto *light=findSceneItem(currentScene->lights,id);if(!light||light->spot!=spot||light->directional!=directional)return JS_ThrowRangeError(ctx,"unknown light ID or wrong light type");auto candidate=*light;
  if(!readPointLight(ctx,argv[1],candidate))return JS_EXCEPTION;
+ if(!availableShadowSlot(candidate))return JS_ThrowRangeError(ctx,"only one enabled shadow-casting spotlight is supported");
  light=findSceneItem(currentScene->lights,id);if(!light)return JS_ThrowRangeError(ctx,"light removed during option evaluation");*light=candidate;return JS_UNDEFINED;
 }
 static JSValue getSceneLight(JSContext *ctx,int argc,JSValueConst *argv,bool spot,bool directional=false){

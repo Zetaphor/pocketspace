@@ -64,7 +64,7 @@ int main(int argc,char **argv){
    function check(v){if(!v)throw Error('environment assertion');}function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
    const model=loadModel('assets/samples/Box/Box.glb',512,{pbr:true});
    setModelLighting(model,{environment:'assets/environments/studio.psenv',environmentIntensity:.8,environmentRotation:.4});
-   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===11&&snap.models[0].lighting.environmentIntensity>.79);
+   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===12&&snap.models[0].lighting.environmentIntensity>.79);
    fails(()=>setModelLighting(model,{environment:'/missing.psenv',intensity:9}));fails(()=>setModelLighting(model,{environment:'x\0y'}));fails(()=>setModelLighting(model,{environment:1}));fails(()=>setModelLighting(model,{environmentIntensity:-1}));fails(()=>setModelLighting(model,{environmentRotation:Infinity}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    const copy=restoreSceneContainer(snap);disposeSceneContainer(copy.containerId);

@@ -39,6 +39,7 @@ struct Renderer {
   bool specializePbr=false,prewarmedPbr=false;
   PbrVariantPrograms pbrVariants;
 #endif
+  SpotShadows spotShadows;bool updateShadows=true;
   PbrProgram pbrProgram;
 #ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
   PbrProgram referenceLightProgram,referenceLightDepthProgram;bool referenceLightLoop=false,preparedDirectional=false;
@@ -90,6 +91,7 @@ struct Renderer {
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
 #endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
+    if(updateShadows)spotShadows.update(scene);
     const auto frameLights=resolvePointLights(scene);
 #ifdef SF_LIGHT_WORK_EXPERIMENT
     if(selectLocalLights)
@@ -201,6 +203,7 @@ struct Renderer {
 #endif
               activePbr.lights(objectLightSets[size_t(&object-scene.objects.data())].values(),0,-.2f,0);
             }
+            if(pass>=0)activePbr.shadows(spotShadows,objectLightSets[size_t(&object-scene.objects.data())].values(),0,-.2f,0);
             activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;

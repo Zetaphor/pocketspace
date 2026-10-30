@@ -37,10 +37,15 @@ int main(int argc,char **argv){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);
    Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.4;o.pitch=.2;o.yaw=.3;r.scene.objects={o};
    if(a.hasAnimation){auto &object=r.scene.objects[0];object.animationPose=std::make_shared<ModelPose>();animation::Playback state;state.clip=0;state.time=.4;evaluateModelPose(a,state,*object.animationPose);uploadModelPose(*object.animationPose);}
+   std::vector<std::array<float,3>> sheens;for(const auto &part:a.primitives)sheens.push_back({part.sheen[0],part.sheen[1],part.sheen[2]});
    r.directionalVariants.clear();
    for(int count:{0,1,4,8})for(bool spot:{false,true})for(int eye=0;eye<2;eye++){
     r.scene.lights.clear();for(int i=0;i<count;i++){PointLight l;l.id=i+1;l.position={float(i%2)*.2f,.15f,-.5f};l.range=2;l.intensity=.1;l.spot=spot;l.direction={0,0,1};l.innerConeAngle=.2;l.outerConeAngle=.5;r.scene.lights.push_back(l);}
+    // The frozen loop predates physical sheen. Compare the unchanged core
+    // light equations without that layer, then restore sheen for mixed/variant checks.
+    for(auto &part:a.primitives)std::fill_n(part.sheen,3,0.f);
     r.referenceLightLoop=true;auto reference=r.renderSet({1},{.1f,.1f,-1.2f},eye);r.referenceLightLoop=false;assert(reference==r.renderSet({1},{.1f,.1f,-1.2f},eye));images++;
+    for(size_t p=0;p<a.primitives.size();p++)std::copy(sheens[p].begin(),sheens[p].end(),a.primitives[p].sheen);
     if(count){r.scene.lights.back().spot=false;r.scene.lights.back().directional=true;auto mixed=r.renderSet({1},{.1f,.1f,-1.2f},eye);
      if(count>=4){if(r.directionalVariants.programs.empty())r.directionalVariants.prepare(r.scene);r.preparedDirectional=true;nearPixels(mixed,r.renderSet({1},{.1f,.1f,-1.2f},eye));r.preparedDirectional=false;images++;}
      r.scene.lights.back().enabled=false;auto without=r.renderSet({1},{.1f,.1f,-1.2f},eye);for(size_t p=3;p<mixed.size();p+=4)assert(mixed[p]==without[p]);images++;}
@@ -65,7 +70,7 @@ int main(int argc,char **argv){
    const detached=getDirectionalLight(sun);detached.direction[0]=33;check(JSON.stringify(getDirectionalLight(sun))===initial);
    const outside=createObject(asset,0,0,0,.1),outgoing=createDirectionalLight({container:owner,objectId:outside});fails(()=>captureSceneContainer(owner));removeDirectionalLight(outgoing);removeObject(outside);
    const incoming=createDirectionalLight({objectId:object});fails(()=>captureSceneContainer(owner));removeDirectionalLight(incoming);
-   const snapshot=captureSceneContainer(owner);check(snapshot.version===11&&snapshot.lights.length===3);
+   const snapshot=captureSceneContainer(owner);check(snapshot.version===12&&snapshot.lights.length===3);
    saveSceneContainer(owner,'directional');const disk=loadSceneContainer('directional');check(getDirectionalLight(disk.lightMap[sun]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const beforeInvalid=createDirectionalLight();removeDirectionalLight(beforeInvalid);
    for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=9]){

@@ -9,7 +9,7 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v11
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible v12
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container subtree and returns
   `{containerId, containerIds, containerMap, objectIds, objectMap, renderGroups, jointIds, jointMap,
@@ -92,7 +92,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
 this identifier and its legacy default save directory for compatibility with
 existing snapshots and named saves.
-New captures use `version: 11`. Existing v1 static-instance, v2 physics, v3
+New captures use `version: 12`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
 have no animation field; non-null animation requires v3. V1/v2 saves restore
@@ -379,7 +379,7 @@ All three light types share the eight-light limit, snapshot ordering, fresh
 stages the entire set before publication; invalid fields, capacity overflow or
 attachments outside the snapshot leave the active scene and ID counters intact.
 V9 point/spot and v8 point-only documents remain readable. Directional entries
-in v9 or earlier are rejected. New captures use v11 even when they contain no
+in v9 or earlier are rejected. New captures use v12 even when they contain no
 lights.
 
 Capture and restore an attached directional key and an independent fill light:
@@ -418,3 +418,15 @@ is 32, independent of previously released IDs.
 
 Run [nested-containers.js](../scripts/nested-containers.js) or
 [asset-lifetime.js](../scripts/asset-lifetime.js).
+
+## Spotlight shadow settings (v12)
+
+V12 spotlights include a `shadow` object containing `enabled`, `resolution`,
+`near`, `bias`, `normalBias`, `maxTriangles` and `maxGpuMs`. The shadow texture,
+GPU query, measured time and watchdog state are runtime resources and are not
+serialized. Restore validates the settings and single enabled-shadow slot before
+loading assets or reserving native objects. An occupied slot rejects the whole
+restore without changing the active scene. V1–v11 restore without shadows.
+
+See [shadow settings and limits](lighting-api.md#spotlight-shadows) and
+[shadows.js](../scripts/shadows.js) for replacement with shadow-slot recovery.

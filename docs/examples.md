@@ -11,6 +11,7 @@ Run any example with `./run-pocketspace.sh scripts/<name>.js`.
 | [nested-containers.js](../scripts/nested-containers.js) | Parent/child tools, recursive disposal, reparenting and subtree snapshots |
 | [asset-lifetime.js](../scripts/asset-lifetime.js) | Explicit unused-model release, fresh asset IDs and restoring a saved subtree after unload |
 | [directional-lights.js](../scripts/directional-lights.js) | Scene-wide directional lights, rotating attachment, color/toggle controls and snapshot restore |
+| [shadows.js](../scripts/shadows.js) | Moving spotlight shadows, resolution/enable controls, budget diagnostics and snapshot restore |
 | [spotlights.js](../scripts/spotlights.js) | Grabbable flashlight with rotating direction, adjustable cone, toggling and snapshot restore |
 | [lights.js](../scripts/lights.js) | Colored point lights attached to grabbable objects, toggling and snapshot restore |
 | [sheen.js](../scripts/sheen.js) | Grabbable fabric materials, direct/environment light switching and lighting toggle |
@@ -68,7 +69,7 @@ ownership, input-source differences and other behavior that is easy to misread.
 - Joint types, motors, springs, breaking and live settings/state: `joints`, `motors`, `springs`, `breakable-joints`, `joint-controls`.
 - Gravity, impulses, kinematic targets and body lifecycle: `physics-controls`.
 - Container ownership, callback lifetime, transfers, memory/file snapshots: `containers`, `nested-containers`, `asset-lifetime`, `container-transfer`, `scene-snapshot`, and the `*-save` examples.
-- Scene lighting: `lights`, `spotlights`, `directional-lights`.
+- Scene lighting: `lights`, `spotlights`, `shadows`, `directional-lights`.
 - PBR/environment lighting, automatic LOD, instancing and adaptive grouping: `pbr`, `sheen`, `lod`, `instances`, `grouped-stress`.
 - Engine statistics, worker policy and bounded object cleanup: `stress`, `grouped-stress`.
 - Raw/corrected gaze, foveation, finger sensing and calibration generation: `tracking`, `eye-calibration`.

@@ -94,6 +94,7 @@ static std::set<int> containerSubtree(const Scene &scene,int root){
  return result;
 }
 #include "model_instancing.h"
+#include "spot_shadows.h"
 #include "pbr_program.h"
 #include "pbr_variants.h"
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
@@ -133,6 +134,8 @@ static JSValue jsGetEngineStats(JSContext *ctx,JSValueConst,int,JSValueConst*){
   JS_SetPropertyStr(ctx,value,"gpuAllocatedEstimateBytes",engineStats.sampleId?JS_NewFloat64(ctx,double(engineStats.gpuAllocatedEstimateBytes)):JS_NULL);
   JS_SetPropertyStr(ctx,value,"sampleSeconds",JS_NewFloat64(ctx,engineStats.sampleSeconds));JS_SetPropertyStr(ctx,value,"sampleId",JS_NewFloat64(ctx,double(engineStats.sampleId)));
   JS_SetPropertyStr(ctx,value,"objectCount",JS_NewInt32(ctx,int(currentScene->objects.size())));JS_SetPropertyStr(ctx,value,"panelCount",JS_NewInt32(ctx,int(currentScene->panels.size())));
+  const auto &shadow=spotShadowDiagnostics;JSValue shadowState=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,shadowState,"active",JS_NewBool(ctx,shadow.active));JS_SetPropertyStr(ctx,shadowState,"lightId",shadow.lightId?JS_NewInt32(ctx,shadow.lightId):JS_NULL);JS_SetPropertyStr(ctx,shadowState,"status",JS_NewString(ctx,shadow.status));JS_SetPropertyStr(ctx,shadowState,"resolution",JS_NewInt32(ctx,shadow.resolution));JS_SetPropertyStr(ctx,shadowState,"triangles",JS_NewFloat64(ctx,double(shadow.triangles)));JS_SetPropertyStr(ctx,shadowState,"gpuBytes",JS_NewFloat64(ctx,double(shadow.bytes)));JS_SetPropertyStr(ctx,shadowState,"gpuMs",shadow.gpuMs?JS_NewFloat64(ctx,*shadow.gpuMs):JS_NULL);JS_SetPropertyStr(ctx,value,"shadow",shadowState);
   const auto perf=currentScene->physics?currentScene->physics->performance():physics::Performance{};
   JS_SetPropertyStr(ctx,value,"physicsAdvanceMs",JS_NewFloat64(ctx,perf.advanceMs));
   JS_SetPropertyStr(ctx,value,"physicsSolverMs",JS_NewFloat64(ctx,perf.solverMs));
@@ -2067,6 +2070,7 @@ int main(int argc,char **argv) {
   ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
+  SpotShadows spotShadows;if(!spotShadows.prepare())return 5;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
@@ -2308,7 +2312,7 @@ int main(int argc,char **argv) {
           panelOverlays.clear();panelSubmissions.clear();panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
-          instanceExperiment.reset();
+          instanceExperiment.reset();spotShadows.reset();
           lastAnimationTick=std::chrono::steady_clock::now();
 #ifdef SF_ANIMATION_PROFILE
           ++animationEpoch;
@@ -2491,6 +2495,7 @@ int main(int argc,char **argv) {
         for(const auto &eye:eyes){float squared=0,depth=0;for(int axis=0;axis<3;axis++){const float d=center[axis]-eye[axis];squared+=d*d;depth-=d*head.m[axis][2];}nearest=std::min(nearest,std::sqrt(squared)-radius);pixels=std::max(pixels,modelLod::projectedDiameter(radius,focal,squared,depth));}
         selectDetail(modelLod::select(pixels,nearest,object.lodLevel));
       }
+      spotShadows.update(script.scene);
       const auto frameLights=resolvePointLights(script.scene);
       updateObjectLights(script.scene,frameLights,frameObjectLights);
       frameBounds.update(script.scene,anchor,head,eyes);
@@ -2753,6 +2758,7 @@ int main(int argc,char **argv) {
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
                   if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
+                  if(pass>=0)activePbr.shadows(spotShadows,frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
                   activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
@@ -2885,6 +2891,7 @@ int main(int argc,char **argv) {
       for(const auto &asset:script.scene.assets)if(asset.environment&&countedEnvironments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
       std::set<const SheenLookup*> countedSheen;
       for(const auto &asset:script.scene.assets)if(asset.sheenLookup&&asset.sheenLookup->texture&&countedSheen.insert(asset.sheenLookup.get()).second)bytes+=SheenLookup::size*SheenLookup::size*4;
+      bytes+=spotShadowDiagnostics.bytes;
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

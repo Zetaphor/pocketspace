@@ -1,17 +1,19 @@
 #pragma once
 #include <span>
+#include "spot_shadow_settings.h"
 // Logical scene lights own no GPU resources. Attachments are resolved by ID each frame.
 struct PointLight {
  int id=0,container=0,objectId=0;
  std::array<float,3> position{0,0,0},color{1,1,1};
  float intensity=1,range=1;
  bool enabled=true,spot=false,directional=false;
+ SpotShadowSettings shadow;uint64_t shadowRevision=0;
  std::array<float,3> direction{0,0,1};
  float innerConeAngle=.35f,outerConeAngle=.6f;
 };
 constexpr size_t maxPointLights=8;
 struct ResolvedPointLight {std::array<float,3> position,color;float intensity,range;
- std::array<float,3> direction{0,0,1};float innerCos=1,outerCos=-2;
+ std::array<float,3> direction{0,0,1};float innerCos=1,outerCos=-2;int id=0;
 };
 template<class ObjectType>
 static std::array<float,3> rotateLightVector(const ObjectType &object,std::array<float,3> v){
@@ -34,7 +36,7 @@ static std::vector<ResolvedPointLight> resolvePointLights(const SceneType &scene
   }
   const float length=std::sqrt(direction[0]*direction[0]+direction[1]*direction[1]+direction[2]*direction[2]);
   for(auto &component:direction)component/=length;
-  result.push_back({position,light.color,light.intensity,light.directional?-1.f:light.range,direction,std::cos(light.innerConeAngle),light.spot?std::cos(light.outerConeAngle):-2.f});
+  result.push_back({position,light.color,light.intensity,light.directional?-1.f:light.range,direction,std::cos(light.innerConeAngle),light.spot?std::cos(light.outerConeAngle):-2.f,light.id});
  }
  return result;
 }

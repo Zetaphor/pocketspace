@@ -1511,3 +1511,17 @@ and successful reload check. It requires two preparation generations, unchanged
 compile time after the last preparation, nonzero fallback, clean GPU status and
 zero grouped charges on shutdown. Use the same EGL/library environment and an
 active headset; it enables no interaction and stops automatically.
+
+## Spotlight shadows
+
+Build `spot-shadow-regression` explicitly after reconfiguring CMake, then run it
+from the repo root with `DISPLAY=:0 EGL_PLATFORM=x11` and the native SteamVR
+library path. It uses real GLES rendering and API fixtures without creating
+OpenVR overlays. `--benchmark` adds bounded one/four-car comparisons at
+256/512/1024 map pixels and 768 pixels per eye. Keep the headset awake and worn
+for performance measurements; no pointer input is captured.
+
+`./run-pocketspace.sh scripts/shadows.js` is interactive: grab the blue light
+handle or yellow box, toggle shadows with A/X, cycle resolution with bumper,
+and capture/restore with B/Y. Check ground contact, head motion, moving light and
+caster, and the status/time HUD. Stop the demo after visual verification.

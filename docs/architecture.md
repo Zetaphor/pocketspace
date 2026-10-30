@@ -570,3 +570,44 @@ branding change so bindings, input and named saves remain compatible.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
 lighting-environment header. Readers validate dimensions, payload size and values
 before publishing shared environment resources.
+
+## Spotlight shadow pipeline
+
+`src/spot_shadows.h` owns one depth-only framebuffer/texture, a transient private VAO,
+prepared caster program and asynchronous timer query. Settings are logical light
+state in `src/spot_shadow_settings.h`, with transactional API/snapshot validation.
+At most one enabled spotlight reserves the slot; point/directional shadows are
+unsupported. The normal engine compiles the caster program during startup.
+
+After animation/physics and GPU pose uploads, the engine renders full visible
+opaque/masked geometry into one scene-space light projection, once per frame
+before surface/eye rendering. The light's range and outer cone define the camera;
+attachments are resolved by ID. CPU poses and GPU skinning use the same current
+geometry as color rendering. Alpha blend casters are skipped. A private VAO and
+scoped framebuffer, viewport, texture, program, depth, mask, blend, scissor and
+culling restoration isolate the pass from compositor surfaces. The depth texture
+is never shared with the compositor. The private VAO is deleted after each
+update so its attribute/index bindings cannot retain unloaded asset or removed
+pose buffers between frames.
+
+PBR general/prepared programs sample texture unit 11 using four comparison-
+filtered taps. A per-draw light index is resolved from the filtered light IDs;
+other lights, IBL and emission stay unshadowed. The matrix consumes scene-space
+coordinates, including each surface origin, and is shared across both eyes. PBR
+release clears unit 11. No shadow state is added to the shader variant key.
+
+Resolution is bounded to 256/512/1024, with at most 4 MiB active estimated depth
+payload. Full-detail work is capped at 128 caster objects and a configurable
+triangle budget no larger than one million. Exceeding geometry limits renders
+unshadowed lighting and retries when the workload fits. The nonblocking GPU
+watchdog ignores the first three updates and disjoint samples, then compares a
+rolling average of 24 valid results against its configured elapsed-time limit.
+An over-budget average latches the pass off; a brief spike alone does not. It is a delayed safeguard, not GPU
+preemption. Fallback never samples an old map. Explicit shadow-setting changes,
+light disable/re-enable or successful script reload reset the watchdog. Disabled,
+removed, disposed or unresolved lights release their map; failed reload leaves
+the active resources intact. Map storage is counted once in engine estimates.
+
+V12 snapshots store logical shadow settings only. Conflicting restores are
+rejected before native reservation. See [public API and example](lighting-api.md#spotlight-shadows)
+and [shadow regression](../tests/spot-shadow-regression.cpp).
