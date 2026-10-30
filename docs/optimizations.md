@@ -92,12 +92,13 @@ switch. The [architecture](architecture.md) explains their eligibility and
 pipeline contracts.
 
 With at least four active, nonzero lights, local point/spot lights are filtered
-automatically per object: lights whose
-range cannot reach its conservative current bounds are omitted from that draw.
-This keeps the same illumination and eight-light scene limit; broad overlapping
+automatically per object: lights whose range cannot reach its conservative current bounds are omitted from that draw.
+Spotlights whose entire cone misses the bounds are omitted too, with conservative
+edge padding. This keeps the same illumination and eight-light scene limit; broad overlapping
 lights still require the full loop. See the
 [lighting guide](lighting-api.md#dynamic-point-lights) and
-[measured comparison](../tests/results/light-work.md).
+[range comparison](../tests/results/light-work.md) and
+[spotlight cone comparison](../tests/results/spotlight-cone-selection.md).
 
 Test-only shader, culling, shared-depth, VAO, uniform-cache and synchronization
 experiments are not supported production options. Their environment switches

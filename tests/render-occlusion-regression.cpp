@@ -20,7 +20,7 @@ struct Renderer {
   Scene scene;
 #ifdef SF_LIGHT_WORK_EXPERIMENT
   bool optimizeLightWork=false;
-  bool selectLocalLights=true;
+  bool selectLocalLights=true,selectConeLights=true;
 #endif
   std::vector<ObjectLightSet> objectLightSets;
   PbrProgram pbrProgram;
@@ -69,7 +69,11 @@ struct Renderer {
 #ifdef SF_LIGHT_WORK_EXPERIMENT
     if(selectLocalLights)
 #endif
-    updateObjectLights(scene,frameLights,objectLightSets);
+    updateObjectLights(scene,frameLights,objectLightSets
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+    ,selectConeLights
+#endif
+    );
     const GLuint generalProgram=program;
     if(ordinaryRouting&&!specialize&&!drawUniformCachingEnabled&&ordinaryProgram.select(false))program=ordinaryProgram.id();
     ScopeExit restorePrimary{[&]{program=generalProgram;glUseProgram(program);}};

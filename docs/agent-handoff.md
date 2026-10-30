@@ -567,6 +567,9 @@ frame bounds. Use current full/deformed geometry bounds, not visual LOD bounds.
 The origin-centered sphere is rotation-invariant; retain cutoff padding and
 invalid-bound fallback. Range rejection must prove no contributing fragment was
 removed. Do not drop lights just because their centers or spot axes miss an object.
+Cone rejection must prove the whole padded sphere lies outside a cone tangent
+or apex plane. Account for the stored direction length and widen the CPU cone
+for shader rounding. Invalid/hemispherical/wider cones retain the light.
 Preserve retained-light order. Rebuild counts after removals/reloads and reuse
 sets across both eyes, all primitives and surface passes; no callbacks mutate
 scene vectors during rendering. Frame array indices match current scene order,
