@@ -381,3 +381,8 @@ and matched throughput with program/compile accounting. See the
 
 [compare-pbr-variants.py](compare-pbr-variants.py) measures the same variant cache
 in the real engine, reversing pair order and rejecting geometry/storage failures.
+
+[scenes/pbr-variants.js](scenes/pbr-variants.js) validates specialized/general PBR
+routing interactively with grabbing, HDR toggles, zero/four/eight lights, LOD,
+normal maps and alpha overlaps. See the
+[headset instructions](README.md#interactive-pbr-variant-validation).
