@@ -1324,3 +1324,20 @@ shader and buffers, with 30 warmup and 90 measured frames per stage. GPU disjoin
 queries reject the run. Wall time includes submission and GPU completion. The
 reference retains range filtering and disables only cone filtering. No lighting,
 geometry or sample density changes between modes.
+
+## Combined light-filtering headset acceptance
+
+Run the normal engine with `tests/scenes/light-filtering.js`. The scene keeps four
+lights enabled and nonzero, so the automatic filtering policy is eligible. The
+car and normal-map target plus all four light markers accept grip/trigger grabs.
+Blue and yellow boxes aim blue/white spotlights; the yellow sphere and green box
+carry warm/green point lights. Close grabs follow hand rotation.
+
+Move each target sideways through cone edges and farther from the markers through
+range boundaries, then sweep the spot handles across it. Move your head throughout.
+Look for abrupt lighting pops, missing highlights or flicker, rather than the
+expected smooth physical falloff. A/X changes range (.65/1.2 meters), B/Y changes
+cone width, and bumper resets positions. Changing those settings intentionally
+changes illumination; check continuity while moving with a fixed setting. Release
+held objects before resetting. The HUD is non-interactive; only this interactive
+scene's model selection uses pointer input. Stop the demo after user verification.

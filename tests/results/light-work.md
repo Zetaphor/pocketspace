@@ -31,9 +31,8 @@ The real GLES point-light and spotlight regressions separately cover emitted
 lighting, cone/range controls, attachment transforms, resource cleanup, API
 failures and snapshot/reload behavior. Production and excluded targets build on
 Frame with regression assertions enabled. Documentation lint/site build are
-separate checks. This optimization did not receive a new interactive headset
-acceptance; the existing light demos were accepted before it, and no demo was
-launched or left running during these measurements.
+separate checks. The combined four-light headset scene was subsequently accepted
+by the user; see the acceptance section below.
 
 ## Controlled performance comparison
 
@@ -83,3 +82,14 @@ regressed. Production retains the original shader loop. The excluded target
 keeps this alternative under `--profile-shader`, with selection disabled in both
 modes; its frozen loop lives in `light-work-reference.h`. It has no normal-build
 runtime option. Future shader work needs repeatable throughput gains before adoption.
+
+## Combined headset acceptance
+
+On 2026-10-29 the user verified the normal-engine
+[light-filtering scene](../scenes/light-filtering.js), which keeps two point lights
+and two spotlights active. Instructions covered moving the car/normal-map target
+through cone edges and range boundaries, moving/rotating the spot handles, head
+motion and changing range/cone settings. The user reported everything looked
+correct. This closes the interactive acceptance gap for range and cone filtering,
+separately from automated pixels and profiling. The demo was stopped immediately
+after verification and its exit confirmed.
