@@ -16,6 +16,7 @@
 
 constexpr int pixels=768;
 struct Renderer {
+  int samplePixels=::pixels,backingPixels=::pixels; // Test-only viewport sensitivity; backing storage stays fixed.
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
 #ifdef SF_LIGHT_WORK_EXPERIMENT
@@ -38,7 +39,8 @@ struct Renderer {
   ClusterVisibilityExperiment clusterBounds;
   ModelInstancing instanceExperiment;
   std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
-  Renderer(bool specialization=false,const char *vertexSource=modelVertexShader):specialize(specialization){
+  Renderer(bool specialization=false,const char *vertexSource=modelVertexShader,int storagePixels=::pixels):samplePixels(storagePixels),backingPixels(storagePixels),specialize(specialization){
+    assert(backingPixels>0);const int pixels=backingPixels;
     if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
     for(int i=0;i<3;i++)anchor.m[i][i]=1;
     auto v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
@@ -61,6 +63,7 @@ struct Renderer {
     scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
+    assert(samplePixels>0&&samplePixels<=backingPixels);const int pixels=samplePixels;
 #if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
 #endif

@@ -43,11 +43,14 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Isolate geometry versus fragment/material cost in dense PBR member rendering.
-  The [moving-car lighting profile](../tests/results/dense-pbr-lights.md) identifies
-  costly opaque GPU work even with zero scene lights; four/eight lights add cost.
-  Preserve production quality while investigating and measure adaptive occlusion
-  separately; the fixed-group profile contains no external occluder draws.
+- Investigate quality-preserving PBR vertex-transform preparation and reuse of
+  invariant material/light arithmetic. The completed
+  [geometry/pixel sensitivity study](../tests/results/pbr-cost.md) shows substantial
+  geometry cost and increasing pixel/light cost at larger viewports. The
+  [moving-car lighting profile](../tests/results/dense-pbr-lights.md) identifies
+  costly opaque GPU work. Require pixel correctness and matched throughput at
+  multiple densities; measure adaptive occlusion separately. Neither fixed-group
+  profile contains external occluder draws.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The
