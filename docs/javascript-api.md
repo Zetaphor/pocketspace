@@ -517,6 +517,26 @@ or reservations; restored availability depends on the current budget.
 See [lod.js](../scripts/lod.js) for a detailed grabbable-model example and
 [pbr.js](../scripts/pbr.js) for lit geometry with the same automatic policy.
 
+## Scene lighting
+
+Load receivers with `{pbr: true}` to use scene-wide lighting. Lights add to each
+asset's `setModelLighting` settings; they do not affect unlit models, panels or
+lasers. All three types share eight live slots, including disabled lights, and
+cast no shadows.
+
+| Light type | Controls | Guide and complete example |
+| --- | --- | --- |
+| Point: position, range and distance falloff | `createPointLight`, `setPointLight`, `getPointLight`, `removePointLight` | [Point-light API](lighting-api.md#dynamic-point-lights), [lights.js](../scripts/lights.js) |
+| Spot: position, direction, range and cone | `createSpotLight`, `setSpotLight`, `getSpotLight`, `removeSpotLight` | [Spotlight API](lighting-api.md#dynamic-spotlights), [spotlights.js](../scripts/spotlights.js) |
+| Directional: parallel rays without distance falloff | `createDirectionalLight`, `setDirectionalLight`, `getDirectionalLight`, `removeDirectionalLight` | [Directional API](lighting-api.md#scene-directional-lights), [directional-lights.js](../scripts/directional-lights.js) |
+
+Each type supports color/intensity, enabled state, optional object attachment and
+container ownership. Typed functions reject another type's ID. Attachments are
+resolved after interaction/physics; removing their object removes its lights.
+Directional attachments follow rotation only. Container disposal removes owned
+lights, and [v10 snapshots](scene-persistence.md#scene-directional-lights-v10)
+preserve all three types with remapped attachment IDs.
+
 ## Grabbing and selection
 
 ```js

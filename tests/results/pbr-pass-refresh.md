@@ -75,7 +75,15 @@ attribute almost all sampled GPU pass time to member rendering.
 [Fixed-repeat evidence](pbr-pass-refresh/fixed-repeat-frame.json); raw logs on
 Frame under `/tmp/pbr-pass-refresh-fixed-repeat`.
 
-## Next target
+## Follow-up status
+
+The proposed minimal PBR depth program below was subsequently tested and
+[closed without adoption](pbr-minimal-depth.md). It passed correctness and headset
+checks, but controlled engine measurements did not establish a repeatable gain.
+The following records the original investigation target, rather than an open
+backlog item. Production retains the shipped fast-depth program.
+
+## Original next target
 
 Repeated external occlusion remains a substantial GPU cost after prepared color
 shaders. The next candidate is a dedicated minimal **PBR depth-only vertex/fragment
