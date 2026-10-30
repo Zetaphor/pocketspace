@@ -344,6 +344,16 @@ the bounded non-interactive
 
 ## PBR depth optimization
 
+- [pbr-minimal-depth-regression.cpp](pbr-minimal-depth-regression.cpp): test-only
+  minimal vertex/fragment depth program at 768 and 2048 pixels per eye,
+  compared byte-for-byte with the shipped
+  fast-depth shader; stereo, masks, overlaps, LOD, animated poses, GL state and
+  cleanup. Build `pbr-minimal-depth-regression` explicitly; run from the repo
+  root with `DISPLAY=:0 EGL_PLATFORM=x11` and the SteamVR library path. `--benchmark` adds
+  matched depth-only and unchanged color controls; `--benchmark --reverse`
+  reverses the ABBA program order. The excluded `gpu-sync-experiment` accepts
+  `SF_PBR_MINIMAL_DEPTH=1` for engine integration; normal builds ignore it.
+
 - [pbr-depth-regression.cpp](pbr-depth-regression.cpp): 1,248 exact stereo, alpha,
   overlap, LOD and animated-pose comparisons; GL state/resource cleanup and
   matched depth/color performance workloads.

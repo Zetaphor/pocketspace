@@ -2030,6 +2030,15 @@ int main(int argc,char **argv) {
   // Validate color and depth material programs before publishing a live scene.
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+  PbrProgram minimalDepthProgram;
+  const bool minimalPbrDepth=std::getenv("SF_PBR_MINIMAL_DEPTH")&&std::strcmp(std::getenv("SF_PBR_MINIMAL_DEPTH"),"1")==0;
+  if(minimalPbrDepth&&!minimalDepthProgram.initMinimalDepth())return 5;
+  PbrProgram &selectedDepthProgram=minimalPbrDepth?minimalDepthProgram:depthPbrProgram;
+  printf("PBR_MINIMAL_DEPTH enabled=%d\n",int(minimalPbrDepth));
+#else
+  PbrProgram &selectedDepthProgram=depthPbrProgram;
+#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const bool pbrVariantsEnabled=std::getenv("SF_GPU_PBR_VARIANTS")&&std::strcmp(std::getenv("SF_GPU_PBR_VARIANTS"),"1")==0;
 #else
@@ -2682,7 +2691,7 @@ int main(int argc,char **argv) {
 #endif
                 if(asset.pbr){
                   auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
-                  auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram);
+                  auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?selectedDepthProgram:pbrProgram);
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
                   if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);

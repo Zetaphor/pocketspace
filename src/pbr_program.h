@@ -10,6 +10,9 @@
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+ bool minimalDepth=false;
+#endif
  mutable int pointCount=-1;
  mutable std::array<float,104> pointPayload{};
  mutable std::map<std::string,GLint> locations;
@@ -21,6 +24,9 @@ class PbrProgram {
  void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+ bool initMinimalDepth(){minimalDepth=true;return init(true);}
+#endif
  bool initVariant(int key){return init(false
 #ifdef SF_LIGHT_WORK_EXPERIMENT
  ,false
@@ -197,6 +203,27 @@ void main(){
     fragmentSource.insert(fragmentSource.find(" vec4 base=")," if(depthOnly&&alphaMode==0){color=vec4(0);return;}\n");
     fragmentSource.insert(fragmentSource.find(" float alpha=")," if(depthOnly){color=vec4(0);return;}\n");
   }
+#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+  if(minimalDepth){
+    // Keep projection and alpha cutoff arithmetic identical to the shipped path.
+    vertex=modelVertexShader;
+    fragmentSource=R"(#version 300 es
+precision highp float;
+in vec2 t;
+uniform sampler2D material;
+uniform vec4 factor;
+uniform int alphaMode;
+uniform float alphaCutoff;
+out vec4 color;
+void main(){
+ if(alphaMode==0){color=vec4(0);return;}
+ vec4 base=texture(material,t)*factor;
+ if(alphaMode==1&&base.a<alphaCutoff)discard;
+ color=vec4(0);
+}
+)";
+  }
+#endif
   GLuint v=compileShader(GL_VERTEX_SHADER,vertex.c_str()),f=compileShader(GL_FRAGMENT_SHADER,fragmentSource.c_str());
   if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
   program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);
