@@ -1382,3 +1382,26 @@ LOD sensitivity includes vertex/index work and changes in rasterization/coverage
 Neither proves a pure hardware bottleneck or predicts additive savings. GPU query
 time excludes compositor work; wall time includes `glFinish`. No pixel readback
 occurs inside measured frames. Production defaults and shaders remain unchanged.
+
+## PBR prepared-rotation experiment
+
+`pbr-transform-experiment` is an excluded offscreen target. Reconfigure CMake,
+then build it explicitly and run with the same EGL/SteamVR library environment
+as `pbr-cost-profile`. Keep the headset awake and worn for normal GPU power;
+it opens no overlays and captures no input.
+
+The candidate shares the position shader's GPU sine/cosine values with its
+normal/tangent rotations, preserving Euler arithmetic. The production shader
+remains the reference. An earlier CPU-prepared version failed edge-pixel checks
+and is not retained as a candidate.
+This option exists only under `SF_PBR_TRANSFORM_EXPERIMENT`; normal builds have
+no switch. Stereo comparisons exercise full/reduced cars, normal maps, morphing
+surface frames, alpha modes, overlapping/separate targets, attachments and large
+angles. Coverage must match exactly and RGB may differ by at most one byte.
+Correctness failure stops the experiment before performance measurements.
+
+If pixels pass, interleaved ABBA measurements use the same renderer, buffers,
+geometry, framebuffer and moving poses at 768/2048 pixels with zero/eight lights.
+Each stage alternates eyes, with 30 warmup and 90 measured frames. GPU disjoint
+and GL errors fail the run. Repeat runs; do not adopt based on a single case or
+GPU timing alone. Wall time includes draw submission and `glFinish`.

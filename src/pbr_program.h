@@ -26,6 +26,9 @@ public:
 #ifdef SF_LIGHT_WORK_EXPERIMENT
  ,bool optimizeLightWork=false
 #endif
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+ ,bool prepareRotation=false
+#endif
  ){
   if(program)return true;
   std::string vertex=modelVertexShader;
@@ -48,6 +51,18 @@ vec3 rotateSurface(vec3 v){
   litNormal=rotateSurface(surfaceNormal);litTangent=rotateSurface(surfaceTangent.xyz);tangentSign=surfaceTangent.w;mapUV=surfaceUV;
   vec3 v=eye-world;litView=vec3(dot(v,right),dot(v,up),-dot(v,forward));
 )");
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+  if(prepareRotation){
+   const std::string signature="vec3 rotateSurface(vec3 v){";
+   vertex.replace(vertex.find(signature),signature.size(),"vec3 rotateSurface(vec3 v,float cr,float sr,float cp,float sp,float cy,float sy){");
+   const std::string trig="float cr=cos(roll),sr=sin(roll),cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);";
+   vertex.erase(vertex.find(trig),trig.size()); // Keep the identical computation in main.
+   for(const char *input:{"surfaceNormal","surfaceTangent.xyz"}){
+    const std::string from=std::string("rotateSurface(")+input+")";
+    vertex.replace(vertex.find(from),from.size(),std::string("rotateSurface(")+input+",cr,sr,cp,sp,cy,sy)");
+   }
+  }
+#endif
   const char *fragment=R"(#version 300 es
 precision highp float;
 in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView,litPosition;in highp float tangentSign;
