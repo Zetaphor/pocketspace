@@ -1,0 +1,80 @@
+[picking] nodes=32767 triangles=108936 build_ms=68.823 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+[js] loaded /tmp/pbr-variant-lifecycle-zxdg2y_z/scene.js objects=1 assets=1
+[input] SteamVR Frame actions ready
+[model] lod path=assets/samples/ToyCar/ToyCar.glb index_bytes=302502
+PBR_VARIANTS_PREPARE generation=1 programs=15 compile_ms=12.4651
+anchor world=-0.711565,1.352366,-0.666341
+[surface] created id=-1 width=0.630 eye_px=1536
+[gpu-sync] mode=finish timer=1 wait_timeout_ms=100 producer_completion=required consumer_ownership=unchanged
+[input] hand=0 device=none
+[input] hand=1 device=2 pose=1
+[input] controller device changed; renewing raw subscriptions
+INSTANCING_SAMPLE {"seconds":1.010495,"frames":91,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":364,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":1.010510,"timeoutMs":100,"glError":0,"mode":"finish","frames":91,"gpuSamples":90,"gpuMs":2.007382,"enqueueMs":0.052290,"waitMs":3.597759,"waitThreadCpuMs":0.093386,"submitMs":0.016573,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":1.010510,"frames":91,"sceneFrames":91,"drawsPerFrame":[0.000000,6.000000,0.000000],"trianglesPerFrame":[0.000000,217872.000000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+[js] VARIANT_RESTORED
+[surface] created id=-2 width=0.630 eye_px=1536
+INSTANCING_SAMPLE {"seconds":2.010884,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":356,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":2.010920,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":88,"gpuMs":1.981969,"enqueueMs":0.048744,"waitMs":3.456159,"waitThreadCpuMs":0.089097,"submitMs":0.016154,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":2.010920,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,5.933333,0.000000],"trianglesPerFrame":[0.000000,215451.200000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+INSTANCING_SAMPLE {"seconds":3.023964,"frames":91,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":364,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":3.023993,"timeoutMs":100,"glError":0,"mode":"finish","frames":91,"gpuSamples":91,"gpuMs":2.204106,"enqueueMs":0.045672,"waitMs":3.804132,"waitThreadCpuMs":0.095497,"submitMs":0.018783,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":3.023993,"frames":91,"sceneFrames":91,"drawsPerFrame":[0.000000,6.000000,0.000000],"trianglesPerFrame":[0.000000,217872.000000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+[picking] nodes=2047 triangles=7774 build_ms=1.920 reserved_bytes=221056
+[model] loaded assets/samples/NormalTangentTest/NormalTangentTest.glb parts=1 triangles=7774 skin=0 morph=0 animation=0
+[js] VARIANT_UNKNOWN_STATE
+[surface] created id=-1 width=0.550 eye_px=1536
+[surface] created id=-1 width=0.544 eye_px=1024
+INSTANCING_SAMPLE {"seconds":4.027494,"frames":70,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":484,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":4.027512,"timeoutMs":100,"glError":0,"mode":"finish","frames":70,"gpuSamples":69,"gpuMs":4.373038,"enqueueMs":0.165832,"waitMs":6.028760,"waitThreadCpuMs":0.101279,"submitMs":0.027160,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":4.027512,"frames":70,"sceneFrames":70,"drawsPerFrame":[0.000000,7.457143,0.000000],"trianglesPerFrame":[0.000000,229199.828571,0.000000],"lodObjectsPerFrame":[1.742857,0.000000,0.000000],"sceneTrianglesPerFrame":114710.971429}
+[js] load error: Error: expected variant reload failure
+INSTANCING_SAMPLE {"seconds":5.027507,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":720,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":5.027582,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":89,"gpuMs":4.720576,"enqueueMs":0.060182,"waitMs":6.271396,"waitThreadCpuMs":0.124805,"submitMs":0.023936,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":5.027582,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,8.000000,0.000000],"trianglesPerFrame":[0.000000,233420.000000,0.000000],"lodObjectsPerFrame":[2.000000,0.000000,0.000000],"sceneTrianglesPerFrame":116710.000000}
+INSTANCING_SAMPLE {"seconds":6.027583,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":720,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":6.027599,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":90,"gpuMs":4.938483,"enqueueMs":0.052524,"waitMs":6.270688,"waitThreadCpuMs":0.126160,"submitMs":0.024826,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":6.027599,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,8.000000,0.000000],"trianglesPerFrame":[0.000000,233420.000000,0.000000],"lodObjectsPerFrame":[2.000000,0.000000,0.000000],"sceneTrianglesPerFrame":116710.000000}
+INSTANCING_SAMPLE {"seconds":7.039913,"frames":91,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":728,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":7.039945,"timeoutMs":100,"glError":0,"mode":"finish","frames":91,"gpuSamples":91,"gpuMs":4.761893,"enqueueMs":0.053611,"waitMs":6.554173,"waitThreadCpuMs":0.121827,"submitMs":0.020929,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":7.039945,"frames":91,"sceneFrames":91,"drawsPerFrame":[0.000000,8.000000,0.000000],"trianglesPerFrame":[0.000000,233420.000000,0.000000],"lodObjectsPerFrame":[2.000000,0.000000,0.000000],"sceneTrianglesPerFrame":116710.000000}
+[picking] nodes=32767 triangles=108936 build_ms=52.326 reserved_bytes=3227336
+[model] loaded assets/samples/ToyCar/ToyCar.glb parts=3 triangles=108936 skin=0 morph=0 animation=0
+[lifecycle] scene state reset
+[js] loaded /tmp/pbr-variant-lifecycle-zxdg2y_z/scene.js objects=1 assets=1
+[model] lod path=assets/samples/ToyCar/ToyCar.glb index_bytes=302502
+PBR_VARIANTS_PREPARE generation=2 programs=15 compile_ms=18.1195
+[surface] created id=-1 width=0.630 eye_px=1536
+INSTANCING_SAMPLE {"seconds":8.775589,"frames":78,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":620,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":8.775617,"timeoutMs":100,"glError":0,"mode":"finish","frames":78,"gpuSamples":78,"gpuMs":4.513255,"enqueueMs":0.056943,"waitMs":6.150218,"waitThreadCpuMs":0.121777,"submitMs":0.022140,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":8.775617,"frames":78,"sceneFrames":78,"drawsPerFrame":[0.000000,7.974359,0.000000],"trianglesPerFrame":[0.000000,233220.666667,0.000000],"lodObjectsPerFrame":[1.987179,0.000000,0.000000],"sceneTrianglesPerFrame":116610.333333}
+INSTANCING_SAMPLE {"seconds":9.779827,"frames":91,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":364,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":9.779937,"timeoutMs":100,"glError":0,"mode":"finish","frames":91,"gpuSamples":91,"gpuMs":1.841972,"enqueueMs":0.047632,"waitMs":3.498230,"waitThreadCpuMs":0.088552,"submitMs":0.025874,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":9.779937,"frames":91,"sceneFrames":91,"drawsPerFrame":[0.000000,6.000000,0.000000],"trianglesPerFrame":[0.000000,217872.000000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+[js] VARIANT_RESTORED
+[surface] created id=-2 width=0.630 eye_px=1536
+INSTANCING_SAMPLE {"seconds":10.780185,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":356,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":10.780198,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":90,"gpuMs":2.130363,"enqueueMs":0.046110,"waitMs":3.602341,"waitThreadCpuMs":0.087500,"submitMs":0.014096,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":10.780198,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,5.933333,0.000000],"trianglesPerFrame":[0.000000,215451.200000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+[profile] picking_ms=0.002 render_submit_ms=0.070 gpu_wait_ms=4.846 physics_ms=0.000
+frames=900 fps=81.1 surfaces=1 ready=1 gl_error=0 laser_left=2.00 laser_right=0.64 held_left=0 held_right=0
+[input] hand=0 device=none
+[input] hand=1 device=2 pose=1
+INSTANCING_SAMPLE {"seconds":11.780187,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":360,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":11.780223,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":90,"gpuMs":2.154968,"enqueueMs":0.045693,"waitMs":3.564188,"waitThreadCpuMs":0.092563,"submitMs":0.020406,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":11.780223,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,6.000000,0.000000],"trianglesPerFrame":[0.000000,217872.000000,0.000000],"lodObjectsPerFrame":[1.000000,0.000000,0.000000],"sceneTrianglesPerFrame":108936.000000}
+[picking] nodes=2047 triangles=7774 build_ms=1.914 reserved_bytes=221056
+[model] loaded assets/samples/NormalTangentTest/NormalTangentTest.glb parts=1 triangles=7774 skin=0 morph=0 animation=0
+[js] VARIANT_UNKNOWN_STATE
+[surface] created id=-1 width=0.550 eye_px=1536
+INSTANCING_SAMPLE {"seconds":12.788356,"frames":72,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":392,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":12.788420,"timeoutMs":100,"glError":0,"mode":"finish","frames":72,"gpuSamples":72,"gpuMs":3.212638,"enqueueMs":0.085577,"waitMs":4.944257,"waitThreadCpuMs":0.104418,"submitMs":0.028992,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":12.788420,"frames":72,"sceneFrames":72,"drawsPerFrame":[0.000000,6.722222,0.000000],"trianglesPerFrame":[0.000000,223486.555556,0.000000],"lodObjectsPerFrame":[1.375000,0.000000,0.000000],"sceneTrianglesPerFrame":111851.250000}
+[surface] created id=-1 width=0.543 eye_px=1024
+INSTANCING_SAMPLE {"seconds":13.789545,"frames":90,"batches":0,"instances":0,"savedDraws":0,"fallbackObjects":720,"instanceBytes":0}
+GPU_SYNC_SAMPLE {"seconds":13.789563,"timeoutMs":100,"glError":0,"mode":"finish","frames":90,"gpuSamples":90,"gpuMs":5.046834,"enqueueMs":0.137064,"waitMs":6.771221,"waitThreadCpuMs":0.148747,"submitMs":0.028966,"disjointSamples":0,"fenceFailures":0}
+RENDER_WORK_SAMPLE {"seconds":13.789563,"frames":90,"sceneFrames":90,"drawsPerFrame":[0.000000,8.000000,0.000000],"trianglesPerFrame":[0.000000,233420.000000,0.000000],"lodObjectsPerFrame":[2.000000,0.000000,0.000000],"sceneTrianglesPerFrame":116710.000000}
+completed frames=1126
+[surface] grouped_buffer_bytes=0 peak=184549376 limit=536870912
+PBR_VARIANTS_CACHE programs=15 binary_bytes=441495 compile_ms=18.1195 fallback_draws=4148

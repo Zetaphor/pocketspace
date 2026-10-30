@@ -1,5 +1,7 @@
 # Bounded PBR shader specialization
 
+This is the historical lazy-prototype report. The [prepared production policy](pbr-prewarm.md) supersedes its first-use compilation and adoption status.
+
 Steam Frame ARM64, 2026-10-29. The user confirmed active-headset profiling
 readiness. Production behavior and defaults are unchanged during this prototype.
 

@@ -386,3 +386,12 @@ in the real engine, reversing pair order and rejecting geometry/storage failures
 routing interactively with grabbing, HDR toggles, zero/four/eight lights, LOD,
 normal maps and alpha overlaps. See the
 [headset instructions](README.md#interactive-pbr-variant-validation).
+
+[pbr-variants-lifecycle.py](pbr-variants-lifecycle.py) verifies prepared-program
+restore, removal, unknown-state fallback, failed/successful reload, no draw-time
+compilation and shutdown accounting. See the
+[prepared-policy report](results/pbr-prewarm.md).
+
+The [prepared PBR report](results/pbr-prewarm.md) records bounded startup/reload
+precompilation, guarded ready-only routing, lifecycle validation and matched
+native throughput, superseding the lazy prototype policy.

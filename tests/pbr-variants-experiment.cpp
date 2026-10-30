@@ -10,7 +10,7 @@ int main(){
  size_t images=0,alphaChanged=0,rgbChanged=0;int maxRgb=0;
  {
   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
-  for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","assets/samples/NormalTangentTest/NormalTangentTest.glb","tests/fixtures/pbr/SurfaceFrames.glb","assets/samples/AlphaBlendModeTest/AlphaBlendModeTest.glb"}){
+  for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","assets/samples/NormalTangentTest/NormalTangentTest.glb","assets/samples/NormalTangentMirrorTest/NormalTangentMirrorTest.glb","assets/samples/NegativeScaleTest/NegativeScaleTest.glb","assets/samples/EmissiveStrengthTest/EmissiveStrengthTest.glb","assets/samples/MetalRoughSpheresNoTextures/MetalRoughSpheresNoTextures.glb","tests/fixtures/pbr/SurfaceFrames.glb","assets/samples/AlphaBlendModeTest/AlphaBlendModeTest.glb"}){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile(path,a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
    std::vector<bool> originalUnlit;for(const auto &part:a.primitives)originalUnlit.push_back(part.materialUnlit);
    Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.6;auto other=o;other.id=2;other.x=.12;other.z=-.12;r.scene.objects={o,other};lights(r,4);r.scene.lights[1].objectId=2;
@@ -46,6 +46,11 @@ int main(){
  {
   Renderer r(false,modelVertexShader,2048);r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.lighting.intensity=.3;a.lighting.ambient=.04;
   std::vector<int> ids;for(int i=0;i<32;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.16;o.x=(i%8-3.5f)*.22f;o.y=(i/8-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
+  lights(r,8);r.pbrVariants.prepare(r.scene);r.prewarmedPbr=true;const auto preparedMs=r.pbrVariants.compileMs;
+  const auto &part=a.primitives[0];assert(!r.pbrVariants.ready(a,part,8,768));assert(!r.pbrVariants.ready(a,part,0,2048));
+  assert(r.pbrVariants.ready(a,part,8,2048));
+  a.lighting.environmentIntensity=1;a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);assert(!r.pbrVariants.ready(a,part,8,2048));
+  a.lighting.environmentIntensity=0;assert(r.pbrVariants.compileMs==preparedMs);
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);GLuint q=0;gen(1,&q);
   for(int count:{0,8})for(int level:{0,2})for(int size:{768,2048}){
    lights(r,count);r.samplePixels=size;std::array<double,4> gpu{},wall{};
@@ -58,6 +63,7 @@ int main(){
    }
    for(int stage=0;stage<4;stage++)printf("PBR_VARIANTS {\"lights\":%d,\"level\":%d,\"pixels\":%d,\"stage\":%d,\"prepared\":%s,\"gpuMs\":%.6f,\"wallMs\":%.6f,\"frames\":90}\n",count,level,size,stage,stage==1||stage==2?"true":"false",gpu[stage]/90,wall[stage]/90);fflush(stdout);
   }
+  assert(r.pbrVariants.compileMs==preparedMs);
   printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",r.pbrVariants.programs.size(),(unsigned long long)r.pbrVariants.binaryBytes(),r.pbrVariants.compileMs,r.pbrVariants.fallbackDraws);
   destroy(1,&q);
  }

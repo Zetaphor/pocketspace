@@ -576,3 +576,17 @@ scene vectors during rendering. Frame array indices match current scene order,
 not persistent object IDs. The shader-work alternative remains test-only after
 inconsistent/regressing measurements; normal builds keep the original BRDF loop.
 See [light-work-regression.cpp](../tests/light-work-regression.cpp).
+
+
+## Prepared PBR programs
+
+`src/pbr_variants.h` owns a bounded set of color programs prepared after initial
+asset upload and successful script reload. Never call its compilation path from
+render traversal: `ready` only looks up current material/environment/filtered-count
+keys and falls back to general PBR. Use variants only at >=1024 allocated pixels
+per eye and >=4 contributing lights; unlit and depth passes retain their normal
+programs. Unknown restored/new asset or lighting states must not compile in-frame.
+Failed reload must retain the existing cache; successful reload clears stale keys
+and prepares at most 16 slots (including compile failures). Shader state contains
+no scene pointers. Keep program teardown before EGL destruction and preserve
+per-program uniform caches when alternating specialized and general draws.

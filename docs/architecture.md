@@ -356,10 +356,22 @@ material state; rigid merging stops at incompatible animated winding. Culling an
 front-face state reset before panel/other passes. The [native comparison](../tests/results/culling.md)
 found no repeatable overall throughput gain; this policy implements glTF sidedness. Unlike the old unlit path,
 single-sided back faces are now culled for unlit assets too.
-The [bounded PBR shader-variant prototype](../tests/results/pbr-variants.md)
-remains isolated to excluded test targets. Production uses the general PBR color
-program; specialization still needs bounded prewarming, lighter-workload routing
-and lifecycle/headset validation before adoption.
+PBR scene preparation uploads initial assets and precompiles up to 16 color
+program variants at startup and after a successful script reload. For scenes
+starting with four or more active lights, it visits live objects/materials in
+scene order and prepares filtered-light counts four through eight for their
+current map/alpha/sidedness/environment features. Failed keys consume bounded
+slots and use general PBR. Render-time lookup never compiles shaders.
+
+Only surfaces allocated at least 1024 pixels per eye and lit materials with four
+or more contributing lights use ready variants. Smaller/lightweight draws,
+unknown keys, new assets and changed environment/light combinations fall back to
+the general program. Restore/removal retain safe feature-keyed programs; successful
+script reload replaces the set, while failed reload leaves it intact. Programs
+hold no asset/object pointers and are released while the GL context is alive.
+The cap covers owned programs, not opaque driver caches or total GPU memory.
+See [prepared-policy validation](../tests/results/pbr-prewarm.md); the original
+[lazy prototype](../tests/results/pbr-variants.md) remains recorded separately.
 
 Legacy, PBR color and PBR depth programs link during startup, before live scene publication;
 reloads do not compile a new shader after committing their candidate scene.

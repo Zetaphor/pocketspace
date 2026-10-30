@@ -21,6 +21,18 @@ class PbrProgram {
  void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
+ bool initVariant(int key){return init(false
+#ifdef SF_LIGHT_WORK_EXPERIMENT
+ ,false
+#endif
+#ifdef SF_PBR_TRANSFORM_EXPERIMENT
+ ,false
+#endif
+#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
+ ,false
+#endif
+ ,key);}
+ GLuint id()const{return program;}
 #ifdef SF_PBR_VARIANT_EXPERIMENT
  GLuint experimentId()const{return program;}
 #endif
@@ -35,9 +47,7 @@ public:
 #ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
  ,bool reuseLightInvariants=false
 #endif
-#ifdef SF_PBR_VARIANT_EXPERIMENT
  ,int variantKey=-1
-#endif
  ){
   if(program)return true;
   std::string vertex=modelVertexShader;
@@ -157,7 +167,6 @@ void main(){
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
   std::string fragmentSource=fragment;
-#ifdef SF_PBR_VARIANT_EXPERIMENT
   if(variantKey>=0){
    const std::string flags="uniform bool hasNormal,hasMetalRough,hasOcclusion,hasEmissive,materialUnlit,doubleSided;";
    const char *names[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive","materialUnlit","doubleSided"};
@@ -168,7 +177,6 @@ void main(){
    specialize("uniform int alphaMode;","const int alphaMode="+std::to_string((variantKey>>7)&3)+";");
    specialize("uniform int pointLightCount;","const int pointLightCount="+std::to_string((variantKey>>9)&15)+";");
   }
-#endif
 #ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
   if(reuseLightInvariants){
    const std::string expression="sqrt(nv*nv*(1.-a2)+a2)";
