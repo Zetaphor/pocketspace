@@ -1,6 +1,7 @@
 # Minimal PBR depth shader investigation
 
-Test-only candidate, Steam Frame, 2026-10-29. Production defaults remain unchanged.
+Closed without adoption on Steam Frame, 2026-10-29. Production retains the
+shipped fast-depth program. The candidate remains available in excluded tests.
 The reference is the **shipped fast-depth shader**, rather than the older full
 PBR color shader used as a depth pass in the original depth investigation.
 
@@ -86,9 +87,8 @@ member draws. External depth work varied from 93.11 to 98.86 draws per frame
 (3.38–3.59 million triangles) as motion and live view changed. These are matched
 member geometry/storage, **not exact external-work comparisons**. The mixed whole
 results do not establish a repeatable FPS gain; averaging the later slower
-baseline into a claimed speedup would hide this limitation. Further adoption
-requires controlled engine comparisons. Production
-remains on the shipped fast-depth program.
+baseline into a claimed speedup would hide this limitation. The controlled comparison below resolves the adoption decision; these moving
+runs alone were inconclusive.
 
 ## Headset visual acceptance
 
@@ -99,3 +99,77 @@ with no reported GL errors, disjoint timer samples or fence failures. The demo
 was stopped after acceptance and its exit verified: 3,706 completed frames and
 zero remaining grouped-buffer charges. This establishes visual acceptance,
 separately from the inconclusive whole-engine performance comparison.
+
+## Controlled engine comparison and decision
+
+**Do not adopt.** The controlled comparison does not establish a repeatable
+whole-render benefit sufficient to change production. The isolated depth shader
+result remains valid for its offscreen workload; it does not predict equivalent
+savings in the engine. This investigation is complete, rather than pending more
+headset checks or an automatic default change.
+
+`tests/profile-minimal-depth.py` runs the actual profiling engine with
+`tests/scenes/pbr-depth-controlled.js`. Thirty-two stationary full-detail ToyCars
+and eight fixed lights share four fixed groups. Canonical identity scene axes,
+a fixed head position `[0, .2, 1]` and the headset's unchanged eye offsets remove
+head-tracking variation. The helper never requests controller interaction. This
+camera override is compiled only in the experiment and is unsuitable for judging
+head-motion rendering. Normal builds retain normal tracked views.
+
+Each stage lasts 16 seconds, using timer windows starting at six seconds. The
+first run includes grouped and color-only controls in baseline/candidate/candidate/
+baseline order; a grouped repeat uses candidate/baseline/baseline/candidate.
+Values below average the two stage medians for each mode; they are not raw-frame
+means or whole-compositor FPS. GPU error, disjoint and fence checks passed.
+All twelve processes shut down normally with zero remaining grouped-buffer
+charges. No demo remains running.
+
+| Workload | Order | Whole GPU baseline → candidate (ms) | Enqueue CPU (ms) | GPU completion wait (ms) |
+| --- | --- | --- | --- | --- |
+| Four groups | first | 43.021 → 42.924 | 3.256 → 3.207 | 46.333 → 46.158 |
+| Four groups | reverse | 44.380 → 43.252 | 3.278 → 3.180 | 47.784 → 46.725 |
+| Single-group color control | first | 19.509 → 19.460 | 1.571 → 1.579 | 23.251 → 23.227 |
+
+The grouped difference is approximately 0.2% first and 2.5% in reverse order;
+the unchanged color control also varies by approximately 0.2%. Clocks, thermals
+and compositor scheduling remain uncontrolled. These results do not reproduce
+the isolated 32–40% gain as a reliable engine improvement. Do not subtract the
+single-group GPU cost from the four-group GPU cost to estimate depth time: group
+layouts, pixel allocations and prepared-color eligibility differ.
+
+Each grouped frame submits exactly 237 external-depth draws / 8,605,944 triangles
+and 192 opaque member draws / 6,971,904 triangles; no blended draws. All 32 objects
+retain full LOD, totaling 3,485,952 scene triangles. Every measured work window,
+all grouped stages and the repeat match these counts. Group creation sequences,
+widths, eye resolutions, allocation estimates and grouped-buffer peaks also match:
+512-pixel initial surfaces grow to 768 per eye, peak grouped storage is 80 MiB,
+and estimated owned allocation is 115,651,138 bytes. The color control has the
+same member geometry, zero external depth, a 1280-pixel final eye target, a
+58 MiB grouped peak and 92,582,466 estimated owned bytes. Its work/storage match
+between its own modes; it is not a quality-equivalent alternative grouping policy.
+
+Both modes enable production prepared-color policy and compile fifteen bounded
+color programs. Grouped targets are below the 1024-pixel variant threshold and
+use general color; the color control can use prepared programs. Baseline and
+candidate modes within each workload preserve this policy. Shader-driver memory
+is not included in owned buffer estimates. The candidate shader links only at
+startup and introduces no additional mesh/texture buffers.
+
+[First controlled samples](pbr-minimal-depth/controlled-first-frame.json) and
+[reverse samples](pbr-minimal-depth/controlled-reverse-frame.json) retain each
+stage's medians, geometry, storage and surface-generation sequence. Native
+profiling binary SHA-256:
+`cc6e4aecbb22001ba405313515f63ea3eaadd107f53f475e46e34e8a78936307`.
+
+```sh
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/profile-minimal-depth.py --output /tmp/depth-controlled-first
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
+  python3 tests/profile-minimal-depth.py --reverse --workload grouped \
+    --output /tmp/depth-controlled-reverse
+```
+
+The runner refuses a competing engine, checks startup flags, verifies completed
+GPU samples, rejects changed work/storage/surface generations, and stops each
+stage with SIGTERM before starting another. Keep the headset active for normal
+power even though the rendered camera is fixed.

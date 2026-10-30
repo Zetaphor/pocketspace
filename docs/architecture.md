@@ -487,7 +487,10 @@ remain available through the [test index](../tests/index.md). A separate
 [static-only ordinary vertex shader prototype](../tests/results/dense-model-current.md)
 and its [mixed-program integration](../tests/results/ordinary-program-routing.md)
 remain test-only after inconsistent native gains; production retains the general
-skin-capable vertex program.
+skin-capable vertex program. The [minimal PBR depth-only shader investigation](../tests/results/pbr-minimal-depth.md)
+is also closed without adoption: exact pixels and headset acceptance passed, but
+controlled engine comparisons did not establish a repeatable benefit. External
+PBR depth retains the shipped early-return program and its original vertex source.
 GPU morph work is
 deferred until a workload establishes sufficient CPU cost.
 

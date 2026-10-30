@@ -354,6 +354,15 @@ the bounded non-interactive
   reverses the ABBA program order. The excluded `gpu-sync-experiment` accepts
   `SF_PBR_MINIMAL_DEPTH=1` for engine integration; normal builds ignore it.
 
+- [profile-minimal-depth.py](profile-minimal-depth.py): bounded actual-engine
+  ABBA comparison with a canonical camera, identical static geometry, eight
+  lights and exact external/member work plus storage validation. Uses
+  [scenes/pbr-depth-controlled.js](scenes/pbr-depth-controlled.js); includes a
+  single-group color-only control. Run with the native EGL/SteamVR environment:
+  `python3 tests/profile-minimal-depth.py --output /tmp/depth-controlled`.
+  `--reverse` reverses program order; `--workload grouped` limits a repeat to the
+  external-depth workload. The fixed camera is test-only and is not suitable for
+  judging head-motion rendering.
 - [pbr-depth-regression.cpp](pbr-depth-regression.cpp): 1,248 exact stereo, alpha,
   overlap, LOD and animated-pose comparisons; GL state/resource cleanup and
   matched depth/color performance workloads.

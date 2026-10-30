@@ -43,17 +43,6 @@ This roadmap contains future work, without prescribing an implementation order.
 
 ## Performance validation and profiling
 
-- Investigate a minimal PBR depth-only program against the shipped fast-depth
-  path, preserving full geometry, masks and stereo occlusion. The
-  [post-preparation pass profile](../tests/results/pbr-pass-refresh.md) identifies
-  substantial repeated external-occluder GPU work in adaptive groups. Require
-  strict pixels and matched geometry/storage before adoption; keep the rejected
-  general opaque-shader and shared-depth experiments disabled. The
-  [minimal-depth prototype](../tests/results/pbr-minimal-depth.md) passes 2,496
-  exact images and reduces isolated external-depth GPU time by 32–40%, but
-  moving-engine results do not yet establish a repeatable whole-render gain.
-  Headset visual acceptance passed; complete a controlled engine comparison
-  before adoption.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The
