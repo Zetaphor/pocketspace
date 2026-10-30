@@ -52,7 +52,8 @@ This roadmap contains future work, without prescribing an implementation order.
   [minimal-depth prototype](../tests/results/pbr-minimal-depth.md) passes 2,496
   exact images and reduces isolated external-depth GPU time by 32–40%, but
   moving-engine results do not yet establish a repeatable whole-render gain.
-  Complete visual acceptance and a controlled engine comparison before adoption.
+  Headset visual acceptance passed; complete a controlled engine comparison
+  before adoption.
 - Further reduce the cost of dense high-triangle model scenes; the
   [matched GPU mesh optimization results](../tests/results/vertex-cache.md) still
   fall below headset frame rates. The
