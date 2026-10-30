@@ -638,30 +638,62 @@ indirect sheen path is a diffuse-SH approximation, not a sheen-prefiltered cube.
 See [architecture](architecture.md#fabric-sheen-pipeline) and
 [material API](lighting-api.md#fabric-sheen).
 
-## Spotlight shadow invariants
+## Shared shadow invariants
 
-One enabled light of any type can reserve shared shadow rendering. Validate this after option
-getters and before snapshot native reservations; older snapshots default off.
-`SpotShadows` retains no scene/object pointers. Resolve attachment poses by ID and
-render once after pose upload, before eye/surface draws. Use full caster geometry,
-current CPU/GPU deformation, masked alpha and normal sidedness. BLEND casters are
-excluded. Receiver matrices include the surface origin; filtered light IDs, not
-original vector indices, select the shadowed contribution. Clear texture unit 11
-after PBR draws and restore all shadow-pass GL state, including the VAO.
+`SpotShadows` serves point, spot and directional lights. Shadows are opt-in.
+One enabled light reserves the shared slot, including zero-intensity lights;
+disabled lights retain settings without reserving it. Validate capacity after
+option getters and across existing/staged snapshot lights before asset/native
+reservations. Current captures use v14: spot settings require v12, directional
+v13 and point v14. Older light records default to shadows off. Serialize logical
+settings only, never map/query handles or watchdog state.
 
-Budget, allocation and capability failures render unshadowed lighting, never a
-stale texture. Reset the GPU watchdog only on explicit configuration changes or
-lifecycle reset. Successful reload releases the map; failed reload does not.
-Keep map bytes in engine statistics once and release map/query resources when
-lighting ownership disappears. See [architecture](architecture.md#spotlight-shadow-pipeline)
-and [API limits](lighting-api.md#spotlight-shadows).
+The pass retains no scene/object pointers. Resolve attachments by ID and render
+once after pose upload, before eye/surface draws. Use full caster geometry,
+current CPU/GPU deformation, masked alpha and normal sidedness. Hidden and BLEND
+casters are excluded; cast across render groups. Receiver matrices include the
+surface origin; filtered light IDs, not original vector indices, select the
+shadowed contribution. Other lights, IBL and emission stay unshadowed. Clear
+texture unit 11 after PBR draws and restore caller GL state. Delete the private
+VAO after each update so it cannot retain unloaded asset or removed pose buffers.
+The depth texture is never compositor-owned.
 
-Directional shadows use fixed world-space center/size/depth coverage. Attachment
-translation and headset motion must not translate it; only resolved direction
-rotates the orthographic basis. V13 stores directional settings; older directional
-snapshots default off. Preserve the shared slot and existing spot v12 compatibility.
+Geometry is limited to 128 visible casters and the configured submitted-triangle
+budget (default 500000, maximum 1000000). Geometry exhaustion retries when the
+scene fits. GPU timing is asynchronous: ignore three warmup updates and disjoint
+samples, then require a complete rolling average of 24 valid results above the
+configured threshold (default 2 ms). Never latch off on one timing spike. A trip
+releases the map and requires explicit shadow options or lifecycle reset to retry;
+it is not GPU preemption. Allocation/capability/budget fallback must never sample
+an old map. Successful reload releases resources; failed reload preserves the
+active scene/map. Count map payload once in engine GPU estimates. Diagnostics
+`gpuMs` is the last valid sample, not the watchdog average.
 
-Point shadows use a six-face 3×2 atlas at 256/512 pixels per face. Budget all six
-submissions, time all views together, count full atlas bytes once, and keep PCF
-taps within the selected face. V14 stores point options; older points default off.
-Atlas shape must be part of allocation reuse, even when face resolution matches.
+Spotlights use range/outer-cone perspective coverage at 256/512/1024 pixels, with
+up to 4 MiB estimated map payload. Directional shadows use fixed world-space
+center/size/depth orthographic coverage with the same map sizes. Attachment
+translation and headset motion must not move directional coverage; resolved
+direction rotates its basis. Outside-volume receivers remain unshadowed. There
+are no cascades or automatic coverage fitting.
+
+Point shadows use six perspective faces in a 3×2 atlas at 256/512 pixels per face
+(1.5/6 MiB estimated payload). Budget all six triangle submissions and time all
+views together. Atlas shape must be part of allocation reuse, even when face
+resolution matches. Keep PCF taps inside the selected face. Derive receiver-plane
+slope from world-position derivatives projected through that pixel's face;
+differentiating face-selected UVs creates discontinuities. Normal offset may
+cross the face's XY bounds: clamp taps instead of returning unshadowed light.
+Preserve these fixes for low-resolution self-shadow patterns and bright face seams.
+Face-clamped filtering is not seamless cube filtering; do not claim otherwise.
+
+All three interactive examples passed headset verification and were stopped.
+Keep automated correctness, offscreen pass timing and visual acceptance distinct.
+See [pipeline](architecture.md#spotlight-shadow-pipeline),
+[spot API](lighting-api.md#spotlight-shadows),
+[directional API](lighting-api.md#directional-light-shadows),
+[point API](lighting-api.md#point-light-shadows), the
+[shared native regression](../tests/spot-shadow-regression.cpp), and recorded
+[spot](../tests/results/spotlight-shadows.md),
+[directional](../tests/results/directional-shadows.md) and
+[point](../tests/results/point-shadows.md) validation. The point profile predates
+the final receiver seam correction; it is not a new final-shader comparison.

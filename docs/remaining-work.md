@@ -10,9 +10,10 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 - Add Charlie-prefiltered environment sheen when a target experience needs sharp
   directional HDR fabric reflections. The current indirect sheen uses diffuse SH
   irradiance and directional albedo.
-- Add other advanced glTF material extensions, such as clearcoat and transmission,
-  when a target experience requires them. Define rendering/compositing and
-  performance limits before implementation.
+- Add glTF clearcoat support when a target experience requires layered finishes.
+  Cover import, direct/environment shading, sample models and performance limits.
+- Add transmission or other advanced glTF material extensions when needed. Define
+  rendering/compositing and performance limits before implementation.
 
 ## Scripted experiences
 
