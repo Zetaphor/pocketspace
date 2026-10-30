@@ -66,17 +66,24 @@ A scene owns assets, model instances, panels, animation playback, a physics worl
 input callback references, and container metadata. Model instances refer to
 shared assets; each animated instance owns its independent pose and playback.
 Removing an instance releases its instance resources but retains its shared asset
-until scene replacement or shutdown.
+until explicit unused-asset release, scene replacement or shutdown.
 
 Objects and panels have increasing IDs stored in sorted vectors. Binary lookup
 resolves IDs when needed. Callbacks can create, remove, restore, or dispose
 objects, so pointers into these vectors cannot survive mutations. Frame-local
 member lists and bounds are rebuilt after updates.
 
-[Containers](scene-containers.md) are flat cleanup scopes, not transform nodes.
-They own related objects/panels and optionally the input callback. Disposing one
+[Containers](scene-containers.md) form an acyclic cleanup hierarchy, not transform nodes.
+They own related objects/panels/lights, child containers and optionally the input callback. Disposing a subtree
 uses the same cleanup paths as individual removal, including held state, bodies,
-and attached joints, while retaining scene-shared assets.
+and attached joints, while retaining scene-shared assets. V11 snapshots preserve
+the hierarchy and direct resource ownership.
+
+`unloadModel` rejects any live instance user, then releases model payload and
+asset-keyed physics shape caches. Stable asset IDs use non-reused vector slots;
+unloaded slots are empty, not valid assets. The 32-asset limit counts loaded slots.
+Runtime instancing/diagnostic geometry caches reset before rendering after release;
+feature-keyed shader programs own no model pointers and can remain cached.
 
 Script modification triggers evaluation in a new QuickJS context and candidate
 scene. Successful evaluation replaces the active scene after detaching old

@@ -58,10 +58,15 @@ memory is unavailable it explicitly displays the allocation estimate instead.
 
 ## Scene ownership
 
-[Scene containers](scene-containers.md) group objects, panels and an optionally
-owned input callback for cleanup. Ownership is independent of render grouping.
+[Scene containers](scene-containers.md) group objects, panels, lights, child
+containers and an optionally owned input callback for recursive cleanup. Ownership
+is independent of render grouping and transforms. Use `createSceneContainer({parent})`
+and `setSceneContainerParent(id, parentId)` to build or reparent a hierarchy.
 
 Transfer object and panel ownership between cleanup scopes: [container-transfer.js](../scripts/container-transfer.js).
+For child ownership and unused model release, see
+[nested-containers.js](../scripts/nested-containers.js) and
+[asset-lifetime.js](../scripts/asset-lifetime.js).
 
 ## Coordinates and models
 
@@ -74,7 +79,8 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | Function | Behavior |
 | --- | --- |
 | `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 assets per scene. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048. Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 simultaneously loaded assets per scene; `unloadModel` releases unused assets. |
+| `unloadModel(assetId)` | Release a loaded model only when no live object uses it; released IDs remain invalid. See [asset lifetime](scene-containers.md#releasing-unused-model-assets) and [asset-lifetime.js](../scripts/asset-lifetime.js). |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -88,7 +94,7 @@ Invalid IDs and invalid arguments throw. During live scene updates, object
 creation reserves the native handles its surface needs and throws if SteamVR
 cannot allocate them; a failed reservation leaves no object behind. Removal of
 the last surface member releases its handles immediately so subsequent spawns
-can reuse the available capacity. Assets remain loaded until the scene
+can reuse the available capacity. Assets remain loaded until explicitly released with `unloadModel` or the scene
 is replaced. Instances share source materials/textures; object transforms and
 animation playback remain independent. Render resolution trades clarity for
 GPU time and memory. By default each object has its own surface. Opaque and
@@ -682,7 +688,7 @@ Combine model interaction and physics in a complete script: [physics-controls.js
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v10 schema (including v1–v9 compatibility), panels and pixels, animation
+v11 schema (including v1–v10 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

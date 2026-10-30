@@ -11,19 +11,20 @@ const panels=['world','headLocked','viewerFacing','arbitrary'].map((mode,n)=>{
   if(n===2){panelSetVisible(p,false);panelLoadFont(p,'/missing-font-is-not-needed-to-display-pixels.ttf',18);}
   p.present();return p;
 });
-const snapshot=captureSceneContainer(owner);check(snapshot.version===10&&snapshot.panels.length===4);
+const snapshot=captureSceneContainer(owner);check(snapshot.version===11&&snapshot.panels.length===4);
 check(snapshot.panels[0].pixels.encoding==='rgba8-rle-base64');check(snapshot.panels[1].pixels.encoding==='rgba8-base64');
 saveSceneContainer(owner,'panels');const copy=loadSceneContainer('panels');check(copy.panels.length===4&&copy.panelIds.length===4);
 const again=captureSceneContainer(copy.containerId);
 for(let n=0;n<4;n++){
   const a=snapshot.panels[n],b=again.panels[n];check(copy.panelMap[a.id]===b.id&&copy.panels[n].id===b.id);
-  for(const key of Object.keys(a))if(key!=='id')check(JSON.stringify(a[key])===JSON.stringify(b[key]),key);
+  check(b.container===copy.containerMap[a.container]);
+  for(const key of Object.keys(a))if(!['id','container'].includes(key))check(JSON.stringify(a[key])===JSON.stringify(b[key]),key);
 }
 copy.panels[1].canvas.rect(0,0,4,4,255,0,0,255,true);copy.panels[1].present();
 let clicks=0;
 onInputEvent(event=>{if(event.type==='panel.pointerDown'&&event.objectId===copy.panelIds[0]){clicks++;copy.panels[0].canvas.rect(0,0,5,5,0,255,0,255,true);copy.panels[0].present();}});
 function bad(edit){const s=JSON.parse(JSON.stringify(snapshot));edit(s);fails(()=>restoreSceneContainer(s));}
-bad(s=>s.version=11);bad(s=>s.version=3);bad(s=>delete s.panels);bad(s=>s.panels[1].id=s.panels[0].id);
+bad(s=>s.version=12);bad(s=>s.version=3);bad(s=>delete s.panels);bad(s=>s.panels[1].id=s.panels[0].id);
 bad(s=>s.panels[0].widthPixels=0);bad(s=>s.panels[0].heightPixels=4097);bad(s=>s.panels[0].widthMeters=0);
 bad(s=>s.panels[0].rotation=[1]);bad(s=>s.panels[0].position.x=null);bad(s=>s.panels[0].mode='invalid');
 bad(s=>{s.panels[0].widthMeters=1e-100;s.panels[0].heightMeters=5e-101;});bad(s=>s.panels[0].heightMeters=0);bad(s=>s.panels[0].fontPixels=-1);bad(s=>s.panels[0].visible=1);bad(s=>s.panels[0].pixels.encoding='other');

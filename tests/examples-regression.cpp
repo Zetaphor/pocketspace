@@ -47,6 +47,21 @@ int main() {
       toggleTool();
       if(getSceneContainerState(tool).objectIds.length!==4||!getSceneContainerState(tool).inputCallback)throw Error('tool recreation');
     )";
+    if(name=="nested-containers.js") controls=R"(
+      inputEventForExample('/input/b/click');const previousTool=tool,previousChild=module;
+      inputEventForExample('/input/b/click');
+      if(tool===previousTool||module===previousChild||getSceneContainerState(module).parentId!==tool)throw Error('nested restore');
+      inputEventForExample('/input/a/click');if(getSceneContainerState(module).parentId!==0)throw Error('nested detach');
+      inputEventForExample('/input/bumper/click');if(tool||getSceneContainerState(module).disposed)throw Error('detached child survived');
+      inputEventForExample('/input/bumper/click');
+    )";
+    if(name=="asset-lifetime.js") controls=R"(
+      inputEventForExample('/input/b/click');const oldAsset=asset;
+      inputEventForExample('/input/a/click');if(asset!==oldAsset)throw Error('live asset guard');
+      inputEventForExample('/input/bumper/click');inputEventForExample('/input/a/click');
+      if(asset)throw Error('asset unload');inputEventForExample('/input/b/click');
+      if(!tool||asset===oldAsset)throw Error('restore unloaded asset');
+    )";
     if(name=="directional-lights.js") controls=R"(
       inputEventForExample('/input/b/click');const previousSun=light;
       inputEventForExample('/input/b/click');

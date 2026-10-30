@@ -51,10 +51,15 @@ static std::string json(JSContext *ctx,JSValueConst value){
 #include "scene_panel_snapshot.h"
 static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
+  const auto owners=containerSubtree(*currentScene,owner);
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,10));
-  for(auto o:currentScene->objects)if(o.container==owner){
+  put(ctx,result,"version",JS_NewInt32(ctx,11));
+  put(ctx,result,"rootContainer",JS_NewInt32(ctx,owner));
+  Value hierarchy(ctx,JS_NewArray(ctx));uint32_t hierarchyIndex=0;
+  for(int id:owners){Value item(ctx,JS_NewObject(ctx));put(ctx,item,"id",JS_NewInt32(ctx,id));put(ctx,item,"parent",JS_NewInt32(ctx,id==owner?0:currentScene->containerParents.at(id)));putIndex(ctx,hierarchy,hierarchyIndex++,JS_DupValue(ctx,item));}
+  put(ctx,result,"containers",JS_DupValue(ctx,hierarchy));
+  for(auto o:currentScene->objects)if(owners.count(o.container)){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
     if(!modelIds.count(o.asset)){
@@ -67,7 +72,7 @@ static JSValue capture(JSContext *ctx,int owner){
     }
     for(auto [key,member]:transforms)require(std::isfinite(o.*member),"non-finite object transform");
     JSValue item=JS_NewObject(ctx);put(ctx,item,"id",JS_NewInt32(ctx,o.id));put(ctx,item,"model",JS_NewInt32(ctx,modelIds.at(o.asset)));
-    put(ctx,item,"renderGroup",JS_NewInt32(ctx,o.renderGroup));
+    put(ctx,item,"renderGroup",JS_NewInt32(ctx,o.renderGroup));put(ctx,item,"container",JS_NewInt32(ctx,o.container));
     for(auto [key,member]:transforms)put(ctx,item,key,JS_NewFloat64(ctx,o.*member));
     for(auto [key,member]:flags)put(ctx,item,key,JS_NewBool(ctx,o.*member));
     put(ctx,item,"grabButton",JS_NewString(ctx,o.grabButton==GrabButton::Both?"both":o.grabButton==GrabButton::Grip?"grip":"trigger"));
@@ -77,16 +82,16 @@ static JSValue capture(JSContext *ctx,int owner){
     putIndex(ctx,objects,index++,item);
   }
   uint32_t jointIndex=0;if(currentScene->physics)for(const auto &j:currentScene->physics->jointSnapshots()){
-    const auto *a=findObject(j.state.objectA),*b=findObject(j.state.objectB);const bool ownA=a&&a->container==owner,ownB=b&&b->container==owner;
+    const auto *a=findObject(j.state.objectA),*b=findObject(j.state.objectB);const bool ownA=a&&owners.count(a->container),ownB=b&&owners.count(b->container);
     require(ownA==ownB,"joint crosses scene container boundary; save both endpoints in one container");
     if(ownA)putIndex(ctx,joints,jointIndex++,jointValue(ctx,j));
   }
-  uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels)if(p.container==owner){require(panelIndex<maxPanels,"snapshot panel limit is 32");putIndex(ctx,panels,panelIndex++,panelValue(ctx,p,panelBytes));}
+  uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels)if(owners.count(p.container)){require(panelIndex<maxPanels,"snapshot panel limit is 32");Value item(ctx,panelValue(ctx,p,panelBytes));put(ctx,item,"container",JS_NewInt32(ctx,p.container));putIndex(ctx,panels,panelIndex++,JS_DupValue(ctx,item));}
   Value lights(ctx,JS_NewArray(ctx));uint32_t lightIndex=0;
   for(const auto &light:currentScene->lights){
     const auto *object=light.objectId?findObject(light.objectId):nullptr;
-    require(!object||((object->container==owner)==(light.container==owner)),"light attachment crosses scene container boundary");
-    if(light.container==owner)putIndex(ctx,lights,lightIndex++,pointLightValue(ctx,light));
+    require(!object||(bool(owners.count(object->container))==bool(owners.count(light.container))),"light attachment crosses scene container boundary");
+    if(owners.count(light.container))putIndex(ctx,lights,lightIndex++,pointLightValue(ctx,light));
   }
   put(ctx,result,"lights",JS_DupValue(ctx,lights));
   put(ctx,result,"panels",JS_DupValue(ctx,panels));
@@ -99,10 +104,28 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,10,true));
+  const int version=int(number(ctx,root,"version",1,11,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
-  require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
+  std::map<int,int> containerMap,newParents;int restoredRoot=scene.nextContainerId;
+  if(version>=11){
+    auto hierarchy=field(ctx,root,"containers");const auto count=length(ctx,hierarchy,256);require(count>0,"empty container hierarchy");
+    const int sourceRoot=int(number(ctx,root,"rootContainer",1,INT_MAX-1,true));
+    require(scene.containers.size()+count<=256&&scene.nextContainerId<=INT_MAX-int(count),"scene container limit reached");
+    std::map<int,int> sources;
+    for(uint32_t i=0;i<count;i++){Value item(ctx,JS_GetPropertyUint32(ctx,hierarchy,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));const int parent=int(number(ctx,item,"parent",0,INT_MAX-1,true));require(sources.emplace(source,parent).second,"duplicate container ID");containerMap[source]=scene.nextContainerId+int(i);}
+    require(sources.count(sourceRoot)&&sources.at(sourceRoot)==0,"invalid root container");restoredRoot=containerMap.at(sourceRoot);
+    for(auto [source,parent]:sources){
+      if(source!=sourceRoot)require(parent&&sources.count(parent),"unknown container parent");
+      std::set<int> visited;int cursor=source;while(cursor){require(visited.insert(cursor).second,"container cycle");auto found=sources.find(cursor);require(found!=sources.end(),"unknown ancestor");cursor=found->second;}
+      newParents[containerMap.at(source)]=parent?containerMap.at(parent):0;
+    }
+  }else{require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");newParents[scene.nextContainerId]=0;}
+  auto restoredOwner=[&](JSValueConst item){if(version<11)return restoredRoot;const int source=int(number(ctx,item,"container",1,INT_MAX-1,true));require(containerMap.count(source),"unknown resource container");return containerMap.at(source);};
+  // Allocate hierarchy nodes before native publication/reservation.
+  auto stagedContainers=scene.containers;auto stagedParents=scene.containerParents;
+  for(auto [id,parent]:newParents){stagedContainers.insert(id);stagedParents[id]=parent;}
+
   require(scene.objects.size()+no<=256&&scene.nextId<=INT_MAX-int(no),"object limit reached");
   std::vector<ModelAsset> pending;std::vector<int> assets;std::set<std::string> paths;
   for(uint32_t i=0;i<nm;i++){
@@ -121,7 +144,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
       require(a.pbr||a.lighting.environment.empty(),"environment requires PBR");
     }
     int id=0;for(size_t j=0;j<scene.assets.size();j++)if(scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod&&old.pbr==a.pbr&&(!a.pbr||old.lighting==a.lighting),"cached model options conflict");id=int(j)+1;break;}
-    if(!id){require(scene.assets.size()+pending.size()<32,"model asset limit reached");id=int(scene.assets.size()+pending.size())+1;pending.push_back(std::move(a));}assets.push_back(id);
+    if(!id){require(loadedAssetCount(scene)+pending.size()<32&&scene.assets.size()+pending.size()<size_t(INT_MAX-1),"model asset limit reached");id=int(scene.assets.size()+pending.size())+1;pending.push_back(std::move(a));}assets.push_back(id);
   }
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);
   for(const auto &[id,policy]:scene.renderGroupSplits)occupied.insert(id);
@@ -131,7 +154,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));Object o{};
     const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(sourceIds.insert(source).second,"duplicate source object id");
-    o.id=scene.nextId+int(i);o.container=scene.nextContainerId;objectIds[source]=o.id;
+    o.id=scene.nextId+int(i);o.container=restoredOwner(item);objectIds[source]=o.id;
     const int model=int(number(ctx,item,"model",0,double(nm)-1,true));o.asset=assets.at(model);
     const int group=int(number(ctx,item,"renderGroup",0,256,true));
     if(group&&!groups.count(group)){int free=1;while(free<=256&&occupied.count(free))free++;require(free<=256,"no free render groups");groups[group]=free;occupied.insert(free);}
@@ -158,7 +181,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   auto panelArray=field(ctx,root,"panels");const uint32_t np=version>=4?length(ctx,panelArray,maxPanels):0;
   if(version<4&&!JS_IsUndefined(panelArray))require(length(ctx,panelArray,maxPanels)==0,"panels require snapshot version 4");
   require(scene.nextPanelId<=INT_MAX-int(np),"panel ID limit reached");std::vector<Panel> restoredPanels;std::vector<int> panelSources;std::set<int> uniquePanels;size_t pixelBytes=0;
-  for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),scene.nextContainerId,pixelBytes));}
+  for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),restoredOwner(item),pixelBytes));}
   auto lightArray=field(ctx,root,"lights");const uint32_t nl=version>=8?length(ctx,lightArray,maxPointLights):0;
   if(version<8&&!JS_IsUndefined(lightArray))require(length(ctx,lightArray,maxPointLights)==0,"lights require snapshot version 8");
   require(scene.lights.size()+nl<=maxPointLights&&scene.nextLightId<=INT_MAX-int(nl),"point light limit reached");
@@ -166,7 +189,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(uint32_t i=0;i<nl;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,lightArray,i));PointLight light;
     const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniqueLights.insert(source).second,"duplicate light ID");lightSources.push_back(source);
-    light.id=scene.nextLightId+int(i);light.container=scene.nextContainerId;
+    light.id=scene.nextLightId+int(i);light.container=restoredOwner(item);
     light.intensity=float(number(ctx,item,"intensity",0,64));light.enabled=boolean(ctx,item,"enabled");
     auto type=field(ctx,item,"type");
     if(version>=9){const auto name=string(ctx,type);require(name=="point"||name=="spot"||(version>=10&&name=="directional"),"invalid light type");light.spot=name=="spot";light.directional=name=="directional";}
@@ -215,7 +238,11 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     putIndex(ctx,ids,i,JS_NewInt32(ctx,restored[i].id));put(ctx,mapping,source.c_str(),JS_NewInt32(ctx,restored[i].id));
   }
   for(auto [from,to]:groups)put(ctx,groupMap,std::to_string(from).c_str(),JS_NewInt32(ctx,to));
-  put(ctx,result,"containerId",JS_NewInt32(ctx,scene.nextContainerId));put(ctx,result,"objectIds",JS_DupValue(ctx,ids));put(ctx,result,"objectMap",JS_DupValue(ctx,mapping));put(ctx,result,"renderGroups",JS_DupValue(ctx,groupMap));
+  Value restoredContainers(ctx,JS_NewArray(ctx)),restoredContainerMap(ctx,JS_NewObject(ctx));uint32_t containerIndex=0;
+  for(auto [id,parent]:newParents)putIndex(ctx,restoredContainers,containerIndex++,JS_NewInt32(ctx,id));
+  for(auto [source,id]:containerMap)put(ctx,restoredContainerMap,std::to_string(source).c_str(),JS_NewInt32(ctx,id));
+  put(ctx,result,"containerIds",JS_DupValue(ctx,restoredContainers));put(ctx,result,"containerMap",JS_DupValue(ctx,restoredContainerMap));
+  put(ctx,result,"containerId",JS_NewInt32(ctx,restoredRoot));put(ctx,result,"objectIds",JS_DupValue(ctx,ids));put(ctx,result,"objectMap",JS_DupValue(ctx,mapping));put(ctx,result,"renderGroups",JS_DupValue(ctx,groupMap));
   for(uint32_t i=0;i<nj;i++){putIndex(ctx,jointIds,i,JS_NewInt32(ctx,firstJoint+int(i)));put(ctx,jointMap,std::to_string(jointBatch[i].state.id).c_str(),JS_NewInt32(ctx,firstJoint+int(i)));}
   put(ctx,result,"jointIds",JS_DupValue(ctx,jointIds));put(ctx,result,"jointMap",JS_DupValue(ctx,jointMap));
   for(uint32_t i=0;i<np;i++){const int id=restoredPanels[i].id;putIndex(ctx,panelIds,i,JS_NewInt32(ctx,id));put(ctx,panelMap,std::to_string(panelSources[i]).c_str(),JS_NewInt32(ctx,id));putIndex(ctx,panelHandles,i,panelHandle(ctx,id));}
@@ -234,7 +261,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     auto *world=scene.physics.get();if(!world){newWorld=std::make_unique<physics::World>();world=newWorld.get();}
     world->appendSnapshot(bodies,jointBatch);
   }
-  scene.containers.insert(scene.nextContainerId);scene.nextContainerId++;
+  scene.containers.swap(stagedContainers);scene.containerParents.swap(stagedParents);scene.nextContainerId+=int(newParents.size());
   for(auto &a:pending)scene.assets.push_back(std::move(a));for(auto &o:restored)scene.objects.push_back(std::move(o));
   for(auto &p:restoredPanels)scene.panels.push_back(std::move(p));scene.nextPanelId+=int(np);
   for(const auto &light:restoredLights)scene.lights.push_back(light);scene.nextLightId+=int(nl);

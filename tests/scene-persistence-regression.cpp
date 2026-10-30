@@ -20,13 +20,14 @@ int main(){
     function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
     check(copy.objectIds.length===2&&copy.objectMap[o]===copy.objectIds[0]&&copy.renderGroups[4]!==4&&copy.renderGroups[4]!==1);
     const again=captureSceneContainer(copy.containerId);check(again.models[0].lod===false&&again.models[0].optimizeVertexCache===true);
-    for(const key of Object.keys(snap.objects[0]))if(!['id','renderGroup'].includes(key))check(JSON.stringify(snap.objects[0][key])===JSON.stringify(again.objects[0][key]));
+    for(const key of Object.keys(snap.objects[0]))if(!['id','renderGroup','container'].includes(key))check(JSON.stringify(snap.objects[0][key])===JSON.stringify(again.objects[0][key]));
+    check(again.objects[0].container===copy.containerId&&copy.containerMap[owner]===copy.containerId);
     check(again.objects[1].visible===false);disposeSceneContainer(copy.containerId);
     function bad(edit){const s=JSON.parse(JSON.stringify(snap));edit(s);fails(()=>restoreSceneContainer(s));}
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(16*1024*1024));
-    bad(s=>s.version=11);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.version=12);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));

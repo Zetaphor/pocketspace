@@ -18,10 +18,11 @@ through the normal joint cleanup path. Explicit removal does not emit a joint
 break event. Each scene owns an independent physics world, discarded on
 successful reload. Removing a panel defers resource release until its native
 overlay has detached. Scene assets live until scene
-replacement or shutdown, even if their last object is removed.
+replacement or shutdown, even if their last object is removed, unless explicitly
+released with `unloadModel` after all users are gone.
 
 [Scene containers](scene-containers.md) provide explicit cleanup scopes inside
-a scene. Disposal reuses individual object/panel cleanup, including attached
+a scene, with optional parent/child ownership. Recursive disposal reuses individual object/panel cleanup, including attached
 physics and optionally owned input callbacks, while retaining shared assets.
 Callback ownership is isolated with the candidate scene during reload.
 

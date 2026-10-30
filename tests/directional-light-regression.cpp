@@ -65,7 +65,7 @@ int main(int argc,char **argv){
    const detached=getDirectionalLight(sun);detached.direction[0]=33;check(JSON.stringify(getDirectionalLight(sun))===initial);
    const outside=createObject(asset,0,0,0,.1),outgoing=createDirectionalLight({container:owner,objectId:outside});fails(()=>captureSceneContainer(owner));removeDirectionalLight(outgoing);removeObject(outside);
    const incoming=createDirectionalLight({objectId:object});fails(()=>captureSceneContainer(owner));removeDirectionalLight(incoming);
-   const snapshot=captureSceneContainer(owner);check(snapshot.version===10&&snapshot.lights.length===3);
+   const snapshot=captureSceneContainer(owner);check(snapshot.version===11&&snapshot.lights.length===3);
    saveSceneContainer(owner,'directional');const disk=loadSceneContainer('directional');check(getDirectionalLight(disk.lightMap[sun]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const beforeInvalid=createDirectionalLight();removeDirectionalLight(beforeInvalid);
    for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=9]){
