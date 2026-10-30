@@ -6,10 +6,16 @@
 #ifdef SF_LIGHT_WORK_EXPERIMENT
 #include "../tests/light-work-reference.h"
 #endif
+#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
+#include "../tests/directional-light-reference.h"
+#endif
 // A separate program keeps legacy shaders, storage and their fast paths intact.
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
+#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
+ bool originalLightLoop=false;
+#endif
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
  bool minimalDepth=false;
 #endif
@@ -24,6 +30,9 @@ class PbrProgram {
  void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
+#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
+ bool initLightReference(bool depth=false){originalLightLoop=true;return init(depth);}
+#endif
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
  bool initMinimalDepth(){minimalDepth=true;return init(true);}
 #endif
@@ -141,10 +150,11 @@ void main(){
    if(i>=pointLightCount)break;
    vec3 delta=pointPositionRange[i].xyz-litPosition;
    float distance2=dot(delta,delta),range=pointPositionRange[i].w;
-   if(distance2>=range*range)continue;
-   vec3 pl=safeUnit(delta,n),ph=safeUnit(pl+v,n);
+   bool directional=range<0.;
+   if(!directional&&distance2>=range*range)continue;
+   vec3 pl=directional?-spotDirectionOuter[i].xyz:safeUnit(delta,n),ph=safeUnit(pl+v,n);
    float cone=1.;
-   if(spotDirectionOuter[i].w>=-1.){
+   if(!directional&&spotDirectionOuter[i].w>=-1.){
     float cosine=dot(-pl,spotDirectionOuter[i].xyz),outer=spotDirectionOuter[i].w,inner=spotInner[i];
     if(cosine<outer)continue;
     cone=inner>outer?clamp((cosine-outer)/(inner-outer),0.,1.):step(outer,cosine);
@@ -154,8 +164,11 @@ void main(){
    float pd=pnh*pnh*(a2-1.)+1.,distributionP=a2/(PI*pd*pd);
    float visibilityP=.5/max(pnl*sqrt(nv*nv*(1.-a2)+a2)+nv*sqrt(pnl*pnl*(1.-a2)+a2),1e-6);
    vec3 pf=f0+(1.-f0)*pow(1.-pvh,5.);
-   float window=max(1.-pow(distance2/(range*range),2.),0.);
-   float attenuation=cone*window*window/max(distance2,.0001);
+   float attenuation=1.;
+   if(!directional){
+    float window=max(1.-pow(distance2/(range*range),2.),0.);
+    attenuation=cone*window*window/max(distance2,.0001);
+   }
    result+=((1.-pf)*(1.-metal)*base.rgb/PI+distributionP*visibilityP*pf)*pointColorIntensity[i].rgb*pointColorIntensity[i].w*pnl*attenuation;
   }
   if(environmentEnabled){
@@ -173,6 +186,9 @@ void main(){
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
   std::string fragmentSource=fragment;
+#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
+  if(originalLightLoop){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,directionalLightReferenceLoop);}
+#endif
   if(variantKey>=0){
    const std::string flags="uniform bool hasNormal,hasMetalRough,hasOcclusion,hasEmissive,materialUnlit,doubleSided;";
    const char *names[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive","materialUnlit","doubleSided"};
@@ -244,7 +260,7 @@ void main(){
  void lights(std::span<const ResolvedPointLight> lights,float x=0,float y=0,float z=0)const{
   std::array<float,104> payload{};int count=0;
   for(const auto &light:lights){if(count==8)break;const int i=count++*4;
-   payload[i]=light.position[0]-x;payload[i+1]=light.position[1]-y;payload[i+2]=-(light.position[2]-z);payload[i+3]=light.range;
+   payload[i]=light.range<0?0:light.position[0]-x;payload[i+1]=light.range<0?0:light.position[1]-y;payload[i+2]=light.range<0?0:-(light.position[2]-z);payload[i+3]=light.range;
    for(int c=0;c<3;c++)payload[32+i+c]=light.color[c];payload[32+i+3]=light.intensity;
    payload[64+i]=light.direction[0];payload[64+i+1]=light.direction[1];payload[64+i+2]=-light.direction[2];payload[64+i+3]=light.outerCos;payload[96+i/4]=light.innerCos;
   }

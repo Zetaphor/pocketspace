@@ -63,7 +63,8 @@ Keep a tool-owned callback safe across closing and reopening: [containers.js](..
 
 `createPointLight({container: id})` and `setPointLight(light, {container: id})`
 assign or transfer light ownership. `createSpotLight` and `setSpotLight` use the
-same `container` option. Closing a container removes both types of lights.
+same `container` option. Scene directional lights also accept this ownership option. Closing a container
+removes all three light types.
 Object attachments do not imply container ownership: removing the attached object
 also removes the light, but transferring an object does not transfer its lights.
 See [dynamic point lights](lighting-api.md#dynamic-point-lights) for offset and

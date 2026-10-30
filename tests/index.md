@@ -294,6 +294,13 @@ the bounded non-interactive
   range selection, stereo/material pixels and optional matched ABBA GPU timing
   for broad/local point, spot and mixed lights; retains the rejected shader-work
   comparison in a diagnostic mode. See [light-work results](results/light-work.md).
+- [directional-light-regression.cpp](directional-light-regression.cpp): scene-wide
+  directional illumination, ray normalization, rotation-only attachment behavior,
+  no-distance filtering, legacy point/spot pixel reference, mixed/prepared PBR,
+  typed API rollback, shared capacity, cleanup and v10/v9 persistence.
+  `--profile` records old/new point/spot and directional GPU costs;
+  `--profile --reverse` reverses shader order. See
+  [measurements and acceptance](results/directional-lights.md).
 - [spotlight-regression.cpp](spotlight-regression.cpp): real stereo cone pixels,
   hard edges, direction/attachment rotation, point-light equivalence, unlit/depth
   invariance, type-safe APIs, mixed capacity, getter rollback and v9/v8 persistence.

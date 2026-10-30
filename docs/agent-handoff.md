@@ -530,6 +530,21 @@ preserving the caller's current program. Restore texture/attribute/program state
 through the existing release path. Keep diagnostic `SF_PBR_DEPTH` overrides out
 of production. See [validation](../tests/results/pbr-depth.md).
 
+## Scene directional lights
+
+Scene directionals share point/spot IDs, ownership and the eight-entry bound.
+Direction is ray travel in the same local/scene axes as spotlights, normalized
+once per frame. Attached object rotation affects it; translation, scale and
+visibility do not. Preserve type-safe CRUD and validate getter side effects
+before publication. The internal resolved range sentinel is -1; it bypasses
+CPU range/cone rejection and shader distance/cone attenuation. Keep point/spot
+ranges positive and their existing math intact. Prepared-color count keys include
+all contributing light types; no shader compilation occurs while drawing.
+V10 adds directional snapshots and rejects position/range/cone fields for that
+type, with complete staged validation and attachment remapping. V1–v9 remain
+readable under their existing contracts. See [API](lighting-api.md#scene-directional-lights)
+and [regression](../tests/directional-light-regression.cpp).
+
 ## Dynamic point lights
 
 Scene lights are sorted, monotonically issued logical IDs, not vector pointers

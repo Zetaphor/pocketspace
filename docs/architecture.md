@@ -271,7 +271,7 @@ for the cube/LUT during PBR draws and cleared before subsequent draws. GPU
 estimates count each referenced environment once, with RGB16F padding allowance.
 [Native correctness, incremental cost and headset visual acceptance](../tests/results/environment-lighting.md)
 are recorded as separate validation evidence.
-Scene point lights and spotlights are logical CPU records (up to eight combined), with independent IDs
+Scene point lights, spotlights and directional lights are logical CPU records (up to eight combined), with independent IDs
 and container ownership. The renderer resolves object-local meter offsets after
 interaction/physics into one frame snapshot, shared by all eyes and surfaces.
 A reusable frame-local array builds an ordered light subset for each visible
@@ -295,8 +295,13 @@ excluded. Unlit materials and external-depth draws bypass the lighting work.
 Spotlights additionally rotate/normalize emitted direction with attachments and
 multiply direct illumination by a squared cone fade, with an explicit hard-edge
 case for equal cone angles. Uniform payloads include direction and cone cosines;
-point lights bypass the cone branch. Lights cast no shadows. V9 snapshots store
-light types and cone data; v8 retains point lights. Snapshots stage owned lights, remap attachments and
+point lights bypass the cone branch. Directional lights use normalized ray travel
+direction, unit attenuation and the same GGX BRDF; translation/range/cones do not
+affect them. They always survive per-object range/cone filtering. The existing
+uniform payload uses an internal negative-range sentinel, keeping the eight-light
+layout and prepared-program keys unchanged. Lights cast no shadows. V10 snapshots
+add directional records; v9 stores point/spot types and cones, and v8 retains points.
+Snapshots stage owned lights, remap attachments and
 publish fresh IDs; cross-container capture attachments are rejected. Removal,
 container disposal and reload share normal scene cleanup. See the
 [point-light API](lighting-api.md#dynamic-point-lights) and
@@ -304,6 +309,8 @@ container disposal and reload share normal scene cleanup. See the
 [bounded Frame comparison](../tests/results/point-lights.md).
 Spotlight correctness and matched point/spot timings are recorded in the
 [spotlight comparison](../tests/results/spotlights.md).
+[Scene directional correctness, shader costs and headset acceptance](../tests/results/directional-lights.md)
+are recorded separately.
 
 Static PBR supports full-input indexing with `optimizeVertexCache: true` (default
 false). Every 14-float shader-input tuple participates in identity, preserving

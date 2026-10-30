@@ -1161,6 +1161,10 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"setModelLighting",jsSetModelLighting,2);
+  bind(candidate.ctx,"createDirectionalLight",jsCreateDirectionalLight,1);
+  bind(candidate.ctx,"setDirectionalLight",jsSetDirectionalLight,2);
+  bind(candidate.ctx,"getDirectionalLight",jsGetDirectionalLight,1);
+  bind(candidate.ctx,"removeDirectionalLight",jsRemoveDirectionalLight,1);
   bind(candidate.ctx,"createPointLight",jsCreatePointLight,1);
   bind(candidate.ctx,"createSpotLight",jsCreateSpotLight,1);
   bind(candidate.ctx,"setSpotLight",jsSetSpotLight,2);

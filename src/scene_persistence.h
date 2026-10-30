@@ -53,7 +53,7 @@ static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,9));
+  put(ctx,result,"version",JS_NewInt32(ctx,10));
   for(auto o:currentScene->objects)if(o.container==owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
@@ -99,7 +99,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,9,true));
+  const int version=int(number(ctx,root,"version",1,10,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");
@@ -167,17 +167,22 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     Value item(ctx,JS_GetPropertyUint32(ctx,lightArray,i));PointLight light;
     const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniqueLights.insert(source).second,"duplicate light ID");lightSources.push_back(source);
     light.id=scene.nextLightId+int(i);light.container=scene.nextContainerId;
-    light.intensity=float(number(ctx,item,"intensity",0,64));light.range=float(number(ctx,item,"range",.001,64));light.enabled=boolean(ctx,item,"enabled");
+    light.intensity=float(number(ctx,item,"intensity",0,64));light.enabled=boolean(ctx,item,"enabled");
+    auto type=field(ctx,item,"type");
+    if(version>=9){const auto name=string(ctx,type);require(name=="point"||name=="spot"||(version>=10&&name=="directional"),"invalid light type");light.spot=name=="spot";light.directional=name=="directional";}
+    else require(JS_IsUndefined(type)||string(ctx,type)=="point","spotlights require snapshot version 9");
+    if(!light.directional)light.range=float(number(ctx,item,"range",.001,64));
+    else for(const char *name:{"position","range","innerConeAngle","outerConeAngle"}){auto unused=field(ctx,item,name);require(JS_IsUndefined(unused),"unsupported directional light field");}
     for(auto [name,destination,low,high]:{std::tuple{"position",&light.position,-10000.f,10000.f},std::tuple{"color",&light.color,0.f,64.f}}){
+      if(light.directional&&std::string(name)=="position")continue;
       auto array=field(ctx,item,name);require(length(ctx,array,3)==3,"light vector must contain three numbers");
       for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=low&&n<=high,"invalid light vector");(*destination)[c]=float(n);}
     }
-    auto type=field(ctx,item,"type");
-    if(version>=9){const auto name=string(ctx,type);require(name=="point"||name=="spot","invalid light type");light.spot=name=="spot";}
-    else require(JS_IsUndefined(type)||string(ctx,type)=="point","spotlights require snapshot version 9");
     if(light.spot){
       light.innerConeAngle=float(number(ctx,item,"innerConeAngle",0,float(std::acos(-1)/2)));light.outerConeAngle=float(number(ctx,item,"outerConeAngle",.001f,float(std::acos(-1)/2)));
       require(light.innerConeAngle<=light.outerConeAngle,"invalid spotlight cone angles");
+    }
+    if(light.spot||light.directional){
       auto direction=field(ctx,item,"direction");require(length(ctx,direction,3)==3,"spotlight direction must contain three numbers");double magnitude=0;
       for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,direction,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=-64&&n<=64,"invalid spotlight direction");light.direction[c]=float(n);magnitude+=n*n;}
       require(magnitude>=1e-12,"spotlight direction must be nonzero");
