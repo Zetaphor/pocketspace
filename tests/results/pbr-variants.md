@@ -36,7 +36,7 @@ Each normal comparison asserts no fallback, so specialized paths are exercised.
 Separate checks fill the 16-slot cache, exercise overflow, remember injected
 compile rejection, compare fallback pixels exactly, clear the cache and verify
 program deletion. These are native GLES checks, not user visual acceptance.
-No interactive acceptance is claimed for the prototype.
+The prototype subsequently passed interactive acceptance; see below.
 
 ## Offscreen matched measurements
 
@@ -123,7 +123,7 @@ Keep this as a promising **test-only prototype**. Before production integration:
 prepare a bounded useful variant set outside steady-state rendering; use general
 PBR for unknown/failed keys; validate cold-start/reload/restore and program
 cleanup; establish a routing policy that protects lighter workloads; repeat
-matched native comparisons and obtain separate mixed-scene headset acceptance.
+matched native comparisons and revalidate the production integration in the headset.
 Do not enable the experiment by default or describe it as shipped API behavior.
 
 ## Verification
@@ -135,3 +135,23 @@ grouped charges after shutdown. The normal `pocketspace` target builds, and the
 shared GLES occlusion regression passes stereo/alpha/scissor, indexed geometry
 and cleanup. Python compilation, documentation lint/site build and whitespace
 checks pass. All profiling/regression processes exited; no demo remains running.
+
+
+## Prototype headset acceptance
+
+On 2026-10-29 the user confirmed “Everything looks correct” in
+[the interactive variant scene](../scenes/pbr-variants.js), running through
+`gpu-sync-experiment` with specialization enabled. Instructions covered grip/
+trigger grabs and rotation, approach/distance and head movement, normal maps,
+alpha cutouts and overlaps against blue, eight/four/zero lights, HDR toggles,
+and pose reset. This is user-confirmed visual acceptance of the prototype,
+separate from automated correctness and measured throughput.
+
+The scene reached the 16-program cap and exercised general-program fallback:
+16 retained programs, 533,744 reported binary bytes, 173.13 ms total first-use
+compile time and 138,712 fallback draws. These totals describe the whole session,
+not individual-frame latency or total driver memory. They reinforce the need
+for bounded prewarming and a deliberate routing policy before adoption.
+The process completed 11,234 frames, released grouped charges to zero, and was
+stopped immediately after verification; its exit was independently confirmed.
+Raw log: Frame `/tmp/pbr-variants-demo.log`.

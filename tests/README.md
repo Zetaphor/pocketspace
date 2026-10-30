@@ -1471,3 +1471,20 @@ cleared. Only this excluded engine reads `SF_GPU_PBR_VARIANTS=0/1`. No interacti
 is enabled, and every run terminates automatically. First-use compilation can
 still occur as moving objects acquire previously unseen filtered-light counts;
 the totals do not prove that compilation is absent from measurement windows.
+
+### Interactive PBR variant validation
+
+Run `tests/scenes/pbr-variants.js` with the excluded `gpu-sync-experiment` and
+`SF_GPU_PBR_VARIANTS=1` after the automated variant checks pass. It shows a car,
+normal-map fixture and alpha-mode model on independent surfaces against blue,
+with four grabbable handles carrying eight point/spot lights. Grip/trigger moves
+models or handles; A/X cycles eight/four/zero lights; B/Y toggles the HDR
+environment; bumper resets poses (release held objects first).
+
+Check head movement, approach/distance and LOD, rotation, overlaps, cutout holes,
+reflections, and stable rendering after light-count/environment changes. Lighting
+changes intentionally between settings. Look for stale state, flicker, missing
+parts or incorrectly filled cutouts. First-use compilation is still synchronous
+in this prototype and is not validated as a production latency policy. The
+16-slot cache can fall back to general PBR while switching states. Stop the demo
+immediately after user verification and confirm its process exited.
