@@ -448,3 +448,13 @@ storage mismatches and the next depth-only shader investigation.
   `DISPLAY=:0 EGL_PLATFORM=x11` and the native SteamVR library path.
 - [Validation results](results/containers-assets.md): automated resource and
   rollback checks plus user-confirmed nested-container and unload/restore tests.
+
+## Fabric sheen
+
+[sheen-regression.cpp](sheen-regression.cpp) checks Charlie BRDF energy and
+reciprocity, factor/texture color-space and alpha-channel equivalence, unsupported
+UV rejection, stereo rendering, unlit invariance, environment lighting, prepared
+shader equivalence, Khronos Compare Sheen import and shared lookup cleanup.
+Build `sheen-regression` explicitly and run from the repository root with the
+native GLES environment. No overlays or pointer input are used.
+See the [correctness and bounded profile report](results/sheen.md).

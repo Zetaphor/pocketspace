@@ -405,7 +405,7 @@ instancing. Double-sided materials retain both faces. Sidedness controls renderi
 picking and physics continue using the complete mesh. [Animation](animation-api.md) covers skinning, morph targets and clip limits.
 
 Opt-in `pbr: true` adds [physical model lighting](lighting-api.md), material maps,
-normals and tangents. Legacy rendering remains the default. PBR currently uses
+normals, tangents and [fabric sheen](lighting-api.md#fabric-sheen). Legacy rendering remains the default. PBR currently uses
 full expanded meshes and CPU animation instead of the unlit geometry fast paths.
 
 ### Ordered GPU instancing

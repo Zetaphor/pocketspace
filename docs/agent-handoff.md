@@ -625,3 +625,15 @@ caches and drop CPU/environment ownership. Reset instance/diagnostic geometry
 caches before subsequent rendering. Prepared programs own no asset pointers.
 Avoid re-uploading empty slots or resurrecting stale IDs. Snapshots reload paths,
 not handles. See [lifetime regression](../tests/asset-lifetime-regression.cpp).
+
+## Fabric sheen ownership
+
+PBR sheen maps occupy material slots 4/5 and texture units 8/9. Color storage is
+sRGB; roughness uses linear alpha. The shared `SheenLookup` is owned by loaded
+assets through `shared_ptr`, weakly cached, and uploaded during model upload.
+Its unit-10 binding is cleared by PBR release. Unload and transactional reload
+must preserve last-owner deletion and the single-count GPU estimate. Keep
+Charlie BRDF evaluation and CPU albedo integration in agreement. The current
+indirect sheen path is a diffuse-SH approximation, not a sheen-prefiltered cube.
+See [architecture](architecture.md#fabric-sheen-pipeline) and
+[material API](lighting-api.md#fabric-sheen).

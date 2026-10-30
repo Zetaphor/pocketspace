@@ -2883,6 +2883,8 @@ int main(int argc,char **argv) {
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
       std::set<const LightingEnvironment*> countedEnvironments;
       for(const auto &asset:script.scene.assets)if(asset.environment&&countedEnvironments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
+      std::set<const SheenLookup*> countedSheen;
+      for(const auto &asset:script.scene.assets)if(asset.sheenLookup&&asset.sheenLookup->texture&&countedSheen.insert(asset.sheenLookup.get()).second)bytes+=SheenLookup::size*SheenLookup::size*4;
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE

@@ -49,6 +49,9 @@ image = view(png)
 normal_png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0))
               + chunk(b'IDAT', zlib.compress(b'\0\x80\xc0\xee\xff')) + chunk(b'IEND', b''))
 strong_image = view(normal_png)
+sheen_png = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 6, 0, 0, 0))
+             + chunk(b'IDAT', zlib.compress(b'\0\x80\x40\xc0\x80')) + chunk(b'IEND', b''))
+sheen_image = view(sheen_png)
 primitive = {'attributes': {'POSITION': position, 'NORMAL': normal, 'TANGENT': tangent,
                              'TEXCOORD_0': uv}, 'material': 0,
              'targets': [{'POSITION': dp, 'NORMAL': dn, 'TANGENT': dt}]}
@@ -102,3 +105,21 @@ save('GeneratedTangents.glb', generated)
 supplied = copy.deepcopy(generated)
 supplied['meshes'][0]['primitives'][0]['attributes']['TANGENT'] = gltf_tangent
 save('SuppliedTangents.glb', supplied)
+
+# Constant maps distinguish linear factors from sRGB sheen color and alpha data.
+sheen = copy.deepcopy(supplied)
+sheen['materials'][0].pop('normalTexture')
+sheen['materials'][0]['pbrMetallicRoughness']['baseColorFactor'] = [.08, .08, .08, 1]
+sheen['materials'][0]['extensions'] = {'KHR_materials_sheen': {
+    'sheenColorFactor': [.6, .3, .15], 'sheenRoughnessFactor': .4}}
+sheen['extensionsUsed'] = ['KHR_materials_sheen']
+save('SheenFactors.glb', sheen)
+textured_sheen = copy.deepcopy(sheen)
+textured_sheen['images'].append({'bufferView': sheen_image, 'mimeType': 'image/png'})
+textured_sheen['textures'].append({'source': 2})
+textured_sheen['materials'][0]['extensions']['KHR_materials_sheen'].update(
+    sheenColorTexture={'index': 2}, sheenRoughnessTexture={'index': 2})
+save('SheenTextures.glb', textured_sheen)
+invalid_sheen = copy.deepcopy(textured_sheen)
+invalid_sheen['materials'][0]['extensions']['KHR_materials_sheen']['sheenColorTexture']['texCoord'] = 1
+save('SheenUnsupportedUV.glb', invalid_sheen)

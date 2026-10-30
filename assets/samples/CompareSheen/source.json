@@ -1,0 +1,21 @@
+{
+  "repository": "https://github.com/KhronosGroup/glTF-Sample-Assets",
+  "revision": "8f492390ddc7a2ae221a1369ef560589cf8c70fb",
+  "files": [
+    {
+      "path": "assets/samples/CompareSheen/CompareSheen.glb",
+      "bytes": 883968,
+      "sha256": "70b6ab5ba8006aa71079b567783a81cfe778a11cca8abc44c45e5e0b1f4252cc"
+    },
+    {
+      "path": "assets/samples/CompareSheen/LICENSE.md",
+      "bytes": 857,
+      "sha256": "f4aa1496c4bea16fbfd53767b629ad5d436cbe2626871d26c4c7e45d0993eefb"
+    },
+    {
+      "path": "assets/samples/CompareSheen/README.upstream.md",
+      "bytes": 1382,
+      "sha256": "f092565824996bd661e4711502cc1131a5961335a658ab7987a17f1fad27c45f"
+    }
+  ]
+}
