@@ -7,7 +7,17 @@ if (globalThis.motionAdaptive !== false)
   setRenderGroupAutoSplit(1, {maxSurfaces: 8, targetEyePixels: 1024, merge: true, rebalance: true});
 const assets = (globalThis.motionModels ?
   (globalThis.motionSimpleModels ? ['assets/Avocado.glb', 'assets/Avocado.glb'] : ['assets/samples/ToyCar/ToyCar.glb', globalThis.motionCarsOnly ? 'assets/samples/ToyCar/ToyCar.glb' : 'assets/Avocado.glb']) :
-  ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb']).map(path => loadModel(path, 768, {lod: globalThis.motionLOD !== false, optimizeVertexCache: !!globalThis.motionCache, gpuInstancing: !!globalThis.motionInstancing}));
+  ['assets/physics/BlueBox.glb', 'assets/physics/YellowBox.glb']).map(path => loadModel(path, 768, {pbr: !!globalThis.motionPbr, lod: globalThis.motionLOD !== false, optimizeVertexCache: !!globalThis.motionCache, gpuInstancing: !!globalThis.motionInstancing}));
+// Fixed mixed lights isolate shading cost while identical models keep moving.
+if (globalThis.motionPbr) {
+  for (const asset of assets) setModelLighting(asset, {intensity: .3, ambient: .04});
+  for (let n = 0; n < (globalThis.motionLights || 0); n++) {
+    const options = {position: [(n % 4 - 1.5) * .4, n < 4 ? .3 : -.3, -.6],
+      color: [1, .8, .6], intensity: .15, range: 2};
+    if (n % 2) createSpotLight({...options, direction: [0, 0, 1], innerConeAngle: .3, outerConeAngle: .6});
+    else createPointLight(options);
+  }
+}
 const bodies = [];
 for (let n = 0; n < count; n++) {
   const angle = n * 2 * Math.PI / count;

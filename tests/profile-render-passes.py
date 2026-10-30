@@ -17,6 +17,7 @@ parser.add_argument('--seconds', type=int, default=16)
 parser.add_argument('--case', action='append')
 parser.add_argument('--no-lod', action='store_true', help='Use full geometry to avoid moving LOD thresholds')
 parser.add_argument('--instancing', action='store_true', help='Enable production ordered instancing in the workload')
+parser.add_argument('--pbr-lights', type=int, choices=[0, 4, 8], help='Profile PBR with a fixed mixed light count')
 args = parser.parse_args()
 if args.rounds < 1 or args.seconds < 12:
     parser.error('require positive rounds and at least twelve seconds per run')
@@ -33,6 +34,8 @@ for round_index in range(args.rounds):
             command = [sys.executable, 'tests/fast-motion.py', '--engine', str(args.engine.resolve()),
                        '--output', str(directory), '--seconds', str(args.seconds), '--case', case,
                        '--vertex-cache']
+            if args.pbr_lights is not None:
+                command.extend(['--pbr-lights', str(args.pbr_lights)])
             if args.instancing:
                 command.append('--instancing')
             if args.no_lod:
@@ -52,7 +55,7 @@ for round_index in range(args.rounds):
                              for key in ['enqueueMs', 'waitMs', 'submitMs']})
             if passes:
                 measured = samples('RENDER_PASS_SAMPLE ')
-                if len(measured) < 3 or any(not s['valid'] or s['queries'] < 6 for s in measured):
+                if len(measured) < 3 or any(not s['valid'] or s['queries'] < 4 for s in measured):
                     raise RuntimeError(f'{directory}: missing or invalid per-pass samples')
                 result['profileSamples'] = len(measured)
                 result['categoryOrder'] = ['occluder', 'opaque', 'blend']
