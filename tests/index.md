@@ -486,3 +486,15 @@ See the [correctness, performance and headset report](results/spotlight-shadows.
   shadow coverage, caster/light movement, controls and snapshot replacement.
 
 See the [directional shadow validation report](results/directional-shadows.md).
+
+## Point shadows
+
+- [point-shadow-api-smoke.js](point-shadow-api-smoke.js): strict per-face limits,
+  shared capacity, transactional getters, v14 snapshots and legacy restore.
+- [spot-shadow-regression.cpp](spot-shadow-regression.cpp): `--point` exercises
+  six-view matrices, atlas storage, stereo, alpha, animation, work/time limits
+  and cleanup. `--point-benchmark` adds a bounded one-car offscreen comparison.
+- [point-shadows.js](../scripts/point-shadows.js): interactive lamp, caster,
+  resolution/enable controls and snapshot restore.
+
+See the [point-shadow validation report](results/point-shadows.md).

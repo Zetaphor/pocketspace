@@ -12,6 +12,7 @@ Run any example with `./run-pocketspace.sh scripts/<name>.js`.
 | [asset-lifetime.js](../scripts/asset-lifetime.js) | Explicit unused-model release, fresh asset IDs and restoring a saved subtree after unload |
 | [directional-lights.js](../scripts/directional-lights.js) | Scene-wide directional lights, rotating attachment, color/toggle controls and snapshot restore |
 | [directional-shadows.js](../scripts/directional-shadows.js) | Bounded sunlight shadows, rotating handle, resolution/enable controls and snapshot restore |
+| [point-shadows.js](../scripts/point-shadows.js) | Omnidirectional lamp shadows, per-face resolution, diagnostics and save/restore |
 | [shadows.js](../scripts/shadows.js) | Moving spotlight shadows, resolution/enable controls, budget diagnostics and snapshot restore |
 | [spotlights.js](../scripts/spotlights.js) | Grabbable flashlight with rotating direction, adjustable cone, toggling and snapshot restore |
 | [lights.js](../scripts/lights.js) | Colored point lights attached to grabbable objects, toggling and snapshot restore |

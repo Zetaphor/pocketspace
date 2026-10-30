@@ -531,9 +531,10 @@ See [lod.js](../scripts/lod.js) for a detailed grabbable-model example and
 Load receivers with `{pbr: true}` to use scene-wide lighting. Lights add to each
 asset's `setModelLighting` settings; they do not affect unlit models, panels or
 lasers. All three types share eight live slots, including disabled lights.
-One spotlight or directional light can opt into shadows through a shared slot;
+One point, spotlight or directional light can opt into shadows through a shared slot;
 see [spotlight shadows](lighting-api.md#spotlight-shadows),
 [directional coverage](lighting-api.md#directional-light-shadows),
+[point shadows](lighting-api.md#point-light-shadows),
 [shadows.js](../scripts/shadows.js) and
 [directional-shadows.js](../scripts/directional-shadows.js) for controls and diagnostics.
 
@@ -695,7 +696,7 @@ Combine model interaction and physics in a complete script: [physics-controls.js
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files. See [scene save and restore](scene-persistence.md) for the complete
-v13 schema (including v1–v12 compatibility), panels and pixels, animation
+v14 schema (including v1–v13 compatibility), panels and pixels, animation
 playback, physics bodies/joints, storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

@@ -12,7 +12,7 @@ const light=createDirectionalLight({container:child,objectId:object});
 onInputEvent(()=>{}, {container:grand});
 for(const call of [()=>setSceneContainerParent(parent,grand),()=>setSceneContainerParent(child,child),()=>setSceneContainerParent(0,parent),()=>createSceneContainer({parent:999}),()=>setSceneContainerParent(child,999)])fails(call);
 check(getSceneContainerState(child).parentId===parent);
-const snapshot=captureSceneContainer(parent);check(snapshot.version===13&&snapshot.containers.length===3&&snapshot.objects.length===2&&snapshot.panels.length===1);
+const snapshot=captureSceneContainer(parent);check(snapshot.version===14&&snapshot.containers.length===3&&snapshot.objects.length===2&&snapshot.panels.length===1);
 fails(()=>captureSceneContainer(child)); // The joint crosses this smaller subtree.
 const copy=restoreSceneContainer(snapshot);
 check(copy.containerIds.length===3&&copy.containerMap[parent]===copy.containerId);

@@ -1539,3 +1539,13 @@ the yellow caster and rotate the blue handle; its translation does not move
 world-space coverage. A/X toggles shadows, bumper cycles resolution, B/Y saves
 then restores. Check stable head motion, parallel shadows and active HUD status;
 stop after user verification.
+
+## Point shadows
+
+Run `spot-shadow-regression --point` with the native GLES environment.
+`--point-benchmark` uses bounded paired one-car stages at 256/512 pixels per
+face with no overlays or pointer input. Keep the headset active for profiling.
+Run `./run-pocketspace.sh scripts/point-shadows.js` for interaction; grab the lamp
+and yellow caster, use bumper for resolution, A/X for shadows and B/Y to save
+then restore. Inspect floor/cube self-shadowing and transitions across face edges.
+Stop the demo after visual verification.

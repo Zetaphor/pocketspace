@@ -49,6 +49,14 @@ int main() {
       inputEventForExample('/input/a/click');inputEventForExample('/input/bumper/click');
       if(!getSpotLight(light).shadow.enabled||getSpotLight(light).shadow.resolution!==1024)throw Error('shadow resolution');
     )";
+    if(name=="point-shadows.js") controls=R"(
+      inputEventForExample('/input/b/click');const oldTool=tool,oldLight=light;
+      inputEventForExample('/input/b/click');
+      if(tool===oldTool||light===oldLight||!getSceneContainerState(oldTool).disposed||!getPointLight(light).shadow.enabled)throw Error('shadow restore');
+      inputEventForExample('/input/a/click');if(getPointLight(light).shadow.enabled)throw Error('shadow disable');
+      inputEventForExample('/input/a/click');inputEventForExample('/input/bumper/click');
+      if(!getPointLight(light).shadow.enabled||getPointLight(light).shadow.resolution!==512)throw Error('shadow resolution');
+    )";
     if(name=="directional-shadows.js") controls=R"(
       inputEventForExample('/input/b/click');const oldTool=tool,oldLight=light;
       inputEventForExample('/input/b/click');

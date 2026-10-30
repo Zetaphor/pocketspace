@@ -186,7 +186,7 @@ dividing by zero. Cone width does not renormalize intensity: narrowing the beam
 keeps the center brightness unchanged.
 
 Snapshots v9 and later store a `type` for every light and the spotlight direction/cones.
-New captures use v13, preserving spotlight and directional shadow settings.
+New captures use v14, preserving shadow settings for every light type.
 Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
 V8 snapshots retain their point-light behavior; v1–v7 restore without scene
 lights. Ownership and cross-container snapshot rules are identical for all scene light types.
@@ -219,12 +219,12 @@ setSpotLight(flashlight, {shadow: {enabled: false}});
 
 `createSpotLight` and `setSpotLight` accept a partial `shadow` options object.
 `getSpotLight` returns the full settings, even when shadows are disabled.
-Point lights reject the `shadow` option. Directional lights support
+Point lights support [six-view shadows](#point-light-shadows). Directional lights support
 [orthographic shadow coverage](#directional-light-shadows).
 
 | Shadow option | Default | Meaning and limits |
 | --- | --- | --- |
-| `enabled` | `false` | Boolean opt-in. At most one enabled spotlight or directional light can have shadows enabled, including zero-intensity lights. Disabled lights retain their configuration without occupying the shadow slot. |
+| `enabled` | `false` | Boolean opt-in. At most one enabled point, spotlight or directional light can have shadows enabled, including zero-intensity lights. Disabled lights retain their configuration without occupying the shadow slot. |
 | `resolution` | `512` | Square depth-map size: 256, 512 or 1024. Active depth storage is estimated at 0.25, 1 or 4 MiB respectively; driver/program overhead and in-flight retired storage are additional. |
 | `near` | `.05` | Near clipping distance in meters, .001–1, strictly less than light range when shadows are enabled. Geometry before this plane does not cast into the map. |
 | `bias` | `.0005` | Normalized depth comparison offset, 0–.05. Larger values reduce acne but can separate shadows from objects. |
@@ -633,3 +633,46 @@ for (let i = 0; i < 4; i++) {
   createPointLight({position: [(i - 1.5) * .2, .2, -.4], range: 1, intensity: .1});
 }
 ```
+
+## Point-light shadows
+
+Point lights can cast in all directions using six perspective depth views packed
+into one atlas. All types share one enabled shadow-light slot. This is opt-in;
+existing point lights remain unshadowed.
+
+```js
+const lamp = createPointLight({position: [0, .4, -.2], range: 3, intensity: .6,
+  shadow: {enabled: true, resolution: 256}});
+setPointLight(lamp, {shadow: {resolution: 512}});
+print(JSON.stringify(getPointLight(lamp).shadow));
+```
+
+Create/set accept partial `shadow` settings; get returns the full configuration.
+Options have the [spotlight defaults and ranges](#spotlight-shadows), except:
+
+| Option | Point-light behavior |
+| --- | --- |
+| `resolution` | Per-face size, 256 or 512 only. The atlas is 3 by 2 faces, with estimated depth payload 1.5 or 6 MiB. |
+| `near` | Per-face near distance; must be less than light range when enabled. Geometry nearer than a face's near plane is clipped. |
+| `maxTriangles` | Counts full-detail submitted work over all six views, so each eligible triangle counts six times. Default 500000, maximum 1000000. |
+| `maxGpuMs` | Applies to all six views together, using the existing asynchronous 24-valid-sample average watchdog. |
+
+`center`, `size` and `depth` are directional-only and rejected. At most 128 visible
+caster objects are allowed, as for the other types. Every visible opaque/masked
+caster is submitted to each face; there is no per-face caster culling. Both eyes
+share the completed map. Light position and attachment translation move it;
+attachment rotation rotates its local position offset, not the omnidirectional
+illumination pattern. Near/far depth uses the light's range and shadow near.
+
+Receiver-plane bias and four comparison-filtered taps reduce self-shadowing.
+Taps clamp to their face to avoid sampling unrelated atlas tiles; filtering is
+not seamless across cube edges, and small seam differences can remain. This is
+not soft area lighting. Hidden/alpha-blended casters, work/timing fallback,
+explicit retry and `getEngineStats().shadow` behave as documented for spotlights.
+The reported triangle count includes six-view work, and memory estimates include
+the full atlas once. Driver/in-flight allocation overhead is additional.
+
+V14 snapshots preserve logical options and remap attachments; older point-light
+snapshots restore without shadows. [point-shadows.js](../scripts/point-shadows.js)
+demonstrates a grabbable lamp, caster, A/X shadow toggle, bumper resolution switch,
+and B/Y save/restore with recovery when the shared slot is occupied.
