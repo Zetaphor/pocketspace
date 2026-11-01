@@ -7,6 +7,7 @@ struct ScriptScope {
   Scene *previousCurrent=currentScene,*previousLive=liveScene;
   explicit ScriptScope(ScriptHost &value):host(value){
     if(inputCallbackCtx)throw std::logic_error("script scope entered with another callback active");
+    swapActiveInteraction(host.interaction);
     currentScene=liveScene=&host.scene;
     if(host.ctx&&!JS_IsUndefined(host.callback)){
       inputCallbackCtx=host.ctx;inputCallback=host.callback;inputCallbackContainer=host.callbackContainer;
@@ -20,6 +21,7 @@ struct ScriptScope {
       host.callback=inputCallback;host.callbackContainer=inputCallbackContainer;
       inputCallbackCtx=nullptr;inputCallback=JS_UNDEFINED;inputCallbackContainer=0;
     }
+    swapActiveInteraction(host.interaction);
     currentScene=previousCurrent;liveScene=previousLive;
   }
   ScriptScope(const ScriptScope&)=delete;
@@ -42,7 +44,7 @@ class ScriptRegistry {
   int nextId_=1;
 public:
   ScriptRegistry(){auto scratch=std::make_unique<ScriptInstance>();scratch->id=0;instances_.emplace(0,std::move(scratch));}
-  ~ScriptRegistry(){for(auto &[id,instance]:instances_)if(instance->host.ctx){ScriptScope scope(instance->host);closeScript(instance->host);}}
+  ~ScriptRegistry(){for(auto &[id,instance]:instances_)if(instance->host.ctx){ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}}
   ScriptRegistry(const ScriptRegistry&)=delete;
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
@@ -62,6 +64,7 @@ public:
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
     ScriptScope scope(instance->host);
     if(!loadScript(instance->host,instance->path)){instance->lastError="script reload failed";return false;}
+    resetActiveInteraction();
     ++instance->generation;instance->lastError.clear();return true;
   }
   void reloadChanged(){
@@ -72,7 +75,7 @@ public:
   }
   bool stop(int id,bool manual=true){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
-    {ScriptScope scope(instance->host);closeScript(instance->host);}
+    {ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}
     instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;return true;
   }
   bool update(int id,double dt){
@@ -89,7 +92,7 @@ public:
     instance->lastError=message?message:"script update failed";
     if(message)JS_FreeCString(instance->host.ctx,message);
     JS_FreeValue(instance->host.ctx,exception);
-    closeScript(instance->host);instance->state=ScriptState::Failed;return false;
+    closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
   }
   bool dispatchInput(int id,const frame_input::Event &event){
     auto *instance=find(id);if(!instance||instance->state!=ScriptState::Running)return false;
@@ -106,6 +109,6 @@ public:
     instance->lastError=message?message:"script input callback failed";
     if(message)JS_FreeCString(instance->host.ctx,message);
     JS_FreeValue(instance->host.ctx,exception);
-    closeScript(instance->host);instance->state=ScriptState::Failed;return false;
+    closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
   }
 };

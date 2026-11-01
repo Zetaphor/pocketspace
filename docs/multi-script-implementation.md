@@ -53,7 +53,7 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 ## Step 2 — Shared frame, rendering, and resource cleanup
 
-**In progress:** Native object and panel overlay names include instance ID; grouped staging and resize overlays inherit their owning instance. The legacy positional path uses instance ID `1`. Surface, panel overlay, and panel submission maps now live in an instance-owned resource store. Reload and process shutdown release that store through one cleanup path. The production frame loop still renders one script; renderer traversal, interaction state, and other caches must be migrated before this step is complete.
+**In progress:** Native object and panel overlay names include instance ID; grouped staging and resize overlays inherit their owning instance. The legacy positional path uses instance ID `1`. Surface, panel overlay, and panel submission maps live in an instance-owned resource store. Registry calls now scope pointer and hover/grab state to their script host; successful reload and stop reset it, while failed reload retains it. The production frame loop still renders one script; renderer traversal, per-instance input queues, and other render caches must be migrated before this step is complete.
 
 - [ ] Change renderer traversal to iterate a stable snapshot of live instances. Qualify native surface, panel, and overlay keys by instance ID while leaving JavaScript IDs local to their scene. Preserve stereo submission, draw order, transparency, GPU ownership, and per-scene physics.
 - [ ] Integrate `ScriptRegistry` into the production host loop. Support a healthy frame loop with zero user scripts in managed mode while keeping the legacy positional-script path. The reserved scratch entry gets its QuickJS scene API in Step 8.
@@ -151,7 +151,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | --- | --- | --- | --- | --- |
 | 0 | Step 0 ownership-audit commit | Four headless regressions, fixture syntax, docs lint/site build pass | No runtime workload | One-script FPS/memory baseline before Step 2 comparison |
 | 1 | Step 1 headless-registry commit | Fixture syntax, docs lint/site build pass | ARM64 production/new lifecycle targets build; new, old lifecycle, examples regressions and non-VR model inspect pass | Production frame loop in Step 2; scratch context in Step 8; event routing in Step 3 |
-| 2 | Native overlay identity and resource store in progress | Composite-key and resource-store regressions, docs lint/site build, Python syntax, diff check pass | ARM64 engine/regressions build; composite-key, resource-store, and multi-script lifecycle regressions pass | Per-instance renderer traversal, interaction and render-cache isolation, two-scene render tests, headset observation |
+| 2 | Native resources and scoped interaction state in progress | Composite-key and resource-store regressions, docs lint/site build, Python syntax, diff check pass | ARM64 engine build; composite-key, resource-store, multi-script lifecycle, legacy lifecycle, scene-container, and physics regressions pass | Per-instance renderer traversal and input queues, render-cache isolation, two-scene render tests, headset observation |
 | 3 | Pending | Pending | Pending | Pending |
 | 4 | Pending | Pending | Pending | Pending |
 | 5 | Pending | Pending | Pending | Pending |
