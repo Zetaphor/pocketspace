@@ -84,9 +84,9 @@ public:
       if(!ec&&modified!=entry->host.mtime&&!reload(id))entry->host.mtime=modified;
     }
   }
-  bool stop(int id,bool manual=true){
+  bool stop(int id,bool manual=true,const std::function<void()> &beforeClose={}){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
-    {ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}
+    {ScriptScope scope(instance->host);if(beforeClose)beforeClose();closeScript(instance->host);resetActiveInteraction();}
     instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;return true;
   }
   // Called from a running scene pass, which already owns this host's scope.

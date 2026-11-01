@@ -122,7 +122,23 @@ int main(){
   assert(!JS_IsUndefined(registry.find(right)->host.callback));
   assert(registry.update(right,1./90));
 
-  assert(registry.stop(left));
+  struct TestSurface {int owner;};
+  NativeSceneResources<TestSurface,int,int> leftNative(left),rightNative(right);
+  leftNative.surfaces.emplace(1,std::make_unique<TestSurface>(TestSurface{left}));
+  rightNative.surfaces.emplace(1,std::make_unique<TestSurface>(TestSurface{right}));
+  leftNative.panelOverlays[1]=101;rightNative.panelOverlays[1]=201;
+  SceneRenderState leftState,rightState;
+  leftState.grabs[0].objectId=1;rightState.grabs[0].objectId=1;
+  int surfacesReleased=0,panelsReleased=0;
+  assert(registry.stop(left,true,[&]{
+    assert(activeInstanceId==left&&currentScene==&registry.find(left)->host.scene);
+    leftNative.release([&](const TestSurface &surface){assert(surface.owner==left);++surfacesReleased;},[&](int handle){assert(handle==101);++panelsReleased;});
+    leftState.resetScene();
+  }));
+  assert(surfacesReleased==1&&panelsReleased==1);
+  assert(leftNative.surfaces.empty()&&leftNative.panelOverlays.empty());
+  assert(!leftState.grabs[0].objectId);
+  assert(rightNative.surfaces.size()==1&&rightNative.panelOverlays.at(1)==201&&rightState.grabs[0].objectId==1);
   assert(registry.find(left)->state==ScriptState::Stopped&&registry.find(left)->manuallyStopped);
   assert(registry.find(left)->host.ctx==nullptr);
   assert(registry.find(right)->host.ctx!=nullptr&&registry.update(right,1./90));
