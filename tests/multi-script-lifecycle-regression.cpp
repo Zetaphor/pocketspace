@@ -168,17 +168,15 @@ int main(){
     ScriptRegistry production;
     int id=0;std::string launchError;
     assert(production.launch("tests/scenes/multi-script-left.js",id,launchError));
-    auto &host=production.find(id)->host;
-    {
-      ScriptScope active(host);
-      assert(activeInstanceId==id&&currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
-      bool committed=false;
-      assert(production.reloadActive(id,[&]{committed=true;}));
-      assert(committed&&production.find(id)->generation==2);
-      assert(activeInstanceId==id&&host.instanceId==id&&currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
-      closeScript(host);
-    }
-    assert(!host.ctx&&activeInstanceId==0&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
+    bool committed=false;
+    assert(production.reload(id,[&]{
+      assert(activeInstanceId==id&&liveScene==&production.find(id)->host.scene);
+      committed=true;
+    }));
+    assert(committed&&production.find(id)->generation==2);
+    assert(production.find(id)->host.instanceId==id&&activeInstanceId==0);
+    assert(production.stop(id));
+    assert(!production.find(id)->host.ctx&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
   }
   puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, duplicate rejection, file-change rollback, scoped stop and callback errors");
 }

@@ -2,7 +2,7 @@
 
 Status: Step 0 implementation evidence, based on `b417ef7` before runtime changes. Read with the [design contract](multi-script-plan.md) and [execution guide](multi-script-implementation.md). This is a source audit, not a claim that two live scripts work yet.
 
-The current CLI accepts one positional script path and defaults to `scripts/avocado.js`. `main` loads that script before EGL/OpenVR initialization, then checks its modification time every 30 frames and attempts a transactional replacement. Ctrl-C, SIGTERM, or a SteamVR quit event ends the single engine process. There is no managed zero-user-script mode yet.
+At the Step 0 audit, the CLI accepted one positional script path and defaulted to `scripts/avocado.js`. `main` loads that script before EGL/OpenVR initialization, then checks its modification time every 30 frames and attempts a transactional replacement. Ctrl-C, SIGTERM, or a SteamVR quit event ends the single engine process. The later Step 2 implementation replaced this startup path with an empty user-script list and catalog launches.
 
 ## Current ownership
 

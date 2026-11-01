@@ -21,7 +21,7 @@ then run:
 
 ```sh
 mkdir -p "$HOME/.config/pocketspace"
-./run-pocketspace.sh scripts/eye-calibration.js --eye-calibration-output "$HOME/.config/pocketspace/eye-calibration.json"
+./run-pocketspace.sh --scripts-dir scripts --launch eye-calibration.js --eye-calibration-output "$HOME/.config/pocketspace/eye-calibration.json"
 ```
 
 Look at each gold circle and tap either trigger. Keep your head and eyes steady
@@ -54,7 +54,7 @@ file and renamed; a successful run replaces an existing file at the chosen path.
 ## Load and consume
 
 ```sh
-./run-pocketspace.sh scripts/tracking.js --eye-calibration "$HOME/.config/pocketspace/eye-calibration.json"
+./run-pocketspace.sh --scripts-dir scripts --launch tracking.js --eye-calibration "$HOME/.config/pocketspace/eye-calibration.json"
 ```
 
 ```js
