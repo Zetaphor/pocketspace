@@ -23,25 +23,25 @@ for an offline meshoptimizer 1.0 checkout at commit
 
 ## Run an example
 
-Start SteamVR, then run the grabbing example:
+Start SteamVR, then run the grabbing example from the repository's example
+catalog:
 
 ```sh
-./run-pocketspace.sh scripts/grabbing.js
+./run-pocketspace.sh --scripts-dir scripts --launch grabbing.js
 ```
 
-The box can be grabbed with either controller using grip or trigger. The wrapper sets the runtime library
-path and X11/EGL environment, then runs from the repository root. Its default
-scene is `scripts/avocado.js` when run without arguments. Stop with Ctrl-C or
-SIGTERM. Script edits reload
-automatically; a failed reload preserves the existing scene.
+The box can be grabbed with either controller using grip or trigger. The wrapper
+sets the runtime library path and X11/EGL environment, then runs from the
+repository root. Running `./run-pocketspace.sh` starts the engine with no user
+scripts. Stop with Ctrl-C or SIGTERM. Script edits reload automatically; a
+failed reload preserves the existing scene.
 
-To launch additional scripts in the same engine process, put them under a user
-scripts directory and pass catalog-relative names. Subdirectories are supported;
-paths that leave the directory are rejected. The positional script remains the
-first scene during this Step 2 transition.
+The default catalog is `$HOME/.local/share/pocketspace/scripts`. Use `--launch`
+more than once to start several scripts from that directory. Names may include
+subdirectories; paths that leave the catalog are rejected.
 
 ```sh
-./run-pocketspace.sh scripts/avocado.js --scripts-dir "$HOME/.local/share/pocketspace/scripts" --launch clock.js --launch tools/notes.js
+./run-pocketspace.sh --launch clock.js --launch tools/notes.js
 ```
 
 Inspect a model without opening VR:
@@ -63,7 +63,7 @@ also retained so existing controller bindings keep working.
 
 ## Create your first scene
 
-Save this as `my-scene.js` in the repository root:
+Save this as `$HOME/.local/share/pocketspace/scripts/my-scene.js`:
 
 ```js
 const model = loadModel('assets/Avocado.glb');
@@ -74,7 +74,7 @@ setLaserVisible('right', true);
 function update() { pollInputEvents(); }
 ```
 
-Run it with `./run-pocketspace.sh my-scene.js`. Use either controller's
+Run it with `./run-pocketspace.sh --launch my-scene.js`. Use either controller's
 grip or trigger to grab the model. Edit the file while it runs to reload the scene.
 You can start with any of the [example scripts](examples.md) instead.
 

@@ -2090,7 +2090,7 @@ int main(int argc,char **argv) {
     ModelAsset asset;return loadModelFile(argv[2],asset)?0:1;
   }
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
-  std::string scriptPath="scripts/avocado.js",calibrationPath;bool hasScript=false;
+  std::string calibrationPath;
   const char *userHome=std::getenv("HOME");
   std::filesystem::path scriptsDirectory=userHome?std::filesystem::path(userHome)/".local/share/pocketspace/scripts":"user-scripts";
   std::vector<std::filesystem::path> additionalScripts;
@@ -2108,8 +2108,7 @@ int main(int argc,char **argv) {
     }else if(arg=="--launch"){
       if(i+1==argc){fprintf(stderr,"--launch requires a catalog-relative script\n");return 13;}
       additionalScripts.emplace_back(argv[++i]);
-    }else if(!arg.empty()&&arg[0]!='-'&&!hasScript){scriptPath=arg;hasScript=true;}
-    else{fprintf(stderr,"Unknown argument: %s\n",arg.c_str());return 13;}
+    }else{fprintf(stderr,"Unknown argument: %s (use --scripts-dir and --launch for scripts)\n",arg.c_str());return 13;}
   }
   if(!calibrationPath.empty()){
     std::ifstream file(calibrationPath,std::ios::binary);std::string data((std::istreambuf_iterator<char>(file)),{});
@@ -2121,10 +2120,7 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
   ScriptRegistry scriptRegistry;
-  int scriptInstanceId=0;std::string launchError;
-  if(!scriptRegistry.launch(scriptPath,scriptInstanceId,launchError)){
-    fprintf(stderr,"[lifecycle] launch failed: %s\n",launchError.c_str());return 13;
-  }
+  constexpr int scriptInstanceId=0;std::string launchError;
   for(const auto &name:additionalScripts){
     std::filesystem::path resolved;
     if(!resolveCatalogScript(scriptsDirectory,name,resolved,launchError)){

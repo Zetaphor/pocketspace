@@ -41,7 +41,7 @@ With the dependencies installed and SteamVR running:
 ```sh
 cmake -S . -B build
 cmake --build build -j2
-./run-pocketspace.sh scripts/grabbing.js
+./run-pocketspace.sh --scripts-dir scripts --launch grabbing.js
 ```
 
 You’ll get a box you can grab using either controller. Start with
