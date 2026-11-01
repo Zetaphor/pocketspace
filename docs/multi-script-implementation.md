@@ -41,17 +41,20 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 ## Step 1 — Instance registry and script lifecycle
 
-- [ ] Extract script loading/teardown from the single `ScriptHost` path in `src/main.cpp` into a registry with stable positive instance IDs and reserved scratch ID `0`. Preserve the existing separate QuickJS runtime/context and scene per script.
-- [ ] Keep `currentScene` (or its replacement) scoped to a single callback/evaluation; restore the prior scope after it returns or throws. Candidate evaluation must never mutate another active scene. Refactor the one global input callback into instance ownership before two callbacks can coexist.
-- [ ] Add launch, reload, manual stop, and callback-error stop transitions. One live instance per canonical file; a duplicate launch returns a structured error. Manual stop suppresses restart for this engine session. Successful reload replaces only that instance; failed reload preserves its old scene. Subscription handling arrives in Step 5.
-- [ ] Keep the legacy positional script invocation. Managed mode starts with scratch only. Keep automatic file-change reload for each running file.
-- [ ] Add native lifecycle regressions for two independent scenes, colliding local IDs, candidate rejection, failed reload, one-instance stop, callback exception, and shutdown cleanup. Adapt `tests/lifecycle-script-regression.cpp`; add a focused multi-instance target if needed.
+- [x] Introduce a headless registry in `src/script_registry.h` with stable positive IDs and reserved scratch ID `0`. Each loaded user script has a separate QuickJS runtime/context and scene. Wire the registry into the production frame loop in Step 2; initialize the scratch context in Step 8.
+- [x] Scope `currentScene`, `liveScene`, and the legacy input-callback globals around each registry load/reload/update/input call. Store callback ownership per `ScriptHost` and restore the prior scope after calls and exceptions. Event-queue fanout arrives in Step 3.
+- [x] Add launch, reload, manual stop, and update/input-callback error-stop transitions. Reject a second live instance of the same canonical file. Successful reload replaces only that host; failed reload preserves its context and callback. Structured control-protocol errors arrive in Step 7; bus subscriptions arrive in Step 5.
+- [x] Keep the legacy positional invocation unchanged. The registry supports independent automatic file-change reload. Production managed mode and zero-user-script rendering arrive with the frame-loop integration in Step 2.
+- [x] Add a focused `multi-script-lifecycle-regression` using real QuickJS bindings: two colliding local ID sets and callbacks, duplicate rejection, automatic file-change reload rollback, scoped manual stop, and update/input-callback error isolation. The existing single-script lifecycle and examples regressions also pass.
+
+**Scope:** Step 1 proves the multi-host lifecycle without VR. The production frame loop still runs one `ScriptHost`; it will adopt the registry in Step 2. Scratch has no live context until Step 8, and per-instance native event queues/overlays are not integrated yet.
 
 **Exit gate:** two scripts can be loaded and stopped independently in a headless harness; one-script regressions still pass. No renderer or live headset claim yet.
 
 ## Step 2 — Shared frame, rendering, and resource cleanup
 
 - [ ] Change renderer traversal to iterate a stable snapshot of live instances. Qualify native surface, panel, and overlay keys by instance ID while leaving JavaScript IDs local to their scene. Preserve stereo submission, draw order, transparency, GPU ownership, and per-scene physics.
+- [ ] Integrate `ScriptRegistry` into the production host loop. Support a healthy frame loop with zero user scripts in managed mode while keeping the legacy positional-script path. The reserved scratch entry gets its QuickJS scene API in Step 8.
 - [ ] Make successful reload, failed reload, stop, and error stop release or retain only the appropriate instance's surfaces, panels, models, lights, shadows, and render caches. Keep process-wide caches shared only where their keys and resource lifetime are valid across instances.
 - [ ] Keep one OpenVR session, EGL context, input poller, and compositor loop. Resolve the shared anchor once at startup. Ensure scratch can render objects while no user script runs.
 - [ ] Add offscreen/native tests with two visible scenes and overlapping numeric IDs. Include failure injection and repeated start/stop/reload cycles. Use relevant existing render, panel, asset-lifetime, and scene-container regressions to detect lost ownership.
@@ -145,7 +148,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | Step | Commit | Sigma checks | Deckard checks | Remaining evidence |
 | --- | --- | --- | --- | --- |
 | 0 | Step 0 ownership-audit commit | Four headless regressions, fixture syntax, docs lint/site build pass | No runtime workload | One-script FPS/memory baseline before Step 2 comparison |
-| 1 | Pending | Pending | Pending | Pending |
+| 1 | Step 1 headless-registry commit | Fixture syntax, docs lint/site build pass | ARM64 production/new lifecycle targets build; new, old lifecycle, examples regressions and non-VR model inspect pass | Production frame loop in Step 2; scratch context in Step 8; event routing in Step 3 |
 | 2 | Pending | Pending | Pending | Pending |
 | 3 | Pending | Pending | Pending | Pending |
 | 4 | Pending | Pending | Pending | Pending |
