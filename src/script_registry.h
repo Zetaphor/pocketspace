@@ -96,6 +96,14 @@ public:
     {ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}
     instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;return true;
   }
+  // Called from a running scene pass, which already owns this host's scope.
+  bool failActive(int id,const std::string &error){
+    auto *instance=find(id);
+    if(!instance||instance->state!=ScriptState::Running||currentScene!=&instance->host.scene)return false;
+    instance->lastError=error;
+    closeScript(instance->host);resetActiveInteraction();
+    instance->state=ScriptState::Failed;return true;
+  }
   bool update(int id,double dt){
     auto *instance=find(id);if(!instance||instance->state!=ScriptState::Running)return false;
     ScriptScope scope(instance->host);
