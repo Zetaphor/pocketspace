@@ -5,6 +5,9 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 [architecture](architecture.md), and completed investigations in the
 [test index](../tests/index.md). Items below do not prescribe implementation order.
 
+The [multiple-script and dashboard plan](multi-script-plan.md) covers the next
+planned development track.
+
 ## Material support
 
 - Add Charlie-prefiltered environment sheen when a target experience needs sharp
