@@ -21,6 +21,23 @@ int main(){
   assert(a->host.scene.panels[0].id==1&&b->host.scene.panels[0].id==1);
   assert(!JS_IsUndefined(a->host.callback)&&!JS_IsUndefined(b->host.callback));
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
+  {
+    ScriptScope scope(registry.find(left)->host);
+    pointerStates[1].valid=true;hoveredObject[0]=1;meshCurrentObject[1]=1;grabNeedsRelease[0]=true;
+  }
+  assert(pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
+  assert(registry.find(left)->host.interaction.pointers.at(1).valid);
+  {
+    ScriptScope scope(registry.find(right)->host);
+    assert(pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
+    pointerStates[1].hand=1;
+  }
+  {
+    ScriptScope scope(registry.find(left)->host);
+    assert(pointerStates.at(1).valid&&hoveredObject[0]==1&&meshCurrentObject[1]==1&&grabNeedsRelease[0]);
+  }
+  assert(registry.reload(left));
+  assert(registry.find(left)->host.interaction.pointers.empty()&&registry.find(right)->host.interaction.pointers.at(1).hand==1);
   frame_input::Event input{};input.type="controller.button";input.hand="left";
   assert(registry.dispatchInput(left,input)&&registry.dispatchInput(right,input));
   int duplicate=0;assert(!registry.launch("tests/scenes/multi-script-left.js",duplicate,error));
@@ -60,5 +77,5 @@ int main(){
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
-  puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks, duplicate rejection, file-change rollback, scoped stop and callback errors");
+  puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, duplicate rejection, file-change rollback, scoped stop and callback errors");
 }

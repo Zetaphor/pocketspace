@@ -119,6 +119,25 @@ static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHo
 static std::chrono::steady_clock::time_point meshLastHit[2]{};
 struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
 static std::map<int,PointerSnapshot> pointerStates;
+static bool grabNeedsRelease[2]{};
+struct InteractionState {
+  std::map<int,PointerSnapshot> pointers;
+  int hovered[2]{},meshHovered[2]{},meshCurrent[2]{};
+  float meshDistance[2]{2.f,2.f};
+  std::chrono::steady_clock::time_point meshLast[2]{};
+  bool grabRelease[2]{};
+};
+static void swapActiveInteraction(InteractionState &state){
+  pointerStates.swap(state.pointers);
+  std::swap(hoveredObject,state.hovered);
+  std::swap(meshHoveredObject,state.meshHovered);
+  std::swap(meshCurrentObject,state.meshCurrent);
+  std::swap(meshHitDistance,state.meshDistance);
+  std::swap(meshLastHit,state.meshLast);
+  std::swap(grabNeedsRelease,state.grabRelease);
+}
+static void resetActiveInteraction(){InteractionState empty;swapActiveInteraction(empty);}
+
 static JSContext *inputCallbackCtx=nullptr;static JSValue inputCallback=JS_UNDEFINED;static int inputCallbackContainer=0;
 static void clearInputCallback(JSContext *ctx){if(inputCallbackCtx==ctx){JS_FreeValue(ctx,inputCallback);inputCallback=JS_UNDEFINED;inputCallbackCtx=nullptr;inputCallbackContainer=0;}}
 static void stop(int){running=false;}
@@ -1126,7 +1145,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_light_api.h"
 #include "scene_persistence.h"
 
-struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;};
+struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1522,7 +1541,6 @@ static void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,in
   overlays->SetOverlayTransformAbsolute(handle,vr::TrackingUniverseStanding,&beam);
   if(!shown){overlays->ShowOverlay(handle);shown=true;}
 }
-static bool grabNeedsRelease[2]{};
 struct GrabState {
   int objectId=0;bool direct=false,rawGrab=false;int releaseFrames=0;
   float offset[3]{},startHand[9]{},startPitch=0,startYaw=0,startRoll=0,laserDistance=2.f;
