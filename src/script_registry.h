@@ -48,11 +48,13 @@ struct ScriptInstance {
 class ScriptRegistry {
   std::map<int,std::unique_ptr<ScriptInstance>> instances_;
   int nextId_=1;
+  std::function<void(int)> beforeStop_;
 public:
   ScriptRegistry(){auto scratch=std::make_unique<ScriptInstance>();scratch->id=0;instances_.emplace(0,std::move(scratch));}
   ~ScriptRegistry(){for(auto &[id,instance]:instances_)if(instance->host.ctx){ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}}
   ScriptRegistry(const ScriptRegistry&)=delete;
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
+  void setBeforeStop(std::function<void(int)> callback){beforeStop_=std::move(callback);}
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   ScriptInstance *find(int id){auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   std::vector<int> allIds()const{
@@ -89,9 +91,9 @@ public:
       if(!ec&&modified!=entry->host.mtime&&!reload(id))entry->host.mtime=modified;
     }
   }
-  bool stop(int id,bool manual=true,const std::function<void()> &beforeClose={}){
+  bool stop(int id,bool manual=true){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
-    {ScriptScope scope(instance->host);if(beforeClose)beforeClose();closeScript(instance->host);resetActiveInteraction();}
+    {ScriptScope scope(instance->host);if(beforeStop_)beforeStop_(id);closeScript(instance->host);resetActiveInteraction();}
     instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;return true;
   }
   // Called from a running scene pass, which already owns this host's scope.
@@ -99,6 +101,7 @@ public:
     auto *instance=find(id);
     if(!instance||instance->state!=ScriptState::Running||currentScene!=&instance->host.scene)return false;
     instance->lastError=error;
+    if(beforeStop_)beforeStop_(id);
     closeScript(instance->host);resetActiveInteraction();
     instance->state=ScriptState::Failed;return true;
   }
@@ -116,6 +119,7 @@ public:
     instance->lastError=message?message:"script update failed";
     if(message)JS_FreeCString(instance->host.ctx,message);
     JS_FreeValue(instance->host.ctx,exception);
+    if(beforeStop_)beforeStop_(id);
     closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
   }
   bool dispatchInput(int id,const frame_input::Event &event){
@@ -133,6 +137,7 @@ public:
     instance->lastError=message?message:"script input callback failed";
     if(message)JS_FreeCString(instance->host.ctx,message);
     JS_FreeValue(instance->host.ctx,exception);
+    if(beforeStop_)beforeStop_(id);
     closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
   }
 };

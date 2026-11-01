@@ -2220,6 +2220,12 @@ int main(int argc,char **argv) {
   auto releaseResources=[&](SceneResources &resources){resources.release(
     [&](Surface &surface){destroySurface(surface,display);},
     [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
+  scriptRegistry.setBeforeStop([&](int id){
+    for(int hand=0;hand<2;hand++)if(hoveredObject[hand])frameInput.setHoveredObject(hand,0);
+    if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
+    if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
+  });
+  ScopeExit clearStopHook{[&]{scriptRegistry.setBeforeStop({});}};
   ScopeExit overlayCleanup{[&]{
     for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
     for(auto &[id,resources]:resourcesByInstance)releaseResources(*resources);
@@ -2582,9 +2588,6 @@ int main(int argc,char **argv) {
     if(!frameInput.started()&&reconnectNow>=reconnectAt){frameInput.reconnect();reconnectAt=reconnectNow+std::chrono::seconds(1);}
     auto failScene=[&](const std::string &error){
       fprintf(stderr,"[lifecycle] instance=%d stopped after error: %s\n",instance.id,error.c_str());
-      for(int hand=0;hand<2;hand++)if(hoveredObject[hand])frameInput.setHoveredObject(hand,0);
-      releaseResources(sceneResources);
-      sceneRender.resetScene();
       scriptRegistry.failActive(instance.id,error);
       return 0;
     };
