@@ -31,10 +31,10 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 ## Step 0 — Baseline and ownership inventory
 
-- [ ] Confirm Sigma and Deckard start at the same commit and have clean worktrees. Record the current one-script CLI behavior and baseline headless regressions.
-- [ ] Inventory process-global `Scene` pointers, `JSContext`/callback state, `frame_input::Monitor` queues, controller snapshots, hover/grab/pointer state, surface and panel overlay maps/keys, render caches, shadow state, statistics, and `scenePersistence::directory`. Start in `src/main.cpp`, `src/frame_input.*`, `src/scene_persistence.h`, and `src/runtime_stats.h`.
-- [ ] Classify each value as engine-shared, per-instance, or ephemeral per-frame. Identify every place that assumes numeric object/panel/group IDs are globally unique. Put the inventory in a short design note under `docs/` or in this guide; make ownership decisions before moving fields.
-- [ ] Add minimal test fixtures with two scripts that intentionally reuse object and panel ID `1`. Keep test scenes under `tests/`, not `scripts/`.
+- [x] Confirm Sigma and Deckard start at the same clean commit (`b417ef7`). Record the current one-script CLI behavior and baseline headless regressions.
+- [x] Inventory process-global `Scene` pointers, `JSContext`/callback state, `frame_input::Monitor` queues, controller snapshots, hover/grab/pointer state, surface and panel overlay maps/keys, render caches, shadow state, statistics, and `scenePersistence::directory`. The findings are in the [ownership inventory](multi-script-ownership.md).
+- [x] Classify engine-shared and per-instance state, identify local-ID collisions and the lifecycle paths that must remain isolated in the ownership inventory.
+- [x] Add [left](../tests/scenes/multi-script-left.js) and [right](../tests/scenes/multi-script-right.js) fixtures with object and panel ID `1` and the same top-level names. Both pass JavaScript syntax checks; concurrent runtime loading waits for Step 1.
 - [ ] Record a representative one-script Deckard FPS/memory baseline with an active headset and noninteractive overlay when the headset is available. If unavailable, mark this measurement pending and collect it before evaluating Step 2's two-script runtime cost.
 
 **Exit gate:** the ownership map covers creation, candidate reload, successful reload, failed reload, manual stop, callback error, and process shutdown. Baseline headless checks pass without changing behavior; the one-script device measurement is recorded or explicitly tracked for completion before Step 2 performance comparison. No interactive headset test is needed yet.
@@ -144,7 +144,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 
 | Step | Commit | Sigma checks | Deckard checks | Remaining evidence |
 | --- | --- | --- | --- | --- |
-| 0 | Pending | Pending | Not needed | Pending |
+| 0 | Step 0 ownership-audit commit | Four headless regressions, fixture syntax, docs lint/site build pass | No runtime workload | One-script FPS/memory baseline before Step 2 comparison |
 | 1 | Pending | Pending | Pending | Pending |
 | 2 | Pending | Pending | Pending | Pending |
 | 3 | Pending | Pending | Pending | Pending |
