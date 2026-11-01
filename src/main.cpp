@@ -2417,6 +2417,12 @@ int main(int argc,char **argv) {
     frameInput.poll();
     fanOutRawInput(scriptRegistry,frameInput.takeEvents());
     frameInput.takeCallbackEvents();
+    bool eyeTrackingRequested=false,foveationRequested=false;
+    for(int id:scriptRegistry.runningIds())if(const auto *instance=scriptRegistry.find(id)){
+      eyeTrackingRequested|=instance->host.scene.eyeTrackingRequested;
+      foveationRequested|=instance->host.scene.foveationRequested;
+    }
+    controllerInput.poll(eyeTrackingRequested,foveationRequested);
     if(frame%30==0){
       std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
       if(!ec&&modified!=script.mtime){
@@ -2440,7 +2446,31 @@ int main(int argc,char **argv) {
         if(!loaded)script.mtime=modified;
       }
     }
-    auto renderActiveScene=[&]()->int{
+    auto renderActiveScene=[&](ScriptInstance &instance)->int{
+    auto &script=instance.host;
+    const int scriptInstanceId=instance.id;
+    auto &sceneRender=*renderStates.at(scriptInstanceId);
+    auto &sceneResources=*resourcesByInstance.at(scriptInstanceId);
+    auto &surfaces=sceneResources.surfaces;
+    auto &panelOverlays=sceneResources.panelOverlays;
+    auto &panelSubmissions=sceneResources.panelSubmissions;
+    auto &spotShadows=sceneRender.spotShadows;
+    auto &pbrVariants=sceneRender.pbrVariants;
+    auto &grabs=sceneRender.grabs;
+    auto &pendingTileChange=sceneRender.pendingTileChange;
+    auto &stableAdjustment=sceneRender.stableAdjustment;
+    auto &adjustmentCursor=sceneRender.adjustmentCursor;
+    auto &regroupAfter=sceneRender.regroupAfter;
+    auto &nextAdaptationCheck=sceneRender.nextAdaptationCheck;
+    auto &nextGroupResize=sceneRender.nextGroupResize;
+    auto &panelHovered=sceneRender.panelHovered;
+    auto &panelCursorX=sceneRender.panelCursorX;
+    auto &panelCursorY=sceneRender.panelCursorY;
+    auto &ready=sceneRender.ready;
+    auto &frameBounds=sceneRender.frameBounds;
+    auto &frameObjectLights=sceneRender.frameObjectLights;
+    auto &instanceExperiment=sceneRender.instanceExperiment;
+    auto &lastAnimationTick=sceneRender.lastAnimationTick;
     ScriptScope sceneScope(script);
     const auto animationTick=std::chrono::steady_clock::now();
     const double animationDt=std::chrono::duration<double>(animationTick-lastAnimationTick).count();lastAnimationTick=animationTick;
@@ -2510,7 +2540,6 @@ int main(int argc,char **argv) {
         headBasis[r][c]=value*(r==2?-1:1)*(c==2?-1:1);
       }
     }else headBasisValid=false;
-    controllerInput.poll(script.scene.eyeTrackingRequested,script.scene.foveationRequested);
     if(streamWasStarted&&!frameInput.started()){
       for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
       for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}
@@ -2975,16 +3004,33 @@ int main(int argc,char **argv) {
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.submitted();
 #endif
-      ++frame;
-      if(frame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
-      if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
-      if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
+      const int completedFrame=frame+1;
+      if(completedFrame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
+      if(completedFrame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
+      if(completedFrame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",completedFrame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
       return 0;
     };
-    const int sceneResult=renderActiveScene();
+    int sceneResult=0;
+    for(int id:scriptRegistry.runningIds()){
+      auto *instance=scriptRegistry.find(id);
+      if(!instance||instance->state!=ScriptState::Running)continue;
+      if(!renderStates.count(id)){
+        auto owner=std::make_unique<SceneRenderState>();
+        if(!owner->spotShadows.prepare())return 5;
+        if(pbrVariantsEnabled){
+          for(auto &asset:instance->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
+          owner->pbrVariants.prepare(instance->host.scene);
+        }
+        renderStates.emplace(id,std::move(owner));
+      }
+      if(!resourcesByInstance.count(id))resourcesByInstance.emplace(id,std::make_unique<SceneResources>(id));
+      sceneResult=renderActiveScene(*instance);
+      if(sceneResult!=0)break;
+    }
     if(sceneResult>0)return sceneResult;
     if(sceneResult<0)break;
+    ++frame;
     if(engineStats.update(++diagnosticFrames)){
       uint64_t bytes=0;std::set<GLuint> countedDepth;
       for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
