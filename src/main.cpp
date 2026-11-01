@@ -1926,6 +1926,11 @@ struct SceneRenderState {
   ModelInstancing instanceExperiment{ModelInstancing::Instanced};
   FrameBoundsCache frameBounds;
   std::vector<ObjectLightSet> frameObjectLights;
+  std::array<GrabState,2> grabs{};
+  std::array<int,2> panelHovered{};
+  std::array<float,2> panelCursorX{},panelCursorY{};
+  std::vector<Surface*> ready;
+  std::chrono::steady_clock::time_point lastAnimationTick=std::chrono::steady_clock::now();
   std::optional<PendingTileChange> pendingTileChange;
   StableGroupAdjustment stableAdjustment;
   size_t adjustmentCursor=0;
@@ -1934,7 +1939,10 @@ struct SceneRenderState {
   std::chrono::steady_clock::time_point nextGroupResize=std::chrono::steady_clock::now();
   void resetScene(){
     spotShadows.reset();pbrVariants.clear();instanceExperiment.reset();
-    frameBounds={};frameObjectLights.clear();pendingTileChange.reset();stableAdjustment.reset();
+    frameBounds={};frameObjectLights.clear();ready.clear();grabs={};
+    panelHovered.fill(0);panelCursorX.fill(0);panelCursorY.fill(0);
+    lastAnimationTick=std::chrono::steady_clock::now();
+    pendingTileChange.reset();stableAdjustment.reset();
     adjustmentCursor=0;regroupAfter.clear();
     nextAdaptationCheck=nextGroupResize=std::chrono::steady_clock::now();
   }
@@ -2183,7 +2191,7 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[surface] grouped_buffer_bytes=%llu peak=%llu limit=%llu\n",(unsigned long long)groupBufferBudget.used,(unsigned long long)groupBufferBudget.peak,(unsigned long long)GroupBufferBudget::limit);
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
-  std::array<GrabState,2> grabs{};
+  auto &grabs=sceneRender.grabs;
   GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
   const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
   auto &pendingTileChange=sceneRender.pendingTileChange;
@@ -2247,7 +2255,9 @@ int main(int argc,char **argv) {
   releaseObjectOverlay=[&](int id){eraseSurface(id);};
   ScopeExit objectOverlayHooksCleanup{[]{reserveObjectOverlay={};releaseObjectOverlay={};}};
 
-  int panelHovered[2]={0,0};float panelCursorX[2]={0,0},panelCursorY[2]={0,0};
+  auto &panelHovered=sceneRender.panelHovered;
+  auto &panelCursorX=sceneRender.panelCursorX;
+  auto &panelCursorY=sceneRender.panelCursorY;
   reservePanelOverlay=[&](const Panel &panel)->std::string{
     if(panelOverlays.count(panel.id))return {};
     vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
@@ -2302,7 +2312,7 @@ int main(int argc,char **argv) {
 #endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  std::vector<Surface*> ready;
+  auto &ready=sceneRender.ready;
   auto &frameBounds=sceneRender.frameBounds;
   auto &frameObjectLights=sceneRender.frameObjectLights;
   auto &instanceExperiment=sceneRender.instanceExperiment;
@@ -2326,7 +2336,7 @@ int main(int argc,char **argv) {
   if(specializeOpaque){opaqueExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
 #endif
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
-  auto lastAnimationTick=std::chrono::steady_clock::now();
+  auto &lastAnimationTick=sceneRender.lastAnimationTick;
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
 #ifdef SF_ANIMATION_PROFILE
   AnimationProfileFrame animationFrame;AnimationProfileWindow animationWindow;unsigned animationEpoch=0;
@@ -2367,11 +2377,9 @@ int main(int argc,char **argv) {
       if(!ec&&modified!=script.mtime){
         const bool loaded=loadScript(script,scriptPath,[&]{
           releaseResources(sceneResources);
-          sceneRender.resetScene();pointerStates.clear();grabs={};
-          panelHovered[0]=panelHovered[1]=0;
+          sceneRender.resetScene();pointerStates.clear();
           frameInput.resetScene();
-          for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
-          lastAnimationTick=std::chrono::steady_clock::now();
+          for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;}
 #ifdef SF_ANIMATION_PROFILE
           ++animationEpoch;
 #endif

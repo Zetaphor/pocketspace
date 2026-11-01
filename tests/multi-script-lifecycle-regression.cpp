@@ -6,6 +6,16 @@
 
 int main(){
   assert(currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
+  {
+    SceneRenderState leftRender,rightRender;
+    leftRender.grabs[0].objectId=1;rightRender.grabs[0].objectId=1;
+    leftRender.panelHovered[0]=1;rightRender.panelHovered[1]=1;
+    leftRender.ready.push_back(nullptr);rightRender.ready.push_back(nullptr);
+    leftRender.pendingTileChange=SceneRenderState::PendingTileChange{-4,-260,false};
+    leftRender.resetScene();
+    assert(!leftRender.grabs[0].objectId&&!leftRender.panelHovered[0]&&leftRender.ready.empty()&&!leftRender.pendingTileChange);
+    assert(rightRender.grabs[0].objectId==1&&rightRender.panelHovered[1]==1&&rightRender.ready.size()==1);
+  }
   ScriptRegistry registry;
   assert(registry.find(0)&&registry.find(0)->id==0);
   int left=0,right=0;std::string error;
