@@ -35,6 +35,15 @@ scene is `scripts/avocado.js` when run without arguments. Stop with Ctrl-C or
 SIGTERM. Script edits reload
 automatically; a failed reload preserves the existing scene.
 
+To launch additional scripts in the same engine process, put them under a user
+scripts directory and pass catalog-relative names. Subdirectories are supported;
+paths that leave the directory are rejected. The positional script remains the
+first scene during this Step 2 transition.
+
+```sh
+./run-pocketspace.sh scripts/avocado.js --scripts-dir "$HOME/.local/share/pocketspace/scripts" --launch clock.js --launch tools/notes.js
+```
+
 Inspect a model without opening VR:
 
 ```sh

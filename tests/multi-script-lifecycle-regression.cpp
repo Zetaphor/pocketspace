@@ -6,6 +6,17 @@
 
 int main(){
   assert(currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr&&activeInstanceId==0);
+  const auto catalog=std::filesystem::temp_directory_path()/("pocketspace-catalog-"+std::to_string(getpid()));
+  std::filesystem::create_directories(catalog/"nested");
+  ScopeExit catalogCleanup{[&]{std::filesystem::remove_all(catalog);}};
+  {std::ofstream file(catalog/"nested"/"test.js");file<<"function update(){}";}
+  std::filesystem::create_symlink(std::filesystem::canonical("tests/scenes/multi-script-left.js"),catalog/"escape.js");
+  std::filesystem::path catalogScript;std::string catalogError;
+  assert(resolveCatalogScript(catalog,"nested/test.js",catalogScript,catalogError));
+  assert(catalogScript==std::filesystem::canonical(catalog/"nested/test.js"));
+  assert(!resolveCatalogScript(catalog,"../multi-script-left.js",catalogScript,catalogError));
+  assert(!resolveCatalogScript(catalog,"escape.js",catalogScript,catalogError));
+  assert(!resolveCatalogScript(catalog,"nested/missing.js",catalogScript,catalogError));
   {
     SceneRenderState leftRender,rightRender;
     leftRender.grabs[0].objectId=1;rightRender.grabs[0].objectId=1;
