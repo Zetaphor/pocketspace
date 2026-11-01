@@ -21,11 +21,14 @@
 #include <memory>
 #include <csignal>
 #include <climits>
+#include <cassert>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <set>
 #include <string>
+#include <stdexcept>
 #include <utility>
 #include <functional>
 #include <quickjs.h>
@@ -1122,7 +1125,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_light_api.h"
 #include "scene_persistence.h"
 
-struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED;std::filesystem::file_time_type mtime{};Scene scene;};
+struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1132,7 +1135,7 @@ static void closeScript(ScriptHost &s){
   for(auto &panel:s.scene.retiredPanels)panelDestroy(panel);
   if(currentScene==&s.scene)currentScene=nullptr;
   if(liveScene==&s.scene)liveScene=nullptr;
-  if(s.ctx){clearInputCallback(s.ctx);JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
+  if(s.ctx){clearInputCallback(s.ctx);JS_FreeValue(s.ctx,s.callback);JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
   s={};
 }
 static bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit={}){
@@ -1241,6 +1244,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   closeScript(active);active=std::move(candidate);currentScene=liveScene=&active.scene;
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }
+#include "script_registry.h"
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
   EGLConfig config;EGLint count=0;
