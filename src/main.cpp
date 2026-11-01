@@ -2120,7 +2120,7 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
   ScriptRegistry scriptRegistry;
-  constexpr int scriptInstanceId=0;std::string launchError;
+  std::string launchError;
   for(const auto &name:additionalScripts){
     std::filesystem::path resolved;
     if(!resolveCatalogScript(scriptsDirectory,name,resolved,launchError)){
@@ -2131,17 +2131,11 @@ int main(int argc,char **argv) {
       fprintf(stderr,"[lifecycle] launch %s failed: %s\n",name.c_str(),launchError.c_str());return 13;
     }
   }
-  ScriptHost &script=scriptRegistry.find(scriptInstanceId)->host;
-  std::optional<ScriptScope> setupScriptScope;
-  setupScriptScope.emplace(script);
   EGLDisplay display=EGL_NO_DISPLAY;EGLContext context=EGL_NO_CONTEXT;EGLSurface surface=EGL_NO_SURFACE;
   ScopeExit eglCleanup{[&]{if(display!=EGL_NO_DISPLAY){eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);if(surface!=EGL_NO_SURFACE)eglDestroySurface(display,surface);if(context!=EGL_NO_CONTEXT)eglDestroyContext(display,context);eglTerminate(display);}}};
   ScopeExit scriptCleanup{[&]{
-    if(setupScriptScope){closeScript(script);resetActiveInteraction();setupScriptScope.reset();}
-    else{ScriptScope scope(script);closeScript(script);resetActiveInteraction();}
-    for(int id:scriptRegistry.runningIds())if(id!=scriptInstanceId){
-      auto *entry=scriptRegistry.find(id);
-      if(entry&&entry->host.ctx){ScriptScope scope(entry->host);closeScript(entry->host);resetActiveInteraction();}
+    for(int id:scriptRegistry.allIds())if(auto *entry=scriptRegistry.find(id);entry&&entry->host.ctx){
+      ScriptScope scope(entry->host);closeScript(entry->host);resetActiveInteraction();
     }
   }};
   if(!initEgl(display,context,surface))return 1;
@@ -2172,10 +2166,6 @@ int main(int argc,char **argv) {
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
   std::map<int,std::unique_ptr<SceneRenderState>> renderStates;
-  auto &sceneRender=*renderStates.emplace(scriptInstanceId,std::make_unique<SceneRenderState>()).first->second;
-  auto &spotShadows=sceneRender.spotShadows;
-  auto &pbrVariants=sceneRender.pbrVariants;
-  if(!spotShadows.prepare())return 5;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
@@ -2192,9 +2182,12 @@ int main(int argc,char **argv) {
 #else
   constexpr bool pbrVariantsEnabled=true;
 #endif
-  if(pbrVariantsEnabled){for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);pbrVariants.prepare(script.scene);}
 #ifdef SF_PBR_VARIANT_EXPERIMENT
-  ScopeExit variantReport{[&]{printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",pbrVariants.programs.size(),(unsigned long long)pbrVariants.binaryBytes(),pbrVariants.compileMs,pbrVariants.fallbackDraws);}};
+  ScopeExit variantReport{[&]{
+    size_t programs=0,fallbackDraws=0;uint64_t binaryBytes=0;double compileMs=0;
+    for(const auto &[id,owner]:renderStates){programs+=owner->pbrVariants.programs.size();binaryBytes+=owner->pbrVariants.binaryBytes();compileMs+=owner->pbrVariants.compileMs;fallbackDraws+=owner->pbrVariants.fallbackDraws;}
+    printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",programs,(unsigned long long)binaryBytes,compileMs,fallbackDraws);
+  }};
 #endif
 #ifdef SF_PBR_DEPTH_EXPERIMENT
   const bool fastPbrDepth=std::getenv("SF_PBR_DEPTH")&&std::string(std::getenv("SF_PBR_DEPTH"))=="1";
@@ -2224,10 +2217,6 @@ int main(int argc,char **argv) {
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
   using SceneResources=NativeSceneResources<Surface,vr::VROverlayHandle_t,PanelSubmission>;
   std::map<int,std::unique_ptr<SceneResources>> resourcesByInstance;
-  auto &sceneResources=*resourcesByInstance.emplace(scriptInstanceId,std::make_unique<SceneResources>(scriptInstanceId)).first->second;
-  auto &surfaces=sceneResources.surfaces;
-  auto &panelOverlays=sceneResources.panelOverlays;
-  auto &panelSubmissions=sceneResources.panelSubmissions;
   auto releaseResources=[&](SceneResources &resources){resources.release(
     [&](Surface &surface){destroySurface(surface,display);},
     [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
@@ -2237,15 +2226,8 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[surface] grouped_buffer_bytes=%llu peak=%llu limit=%llu\n",(unsigned long long)groupBufferBudget.used,(unsigned long long)groupBufferBudget.peak,(unsigned long long)GroupBufferBudget::limit);
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
-  auto &grabs=sceneRender.grabs;
   GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
   const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
-  auto &pendingTileChange=sceneRender.pendingTileChange;
-  auto &stableAdjustment=sceneRender.stableAdjustment;
-  auto &adjustmentCursor=sceneRender.adjustmentCursor;
-  auto &regroupAfter=sceneRender.regroupAfter;
-  auto &nextAdaptationCheck=sceneRender.nextAdaptationCheck;
-  auto &nextGroupResize=sceneRender.nextGroupResize;
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
   auto surfaceMembers=[&](const ScriptHost &host){SurfaceMembers groups;for(const auto &object:host.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto eraseSurface=[&](int ownerId,int key){
@@ -2291,7 +2273,6 @@ int main(int argc,char **argv) {
     }
     return true;
   };
-  if(!syncSurfaces(script,sceneResources))return 8;
   reserveObjectOverlay=[&](int id)->std::string{
     auto owner=resourcesByInstance.find(activeInstanceId);
     if(owner==resourcesByInstance.end())return "script resource owner unavailable";
@@ -2311,9 +2292,6 @@ int main(int argc,char **argv) {
   releaseObjectOverlay=[&](int id){eraseSurface(activeInstanceId,id);};
   ScopeExit objectOverlayHooksCleanup{[]{reserveObjectOverlay={};releaseObjectOverlay={};}};
 
-  auto &panelHovered=sceneRender.panelHovered;
-  auto &panelCursorX=sceneRender.panelCursorX;
-  auto &panelCursorY=sceneRender.panelCursorY;
   reservePanelOverlay=[&](const Panel &panel)->std::string{
     auto owner=resourcesByInstance.find(activeInstanceId);
     if(owner==resourcesByInstance.end())return "script resource owner unavailable";
@@ -2359,7 +2337,6 @@ int main(int argc,char **argv) {
       reservePanelOverlay(panel);
     }
   };
-  syncPanels(script,sceneResources,sceneRender);
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
   const GLint centerLocation=glGetUniformLocation(program,"center");
@@ -2381,19 +2358,13 @@ int main(int argc,char **argv) {
 #endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  auto &ready=sceneRender.ready;
-  auto &frameBounds=sceneRender.frameBounds;
-  auto &frameObjectLights=sceneRender.frameObjectLights;
-  auto &instanceExperiment=sceneRender.instanceExperiment;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
 
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const char *groupPolicy=std::getenv("SF_GPU_GROUP_POLICY");
   groupOccluderTieBreak=groupPolicy&&std::strcmp(groupPolicy,"occluders")==0;
   GpuSyncExperiment gpuSync;
-  if(std::getenv("SF_GPU_MULTIPART_INSTANCING"))instanceExperiment.enableMultipartExperiment();
   const char *instanceMode=std::getenv("SF_GPU_INSTANCING");
-  if(instanceMode){instanceExperiment.mode=std::strcmp(instanceMode,"1")==0?ModelInstancing::Instanced:ModelInstancing::Original;instanceExperiment.prewarm();}
   const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
   const bool primitiveVisibility=primitiveMode&&std::strcmp(primitiveMode,"1")==0;
   PrimitiveVisibilityExperiment primitiveExperiment;
@@ -2405,14 +2376,12 @@ int main(int argc,char **argv) {
   if(specializeOpaque){opaqueExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
 #endif
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
-  auto &lastAnimationTick=sceneRender.lastAnimationTick;
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
 #ifdef SF_ANIMATION_PROFILE
   AnimationProfileFrame animationFrame;AnimationProfileWindow animationWindow;unsigned animationEpoch=0;
   animationProfileFrame=&animationFrame;ScopeExit clearAnimationProfiler{[]{animationProfileFrame=nullptr;}};
   std::fprintf(stdout,"ANIMATION_PROFILE_BEGIN gpu=%s version=%s\n",glGetString(GL_RENDERER),glGetString(GL_VERSION));
 #endif
-  setupScriptScope.reset();
   while(running){
 #ifdef SF_ANIMATION_PROFILE
     animationFrame={};const auto animationFrameStart=AnimationProfileClock::now();
@@ -2475,7 +2444,7 @@ int main(int argc,char **argv) {
 #endif
         fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
       });
-      if(loaded&&pbrVariantsEnabled){
+      if(loaded&&pbrVariantsEnabled&&renderStates.count(id)){
         for(auto &asset:host.scene.assets)if(!asset.uploaded)uploadModel(asset);
         renderStates.at(id)->pbrVariants.prepare(host.scene);
       }
@@ -3066,6 +3035,10 @@ int main(int argc,char **argv) {
       if(!renderStates.count(id)){
         auto owner=std::make_unique<SceneRenderState>();
         if(!owner->spotShadows.prepare())return 5;
+#ifdef SF_GPU_SYNC_EXPERIMENT
+        if(std::getenv("SF_GPU_MULTIPART_INSTANCING"))owner->instanceExperiment.enableMultipartExperiment();
+        if(instanceMode){owner->instanceExperiment.mode=std::strcmp(instanceMode,"1")==0?ModelInstancing::Instanced:ModelInstancing::Original;owner->instanceExperiment.prewarm();}
+#endif
         if(pbrVariantsEnabled){
           for(auto &asset:instance->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
           owner->pbrVariants.prepare(instance->host.scene);
@@ -3091,16 +3064,22 @@ int main(int argc,char **argv) {
     }
     if(engineStats.update(++diagnosticFrames)){
       uint64_t bytes=0;std::set<GLuint> countedDepth;
-      for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
+      for(const auto &[ownerId,owner]:resourcesByInstance)for(const auto &[id,surface]:owner->surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
         const uint64_t height=generation->eyePixels,width=2*height;
         if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
         if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
       }
+      std::set<const LightingEnvironment*> countedEnvironments;
+      std::set<const SheenLookup*> countedSheen;
+      for(int id:scriptRegistry.runningIds()){
+        const auto *entry=scriptRegistry.find(id);
+        if(!entry)continue;
+        const auto &script=entry->host;
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);for(const auto &lod:part.lod){if(lod.budgetBytes)bytes+=lod.budgetBytes;else if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);}if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
-      bytes+=instanceExperiment.allocatedBytes();
+      if(auto render=renderStates.find(id);render!=renderStates.end())bytes+=render->second->instanceExperiment.allocatedBytes();
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
       for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
@@ -3109,17 +3088,17 @@ int main(int argc,char **argv) {
         for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
       }
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
-      std::set<const LightingEnvironment*> countedEnvironments;
       for(const auto &asset:script.scene.assets)if(asset.environment&&countedEnvironments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
-      std::set<const SheenLookup*> countedSheen;
       for(const auto &asset:script.scene.assets)if(asset.sheenLookup&&asset.sheenLookup->texture&&countedSheen.insert(asset.sheenLookup.get()).second)bytes+=SheenLookup::size*SheenLookup::size*4;
+      }
       bytes+=spotShadowDiagnostics.bytes;
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
 #ifdef SF_ANIMATION_PROFILE
     animationFrame.workMs=animationProfileMs(animationFrameStart);
     size_t profiledObjects=0,playingObjects=0;
-    for(const auto &object:script.scene.objects)if(object.animationPose){profiledObjects++;playingObjects+=object.animation.playing;}
+    for(int id:scriptRegistry.runningIds())if(const auto *entry=scriptRegistry.find(id))
+      for(const auto &object:entry->host.scene.objects)if(object.animationPose){profiledObjects++;playingObjects+=object.animation.playing;}
     animationWindow.record(animationFrame,profiledObjects,playingObjects,animationEpoch);
 #endif
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.
