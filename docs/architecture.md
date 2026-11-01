@@ -563,9 +563,8 @@ See [fabric API and example](lighting-api.md#fabric-sheen) and the
 
 ## Pocketspace compatibility identifiers
 
-The public executable, launcher and documentation use Pocketspace. The legacy
-`sf-overlay-engine` build/executable aliases and launcher still resolve to the
-same runtime. Keep the existing SteamVR application key, overlay/mailbox keys,
+The public executable, launcher and documentation use Pocketspace. Keep the
+existing SteamVR application key, overlay/mailbox keys,
 scene-container format string and default state directory stable across this
 branding change so bindings, input and named saves remain compatible.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
