@@ -59,7 +59,7 @@
 
 constexpr int kDefaultEyePixels=768;
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;uint64_t groupBufferBytes=0;std::chrono::steady_clock::time_point resizeAfter{};};
+struct Surface {int instanceId=0,objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;uint64_t groupBufferBytes=0;std::chrono::steady_clock::time_point resizeAfter{};};
 static GroupBufferBudget groupBufferBudget;
 static float surfaceCoverageWidth(float width,int allocated,int requested,bool grouped){
   return width*(grouped?std::max(1.f,float(allocated)/requested):float(allocated)/requested);
@@ -1244,6 +1244,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   closeScript(active);active=std::move(candidate);currentScene=liveScene=&active.scene;
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }
+#include "native_resource_key.h"
 #include "script_registry.h"
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
@@ -1303,14 +1304,14 @@ static void destroySurface(Surface &surface,EGLDisplay display){
   groupBufferBudget.release(surface.groupBufferBytes);surface.groupBufferBytes=0;
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
-static bool createSurface(Surface &surface,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={}){
+static bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={}){
   if(id<0&&!surface.groupBufferBytes){
     const auto bytes=GroupBufferBudget::bytes(eyePixels);
     if(!groupBufferBudget.reserve(bytes))return false;
     surface.groupBufferBytes=bytes;
   }
-  surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
-  const std::string key="sf_overlay_engine."+std::to_string(id)+suffix;
+  surface.instanceId=instanceId;surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
+  const std::string key=objectOverlayKey({instanceId,id},suffix);
   auto *overlays=vr::VROverlay();
   auto error=vr::VROverlayError_None;
   if(surface.overlay==vr::k_ulOverlayHandleInvalid){
@@ -1385,7 +1386,7 @@ static bool replaceGroupedSurface(Surface &surface,int pixels,gbm_device *gbm,EG
   if(surface.previous)return true;
   static uint64_t generation=0;
   Surface replacement;
-  if(!createSurface(replacement,surface.objectId,surface.width,pixels,false,gbm,display,transform,".resize."+std::to_string(++generation))){destroySurface(replacement,display);return false;}
+  if(!createSurface(replacement,surface.instanceId,surface.objectId,surface.width,pixels,false,gbm,display,transform,".resize."+std::to_string(++generation))){destroySurface(replacement,display);return false;}
   replacement.referenceEyePixels=surface.referenceEyePixels;
   replacement.resolutionLimited=surface.resolutionLimited;
   replacement.previous=std::make_unique<Surface>(std::move(surface));
@@ -2043,6 +2044,7 @@ int main(int argc,char **argv) {
     if(!ok){fprintf(stderr,"Invalid eye calibration: %s\n",calibrationPath.c_str());return 13;}
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
+  const int scriptInstanceId=1;
   ScriptHost script;if(!loadScript(script,scriptPath))return 13;
   EGLDisplay display=EGL_NO_DISPLAY;EGLContext context=EGL_NO_CONTEXT;EGLSurface surface=EGL_NO_SURFACE;
   ScopeExit eglCleanup{[&]{if(display!=EGL_NO_DISPLAY){eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);if(surface!=EGL_NO_SURFACE)eglDestroySurface(display,surface);if(context!=EGL_NO_CONTEXT)eglDestroyContext(display,context);eglTerminate(display);}}};
@@ -2169,10 +2171,10 @@ int main(int argc,char **argv) {
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!createSurface(*created,scriptInstanceId,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(!found->second->buffers[0].fbo){
-        if(!createSurface(*found->second,id,width,eyePixels,interactive,gbm,display,anchor))return false;
+        if(!createSurface(*found->second,scriptInstanceId,id,width,eyePixels,interactive,gbm,display,anchor))return false;
       }
     }
     return true;
@@ -2180,8 +2182,8 @@ int main(int argc,char **argv) {
   if(!syncSurfaces())return 8;
   reserveObjectOverlay=[&](int id)->std::string{
     if(surfaces.count(id))return {};
-    auto reserved=std::make_unique<Surface>();reserved->objectId=id;
-    const auto key="sf_overlay_engine."+std::to_string(id);
+    auto reserved=std::make_unique<Surface>();reserved->instanceId=scriptInstanceId;reserved->objectId=id;
+    const auto key=objectOverlayKey({scriptInstanceId,id});
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
     if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
     if(id<0){
@@ -2197,7 +2199,7 @@ int main(int argc,char **argv) {
   reservePanelOverlay=[&](const Panel &panel)->std::string{
     if(panelOverlays.count(panel.id))return {};
     vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
-    std::string key="sf_overlay_engine.panel."+std::to_string(panel.id);
+    std::string key=panelOverlayKey({scriptInstanceId,panel.id});
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&handle);if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
     overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);
     vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&bounds);
@@ -2526,8 +2528,8 @@ int main(int argc,char **argv) {
             fprintf(stderr,"[surface] group=%d adaptation budget deferred; retaining existing tiles\n",group);return;
           }
           static uint64_t generation=0;const auto suffix=".adapt."+std::to_string(++generation);
-          if(!createSurface(parent,key,plan.widths[0],plan.pixels[0],false,gbm,display,anchor,suffix)||
-             (!merge&&!createSurface(*child,childKey,plan.widths[1],plan.pixels[1],false,gbm,display,anchor,suffix))){
+          if(!createSurface(parent,scriptInstanceId,key,plan.widths[0],plan.pixels[0],false,gbm,display,anchor,suffix)||
+             (!merge&&!createSurface(*child,scriptInstanceId,childKey,plan.widths[1],plan.pixels[1],false,gbm,display,anchor,suffix))){
             destroySurface(parent,display);destroySurface(*child,display);allocationFailed=true;nextAdaptationCheck=now+std::chrono::seconds(5);
             fprintf(stderr,"[surface] group=%d adaptation allocation unavailable; retaining existing tiles\n",group);return;
           }

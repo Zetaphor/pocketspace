@@ -8,7 +8,7 @@ int main(){
   vr::EVRInitError init;vr::VR_Init(&init,vr::VRApplication_Background);
   if(init!=vr::VRInitError_None){fprintf(stderr,"init=%d\n",int(init));return 1;}
   auto *overlays=vr::VROverlay();vr::VROverlayHandle_t handle=0;
-  auto error=overlays->FindOverlay("sf_overlay_engine.panel.1",&handle);
+  auto error=overlays->FindOverlay("sf_overlay_engine.instance.1.panel.1",&handle);
   if(error!=vr::VROverlayError_None){fprintf(stderr,"find=%d\n",int(error));vr::VR_Shutdown();return 2;}
   vr::HmdMatrix34_t transform{};vr::ETrackingUniverseOrigin origin;float width=0;uint32_t w=0,h=0;
   const auto transformError=overlays->GetOverlayTransformAbsolute(handle,&origin,&transform);
