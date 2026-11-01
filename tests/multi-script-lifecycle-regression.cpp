@@ -82,6 +82,14 @@ int main(){
     const auto events=sceneInput().takeEvents();
     assert(events.size()==1&&events[0].type=="panel.hover"&&events[0].objectId==1);
   }
+  bool rightCleaned=false;
+  const auto leftGeneration=registry.find(left)->generation;
+  assert(registry.reload(right,[&]{
+    assert(activeInstanceId==right&&liveScene==&registry.find(right)->host.scene);
+    rightCleaned=true;
+  }));
+  assert(rightCleaned&&registry.find(right)->generation==2);
+  assert(registry.find(left)->generation==leftGeneration&&registry.find(left)->state==ScriptState::Running);
   frame_input::Event input{};input.type="controller.button";input.hand="left";
   assert(registry.dispatchInput(left,input)&&registry.dispatchInput(right,input));
   int duplicate=0;assert(!registry.launch("tests/scenes/multi-script-left.js",duplicate,error));
