@@ -57,6 +57,8 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 Surface and panel synchronization now accept the script host and native resource owner explicitly. The surface group lookup likewise reads the host passed to it. The current pass still invokes these helpers for one legacy script; the traversal conversion must pass each running instance's host and owners.
 
+The production host now scopes the legacy script only during initial native setup, file reload, each scene pass, and shutdown cleanup. This removes the engine-wide active script context that prevented sequential passes from entering different hosts. The pass is still invoked once until its remaining render-state aliases are bound per instance.
+
 - [ ] Change renderer traversal to iterate a stable snapshot of live instances. Qualify native surface, panel, and overlay keys by instance ID while leaving JavaScript IDs local to their scene. Preserve stereo submission, draw order, transparency, GPU ownership, and per-scene physics.
 - [ ] Integrate `ScriptRegistry` into the production host loop. Support a healthy frame loop with zero user scripts in managed mode while keeping the legacy positional-script path. The reserved scratch entry gets its QuickJS scene API in Step 8.
 - [ ] Make successful reload, failed reload, stop, and error stop release or retain only the appropriate instance's surfaces, panels, models, lights, shadows, and render caches. Keep process-wide caches shared only where their keys and resource lifetime are valid across instances.
