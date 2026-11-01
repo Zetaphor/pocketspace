@@ -130,3 +130,13 @@ public:
     closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
   }
 };
+
+inline void fanOutRawInput(ScriptRegistry &registry,std::vector<frame_input::Event> events){
+  const auto recipients=registry.runningIds();
+  for(auto &event:events){
+    // The physical monitor's hover ID is local to whichever scene set it.
+    event.objectId=0;
+    for(int id:recipients)if(auto *instance=registry.find(id))
+      instance->host.inputQueue->addEvent(event);
+  }
+}
