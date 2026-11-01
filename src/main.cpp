@@ -2398,13 +2398,14 @@ int main(int argc,char **argv) {
         if(!loaded)script.mtime=modified;
       }
     }
+    auto renderActiveScene=[&]()->int{
     const auto animationTick=std::chrono::steady_clock::now();
     const double animationDt=std::chrono::duration<double>(animationTick-lastAnimationTick).count();lastAnimationTick=animationTick;
     for(auto &object:script.scene.objects)if(object.animation.clip>=0){
       const auto &asset=script.scene.assets[size_t(object.asset)-1];
       if(animation::advancePlayback(object.animation,asset.animations,animationDt))evaluateModelPose(asset,object.animation,*object.animationPose);
     }
-    if(!syncSurfaces()){running=false;break;}
+    if(!syncSurfaces()){running=false;return -1;}
     syncPanels();
     for(auto &[id,handle]:panelOverlays){
       vr::VREvent_t event{};
@@ -2516,7 +2517,7 @@ int main(int argc,char **argv) {
     }
     const auto physicsStart=std::chrono::steady_clock::now();
     try{updateScenePhysics(script.scene,animationDt);}
-    catch(const std::exception &error){fprintf(stderr,"[physics] %s\n",error.what());running=false;break;}
+    catch(const std::exception &error){fprintf(stderr,"[physics] %s\n",error.what());running=false;return -1;}
     physicsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-physicsStart).count();
     if(script.scene.assetsReleased){
       instanceExperiment.reset();
@@ -2938,6 +2939,11 @@ int main(int argc,char **argv) {
       if(frame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
       if(frame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",frame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
+      return 0;
+    };
+    const int sceneResult=renderActiveScene();
+    if(sceneResult>0)return sceneResult;
+    if(sceneResult<0)break;
     if(engineStats.update(++diagnosticFrames)){
       uint64_t bytes=0;std::set<GLuint> countedDepth;
       for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){

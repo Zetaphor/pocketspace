@@ -49,6 +49,11 @@ public:
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   ScriptInstance *find(int id){auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
+  std::vector<int> runningIds()const{
+    std::vector<int> ids;
+    for(const auto &[id,instance]:instances_)if(instance->state==ScriptState::Running)ids.push_back(id);
+    return ids;
+  }
   bool launch(const std::string &path,int &id,std::string &error){
     std::error_code ec;const auto resolved=std::filesystem::canonical(path,ec);
     if(ec||!std::filesystem::is_regular_file(resolved,ec)||ec){error="script file is not readable";return false;}
