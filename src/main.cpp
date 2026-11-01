@@ -1917,6 +1917,28 @@ struct StableGroupAdjustment {
     ++observations;return observations>=3&&now-since>=std::chrono::seconds(1);
   }
 };
+// GPU programs, light maps, bounds, and group-adaptation history belong to a
+// script instance. Shared shader programs and the EGL context remain host-owned.
+struct SceneRenderState {
+  struct PendingTileChange {int parent=0,child=0;bool merge=false;};
+  SpotShadows spotShadows;
+  PbrVariantPrograms pbrVariants;
+  ModelInstancing instanceExperiment{ModelInstancing::Instanced};
+  FrameBoundsCache frameBounds;
+  std::vector<ObjectLightSet> frameObjectLights;
+  std::optional<PendingTileChange> pendingTileChange;
+  StableGroupAdjustment stableAdjustment;
+  size_t adjustmentCursor=0;
+  std::map<int,std::chrono::steady_clock::time_point> regroupAfter;
+  std::chrono::steady_clock::time_point nextAdaptationCheck=std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point nextGroupResize=std::chrono::steady_clock::now();
+  void resetScene(){
+    spotShadows.reset();pbrVariants.clear();instanceExperiment.reset();
+    frameBounds={};frameObjectLights.clear();pendingTileChange.reset();stableAdjustment.reset();
+    adjustmentCursor=0;regroupAfter.clear();
+    nextAdaptationCheck=nextGroupResize=std::chrono::steady_clock::now();
+  }
+};
 // Split/rebalance outputs retain the complete old cohort in previous chains.
 // Show the child first and retire all fallbacks only after both outputs succeed.
 template<class Overlays,class Retire>
@@ -2095,7 +2117,11 @@ int main(int argc,char **argv) {
   ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
-  SpotShadows spotShadows;if(!spotShadows.prepare())return 5;
+  std::map<int,std::unique_ptr<SceneRenderState>> renderStates;
+  auto &sceneRender=*renderStates.emplace(scriptInstanceId,std::make_unique<SceneRenderState>()).first->second;
+  auto &spotShadows=sceneRender.spotShadows;
+  auto &pbrVariants=sceneRender.pbrVariants;
+  if(!spotShadows.prepare())return 5;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
@@ -2112,7 +2138,6 @@ int main(int argc,char **argv) {
 #else
   constexpr bool pbrVariantsEnabled=true;
 #endif
-  PbrVariantPrograms pbrVariants;
   if(pbrVariantsEnabled){for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);pbrVariants.prepare(script.scene);}
 #ifdef SF_PBR_VARIANT_EXPERIMENT
   ScopeExit variantReport{[&]{printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",pbrVariants.programs.size(),(unsigned long long)pbrVariants.binaryBytes(),pbrVariants.compileMs,pbrVariants.fallbackDraws);}};
@@ -2161,11 +2186,12 @@ int main(int argc,char **argv) {
   std::array<GrabState,2> grabs{};
   GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
   const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
-  struct PendingTileChange {int parent=0,child=0;bool merge=false;};std::optional<PendingTileChange> pendingTileChange;
-  StableGroupAdjustment stableAdjustment;size_t adjustmentCursor=0;
-  std::map<int,std::chrono::steady_clock::time_point> regroupAfter;
-  auto nextAdaptationCheck=std::chrono::steady_clock::now();
-  auto nextGroupResize=std::chrono::steady_clock::now();
+  auto &pendingTileChange=sceneRender.pendingTileChange;
+  auto &stableAdjustment=sceneRender.stableAdjustment;
+  auto &adjustmentCursor=sceneRender.adjustmentCursor;
+  auto &regroupAfter=sceneRender.regroupAfter;
+  auto &nextAdaptationCheck=sceneRender.nextAdaptationCheck;
+  auto &nextGroupResize=sceneRender.nextGroupResize;
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
   auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto eraseSurface=[&](int key){
@@ -2276,9 +2302,11 @@ int main(int argc,char **argv) {
 #endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
-  std::vector<Surface*> ready;FrameBoundsCache frameBounds;std::vector<ObjectLightSet> frameObjectLights;
+  std::vector<Surface*> ready;
+  auto &frameBounds=sceneRender.frameBounds;
+  auto &frameObjectLights=sceneRender.frameObjectLights;
+  auto &instanceExperiment=sceneRender.instanceExperiment;
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
-  ModelInstancing instanceExperiment(ModelInstancing::Instanced);
 
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const char *groupPolicy=std::getenv("SF_GPU_GROUP_POLICY");
@@ -2339,11 +2367,10 @@ int main(int argc,char **argv) {
       if(!ec&&modified!=script.mtime){
         const bool loaded=loadScript(script,scriptPath,[&]{
           releaseResources(sceneResources);
-          pendingTileChange.reset();stableAdjustment.reset();regroupAfter.clear();adjustmentCursor=0;pointerStates.clear();grabs={};
+          sceneRender.resetScene();pointerStates.clear();grabs={};
           panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
-          instanceExperiment.reset();spotShadows.reset();
           lastAnimationTick=std::chrono::steady_clock::now();
 #ifdef SF_ANIMATION_PROFILE
           ++animationEpoch;
@@ -2568,7 +2595,7 @@ int main(int argc,char **argv) {
           for(int side=0;side<(merge?1:2);side++)for(const auto *object:plan.members[side]){
             const int tileKey=side?childKey:key;script.scene.objects[size_t(object-script.scene.objects.data())].renderTile=(-tileKey-group)/256;
           }
-          pendingTileChange=PendingTileChange{key,childKey,merge};stableAdjustment.reset();regroupAfter[group]=now+std::chrono::seconds(2);
+          pendingTileChange=SceneRenderState::PendingTileChange{key,childKey,merge};stableAdjustment.reset();regroupAfter[group]=now+std::chrono::seconds(2);
           fprintf(stdout,"[surface] group=%d %s tiles=%zu parent_pixels_squared=%llu child_pixels_squared=%llu\n",group,merge?"merge":rebalance?"rebalance":"split",tileCount,(unsigned long long)plan.parentPixelsSquared,(unsigned long long)plan.childPixelsSquared);fflush(stdout);
         };
         std::set<int> hiddenTiles;for(const auto &object:script.scene.objects)if(object.renderGroup&&!object.visible)hiddenTiles.insert(objectSurfaceKey(object));
