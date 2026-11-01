@@ -2,6 +2,10 @@
 
 Status: proposed. This document defines implementation slices and acceptance checks; it does not describe shipped behavior.
 
+Follow the [step-by-step implementation guide](multi-script-implementation.md)
+for code areas, test gates, and a completion record. This plan remains the
+behavior contract.
+
 ## Goal
 
 Run several independent Pocketspace scripts in one engine process, while keeping a SteamVR dashboard control available to launch, inspect, reload, and stop each script. Scripts communicate through a bounded publish/subscribe event bus with catch-all subscriptions. A script failure must not discard another script's scene. The dashboard must show useful per-script resource data and distinguish estimates from measured process totals.
@@ -65,7 +69,7 @@ Show process FPS, CPU, RSS, and DRM GPU memory once as **engine totals**. Per sc
 
 ## Implementation slices
 
-1. **Ownership map and baseline checks.** Enumerate every process-global scene pointer, callback, overlay key, input queue, grab/hover state, renderer cache, statistics value, and persistence path. Add focused regression coverage for two scenes with colliding numeric IDs and for unchanged one-script behavior. Record a two-script workload and baseline FPS/memory on Deckard without interactive pointer capture.
+1. **Ownership map and baseline checks.** Enumerate every process-global scene pointer, callback, overlay key, input queue, grab/hover state, renderer cache, statistics value, and persistence path. Add focused regression coverage for two scenes with colliding numeric IDs and for unchanged one-script behavior. Record a representative one-script FPS/memory baseline on Deckard before comparing a matched two-script workload after multi-instance rendering exists; neither measurement may capture pointer input.
 2. **Instance registry and lifecycle.** Introduce stable instance IDs and scoped scene access, including persistent scratch instance `0`. Support zero-user-script idle mode by default, an explicit validated autostart list, automatic file-change reload, and independent candidate load/reload/stop. Ensure failure of one autostart, candidate, or callback does not tear down another. Keep the legacy single-script positional invocation working.
 3. **Shared frame and interaction.** Route one tracking/input snapshot into all instances, arbitrate picking/grabs globally by closest hit with optional script priority, qualify overlay and surface keys, render all live scenes in stable order, and cleanly detach only the stopped/reloaded instance. Define behavior for overlapping panels and model surfaces. Add per-script scene-save namespaces and explicit cross-script import; verify cross-script hit priority, held-object release, physics separation, save-name isolation, import, and reload under live rendering.
 4. **Event bus.** Add bounded publish/subscribe with exact-topic and cross-instance-only catch-all delivery, copied payloads, deterministic ordering, deferred dispatch, scoped subscriptions, and failure isolation. Test two scripts exchanging events, own-topic delivery through exact subscriptions, own-topic exclusion from catch-all, scratch-to-script delivery, subscriptions to engine-originated topics, rejection of script publications to `engine.*`, multiple matching subscriptions, no-subscriber topics, a publish from a subscriber, overflow, malformed payloads, and reload/stop during delivery.
