@@ -55,6 +55,11 @@ public:
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   ScriptInstance *find(int id){auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
+  std::vector<int> allIds()const{
+    std::vector<int> ids;ids.reserve(instances_.size());
+    for(const auto &[id,instance]:instances_)ids.push_back(id);
+    return ids;
+  }
   std::vector<int> runningIds()const{
     std::vector<int> ids;
     for(const auto &[id,instance]:instances_)if(instance->state==ScriptState::Running)ids.push_back(id);

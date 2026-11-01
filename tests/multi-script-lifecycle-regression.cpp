@@ -34,6 +34,7 @@ int main(){
   assert(registry.launch("tests/scenes/multi-script-right.js",right,error));
   assert(left>0&&right>left);
   assert(registry.runningIds()==std::vector<int>({left,right}));
+  assert(registry.allIds()==std::vector<int>({0,left,right}));
   const auto *a=registry.find(left),*b=registry.find(right);
   assert(a&&b&&a->state==ScriptState::Running&&b->state==ScriptState::Running);
   assert(a->host.ctx!=b->host.ctx&&a->host.rt!=b->host.rt);
