@@ -2404,6 +2404,10 @@ int main(int argc,char **argv) {
         snapshot.rotation[row*3+col]=row==2?-value:value;
       }
     }
+    const bool streamWasStarted=frameInput.started();
+    frameInput.poll();
+    fanOutRawInput(scriptRegistry,frameInput.takeEvents());
+    frameInput.takeCallbackEvents();
     if(frame%30==0){
       std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
       if(!ec&&modified!=script.mtime){
@@ -2496,10 +2500,6 @@ int main(int argc,char **argv) {
       }
     }else headBasisValid=false;
     controllerInput.poll(script.scene.eyeTrackingRequested,script.scene.foveationRequested);
-    const bool streamWasStarted=frameInput.started();
-    frameInput.poll();
-    for(auto &event:frameInput.takeEvents())sceneInput().addEvent(std::move(event));
-    frameInput.takeCallbackEvents();
     if(streamWasStarted&&!frameInput.started()){
       for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
       for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}

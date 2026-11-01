@@ -32,6 +32,15 @@ int main(){
   assert(a->host.scene.panels.size()==1&&b->host.scene.panels.size()==1);
   assert(a->host.scene.panels[0].id==1&&b->host.scene.panels[0].id==1);
   assert(!JS_IsUndefined(a->host.callback)&&!JS_IsUndefined(b->host.callback));
+  frame_input::Event raw{};raw.type="controller.button";raw.hand="left";raw.objectId=1;
+  fanOutRawInput(registry,{raw});
+  auto leftRaw=registry.find(left)->host.inputQueue->takeEvents();
+  auto rightRaw=registry.find(right)->host.inputQueue->takeEvents();
+  assert(leftRaw.size()==1&&rightRaw.size()==1);
+  assert(leftRaw[0].type=="controller.button"&&rightRaw[0].type=="controller.button");
+  assert(leftRaw[0].objectId==0&&rightRaw[0].objectId==0);
+  assert(registry.find(left)->host.inputQueue->takeEvents().empty());
+  assert(registry.find(right)->host.inputQueue->takeEvents().empty());
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
   {
     ScriptScope scope(registry.find(left)->host);
