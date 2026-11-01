@@ -46,6 +46,12 @@ performance experiments are separate from correctness and visual acceptance.
 | [skinning-math.cpp](skinning-math.cpp) | Joint transforms, inverse binds, hierarchy, and weighted skinning math. |
 | [tracking-regression.cpp](tracking-regression.cpp) | Tracking transforms, invalid/stale data, gaze policy, event queues, and disconnect handling. |
 
+## Multi-script fixtures
+
+| File | Purpose |
+| --- | --- |
+| [scenes/multi-script-left.js](scenes/multi-script-left.js), [scenes/multi-script-right.js](scenes/multi-script-right.js) | Paired noninteractive scenes with the same top-level names and local object/panel IDs. Step 1 uses them to check independent QuickJS contexts; Step 2 checks native overlay ownership. Concurrent execution is not implemented yet. |
+
 ## JavaScript API smoke fixtures
 
 | File | Purpose |
