@@ -139,6 +139,26 @@ int main(){
   assert(registry.find(fourth)->state==ScriptState::Failed);
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
+  {std::ofstream out(temp);out<<"function update(){}";}
+  int fifth=0;assert(registry.launch(temp.string(),fifth,error));
+  {
+    ScriptScope scope(registry.find(fifth)->host);
+    assert(registry.failActive(fifth,"EXPECTED_PRODUCTION_FAILURE"));
+  }
+  assert(registry.find(fifth)->state==ScriptState::Failed);
+  assert(registry.find(fifth)->lastError=="EXPECTED_PRODUCTION_FAILURE");
+  assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
+  {std::ofstream out(temp);out<<"onInputEvent(()=>{throw Error('EXPECTED_PRODUCTION_CALLBACK')})";}
+  int sixth=0;assert(registry.launch(temp.string(),sixth,error));
+  {
+    ScriptScope scope(registry.find(sixth)->host);
+    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+    const auto callbackError=dispatchInputCallbacks();
+    assert(callbackError.find("EXPECTED_PRODUCTION_CALLBACK")!=std::string::npos);
+    assert(registry.failActive(sixth,callbackError));
+  }
+  assert(registry.find(sixth)->state==ScriptState::Failed);
+  assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
   const auto frameSnapshot=registry.runningIds();
   assert(frameSnapshot==std::vector<int>{right});
   assert(registry.stop(right));

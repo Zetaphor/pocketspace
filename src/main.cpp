@@ -363,13 +363,22 @@ static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   if(inputCallbackCtx&&inputCallbackCtx!=ctx)clearInputCallback(inputCallbackCtx);else clearInputCallback(ctx);
   inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);inputCallbackContainer=owner;return JS_UNDEFINED;
 }
-static void dispatchInputCallbacks(){
+static std::string dispatchInputCallbacks(){
   if(inputCallbackCtx){auto events=sceneInput().takeCallbackEvents();for(const auto &event:events){
       if(!inputCallbackCtx)break;
       JSContext *ctx=inputCallbackCtx;JSValue callback=JS_DupValue(ctx,inputCallback),value=inputEventValue(ctx,event);
       JSValue result=JS_Call(ctx,callback,JS_UNDEFINED,1,&value);JS_FreeValue(ctx,value);JS_FreeValue(ctx,callback);
-      if(JS_IsException(result))JS_FreeValue(ctx,JS_GetException(ctx));else JS_FreeValue(ctx,result);
+      if(JS_IsException(result)){
+        JSValue exception=JS_GetException(ctx);
+        const char *message=JS_ToCString(ctx,exception);
+        std::string error=message?message:"input callback failed";
+        if(message)JS_FreeCString(ctx,message);
+        JS_FreeValue(ctx,exception);JS_FreeValue(ctx,result);
+        return error;
+      }
+      JS_FreeValue(ctx,result);
     }}
+  return {};
 }
 static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
   JSValue array=JS_NewArray(ctx);if(currentScene!=liveScene)return array;
@@ -2606,18 +2615,33 @@ int main(int argc,char **argv) {
     pickingMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
     const auto reconnectNow=std::chrono::steady_clock::now();
     if(!frameInput.started()&&reconnectNow>=reconnectAt){frameInput.reconnect();reconnectAt=reconnectNow+std::chrono::seconds(1);}
-    dispatchInputCallbacks();
+    auto failScene=[&](const std::string &error){
+      fprintf(stderr,"[lifecycle] instance=%d stopped after error: %s\n",instance.id,error.c_str());
+      for(int hand=0;hand<2;hand++)if(hoveredObject[hand])frameInput.setHoveredObject(hand,0);
+      releaseResources(sceneResources);
+      sceneRender.resetScene();
+      scriptRegistry.failActive(instance.id,error);
+      return 0;
+    };
+    if(const auto error=dispatchInputCallbacks();!error.empty())return failScene(error);
     updateManipulation(script.scene,grabs,1.f/90.f);
     for(int hand=0;hand<2;hand++)if(grabs[hand].objectId)meshHitDistance[hand]=grabs[hand].laserDistance;
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);
       JSValue result=JS_Call(script.ctx,script.update,JS_UNDEFINED,1,&dt);JS_FreeValue(script.ctx,dt);
-      if(JS_IsException(result)){JSValue exception=JS_GetException(script.ctx);const char *message=JS_ToCString(script.ctx,exception);fprintf(stderr,"[js] update error: %s\n",message?message:"unknown");if(message)JS_FreeCString(script.ctx,message);JS_FreeValue(script.ctx,exception);JS_FreeValue(script.ctx,script.update);script.update=JS_UNDEFINED;}
+      if(JS_IsException(result)){
+        JSValue exception=JS_GetException(script.ctx);
+        const char *message=JS_ToCString(script.ctx,exception);
+        std::string error=message?message:"update failed";
+        if(message)JS_FreeCString(script.ctx,message);
+        JS_FreeValue(script.ctx,exception);JS_FreeValue(script.ctx,result);
+        return failScene(error);
+      }
       JS_FreeValue(script.ctx,result);
     }
     const auto physicsStart=std::chrono::steady_clock::now();
     try{updateScenePhysics(script.scene,animationDt);}
-    catch(const std::exception &error){fprintf(stderr,"[physics] %s\n",error.what());running=false;return -1;}
+    catch(const std::exception &error){return failScene(error.what());}
     physicsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-physicsStart).count();
     if(script.scene.assetsReleased){
       instanceExperiment.reset();
