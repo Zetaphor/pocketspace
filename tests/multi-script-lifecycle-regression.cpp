@@ -49,10 +49,30 @@ int main(){
   {
     ScriptScope scope(registry.find(left)->host);
     assert(pointerStates.at(1).valid&&hoveredObject[0]==1&&meshCurrentObject[1]==1&&grabNeedsRelease[0]);
+    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+  }
+  {
+    ScriptScope scope(registry.find(right)->host);
+    assert(sceneInput().takeEvents().empty());
+    sceneInput().addOverlayEvent("panel.hover",1,1);
+  }
+  {
+    ScriptScope scope(registry.find(left)->host);
+    const auto events=sceneInput().takeEvents();
+    assert(events.size()==1&&events[0].type=="overlay.pointer"&&events[0].objectId==1);
   }
   assert(registry.reload(left));
   assert(registry.find(left)->host.instanceId==left&&activeInstanceId==0);
   assert(registry.find(left)->host.interaction.pointers.empty()&&registry.find(right)->host.interaction.pointers.at(1).hand==1);
+  {
+    ScriptScope scope(registry.find(left)->host);
+    assert(sceneInput().takeCallbackEvents().empty());
+  }
+  {
+    ScriptScope scope(registry.find(right)->host);
+    const auto events=sceneInput().takeEvents();
+    assert(events.size()==1&&events[0].type=="panel.hover"&&events[0].objectId==1);
+  }
   frame_input::Event input{};input.type="controller.button";input.hand="left";
   assert(registry.dispatchInput(left,input)&&registry.dispatchInput(right,input));
   int duplicate=0;assert(!registry.launch("tests/scenes/multi-script-left.js",duplicate,error));
