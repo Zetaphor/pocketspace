@@ -93,11 +93,6 @@ target_compile_options(sheen-regression PRIVATE -UNDEBUG)
 add_executable(pbr-regression EXCLUDE_FROM_ALL tests/pbr-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_options(pbr-regression PRIVATE -UNDEBUG)
 add_executable(pocketspace src/main.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
-# Preserve old build commands and direct executable paths during the rename.
-add_custom_target(sf-overlay-engine DEPENDS pocketspace)
-add_custom_command(TARGET pocketspace POST_BUILD
-  COMMAND "${CMAKE_COMMAND}" -E create_symlink "$<TARGET_FILE_NAME:pocketspace>" "$<TARGET_FILE_DIR:pocketspace>/sf-overlay-engine"
-  VERBATIM)
 
 # Explicit regression target: uses the actual QuickJS loader without starting VR.
 add_executable(lifecycle-script-regression EXCLUDE_FROM_ALL tests/lifecycle-script-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)

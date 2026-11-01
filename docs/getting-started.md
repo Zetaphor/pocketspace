@@ -53,9 +53,7 @@ Inspect a model without opening VR:
 ## Existing installations
 
 The executable is `build/pocketspace` and the launcher is `run-pocketspace.sh`.
-The previous `run-overlay-engine.sh` launcher, `sf-overlay-engine` build target
-and `build/sf-overlay-engine` executable alias remain supported. Reconfigure and
-rebuild an existing checkout to generate the new executable and alias.
+Reconfigure and rebuild an existing checkout to use the Pocketspace executable.
 
 Existing named scene saves retain their storage directory and format identifier;
 see [scene persistence](scene-persistence.md). SteamVR's application identity is
