@@ -2107,10 +2107,14 @@ int main(int argc,char **argv) {
     fprintf(stderr,"[lifecycle] launch failed: %s\n",launchError.c_str());return 13;
   }
   ScriptHost &script=scriptRegistry.find(scriptInstanceId)->host;
-  ScriptScope activeScript(script);
+  std::optional<ScriptScope> setupScriptScope;
+  setupScriptScope.emplace(script);
   EGLDisplay display=EGL_NO_DISPLAY;EGLContext context=EGL_NO_CONTEXT;EGLSurface surface=EGL_NO_SURFACE;
   ScopeExit eglCleanup{[&]{if(display!=EGL_NO_DISPLAY){eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);if(surface!=EGL_NO_SURFACE)eglDestroySurface(display,surface);if(context!=EGL_NO_CONTEXT)eglDestroyContext(display,context);eglTerminate(display);}}};
-  ScopeExit scriptCleanup{[&]{closeScript(script);currentScene=liveScene=nullptr;}};
+  ScopeExit scriptCleanup{[&]{
+    if(setupScriptScope){closeScript(script);resetActiveInteraction();setupScriptScope.reset();}
+    else{ScriptScope scope(script);closeScript(script);resetActiveInteraction();}
+  }};
   if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
   ScopeExit vrCleanup{[&]{frameInput.stop();trackingAnchorValid=false;vr::VR_Shutdown();}};
@@ -2379,6 +2383,7 @@ int main(int argc,char **argv) {
   animationProfileFrame=&animationFrame;ScopeExit clearAnimationProfiler{[]{animationProfileFrame=nullptr;}};
   std::fprintf(stdout,"ANIMATION_PROFILE_BEGIN gpu=%s version=%s\n",glGetString(GL_RENDERER),glGetString(GL_VERSION));
 #endif
+  setupScriptScope.reset();
   while(running){
 #ifdef SF_ANIMATION_PROFILE
     animationFrame={};const auto animationFrameStart=AnimationProfileClock::now();
@@ -2415,6 +2420,7 @@ int main(int argc,char **argv) {
     if(frame%30==0){
       std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
       if(!ec&&modified!=script.mtime){
+        ScriptScope reloadScope(script);
         const bool loaded=scriptRegistry.reloadActive(scriptInstanceId,[&]{
           releaseResources(sceneResources);
           sceneRender.resetScene();pointerStates.clear();
@@ -2435,6 +2441,7 @@ int main(int argc,char **argv) {
       }
     }
     auto renderActiveScene=[&]()->int{
+    ScriptScope sceneScope(script);
     const auto animationTick=std::chrono::steady_clock::now();
     const double animationDt=std::chrono::duration<double>(animationTick-lastAnimationTick).count();lastAnimationTick=animationTick;
     for(auto &object:script.scene.objects)if(object.animation.clip>=0){
