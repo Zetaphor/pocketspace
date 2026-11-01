@@ -67,6 +67,13 @@ public:
     resetActiveInteraction();
     ++instance->generation;instance->lastError.clear();return true;
   }
+  // The legacy VR loop holds this host's ScriptScope across the frame.
+  bool reloadActive(int id,const std::function<void()> &beforeCommit){
+    auto *instance=find(id);
+    if(!instance||!id||instance->state!=ScriptState::Running||currentScene!=&instance->host.scene||liveScene!=&instance->host.scene)return false;
+    if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";return false;}
+    ++instance->generation;instance->lastError.clear();return true;
+  }
   void reloadChanged(){
     for(auto &[id,entry]:instances_)if(id&&entry->state==ScriptState::Running){
       std::error_code ec;const auto modified=std::filesystem::last_write_time(entry->path,ec);

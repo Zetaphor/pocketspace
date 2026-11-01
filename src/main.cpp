@@ -2093,8 +2093,13 @@ int main(int argc,char **argv) {
     if(!ok){fprintf(stderr,"Invalid eye calibration: %s\n",calibrationPath.c_str());return 13;}
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
-  const int scriptInstanceId=1;
-  ScriptHost script;if(!loadScript(script,scriptPath))return 13;
+  ScriptRegistry scriptRegistry;
+  int scriptInstanceId=0;std::string launchError;
+  if(!scriptRegistry.launch(scriptPath,scriptInstanceId,launchError)){
+    fprintf(stderr,"[lifecycle] launch failed: %s\n",launchError.c_str());return 13;
+  }
+  ScriptHost &script=scriptRegistry.find(scriptInstanceId)->host;
+  ScriptScope activeScript(script);
   EGLDisplay display=EGL_NO_DISPLAY;EGLContext context=EGL_NO_CONTEXT;EGLSurface surface=EGL_NO_SURFACE;
   ScopeExit eglCleanup{[&]{if(display!=EGL_NO_DISPLAY){eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);if(surface!=EGL_NO_SURFACE)eglDestroySurface(display,surface);if(context!=EGL_NO_CONTEXT)eglDestroyContext(display,context);eglTerminate(display);}}};
   ScopeExit scriptCleanup{[&]{closeScript(script);currentScene=liveScene=nullptr;}};
@@ -2375,7 +2380,7 @@ int main(int argc,char **argv) {
     if(frame%30==0){
       std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
       if(!ec&&modified!=script.mtime){
-        const bool loaded=loadScript(script,scriptPath,[&]{
+        const bool loaded=scriptRegistry.reloadActive(scriptInstanceId,[&]{
           releaseResources(sceneResources);
           sceneRender.resetScene();pointerStates.clear();
           frameInput.resetScene();

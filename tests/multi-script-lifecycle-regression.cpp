@@ -87,5 +87,21 @@ int main(){
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
+  {
+    ScriptRegistry production;
+    int id=0;std::string launchError;
+    assert(production.launch("tests/scenes/multi-script-left.js",id,launchError));
+    auto &host=production.find(id)->host;
+    {
+      ScriptScope active(host);
+      assert(currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
+      bool committed=false;
+      assert(production.reloadActive(id,[&]{committed=true;}));
+      assert(committed&&production.find(id)->generation==2);
+      assert(currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
+      closeScript(host);
+    }
+    assert(!host.ctx&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
+  }
   puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, duplicate rejection, file-change rollback, scoped stop and callback errors");
 }
