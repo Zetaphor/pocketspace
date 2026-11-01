@@ -2214,7 +2214,7 @@ int main(int argc,char **argv) {
   auto &nextAdaptationCheck=sceneRender.nextAdaptationCheck;
   auto &nextGroupResize=sceneRender.nextGroupResize;
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
-  auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
+  auto surfaceMembers=[&](const ScriptHost &host){SurfaceMembers groups;for(const auto &object:host.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
   auto eraseSurface=[&](int ownerId,int key){
     auto owner=resourcesByInstance.find(ownerId);
     auto render=renderStates.find(ownerId);
@@ -2231,17 +2231,18 @@ int main(int argc,char **argv) {
     }
     destroySurface(*found->second,display);surfaces.erase(found);
   };
-  auto syncSurfaces=[&]()->bool{
-    const auto groups=surfaceMembers();
+  auto syncSurfaces=[&](ScriptHost &host,SceneResources &resources)->bool{
+    auto &surfaces=resources.surfaces;
+    const auto groups=surfaceMembers(host);
     for(auto it=surfaces.begin();it!=surfaces.end();){
       if(!groups.count(it->first)){
-        const int key=it->first;++it;forgetObjectInteraction(key);eraseSurface(scriptInstanceId,key);
+        const int key=it->first;++it;forgetObjectInteraction(key);eraseSurface(host.instanceId,key);
       }else ++it;
     }
     for(const auto &[id,members]:groups){
       const auto *object=members.front();
       const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
-      const int eyePixels=script.scene.assets[(size_t)object->asset-1].eyePixels;
+      const int eyePixels=host.scene.assets[(size_t)object->asset-1].eyePixels;
       const bool interactive=id>0&&!object->laserPassThrough;
       auto found=surfaces.find(id);
       if(found!=surfaces.end()&&found->second->buffers[0].fbo&&((id>0&&found->second->referenceEyePixels!=eyePixels)||found->second->interactive!=interactive)){
@@ -2249,15 +2250,15 @@ int main(int argc,char **argv) {
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,scriptInstanceId,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!createSurface(*created,host.instanceId,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(!found->second->buffers[0].fbo){
-        if(!createSurface(*found->second,scriptInstanceId,id,width,eyePixels,interactive,gbm,display,anchor))return false;
+        if(!createSurface(*found->second,host.instanceId,id,width,eyePixels,interactive,gbm,display,anchor))return false;
       }
     }
     return true;
   };
-  if(!syncSurfaces())return 8;
+  if(!syncSurfaces(script,sceneResources))return 8;
   reserveObjectOverlay=[&](int id)->std::string{
     auto owner=resourcesByInstance.find(activeInstanceId);
     if(owner==resourcesByInstance.end())return "script resource owner unavailable";
@@ -2303,26 +2304,29 @@ int main(int argc,char **argv) {
     panels.erase(it);owner->second->panelSubmissions.erase(id);
   };
   ScopeExit panelOverlayHooksCleanup{[]{reservePanelOverlay={};releasePanelOverlay={};}};
-  auto syncPanels=[&](){
+  auto syncPanels=[&](ScriptHost &host,SceneResources &resources,SceneRenderState &render){
+    auto &panelOverlays=resources.panelOverlays;
+    auto &panelSubmissions=resources.panelSubmissions;
+    auto &panelHovered=render.panelHovered;
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
       const int id=it->first;
-      const bool exists=findSceneItem(script.scene.panels,id)!=nullptr;
+      const bool exists=findSceneItem(host.scene.panels,id)!=nullptr;
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
       panelSubmissions.erase(id);
       for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;}
       it=panelOverlays.erase(it);
     }
-    for(auto &retired:script.scene.retiredPanels)panelDestroy(retired);
-    script.scene.retiredPanels.clear();
-    for(auto &panel:script.scene.panels){
+    for(auto &retired:host.scene.retiredPanels)panelDestroy(retired);
+    host.scene.retiredPanels.clear();
+    for(auto &panel:host.scene.panels){
       if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){sceneInput().addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
       reservePanelOverlay(panel);
     }
   };
-  syncPanels();
+  syncPanels(script,sceneResources,sceneRender);
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
   const GLint centerLocation=glGetUniformLocation(program,"center");
@@ -2437,8 +2441,8 @@ int main(int argc,char **argv) {
       const auto &asset=script.scene.assets[size_t(object.asset)-1];
       if(animation::advancePlayback(object.animation,asset.animations,animationDt))evaluateModelPose(asset,object.animation,*object.animationPose);
     }
-    if(!syncSurfaces()){running=false;return -1;}
-    syncPanels();
+    if(!syncSurfaces(script,sceneResources)){running=false;return -1;}
+    syncPanels(script,sceneResources,sceneRender);
     for(auto &[id,handle]:panelOverlays){
       vr::VREvent_t event{};
       while(overlays->PollNextOverlayEvent(handle,&event,sizeof(event))){
@@ -2614,7 +2618,7 @@ int main(int argc,char **argv) {
 #endif
       if(!pendingTileChange&&std::chrono::steady_clock::now()>=nextAdaptationCheck){
         const auto now=std::chrono::steady_clock::now();nextAdaptationCheck=now+std::chrono::milliseconds(500);
-        const auto candidates=surfaceMembers();
+        const auto candidates=surfaceMembers(script);
         bool allocationFailed=false;
         auto startChange=[&](int key,int childKey,const GroupSplitPlan &plan,bool merge,bool rebalance,size_t tileCount){
           const int group=surfaceRenderGroup(key);auto child=std::make_unique<Surface>();Surface parent;
@@ -2683,7 +2687,7 @@ int main(int argc,char **argv) {
         const auto error=submitPanel(*overlays,overlay->second,panelData,transform,panelSubmissions[panelData.id]);
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
       }
-      const auto groups=surfaceMembers();
+      const auto groups=surfaceMembers(script);
       int shrinkBudget=2;std::set<int> culledSurfaces;
 #ifdef SF_GPU_SYNC_EXPERIMENT
       gpuSync.scene(script.scene);gpuSync.begin();
