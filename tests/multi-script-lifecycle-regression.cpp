@@ -5,7 +5,7 @@
 #include <cassert>
 
 int main(){
-  assert(currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
+  assert(currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr&&activeInstanceId==0);
   {
     SceneRenderState leftRender,rightRender;
     leftRender.grabs[0].objectId=1;rightRender.grabs[0].objectId=1;
@@ -26,6 +26,7 @@ int main(){
   const auto *a=registry.find(left),*b=registry.find(right);
   assert(a&&b&&a->state==ScriptState::Running&&b->state==ScriptState::Running);
   assert(a->host.ctx!=b->host.ctx&&a->host.rt!=b->host.rt);
+  assert(a->host.instanceId==left&&b->host.instanceId==right);
   assert(a->host.scene.objects.size()==1&&b->host.scene.objects.size()==1);
   assert(a->host.scene.objects[0].id==1&&b->host.scene.objects[0].id==1);
   assert(a->host.scene.panels.size()==1&&b->host.scene.panels.size()==1);
@@ -34,12 +35,14 @@ int main(){
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
   {
     ScriptScope scope(registry.find(left)->host);
+    assert(activeInstanceId==left);
     pointerStates[1].valid=true;hoveredObject[0]=1;meshCurrentObject[1]=1;grabNeedsRelease[0]=true;
   }
-  assert(pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
+  assert(activeInstanceId==0&&pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
   assert(registry.find(left)->host.interaction.pointers.at(1).valid);
   {
     ScriptScope scope(registry.find(right)->host);
+    assert(activeInstanceId==right);
     assert(pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
     pointerStates[1].hand=1;
   }
@@ -48,6 +51,7 @@ int main(){
     assert(pointerStates.at(1).valid&&hoveredObject[0]==1&&meshCurrentObject[1]==1&&grabNeedsRelease[0]);
   }
   assert(registry.reload(left));
+  assert(registry.find(left)->host.instanceId==left&&activeInstanceId==0);
   assert(registry.find(left)->host.interaction.pointers.empty()&&registry.find(right)->host.interaction.pointers.at(1).hand==1);
   frame_input::Event input{};input.type="controller.button";input.hand="left";
   assert(registry.dispatchInput(left,input)&&registry.dispatchInput(right,input));
@@ -99,14 +103,14 @@ int main(){
     auto &host=production.find(id)->host;
     {
       ScriptScope active(host);
-      assert(currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
+      assert(activeInstanceId==id&&currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
       bool committed=false;
       assert(production.reloadActive(id,[&]{committed=true;}));
       assert(committed&&production.find(id)->generation==2);
-      assert(currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
+      assert(activeInstanceId==id&&host.instanceId==id&&currentScene==&host.scene&&liveScene==&host.scene&&inputCallbackCtx==host.ctx);
       closeScript(host);
     }
-    assert(!host.ctx&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
+    assert(!host.ctx&&activeInstanceId==0&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
   }
   puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, duplicate rejection, file-change rollback, scoped stop and callback errors");
 }
