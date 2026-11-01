@@ -1274,6 +1274,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
 }
 #include "native_resource_key.h"
 #include "script_registry.h"
+#include "script_catalog.h"
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
   EGLConfig config;EGLint count=0;
@@ -2081,6 +2082,9 @@ int main(int argc,char **argv) {
   }
   std::signal(SIGINT,stop);std::signal(SIGTERM,stop);
   std::string scriptPath="scripts/avocado.js",calibrationPath;bool hasScript=false;
+  const char *userHome=std::getenv("HOME");
+  std::filesystem::path scriptsDirectory=userHome?std::filesystem::path(userHome)/".local/share/pocketspace/scripts":"user-scripts";
+  std::vector<std::filesystem::path> additionalScripts;
   for(int i=1;i<argc;i++){
     std::string arg=argv[i];
     if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
@@ -2089,6 +2093,12 @@ int main(int argc,char **argv) {
     }else if(arg=="--scene-state-dir"){
       if(i+1==argc){fprintf(stderr,"--scene-state-dir requires a directory\n");return 13;}
       scenePersistence::directory=argv[++i];
+    }else if(arg=="--scripts-dir"){
+      if(i+1==argc){fprintf(stderr,"--scripts-dir requires a directory\n");return 13;}
+      scriptsDirectory=argv[++i];
+    }else if(arg=="--launch"){
+      if(i+1==argc){fprintf(stderr,"--launch requires a catalog-relative script\n");return 13;}
+      additionalScripts.emplace_back(argv[++i]);
     }else if(!arg.empty()&&arg[0]!='-'&&!hasScript){scriptPath=arg;hasScript=true;}
     else{fprintf(stderr,"Unknown argument: %s\n",arg.c_str());return 13;}
   }
@@ -2106,6 +2116,16 @@ int main(int argc,char **argv) {
   if(!scriptRegistry.launch(scriptPath,scriptInstanceId,launchError)){
     fprintf(stderr,"[lifecycle] launch failed: %s\n",launchError.c_str());return 13;
   }
+  for(const auto &name:additionalScripts){
+    std::filesystem::path resolved;
+    if(!resolveCatalogScript(scriptsDirectory,name,resolved,launchError)){
+      fprintf(stderr,"[lifecycle] launch %s failed: %s\n",name.c_str(),launchError.c_str());return 13;
+    }
+    int id=0;
+    if(!scriptRegistry.launch(resolved.string(),id,launchError)){
+      fprintf(stderr,"[lifecycle] launch %s failed: %s\n",name.c_str(),launchError.c_str());return 13;
+    }
+  }
   ScriptHost &script=scriptRegistry.find(scriptInstanceId)->host;
   std::optional<ScriptScope> setupScriptScope;
   setupScriptScope.emplace(script);
@@ -2114,6 +2134,10 @@ int main(int argc,char **argv) {
   ScopeExit scriptCleanup{[&]{
     if(setupScriptScope){closeScript(script);resetActiveInteraction();setupScriptScope.reset();}
     else{ScriptScope scope(script);closeScript(script);resetActiveInteraction();}
+    for(int id:scriptRegistry.runningIds())if(id!=scriptInstanceId){
+      auto *entry=scriptRegistry.find(id);
+      if(entry&&entry->host.ctx){ScriptScope scope(entry->host);closeScript(entry->host);resetActiveInteraction();}
+    }
   }};
   if(!initEgl(display,context,surface))return 1;
   vr::EVRInitError initError;vr::VR_Init(&initError,vr::VRApplication_Overlay);if(initError!=vr::VRInitError_None)return 2;
@@ -3012,8 +3036,6 @@ int main(int argc,char **argv) {
 #endif
       const int completedFrame=frame+1;
       if(completedFrame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
-      if(completedFrame%900==0){fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);pickingMs=renderMs=finishMs=physicsMs=0;}
-      if(completedFrame%900==0){auto now=std::chrono::steady_clock::now();double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;fprintf(stdout,"frames=%d fps=%.1f surfaces=%zu ready=%zu gl_error=%x laser_left=%.2f laser_right=%.2f held_left=%d held_right=%d\n",completedFrame,900.0/seconds,surfaces.size(),ready.size(),(unsigned)glGetError(),meshHitDistance[0],meshHitDistance[1],grabs[0].objectId,grabs[1].objectId);fflush(stdout);}
     }
       return 0;
     };
@@ -3037,6 +3059,16 @@ int main(int argc,char **argv) {
     if(sceneResult>0)return sceneResult;
     if(sceneResult<0)break;
     ++frame;
+    if(frame%900==0){
+      const auto now=std::chrono::steady_clock::now();
+      const double seconds=std::chrono::duration<double>(now-reportStart).count();reportStart=now;
+      size_t surfaceCount=0,readyCount=0;
+      for(const auto &[id,owner]:resourcesByInstance)surfaceCount+=owner->surfaces.size();
+      for(const auto &[id,owner]:renderStates)readyCount+=owner->ready.size();
+      fprintf(stdout,"frames=%d fps=%.1f scenes=%zu surfaces=%zu ready=%zu gl_error=%x\n",frame,900.0/seconds,scriptRegistry.runningIds().size(),surfaceCount,readyCount,(unsigned)glGetError());fflush(stdout);
+      fprintf(stdout,"[profile] picking_ms=%.3f render_submit_ms=%.3f gpu_wait_ms=%.3f physics_ms=%.3f\n",pickingMs/900,renderMs/900,finishMs/900,physicsMs/900);
+      pickingMs=renderMs=finishMs=physicsMs=0;
+    }
     if(engineStats.update(++diagnosticFrames)){
       uint64_t bytes=0;std::set<GLuint> countedDepth;
       for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
