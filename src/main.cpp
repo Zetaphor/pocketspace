@@ -104,6 +104,7 @@ static std::set<int> containerSubtree(const Scene &scene,int root){
 static int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 static int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 static Scene *currentScene=nullptr,*liveScene=nullptr;
+static int activeInstanceId=0;
 // Installed only by the VR host; candidate scripts never reserve live resources.
 static std::function<std::string(int)> reserveObjectOverlay;
 static std::function<void(int)> releaseObjectOverlay;
@@ -1145,7 +1146,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_light_api.h"
 #include "scene_persistence.h"
 
-struct ScriptHost {JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;};
+struct ScriptHost {int instanceId=0;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1261,7 +1262,8 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
   if(previousCallbackCtx)JS_FreeValue(previousCallbackCtx,previousCallback);
   if(beforeCommit)beforeCommit();
-  closeScript(active);active=std::move(candidate);currentScene=liveScene=&active.scene;
+  const int instanceId=active.instanceId;
+  closeScript(active);active=std::move(candidate);active.instanceId=instanceId;currentScene=liveScene=&active.scene;
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }
 #include "native_resource_key.h"
@@ -2207,7 +2209,12 @@ int main(int argc,char **argv) {
   auto &nextGroupResize=sceneRender.nextGroupResize;
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
   auto surfaceMembers=[&]{SurfaceMembers groups;for(const auto &object:script.scene.objects)if(object.visible)groups[objectSurfaceKey(object)].push_back(&object);return groups;};
-  auto eraseSurface=[&](int key){
+  auto eraseSurface=[&](int ownerId,int key){
+    auto owner=resourcesByInstance.find(ownerId);
+    auto render=renderStates.find(ownerId);
+    if(owner==resourcesByInstance.end()||render==renderStates.end())return;
+    auto &surfaces=owner->second->surfaces;
+    auto &pendingTileChange=render->second->pendingTileChange;
     auto found=surfaces.find(key);if(found==surfaces.end())return;
     if(pendingTileChange&&!pendingTileChange->merge&&(key==pendingTileChange->parent||key==pendingTileChange->child)){
       const int otherKey=key==pendingTileChange->parent?pendingTileChange->child:pendingTileChange->parent;
@@ -2222,7 +2229,7 @@ int main(int argc,char **argv) {
     const auto groups=surfaceMembers();
     for(auto it=surfaces.begin();it!=surfaces.end();){
       if(!groups.count(it->first)){
-        const int key=it->first;++it;forgetObjectInteraction(key);eraseSurface(key);
+        const int key=it->first;++it;forgetObjectInteraction(key);eraseSurface(scriptInstanceId,key);
       }else ++it;
     }
     for(const auto &[id,members]:groups){
@@ -2246,8 +2253,12 @@ int main(int argc,char **argv) {
   };
   if(!syncSurfaces())return 8;
   reserveObjectOverlay=[&](int id)->std::string{
+    auto owner=resourcesByInstance.find(activeInstanceId);
+    if(owner==resourcesByInstance.end())return "script resource owner unavailable";
+    auto &sceneResources=*owner->second;
+    auto &surfaces=sceneResources.surfaces;
     if(surfaces.count(id))return {};
-    auto reserved=std::make_unique<Surface>();reserved->instanceId=scriptInstanceId;reserved->objectId=id;
+    auto reserved=std::make_unique<Surface>();reserved->instanceId=activeInstanceId;reserved->objectId=id;
     const auto key=objectOverlayKey(sceneResources.key(id));
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
     if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
@@ -2257,13 +2268,17 @@ int main(int argc,char **argv) {
     }
     surfaces.emplace(id,std::move(reserved));return {};
   };
-  releaseObjectOverlay=[&](int id){eraseSurface(id);};
+  releaseObjectOverlay=[&](int id){eraseSurface(activeInstanceId,id);};
   ScopeExit objectOverlayHooksCleanup{[]{reserveObjectOverlay={};releaseObjectOverlay={};}};
 
   auto &panelHovered=sceneRender.panelHovered;
   auto &panelCursorX=sceneRender.panelCursorX;
   auto &panelCursorY=sceneRender.panelCursorY;
   reservePanelOverlay=[&](const Panel &panel)->std::string{
+    auto owner=resourcesByInstance.find(activeInstanceId);
+    if(owner==resourcesByInstance.end())return "script resource owner unavailable";
+    auto &sceneResources=*owner->second;
+    auto &panelOverlays=sceneResources.panelOverlays;
     if(panelOverlays.count(panel.id))return {};
     vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
     std::string key=panelOverlayKey(sceneResources.key(panel.id));
@@ -2274,7 +2289,13 @@ int main(int argc,char **argv) {
     panelOverlays.emplace(panel.id,handle);
     return {};
   };
-  releasePanelOverlay=[&](int id){auto it=panelOverlays.find(id);if(it==panelOverlays.end())return;overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);panelOverlays.erase(it);panelSubmissions.erase(id);};
+  releasePanelOverlay=[&](int id){
+    auto owner=resourcesByInstance.find(activeInstanceId);if(owner==resourcesByInstance.end())return;
+    auto &panels=owner->second->panelOverlays;
+    auto it=panels.find(id);if(it==panels.end())return;
+    overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
+    panels.erase(it);owner->second->panelSubmissions.erase(id);
+  };
   ScopeExit panelOverlayHooksCleanup{[]{reservePanelOverlay={};releasePanelOverlay={};}};
   auto syncPanels=[&](){
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
