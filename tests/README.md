@@ -1,5 +1,15 @@
 # Rendering comparison experiment
 
+The multi-script offscreen regression renders two independent scenes whose
+objects both use local ID `1`, then destroys one renderer and confirms the other
+still produces the same pixels. It repeats the allocation and cleanup cycle
+three times without opening SteamVR or capturing input:
+
+```sh
+cmake --build build --target multi-script-render-regression -j2
+EGL_PLATFORM=surfaceless ./build/multi-script-render-regression
+```
+
 See the [test index](index.md) for a brief description of every test and helper.
 
 This experiment leaves the published examples and engine defaults unchanged.
