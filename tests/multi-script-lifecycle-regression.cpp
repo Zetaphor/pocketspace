@@ -131,11 +131,14 @@ int main(){
   SceneRenderState leftState,rightState;
   leftState.grabs[0].objectId=1;rightState.grabs[0].objectId=1;
   int surfacesReleased=0,panelsReleased=0;
-  assert(registry.stop(left,true,[&]{
+  registry.setBeforeStop([&](int stoppedId){
+    assert(stoppedId==left);
     assert(activeInstanceId==left&&currentScene==&registry.find(left)->host.scene);
     leftNative.release([&](const TestSurface &surface){assert(surface.owner==left);++surfacesReleased;},[&](int handle){assert(handle==101);++panelsReleased;});
     leftState.resetScene();
-  }));
+  });
+  assert(registry.stop(left));
+  registry.setBeforeStop({});
   assert(surfacesReleased==1&&panelsReleased==1);
   assert(leftNative.surfaces.empty()&&leftNative.panelOverlays.empty());
   assert(!leftState.grabs[0].objectId);
@@ -147,21 +150,32 @@ int main(){
   std::filesystem::last_write_time(temp,initialMtime+std::chrono::seconds(4));
   registry.reloadChanged();
   assert(registry.find(third)->generation==2);
+  int stoppedFromError=0;
+  registry.setBeforeStop([&](int stoppedId){stoppedFromError=stoppedId;});
   assert(!registry.dispatchInput(third,input));
+  assert(stoppedFromError==third);
+  registry.setBeforeStop({});
   assert(registry.find(third)->state==ScriptState::Failed);
   assert(registry.find(third)->lastError.find("EXPECTED_CALLBACK_FAILURE")!=std::string::npos);
   {std::ofstream out(temp);out<<"function update(){throw Error('EXPECTED_UPDATE_FAILURE')}";}
   int fourth=0;assert(registry.launch(temp.string(),fourth,error));
+  registry.setBeforeStop([&](int stoppedId){stoppedFromError=stoppedId;});
   assert(!registry.update(fourth,1./90));
+  assert(stoppedFromError==fourth);
+  registry.setBeforeStop({});
   assert(registry.find(fourth)->state==ScriptState::Failed);
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
   {std::ofstream out(temp);out<<"function update(){}";}
   int fifth=0;assert(registry.launch(temp.string(),fifth,error));
+  int failedOwner=0;
+  registry.setBeforeStop([&](int stoppedId){failedOwner=stoppedId;});
   {
     ScriptScope scope(registry.find(fifth)->host);
     assert(registry.failActive(fifth,"EXPECTED_PRODUCTION_FAILURE"));
   }
+  assert(failedOwner==fifth);
+  registry.setBeforeStop({});
   assert(registry.find(fifth)->state==ScriptState::Failed);
   assert(registry.find(fifth)->lastError=="EXPECTED_PRODUCTION_FAILURE");
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
