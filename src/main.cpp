@@ -47,6 +47,7 @@
 #include "frame_input.h"
 #include "panel.h"
 #include "panel_submission.h"
+#include "native_scene_resources.h"
 #include "eye_calibration.h"
 #include "scope_exit.h"
 #include "scene_lookup.h"
@@ -2124,12 +2125,19 @@ int main(int argc,char **argv) {
   trackingAnchor=anchor;trackingAnchorValid=true;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
-  std::map<int,std::unique_ptr<Surface>> surfaces;std::map<int,vr::VROverlayHandle_t> panelOverlays;std::map<int,PanelSubmission> panelSubmissions;
+  using SceneResources=NativeSceneResources<Surface,vr::VROverlayHandle_t,PanelSubmission>;
+  std::map<int,std::unique_ptr<SceneResources>> resourcesByInstance;
+  auto &sceneResources=*resourcesByInstance.emplace(scriptInstanceId,std::make_unique<SceneResources>(scriptInstanceId)).first->second;
+  auto &surfaces=sceneResources.surfaces;
+  auto &panelOverlays=sceneResources.panelOverlays;
+  auto &panelSubmissions=sceneResources.panelSubmissions;
+  auto releaseResources=[&](SceneResources &resources){resources.release(
+    [&](Surface &surface){destroySurface(surface,display);},
+    [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
   ScopeExit overlayCleanup{[&]{
     for(auto laser:lasers)if(laser!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(laser);
-    for(auto &[id,item]:surfaces)destroySurface(*item,display);
+    for(auto &[id,resources]:resourcesByInstance)releaseResources(*resources);
     fprintf(stdout,"[surface] grouped_buffer_bytes=%llu peak=%llu limit=%llu\n",(unsigned long long)groupBufferBudget.used,(unsigned long long)groupBufferBudget.peak,(unsigned long long)GroupBufferBudget::limit);
-    for(auto &[id,handle]:panelOverlays){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);}
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
   std::array<GrabState,2> grabs{};
@@ -2183,7 +2191,7 @@ int main(int argc,char **argv) {
   reserveObjectOverlay=[&](int id)->std::string{
     if(surfaces.count(id))return {};
     auto reserved=std::make_unique<Surface>();reserved->instanceId=scriptInstanceId;reserved->objectId=id;
-    const auto key=objectOverlayKey({scriptInstanceId,id});
+    const auto key=objectOverlayKey(sceneResources.key(id));
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&reserved->overlay);
     if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
     if(id<0){
@@ -2199,7 +2207,7 @@ int main(int argc,char **argv) {
   reservePanelOverlay=[&](const Panel &panel)->std::string{
     if(panelOverlays.count(panel.id))return {};
     vr::VROverlayHandle_t handle=vr::k_ulOverlayHandleInvalid;
-    std::string key=panelOverlayKey({scriptInstanceId,panel.id});
+    std::string key=panelOverlayKey(sceneResources.key(panel.id));
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&handle);if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
     overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);
     vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&bounds);
@@ -2312,10 +2320,9 @@ int main(int argc,char **argv) {
       std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
       if(!ec&&modified!=script.mtime){
         const bool loaded=loadScript(script,scriptPath,[&]{
-          for(auto &[id,surface]:surfaces)destroySurface(*surface,display);
-          surfaces.clear();pendingTileChange.reset();stableAdjustment.reset();regroupAfter.clear();adjustmentCursor=0;pointerStates.clear();grabs={};
-          for(auto &[id,handle]:panelOverlays){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);}
-          panelOverlays.clear();panelSubmissions.clear();panelHovered[0]=panelHovered[1]=0;
+          releaseResources(sceneResources);
+          pendingTileChange.reset();stableAdjustment.reset();regroupAfter.clear();adjustmentCursor=0;pointerStates.clear();grabs={};
+          panelHovered[0]=panelHovered[1]=0;
           frameInput.resetScene();
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;panelCursorX[h]=panelCursorY[h]=0;}
           instanceExperiment.reset();spotShadows.reset();
