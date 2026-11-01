@@ -22,6 +22,7 @@ int main(){
   assert(registry.launch("tests/scenes/multi-script-left.js",left,error));
   assert(registry.launch("tests/scenes/multi-script-right.js",right,error));
   assert(left>0&&right>left);
+  assert(registry.runningIds()==std::vector<int>({left,right}));
   const auto *a=registry.find(left),*b=registry.find(right);
   assert(a&&b&&a->state==ScriptState::Running&&b->state==ScriptState::Running);
   assert(a->host.ctx!=b->host.ctx&&a->host.rt!=b->host.rt);
@@ -86,6 +87,10 @@ int main(){
   assert(registry.find(fourth)->state==ScriptState::Failed);
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
+  const auto frameSnapshot=registry.runningIds();
+  assert(frameSnapshot==std::vector<int>{right});
+  assert(registry.stop(right));
+  assert(frameSnapshot==std::vector<int>{right}&&registry.runningIds().empty());
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
   {
     ScriptRegistry production;
