@@ -11,7 +11,7 @@ import time
 
 root=Path(__file__).resolve().parents[1]
 log=Path('/tmp/lifecycle-runtime.log')
-keys=['sf_overlay_engine.1','sf_overlay_engine.2','sf_overlay_engine.panel.1','sf_overlay_engine.panel.2']
+keys=['sf_overlay_engine.instance.1.object.1','sf_overlay_engine.instance.1.object.2','sf_overlay_engine.instance.1.panel.1','sf_overlay_engine.instance.1.panel.2']
 def probe(extra=()):
  return subprocess.check_output(['/tmp/sf-lifecycle-probe',*keys,*extra],text=True)
 def scene(generation):

@@ -53,6 +53,8 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 ## Step 2 — Shared frame, rendering, and resource cleanup
 
+**In progress:** Native object and panel overlay names now include instance ID; grouped staging and resize overlays inherit their owning instance. The legacy positional path uses instance ID `1`. `NativeResourceKey` also provides a composite map key for the upcoming per-instance renderer state. The production frame loop still renders one script; its resource maps and lifecycle cleanup must be migrated before this step is complete.
+
 - [ ] Change renderer traversal to iterate a stable snapshot of live instances. Qualify native surface, panel, and overlay keys by instance ID while leaving JavaScript IDs local to their scene. Preserve stereo submission, draw order, transparency, GPU ownership, and per-scene physics.
 - [ ] Integrate `ScriptRegistry` into the production host loop. Support a healthy frame loop with zero user scripts in managed mode while keeping the legacy positional-script path. The reserved scratch entry gets its QuickJS scene API in Step 8.
 - [ ] Make successful reload, failed reload, stop, and error stop release or retain only the appropriate instance's surfaces, panels, models, lights, shadows, and render caches. Keep process-wide caches shared only where their keys and resource lifetime are valid across instances.
@@ -149,7 +151,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | --- | --- | --- | --- | --- |
 | 0 | Step 0 ownership-audit commit | Four headless regressions, fixture syntax, docs lint/site build pass | No runtime workload | One-script FPS/memory baseline before Step 2 comparison |
 | 1 | Step 1 headless-registry commit | Fixture syntax, docs lint/site build pass | ARM64 production/new lifecycle targets build; new, old lifecycle, examples regressions and non-VR model inspect pass | Production frame loop in Step 2; scratch context in Step 8; event routing in Step 3 |
-| 2 | Pending | Pending | Pending | Pending |
+| 2 | Native overlay identity in progress | Composite-key regression, docs lint/site build, Python syntax, diff check pass | ARM64 engine/new regression build; composite-key and multi-script lifecycle regressions pass | Per-instance renderer traversal and cleanup, two-scene render tests, headset observation |
 | 3 | Pending | Pending | Pending | Pending |
 | 4 | Pending | Pending | Pending | Pending |
 | 5 | Pending | Pending | Pending | Pending |
