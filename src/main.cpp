@@ -2423,28 +2423,34 @@ int main(int argc,char **argv) {
       foveationRequested|=instance->host.scene.foveationRequested;
     }
     controllerInput.poll(eyeTrackingRequested,foveationRequested);
-    if(frame%30==0){
-      std::error_code ec;auto modified=std::filesystem::last_write_time(scriptPath,ec);
-      if(!ec&&modified!=script.mtime){
-        ScriptScope reloadScope(script);
-        const bool loaded=scriptRegistry.reloadActive(scriptInstanceId,[&]{
-          releaseResources(sceneResources);
-          sceneRender.resetScene();pointerStates.clear();
-          sceneInput().resetScene();
-          frameInput.resetScene(); // Legacy physical hover state; arbitration moves to Step 3.
-          for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;}
+    if(frame%30==0)for(int id:scriptRegistry.runningIds()){
+      auto *entry=scriptRegistry.find(id);
+      if(!entry||entry->state!=ScriptState::Running)continue;
+      auto &host=entry->host;
+      std::error_code ec;const auto modified=std::filesystem::last_write_time(entry->path,ec);
+      if(ec||modified==host.mtime)continue;
+      const bool loaded=scriptRegistry.reload(id,[&]{
+        if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
+        if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
+        pointerStates.clear();
+        sceneInput().resetScene();
+        for(int hand=0;hand<2;hand++){
+          hoveredObject[hand]=meshHoveredObject[hand]=meshCurrentObject[hand]=0;
+          meshHitDistance[hand]=2;meshLastHit[hand]={};grabNeedsRelease[hand]=true;
+        }
 #ifdef SF_ANIMATION_PROFILE
-          ++animationEpoch;
+        ++animationEpoch;
 #endif
-          fprintf(stdout,"[lifecycle] scene state reset\n");
 #ifdef SF_GPU_SYNC_EXPERIMENT
-          primitiveExperiment.reset();
-          clusterExperiment.reset();
+        primitiveExperiment.reset();clusterExperiment.reset();
 #endif
-        });
-        if(loaded&&pbrVariantsEnabled){for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);pbrVariants.prepare(script.scene);}
-        if(!loaded)script.mtime=modified;
+        fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
+      });
+      if(loaded&&pbrVariantsEnabled){
+        for(auto &asset:host.scene.assets)if(!asset.uploaded)uploadModel(asset);
+        renderStates.at(id)->pbrVariants.prepare(host.scene);
       }
+      if(!loaded)host.mtime=modified;
     }
     auto renderActiveScene=[&](ScriptInstance &instance)->int{
     auto &script=instance.host;

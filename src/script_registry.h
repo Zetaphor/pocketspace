@@ -71,10 +71,10 @@ public:
     const bool loaded=instance->state==ScriptState::Running;error=instance->lastError;
     instances_.emplace(id,std::move(instance));return loaded;
   }
-  bool reload(int id){
+  bool reload(int id,const std::function<void()> &beforeCommit={}){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
     ScriptScope scope(instance->host);
-    if(!loadScript(instance->host,instance->path)){instance->lastError="script reload failed";return false;}
+    if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";return false;}
     resetActiveInteraction();
     ++instance->generation;instance->lastError.clear();return true;
   }
