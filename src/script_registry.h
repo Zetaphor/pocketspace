@@ -6,10 +6,12 @@ struct ScriptScope {
   ScriptHost &host;
   Scene *previousCurrent=currentScene,*previousLive=liveScene;
   int previousInstanceId=activeInstanceId;
+  frame_input::Monitor *previousInput=activeSceneInput;
   explicit ScriptScope(ScriptHost &value):host(value){
     if(inputCallbackCtx)throw std::logic_error("script scope entered with another callback active");
     swapActiveInteraction(host.interaction);
     activeInstanceId=host.instanceId;
+    activeSceneInput=host.inputQueue.get();
     currentScene=liveScene=&host.scene;
     if(host.ctx&&!JS_IsUndefined(host.callback)){
       inputCallbackCtx=host.ctx;inputCallback=host.callback;inputCallbackContainer=host.callbackContainer;
@@ -25,6 +27,7 @@ struct ScriptScope {
     }
     swapActiveInteraction(host.interaction);
     activeInstanceId=previousInstanceId;
+    activeSceneInput=previousInput;
     currentScene=previousCurrent;liveScene=previousLive;
   }
   ScriptScope(const ScriptScope&)=delete;

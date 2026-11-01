@@ -116,6 +116,8 @@ static ControllerSnapshot controllers[2];
 static vr::HmdMatrix34_t trackingAnchor{};static bool trackingAnchorValid=false;
 static controller_input::Input controllerInput;
 static frame_input::Monitor frameInput;
+static frame_input::Monitor *activeSceneInput=&frameInput;
+static frame_input::Monitor &sceneInput(){return *activeSceneInput;}
 static bool inputPollingRequested=false;static int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0},meshCurrentObject[2]={0,0};static float meshHitDistance[2]={2.f,2.f};
 static std::chrono::steady_clock::time_point meshLastHit[2]{};
 struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
@@ -362,7 +364,7 @@ static JSValue jsOnInputEvent(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   inputCallbackCtx=ctx;inputCallback=JS_DupValue(ctx,argv[0]);inputCallbackContainer=owner;return JS_UNDEFINED;
 }
 static void dispatchInputCallbacks(){
-  if(inputCallbackCtx){auto events=frameInput.takeCallbackEvents();for(const auto &event:events){
+  if(inputCallbackCtx){auto events=sceneInput().takeCallbackEvents();for(const auto &event:events){
       if(!inputCallbackCtx)break;
       JSContext *ctx=inputCallbackCtx;JSValue callback=JS_DupValue(ctx,inputCallback),value=inputEventValue(ctx,event);
       JSValue result=JS_Call(ctx,callback,JS_UNDEFINED,1,&value);JS_FreeValue(ctx,value);JS_FreeValue(ctx,callback);
@@ -371,7 +373,7 @@ static void dispatchInputCallbacks(){
 }
 static JSValue jsPollInputEvents(JSContext *ctx,JSValueConst,int,JSValueConst *){
   JSValue array=JS_NewArray(ctx);if(currentScene!=liveScene)return array;
-  auto events=frameInput.takeEvents();uint32_t i=0;
+  auto events=sceneInput().takeEvents();uint32_t i=0;
   for(const auto &event:events)JS_SetPropertyUint32(ctx,array,i++,inputEventValue(ctx,event));
   return array;
 }
@@ -997,7 +999,7 @@ static JSValue jsSetPhysicsCollisionEvents(JSContext *ctx,JSValueConst,int argc,
   }
   const bool enabled=JS_ToBool(ctx,argv[0])>0;
   if(enabled||currentScene->physics)physicsWorld(*currentScene).collisionEvents(enabled,stay);
-  if(!enabled&&currentScene==liveScene)frameInput.clearPhysicsEvents();
+  if(!enabled&&currentScene==liveScene)sceneInput().clearPhysicsEvents();
   return JS_UNDEFINED;
 }
 static void updateScenePhysics(Scene &scene,double elapsed){
@@ -1006,7 +1008,7 @@ static void updateScenePhysics(Scene &scene,double elapsed){
   scene.physics->advance(elapsed);
   auto breaks=scene.physics->takeJointBreaks();
   if(&scene==liveScene)for(const auto &broken:breaks){
-    frame_input::Event event;event.type="physics.jointBreak";event.jointId=broken.jointId;event.objectId=broken.objectA;event.otherObjectId=broken.objectB;event.force=broken.force;event.torque=broken.torque;frameInput.addEvent(std::move(event));
+    frame_input::Event event;event.type="physics.jointBreak";event.jointId=broken.jointId;event.objectId=broken.objectA;event.otherObjectId=broken.objectB;event.force=broken.force;event.torque=broken.torque;sceneInput().addEvent(std::move(event));
   }
   auto collisions=scene.physics->takeCollisionEvents();
   if(&scene==liveScene)for(const auto &collision:collisions){
@@ -1016,7 +1018,7 @@ static void updateScenePhysics(Scene &scene,double elapsed){
     event.point={collision.point.x,collision.point.y,collision.point.z};
     event.normal={collision.normal.x,collision.normal.y,collision.normal.z};
     event.penetration=collision.penetration;event.relativeSpeed=collision.relativeSpeed;
-    frameInput.addEvent(std::move(event));
+    sceneInput().addEvent(std::move(event));
   }
 
   const auto updates=scene.physics->takePoseUpdates();
@@ -1064,8 +1066,8 @@ static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueCo
 static void forgetObjectInteraction(int id){
   pointerStates.erase(id);
   for(int h=0;h<2;h++){
-    if(hoveredObject[h]==id){frameInput.addOverlayEvent("overlay.surfaceHoverEnd",id,h);hoveredObject[h]=0;frameInput.setHoveredObject(h,0);}
-    if(meshHoveredObject[h]==id){frameInput.addOverlayEvent("overlay.meshHoverEnd",id,h);meshHoveredObject[h]=0;}
+    if(hoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,h);hoveredObject[h]=0;frameInput.setHoveredObject(h,0);}
+    if(meshHoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.meshHoverEnd",id,h);meshHoveredObject[h]=0;}
     if(meshCurrentObject[h]==id){meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};}
   }
 }
@@ -1146,7 +1148,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_light_api.h"
 #include "scene_persistence.h"
 
-struct ScriptHost {int instanceId=0;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;};
+struct ScriptHost {int instanceId=0;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1157,6 +1159,7 @@ static void closeScript(ScriptHost &s){
   if(currentScene==&s.scene)currentScene=nullptr;
   if(liveScene==&s.scene)liveScene=nullptr;
   if(s.ctx){clearInputCallback(s.ctx);JS_FreeValue(s.ctx,s.callback);JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
+  if(activeSceneInput==s.inputQueue.get())activeSceneInput=&frameInput;
   s={};
 }
 static bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit={}){
@@ -1263,7 +1266,10 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   if(previousCallbackCtx)JS_FreeValue(previousCallbackCtx,previousCallback);
   if(beforeCommit)beforeCommit();
   const int instanceId=active.instanceId;
-  closeScript(active);active=std::move(candidate);active.instanceId=instanceId;currentScene=liveScene=&active.scene;
+  const bool queueActive=activeSceneInput==active.inputQueue.get();
+  closeScript(active);active=std::move(candidate);active.instanceId=instanceId;
+  if(queueActive)activeSceneInput=active.inputQueue.get();
+  currentScene=liveScene=&active.scene;
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }
 #include "native_resource_key.h"
@@ -1575,7 +1581,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
     auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
     const int previousGrab=grab.objectId;
     Object *object=findSceneItem(scene.objects,grab.objectId);
-    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
+    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);sceneInput().addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
     if(object){
       auto state=pointerStates.find(object->id);
       const bool buttonDown=frameGrabDown(h,object->grabButton);
@@ -1583,7 +1589,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
       if(grab.rawGrab)grab.releaseFrames=buttonDown?0:grab.releaseFrames+1;
       if((grab.rawGrab&&grab.releaseFrames>=5)||(!grab.rawGrab&&!nativeDown&&!buttonDown)){
         if(scene.physics)scene.physics->release(previousGrab,true);
-        frameInput.addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;
+        sceneInput().addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;
       }
     }
     if(grabNeedsRelease[h]){
@@ -1608,7 +1614,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
           grab.rawGrab=frameGrabDown(h,candidate.grabButton);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
           grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,candidate.scale*.5f)),.02f,2.f);
-          frameInput.addOverlayEvent("overlay.grabStart",candidate.id,h);object=&candidate;break;
+          sceneInput().addOverlayEvent("overlay.grabStart",candidate.id,h);object=&candidate;break;
         }
       }
     }
@@ -1632,8 +1638,8 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
       object->x=hand.x+r[0]*grab.offset[0]+r[1]*grab.offset[1]+r[2]*grab.offset[2];
       object->y=hand.y+r[3]*grab.offset[0]+r[4]*grab.offset[1]+r[5]*grab.offset[2];
       object->z=hand.z+r[6]*grab.offset[0]+r[7]*grab.offset[1]+r[8]*grab.offset[2];
-      frameInput.addOverlayEvent("overlay.grabMove",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
-      if(std::fabs(object->x-oldX)+std::fabs(object->y-oldY)+std::fabs(object->z-oldZ)>.00001f)frameInput.addOverlayEvent("overlay.move",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
+      sceneInput().addOverlayEvent("overlay.grabMove",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
+      if(std::fabs(object->x-oldX)+std::fabs(object->y-oldY)+std::fabs(object->z-oldZ)>.00001f)sceneInput().addOverlayEvent("overlay.move",object->id,h,object->x-oldX,object->y-oldY,object->z-oldZ);
       if(grab.direct&&(object->handPitch||object->handYaw||object->handRoll)){
         float delta[9]{};
         for(int row=0;row<3;row++)for(int col=0;col<3;col++)for(int k=0;k<3;k++)delta[row*3+col]+=r[row*3+k]*grab.startHand[col*3+k];
@@ -1650,7 +1656,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
         object->yaw=std::atan2(combined[2],combined[8]);
         object->roll=std::atan2(combined[3],combined[4]);
       }
-      if(std::fabs(object->pitch-oldPitch)+std::fabs(object->yaw-oldYaw)+std::fabs(object->roll-oldRoll)>.00001f)frameInput.addOverlayEvent("overlay.rotate",object->id,h,0,0,0,object->pitch-oldPitch,object->yaw-oldYaw,object->roll-oldRoll);
+      if(std::fabs(object->pitch-oldPitch)+std::fabs(object->yaw-oldYaw)+std::fabs(object->roll-oldRoll)>.00001f)sceneInput().addOverlayEvent("overlay.rotate",object->id,h,0,0,0,object->pitch-oldPitch,object->yaw-oldYaw,object->roll-oldRoll);
     }
   }
 }
@@ -2304,13 +2310,13 @@ int main(int argc,char **argv) {
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
       panelSubmissions.erase(id);
-      for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){frameInput.addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;}
+      for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;}
       it=panelOverlays.erase(it);
     }
     for(auto &retired:script.scene.retiredPanels)panelDestroy(retired);
     script.scene.retiredPanels.clear();
     for(auto &panel:script.scene.panels){
-      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){frameInput.addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
+      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){sceneInput().addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
       reservePanelOverlay(panel);
@@ -2404,7 +2410,8 @@ int main(int argc,char **argv) {
         const bool loaded=scriptRegistry.reloadActive(scriptInstanceId,[&]{
           releaseResources(sceneResources);
           sceneRender.resetScene();pointerStates.clear();
-          frameInput.resetScene();
+          sceneInput().resetScene();
+          frameInput.resetScene(); // Legacy physical hover state; arbitration moves to Step 3.
           for(int h=0;h<2;h++){hoveredObject[h]=meshHoveredObject[h]=meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};grabNeedsRelease[h]=true;}
 #ifdef SF_ANIMATION_PROFILE
           ++animationEpoch;
@@ -2433,15 +2440,15 @@ int main(int argc,char **argv) {
       while(overlays->PollNextOverlayEvent(handle,&event,sizeof(event))){
         const auto role=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
         const int hand=role==vr::TrackedControllerRole_LeftHand?0:role==vr::TrackedControllerRole_RightHand?1:-1;
-        if(event.eventType==vr::VREvent_FocusLeave){for(int h=0;h<2;h++)if(panelHovered[h]==id){frameInput.addOverlayEvent("panel.hoverEnd",id,h);panelHovered[h]=0;}continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){for(int h=0;h<2;h++)if(panelHovered[h]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,h);panelHovered[h]=0;}continue;}
         if(hand<0)continue;
         auto *panelData=findPanel(id);if(!panelData||!panelData->visible)continue;
         if(event.eventType==vr::VREvent_MouseMove){panelCursorX[hand]=std::clamp(event.data.mouse.x,0.f,(float)panelData->width);panelCursorY[hand]=std::clamp(event.data.mouse.y,0.f,(float)panelData->height);}
         const float x=panelCursorX[hand],y=panelCursorY[hand];
-        if(event.eventType==vr::VREvent_MouseMove){if(panelHovered[hand]!=id){if(panelHovered[hand])frameInput.addOverlayEvent("panel.hoverEnd",panelHovered[hand],hand);panelHovered[hand]=id;frameInput.addPanelEvent("panel.hoverStart",id,hand,x,y);}frameInput.addPanelEvent("panel.hover",id,hand,x,y);}
+        if(event.eventType==vr::VREvent_MouseMove){if(panelHovered[hand]!=id){if(panelHovered[hand])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[hand],hand);panelHovered[hand]=id;sceneInput().addPanelEvent("panel.hoverStart",id,hand,x,y);}sceneInput().addPanelEvent("panel.hover",id,hand,x,y);}
         const std::string button=event.data.mouse.button==vr::VRMouseButton_Left?"left":event.data.mouse.button==vr::VRMouseButton_Right?"right":"other";
-        if(event.eventType==vr::VREvent_MouseButtonDown)frameInput.addPanelEvent("panel.pointerDown",id,hand,x,y,button,true);
-        if(event.eventType==vr::VREvent_MouseButtonUp)frameInput.addPanelEvent("panel.pointerUp",id,hand,x,y,button,false);
+        if(event.eventType==vr::VREvent_MouseButtonDown)sceneInput().addPanelEvent("panel.pointerDown",id,hand,x,y,button,true);
+        if(event.eventType==vr::VREvent_MouseButtonUp)sceneInput().addPanelEvent("panel.pointerUp",id,hand,x,y,button,false);
       }
     }
     for(auto &[id,surface]:surfaces){
@@ -2450,7 +2457,7 @@ int main(int argc,char **argv) {
       auto &state=pointerStates[id];
       state.scrollX=state.scrollY=0;
       while(overlays->PollNextOverlayEvent(surface->overlay,&event,sizeof(event))){
-        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){frameInput.addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;frameInput.setHoveredObject(state.hand,0);}state.hand=-1;continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;frameInput.setHoveredObject(state.hand,0);}state.hand=-1;continue;}
         if(event.eventType==vr::VREvent_ScrollSmooth){
           state.scrollX+=event.data.scroll.xdelta;
           state.scrollY+=event.data.scroll.ydelta;
@@ -2461,8 +2468,8 @@ int main(int argc,char **argv) {
           const auto eventRole=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
           const int eventHand=eventRole==vr::TrackedControllerRole_LeftHand?0:eventRole==vr::TrackedControllerRole_RightHand?1:-1;
           if(eventHand<0)continue;
-          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])frameInput.addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;frameInput.setHoveredObject(eventHand,id);frameInput.addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
-          frameInput.addOverlayEvent(event.eventType==vr::VREvent_MouseMove?"overlay.surfaceHover":"overlay.pointer",id,eventHand);
+          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;frameInput.setHoveredObject(eventHand,id);sceneInput().addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
+          sceneInput().addOverlayEvent(event.eventType==vr::VREvent_MouseMove?"overlay.surfaceHover":"overlay.pointer",id,eventHand);
           state.x=(event.data.mouse.x-.5f)*surface->width;
           state.y=(.5f-event.data.mouse.y)*surface->width;
           if(event.eventType==vr::VREvent_MouseButtonDown){
@@ -2491,15 +2498,17 @@ int main(int argc,char **argv) {
     controllerInput.poll(script.scene.eyeTrackingRequested,script.scene.foveationRequested);
     const bool streamWasStarted=frameInput.started();
     frameInput.poll();
+    for(auto &event:frameInput.takeEvents())sceneInput().addEvent(std::move(event));
+    frameInput.takeCallbackEvents();
     if(streamWasStarted&&!frameInput.started()){
-      for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])frameInput.addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
+      for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
       for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}
     }
     for(int h=0;h<2;h++)if(!controllers[h].connected){
       frameInput.invalidateHand(h);
       for(auto &[id,pointer]:pointerStates)if(pointer.hand==h)pointer={};
-      if(hoveredObject[h]){frameInput.addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
-      if(panelHovered[h]){frameInput.addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
+      if(hoveredObject[h]){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
+      if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
     }
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){
@@ -2518,8 +2527,8 @@ int main(int argc,char **argv) {
         hit=meshHoveredObject[hand];nearest=meshHitDistance[hand];
       }
       if(hit!=meshHoveredObject[hand]){
-        if(meshHoveredObject[hand])frameInput.addOverlayEvent("overlay.meshHoverEnd",meshHoveredObject[hand],hand);
-        if(hit)frameInput.addOverlayEvent("overlay.meshHoverStart",hit,hand);
+        if(meshHoveredObject[hand])sceneInput().addOverlayEvent("overlay.meshHoverEnd",meshHoveredObject[hand],hand);
+        if(hit)sceneInput().addOverlayEvent("overlay.meshHoverStart",hit,hand);
         meshHoveredObject[hand]=hit;
       }
       meshHitDistance[hand]=std::min(nearest,2.f);
