@@ -2471,11 +2471,14 @@ int main(int argc,char **argv) {
         break;
       }
       if(rayTargets[hand]){rayOwners[hand]=rayTargets[hand]->instanceId;continue;}
-      for(int id:runningSceneIds)if(const auto *entry=scriptRegistry.find(id))for(const auto &object:entry->host.scene.objects){
-        if(!object.visible)continue;
-        const auto &asset=entry->host.scene.assets[size_t(object.asset)-1];
-        const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
-        inputArbitration::consider(rayTargets[hand],{id,object.id,entry->inputPriority,distance});
+      for(int id:runningSceneIds)if(auto *entry=scriptRegistry.find(id)){
+        ScriptScope pickScope(entry->host);
+        for(const auto &object:entry->host.scene.objects){
+          if(!object.visible)continue;
+          const auto &asset=entry->host.scene.assets[size_t(object.asset)-1];
+          const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
+          inputArbitration::consider(rayTargets[hand],{id,object.id,entry->inputPriority,distance});
+        }
       }
       if(rayTargets[hand])rayOwners[hand]=rayTargets[hand]->instanceId;
     }
