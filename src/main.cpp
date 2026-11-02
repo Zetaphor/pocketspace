@@ -2178,6 +2178,7 @@ int main(int argc,char **argv) {
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
   std::map<int,std::unique_ptr<SceneRenderState>> renderStates;
+  inputArbitration::PanelHoverOwners panelHoverOwners;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
@@ -2233,6 +2234,7 @@ int main(int argc,char **argv) {
     [&](Surface &surface){destroySurface(surface,display);},
     [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
   scriptRegistry.setBeforeStop([&](int id){
+    panelHoverOwners.clearInstance(id);
     if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
     if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
   });
@@ -2342,13 +2344,13 @@ int main(int argc,char **argv) {
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
       panelSubmissions.erase(id);
-      for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;}
+      for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;panelHoverOwners.clear(hand,{host.instanceId,id});}
       it=panelOverlays.erase(it);
     }
     for(auto &retired:host.scene.retiredPanels)panelDestroy(retired);
     host.scene.retiredPanels.clear();
     for(auto &panel:host.scene.panels){
-      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){sceneInput().addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;}}
+      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){sceneInput().addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;panelHoverOwners.clear(h,{host.instanceId,panel.id});}}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
       reservePanelOverlay(panel);
@@ -2445,6 +2447,7 @@ int main(int argc,char **argv) {
       std::error_code ec;const auto modified=std::filesystem::last_write_time(entry->path,ec);
       if(ec||modified==host.mtime)continue;
       const bool loaded=scriptRegistry.reload(id,[&]{
+        panelHoverOwners.clearInstance(id);
         if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
         if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
         pointerStates.clear();
@@ -2531,12 +2534,23 @@ int main(int argc,char **argv) {
       while(overlays->PollNextOverlayEvent(handle,&event,sizeof(event))){
         const auto role=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
         const int hand=role==vr::TrackedControllerRole_LeftHand?0:role==vr::TrackedControllerRole_RightHand?1:-1;
-        if(event.eventType==vr::VREvent_FocusLeave){for(int h=0;h<2;h++)if(panelHovered[h]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,h);panelHovered[h]=0;}continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){for(int h=0;h<2;h++)if(panelHovered[h]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,h);panelHovered[h]=0;panelHoverOwners.clear(h,{instance.id,id});}continue;}
         if(hand<0)continue;
         auto *panelData=findPanel(id);if(!panelData||!panelData->visible)continue;
         if(event.eventType==vr::VREvent_MouseMove){panelCursorX[hand]=std::clamp(event.data.mouse.x,0.f,(float)panelData->width);panelCursorY[hand]=std::clamp(event.data.mouse.y,0.f,(float)panelData->height);}
         const float x=panelCursorX[hand],y=panelCursorY[hand];
-        if(event.eventType==vr::VREvent_MouseMove){if(panelHovered[hand]!=id){if(panelHovered[hand])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[hand],hand);panelHovered[hand]=id;sceneInput().addPanelEvent("panel.hoverStart",id,hand,x,y);}sceneInput().addPanelEvent("panel.hover",id,hand,x,y);}
+        if(event.eventType==vr::VREvent_MouseMove){
+          if(const auto previous=panelHoverOwners.move(hand,{instance.id,id})){
+            if(auto *other=scriptRegistry.find(previous->instanceId);other&&other->state==ScriptState::Running){
+              auto oldRender=renderStates.find(previous->instanceId);
+              if(oldRender!=renderStates.end()&&oldRender->second->panelHovered[hand]==previous->localId){
+                other->host.inputQueue->addOverlayEvent("panel.hoverEnd",previous->localId,hand);
+                oldRender->second->panelHovered[hand]=0;
+              }
+            }
+          }
+          if(panelHovered[hand]!=id){if(panelHovered[hand])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[hand],hand);panelHovered[hand]=id;sceneInput().addPanelEvent("panel.hoverStart",id,hand,x,y);}sceneInput().addPanelEvent("panel.hover",id,hand,x,y);
+        }
         const std::string button=event.data.mouse.button==vr::VRMouseButton_Left?"left":event.data.mouse.button==vr::VRMouseButton_Right?"right":"other";
         if(event.eventType==vr::VREvent_MouseButtonDown)sceneInput().addPanelEvent("panel.pointerDown",id,hand,x,y,button,true);
         if(event.eventType==vr::VREvent_MouseButtonUp)sceneInput().addPanelEvent("panel.pointerUp",id,hand,x,y,button,false);
@@ -2587,14 +2601,14 @@ int main(int argc,char **argv) {
       }
     }else headBasisValid=false;
     if(streamWasStarted&&!frameInput.started()){
-      for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
+      for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHoverOwners.clear(h,{instance.id,panelHovered[h]});}panelHovered[h]=0;}
       for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}
     }
     for(int h=0;h<2;h++)if(!controllers[h].connected){
       frameInput.invalidateHand(h);
       for(auto &[id,pointer]:pointerStates)if(pointer.hand==h)pointer={};
       if(hoveredObject[h]){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
-      if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHovered[h]=0;}
+      if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHoverOwners.clear(h,{instance.id,panelHovered[h]});panelHovered[h]=0;}
     }
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){

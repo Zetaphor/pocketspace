@@ -23,4 +23,13 @@ int main(){
   inputArbitration::consider(winner,{4,1,2,NAN});
   inputArbitration::consider(winner,{4,1,2,-1});
   assert(winner->instanceId==3);
+  inputArbitration::PanelHoverOwners panels;
+  assert(!panels.move(0,{1,1}));
+  assert(!panels.move(0,{1,1}));
+  auto previous=panels.move(0,{2,1});
+  assert(previous&&previous->instanceId==1&&previous->localId==1);
+  assert(!panels.clear(0,{1,1})); // Stale focus leave cannot clear the new owner.
+  assert(!panels.move(1,{2,1})); // Each hand has independent focus.
+  panels.clearInstance(2);
+  assert(!panels.move(0,{3,1})&&!panels.move(1,{3,1}));
 }
