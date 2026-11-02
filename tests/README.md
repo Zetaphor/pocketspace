@@ -32,6 +32,11 @@ and click, then grab the boxes with either hand. Each action should affect one
 target. The engine log names the script that received each click or grab.
 Stop the engine with Ctrl-C after the check and verify that it exited.
 
+To check priority, replace `multi-script-interaction-far.js` with
+`multi-script-interaction-priority-far.js`. Aim at the overlap between the
+closer left box and farther right box. The farther right box should move alone,
+and the log should name `[far]` for the grab.
+
 See the [test index](index.md) for a brief description of every test and helper.
 
 This experiment leaves the published examples and engine defaults unchanged.
