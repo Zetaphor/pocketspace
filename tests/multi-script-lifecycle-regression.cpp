@@ -53,6 +53,18 @@ int main(){
   assert(leftRaw[0].objectId==0&&rightRaw[0].objectId==0);
   assert(registry.find(left)->host.inputQueue->takeEvents().empty());
   assert(registry.find(right)->host.inputQueue->takeEvents().empty());
+  frame_input::Event rightHand=raw;rightHand.hand="right";
+  fanOutRawInput(registry,{raw,rightHand});
+  registry.find(left)->host.inputQueue->invalidateHand(0);
+  const auto afterDisconnect=registry.find(left)->host.inputQueue->takeEvents();
+  const auto unaffectedInput=registry.find(right)->host.inputQueue->takeEvents();
+  assert(afterDisconnect.size()==1&&afterDisconnect[0].hand=="right");
+  assert(unaffectedInput.size()==2&&unaffectedInput[0].hand=="left"&&unaffectedInput[1].hand=="right");
+  registry.find(left)->host.inputQueue->takeCallbackEvents();
+  registry.find(right)->host.inputQueue->takeCallbackEvents();
+  fanOutRawInput(registry,{raw}); // A reconnected hand resumes delivery to both scenes.
+  assert(registry.find(left)->host.inputQueue->takeEvents().size()==1);
+  assert(registry.find(right)->host.inputQueue->takeEvents().size()==1);
   assert(inputCallbackCtx==nullptr&&currentScene==nullptr&&liveScene==nullptr);
   {
     ScriptScope scope(registry.find(left)->host);
@@ -130,12 +142,16 @@ int main(){
   leftNative.panelOverlays[1]=101;rightNative.panelOverlays[1]=201;
   SceneRenderState leftState,rightState;
   leftState.grabs[0].objectId=1;rightState.grabs[0].objectId=1;
+  inputArbitration::PanelHoverOwners hoverOwners;
+  hoverOwners.move(0,{left,1});hoverOwners.move(1,{right,1});
+  registry.find(right)->host.inputQueue->addOverlayEvent("panel.hover",1,1);
   int surfacesReleased=0,panelsReleased=0;
   registry.setBeforeStop([&](int stoppedId){
     assert(stoppedId==left);
     assert(activeInstanceId==left&&currentScene==&registry.find(left)->host.scene);
     leftNative.release([&](const TestSurface &surface){assert(surface.owner==left);++surfacesReleased;},[&](int handle){assert(handle==101);++panelsReleased;});
     leftState.resetScene();
+    hoverOwners.clearInstance(stoppedId);
   });
   assert(registry.stop(left));
   registry.setBeforeStop({});
@@ -143,6 +159,11 @@ int main(){
   assert(leftNative.surfaces.empty()&&leftNative.panelOverlays.empty());
   assert(!leftState.grabs[0].objectId);
   assert(rightNative.surfaces.size()==1&&rightNative.panelOverlays.at(1)==201&&rightState.grabs[0].objectId==1);
+  assert(!hoverOwners.move(0,{right,1}));
+  const auto stillOwned=hoverOwners.move(1,{left,1});
+  assert(stillOwned&&stillOwned->instanceId==right&&stillOwned->localId==1);
+  const auto survivingEvents=registry.find(right)->host.inputQueue->takeEvents();
+  assert(survivingEvents.size()==1&&survivingEvents[0].type=="panel.hover");
   assert(registry.find(left)->state==ScriptState::Stopped&&registry.find(left)->manuallyStopped);
   assert(registry.find(left)->host.ctx==nullptr);
   assert(registry.find(right)->host.ctx!=nullptr&&registry.update(right,1./90));
@@ -166,6 +187,18 @@ int main(){
   assert(registry.find(fourth)->state==ScriptState::Failed);
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
+  {std::ofstream out(temp);out<<"const asset=loadModel('assets/samples/Box/Box.glb');const object=createObject(asset,0,0,0,.2);const panel=createPanel({widthPixels:32,heightPixels:32,widthMeters:.1,interactive:false});onInputEvent(event=>{if(event.type==='overlay.pointer'){removeObject(object);removePanel(panel.id)}});";}
+  int mutating=0;assert(registry.launch(temp.string(),mutating,error));
+  {
+    ScriptScope scope(registry.find(mutating)->host);
+    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+    assert(dispatchInputCallbacks().empty());
+    assert(registry.find(mutating)->host.scene.objects.empty());
+    assert(registry.find(mutating)->host.scene.panels.empty());
+  }
+  assert(registry.find(right)->state==ScriptState::Running);
+  assert(registry.find(right)->host.scene.objects.size()==1&&registry.find(right)->host.scene.panels.size()==1);
+  assert(registry.stop(mutating));
   {std::ofstream out(temp);out<<"function update(){}";}
   int fifth=0;assert(registry.launch(temp.string(),fifth,error));
   int failedOwner=0;
@@ -209,5 +242,5 @@ int main(){
     assert(production.stop(id));
     assert(!production.find(id)->host.ctx&&currentScene==nullptr&&liveScene==nullptr&&inputCallbackCtx==nullptr);
   }
-  puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, duplicate rejection, file-change rollback, scoped stop and callback errors");
+  puts("PASS multi-script lifecycle: independent IDs/contexts/callbacks/interactions, disconnect fanout, held-owner stop, callback mutation, duplicate rejection, file-change rollback and callback errors");
 }
