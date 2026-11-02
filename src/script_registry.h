@@ -41,6 +41,7 @@ struct ScriptInstance {
   ScriptHost host;
   ScriptState state=ScriptState::Stopped;
   uint64_t generation=0;
+  int inputPriority=0;
   bool manuallyStopped=false;
   std::string lastError;
 };
