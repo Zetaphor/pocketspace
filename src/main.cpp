@@ -2643,13 +2643,6 @@ int main(int argc,char **argv) {
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
       if(fixedDepthView){head=anchor;head.m[1][3]=.2f;head.m[2][3]=1.f;}
 #endif
-      for(int hand=0;hand<2;hand++){
-        auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
-        auto device=system->GetTrackedDeviceIndexForControllerRole(role);
-        vr::TrackedDevicePose_t pose{};
-        if(device!=vr::k_unTrackedDeviceIndexInvalid)pose=poses[device];
-        updateLaser(lasers[hand],laserShown[hand],script.scene.laserVisible[hand],hand,pose,head,meshHitDistance[hand]);
-      }
       const auto renderStart=std::chrono::steady_clock::now();
       float eyes[2][3];
       for(int i=0;i<2;i++){
@@ -3071,6 +3064,23 @@ int main(int argc,char **argv) {
     }
     if(sceneResult>0)return sceneResult;
     if(sceneResult<0)break;
+    // Lasers are shared overlays: apply visibility and the selected hit once after all scenes update.
+    system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
+    const bool headValid=poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
+    for(int hand=0;hand<2;hand++){
+      bool visible=false;
+      for(int id:scriptRegistry.runningIds()){
+        const auto *entry=scriptRegistry.find(id);
+        if(entry&&entry->host.scene.laserVisible[hand]){visible=true;break;}
+      }
+      const auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
+      const auto device=system->GetTrackedDeviceIndexForControllerRole(role);
+      vr::TrackedDevicePose_t pose{};
+      if(device!=vr::k_unTrackedDeviceIndexInvalid)pose=poses[device];
+      const float distance=rayTargets[hand]?rayTargets[hand]->distance:2.f;
+      updateLaser(lasers[hand],laserShown[hand],visible&&headValid,hand,pose,
+                  poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking,distance);
+    }
     ++frame;
     if(frame%900==0){
       const auto now=std::chrono::steady_clock::now();
