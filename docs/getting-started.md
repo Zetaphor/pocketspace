@@ -55,10 +55,9 @@ Inspect a model without opening VR:
 The executable is `build/pocketspace` and the launcher is `run-pocketspace.sh`.
 Reconfigure and rebuild an existing checkout to use the Pocketspace executable.
 
-Named scene saves retain their storage root and format identifier, with a
-[separate namespace per script](scene-persistence.md#storage-namespaces); older
-files directly in the root are ignored. SteamVR's application identity is
-also retained so existing controller bindings keep working.
+Named scene saves use a
+[separate namespace per script](scene-persistence.md#storage-namespaces). SteamVR's
+application identity is retained so existing controller bindings keep working.
 
 ## Create your first scene
 

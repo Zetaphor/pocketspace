@@ -43,7 +43,7 @@ assert log.count('VARIANT_RESTORED')==2 and log.count('VARIANT_UNKNOWN_STATE')==
 assert 'expected variant reload failure' in log and log.count('[lifecycle] scene state reset')==1
 prepares=re.findall(r'PBR_VARIANTS_PREPARE generation=(\d+) programs=(\d+) compile_ms=([\d.]+)',log)
 assert len(prepares)==2 and [int(x[0]) for x in prepares]==[1,2] and all(0<int(x[1])<=16 for x in prepares)
-assert not re.search(r'\[js\] update error|\[surface\].*error=|\[physics\]',log)
+assert not re.search(r'\[lifecycle\].*stopped after error|\[surface\].*error=|\[physics\]',log)
 samples=[json.loads(line[len('GPU_SYNC_SAMPLE '):]) for line in log.splitlines() if line.startswith('GPU_SYNC_SAMPLE ')]
 assert samples and all(not s['glError'] and not s['disjointSamples'] and not s['fenceFailures'] for s in samples)
 cache=re.search(r'PBR_VARIANTS_CACHE programs=(\d+) binary_bytes=(\d+) compile_ms=([\d.]+) fallback_draws=(\d+)',log)

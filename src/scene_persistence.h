@@ -59,7 +59,7 @@ static JSValue capture(JSContext *ctx,int owner){
   require(owner&&currentScene->containers.count(owner),"capture requires an active scene container");
   const auto owners=containerSubtree(*currentScene,owner);
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
-  put(ctx,result,"format",JS_NewString(ctx,"sf-overlay-engine.scene-container"));
+  put(ctx,result,"format",JS_NewString(ctx,"pocketspace.scene-container"));
   put(ctx,result,"version",JS_NewInt32(ctx,14));
   put(ctx,result,"rootContainer",JS_NewInt32(ctx,owner));
   Value hierarchy(ctx,JS_NewArray(ctx));uint32_t hierarchyIndex=0;
@@ -109,7 +109,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   // Detach from script getters/proxies before inspecting or reserving resources.
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
-  auto format=field(ctx,root,"format");require(string(ctx,format)=="sf-overlay-engine.scene-container","unsupported snapshot format");
+  auto format=field(ctx,root,"format");require(string(ctx,format)=="pocketspace.scene-container","unsupported snapshot format");
   const int version=int(number(ctx,root,"version",1,14,true));
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
@@ -294,7 +294,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
 static std::filesystem::path slot(JSContext *ctx,JSValueConst name,const std::string &storageKey=*activeNamespace){
   auto n=string(ctx,name);require(!n.empty()&&n.size()<=64&&std::all_of(n.begin(),n.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-';}),"scene name must contain 1..64 ASCII letters, digits, underscores or hyphens");
   std::filesystem::path base=directory;
-  if(base.empty()){const char *state=getenv("XDG_STATE_HOME");if(state&&std::filesystem::path(state).is_absolute())base=state;else {const char *home=getenv("HOME");require(home&&*home,"HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}base/="sf-overlay-engine/scenes";}
+  if(base.empty()){const char *state=getenv("XDG_STATE_HOME");if(state&&std::filesystem::path(state).is_absolute())base=state;else {const char *home=getenv("HOME");require(home&&*home,"HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}base/="pocketspace/scenes";}
   require(storageKey.size()<=255,"script path is too long for a scene namespace");
   const auto owner=base/storageKey;std::error_code ec;const auto type=std::filesystem::symlink_status(owner,ec).type();
   require(type==std::filesystem::file_type::not_found||(!ec&&type==std::filesystem::file_type::directory),"scene namespace must be a directory, not a symlink");

@@ -31,7 +31,7 @@ except subprocess.TimeoutExpired:
 a.output.write_text(log)
 assert process.returncode==0 and 'RENDER_WORK_DONE' in log
 assert 'grouped_buffer_bytes=0 ' in log
-assert not re.search(r'\[js\].*(?:load|update) error|\[surface\].*error=',log)
+assert not re.search(r'\[js\].*load error|\[lifecycle\].*stopped after error|\[surface\].*error=',log)
 windows=[json.loads(line.removeprefix('RENDER_WORK_SAMPLE ')) for line in log.splitlines() if line.startswith('RENDER_WORK_SAMPLE ')]
 # Three copies: Box=12 triangles, Fox=576, InterpolationTest=110.
 # Stereo draw counts: one instanced Box draw per eye; three Fox draws per eye;

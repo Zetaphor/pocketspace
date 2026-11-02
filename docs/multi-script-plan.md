@@ -18,7 +18,7 @@ Run several independent Pocketspace scripts in one engine process, while keeping
 - At the initial audit, candidate reload used a separate QuickJS runtime/context and scene, with a 128 MiB QuickJS memory limit. Scene containers isolated resources *within* a scene. Step 1 added independent live script contexts.
 - At the initial audit, renderer and input routing, physics dispatch, callback storage, overlay naming, and statistics included process-global state and scene-local numeric IDs. Steps 0–3 mapped ownership and qualified live interaction and native resources by instance. Per-script telemetry remains planned for Step 9.
 - `getEngineStats()` reports process CPU/RAM/GPU measurements and engine allocation estimates. Process measurements cannot honestly be assigned to individual scripts without new instrumentation.
-- At the initial audit, named scene saves shared one directory. Step 4 added per-script namespaces and explicit import; existing development/test saves may be deleted or recreated.
+- At the initial audit, named scene saves shared one directory. Step 4 added per-script namespaces and explicit import; saves from before that change were deleted and are not readable.
 - Keep a single OpenVR connection, input poller, compositor submission loop, EGL context, and engine process. Run QuickJS callbacks on the host thread initially. Multiple OS processes would duplicate host resources and leave cross-script interaction unresolved.
 
 ## Approved runtime model
@@ -45,7 +45,7 @@ Store named saves separately per script. Derive a stable storage key from the sc
 
 Provide an explicit cross-script import such as `importSceneContainer(sourceScript, "layout")`, which reads a save from the named source namespace and restores it into the caller's scene with fresh IDs. Identify the source by a stable script catalog name or key, not a transient instance ID. Validate the source and save name, reject path traversal and symlink escapes, and preserve the existing staged restore behavior on failure. Copy through the normal snapshot validation path; do not share live scene objects or native handles.
 
-Treat existing files in the current shared scenes directory as disposable development/test data. The new layout does not read them automatically and needs no migration command. Document how to remove or recreate those saves when switching layouts. Test same-name isolation, restart persistence, explicit import, and malformed files.
+Saves from the earlier shared directory are disposable and are not supported; there is no migration. Test same-name isolation, restart persistence, explicit import, and malformed files.
 
 ## Dashboard design
 
@@ -88,7 +88,7 @@ Complete each slice and its checks before starting the next. Keep experimental f
 - **World anchor: resolved.** Use the existing engine-level anchor for all instances. `src/main.cpp` already establishes one anchor at startup and applies it to tracking, model, and panel transforms. Verify two-script picking and placement against that shared anchor.
 - **Callback failure: resolved.** An uncaught `update()` or event-callback exception stops only its instance and records an error for the CLI/dashboard. Verify cleanup and the state of other scripts.
 - **Startup: resolved.** Start no user scripts by default. Only the explicit autostart list launches user scripts on engine startup; scratch instance `0` remains available.
-- **Saved scene names: resolved.** Scope saves by a stable script-path-derived key, with a separate scratch namespace. Add explicit import from a named source script. Existing shared-directory development/test saves may be deleted or recreated; no migration is required.
+- **Saved scene names: resolved.** Scope saves by a stable script-path-derived key, with a separate scratch namespace. Add explicit import from a named source script. Earlier shared-directory saves are not supported; no migration is required.
 - **Stopped-entry history: resolved.** Show running and stopped entries from the current engine session only. Clear that history when the engine restarts; the script catalog and explicit autostart list remain available.
 - **Script catalog: resolved.** Launch user scripts only from the configured directory, including through the CLI.
 - **Duplicate launches: resolved.** Allow one live instance per canonical script file; reject a duplicate start.

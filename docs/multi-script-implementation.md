@@ -93,11 +93,9 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 **Automated evidence:** On Deckard, `scene-persistence-regression` runs two real QuickJS instances through same-name isolation, import in both directions, a symlink alias, nine rejected sources, six rejected or malformed save names, reservation failure rollback, symlinked namespace refusal, successful and failed reload, import from a stopped source, restart with swapped instance IDs, and scratch. Removing namespace preservation, the symlink check, or the import source each made it fail. The ARM64 engine builds; `examples`, `multi-script-lifecycle`, `lifecycle-script`, `lifecycle-input`, `scene-container`, `asset-lifetime`, `point-light`, `spotlight`, and `directional-light` regressions pass. A bounded production-engine run with objectless scripts (`--scripts-dir`, nested `--launch`, `--scene-state-dir`) wrote `first.js/layout.json` and `tools%2Fsecond.js/layout.json`, imported across scripts, rejected traversal, and left no process. No headset observation was needed or made.
 
-**Known gap:** `tests/scene-persistence.py` now reads the namespaced path but was not run. Its existing `version==4` assertion predates v14 snapshots and needs correcting before that live harness can pass.
-
 - [x] Scope `saveSceneContainer`/`loadSceneContainer` under a stable key derived from the script's canonical catalog path; use `scratch/` for instance `0`. Retain `--scene-state-dir` as the root and current save-name validation.
 - [x] Add explicit cross-script import from a stable catalog key. Read detached snapshot data and restore through the existing staged path with fresh IDs. Reject traversal, symlink escapes, malformed content, and missing source files.
-- [x] Treat legacy shared-directory test saves as disposable; document how to recreate them. Do not add a migration tool.
+- [x] Remove support for saves from before namespaces: the default root and format string changed to `pocketspace`, with no migration tool.
 - [x] Extend `scene-persistence-regression` for same-name isolation, restart, scratch namespace, import, and failed restore without modifying either scene.
 
 **Exit gate:** two scripts can each save `layout` without collision and explicitly import one another's save. Existing snapshot regressions pass.

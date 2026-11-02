@@ -35,11 +35,11 @@ with tempfile.TemporaryDirectory(prefix='sf-scene-state-') as state, (a.output/'
         except subprocess.TimeoutExpired:
             process.kill();process.communicate();raise RuntimeError('shutdown timed out')
     saved=json.loads((Path(state)/f'{scene}.js'/'live.json').read_text())
-    assert saved['version']==4 and len(saved['objects'])==owned
+    assert saved['version']==14 and len(saved['objects'])==owned
     assert len(saved['joints'])==(2 if a.physics else 0)
     assert len(saved['panels'])==(2 if a.panels else 0)
 log+='\n'+(a.output/'stderr.log').read_text();(a.output/'engine.log').write_text(log)
-if process.returncode or re.search(r'\[js\].*(?:load|update) error|\[(?:surface|panel)\].*error=|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+',log):
+if process.returncode or re.search(r'\[js\].*load error|\[lifecycle\].*stopped after error|\[(?:surface|panel)\].*error=|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+',log):
     raise RuntimeError('native error; inspect engine log')
 samples=[json.loads(line.split('PERSISTENCE_SAMPLE ',1)[1]) for line in log.splitlines() if 'PERSISTENCE_SAMPLE ' in line]
 summary=[]

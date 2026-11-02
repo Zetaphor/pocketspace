@@ -53,7 +53,7 @@ for count in args.counts:
                         process.kill(); log, _ = process.communicate()
                         raise RuntimeError(f'{name}: engine did not stop after SIGTERM')
             (args.output / f'{name}.log').write_text(log)
-            if process.returncode != 0 or '[js] update error:' in log or '[surface] submit' in log or '[surface] placement' in log or re.search(r'gl_error=(?!0(?:\s|$))[0-9a-fA-F]+', log):
+            if process.returncode != 0 or 'stopped after error' in log or '[surface] submit' in log or '[surface] placement' in log or re.search(r'gl_error=(?!0(?:\s|$))[0-9a-fA-F]+', log):
                 raise RuntimeError(f'{name}: engine failed; inspect its log')
             samples = [json.loads(line.split('OVERLAY_SAMPLE ', 1)[1]) for line in log.splitlines() if 'OVERLAY_SAMPLE ' in line]
             samples = [s for s in samples if s['variantSeconds'] >= args.warmup and s['fps'] is not None]

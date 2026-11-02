@@ -1,6 +1,6 @@
 // Bounded live fixture: moving, paused and finished poses survive disk restore.
 const root=createObject(loadModel('assets/samples/Box/Box.glb',512),-.5,0,0,.08);
-const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1});hud.canvas.clear();hud.present();
+const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,interactive:false});hud.canvas.clear();hud.present();
 const skin=loadModel('assets/samples/CesiumMan/CesiumMan.glb',512);
 const rigid=loadModel('assets/samples/InterpolationTest/InterpolationTest.glb',512);
 let owner=createSceneContainer(),phase=-1,next=0,original=null,started=0,ids=[],advanced=false;

@@ -566,9 +566,9 @@ See [fabric API and example](lighting-api.md#fabric-sheen) and the
 ## Pocketspace compatibility identifiers
 
 The public executable, launcher and documentation use Pocketspace. Keep the
-existing SteamVR application key, overlay/mailbox keys,
-scene-container format string and default state directory stable across this
-branding change so bindings, input and named saves remain compatible.
+existing SteamVR application key and overlay/mailbox keys stable so controller
+bindings and input remain compatible. Scene saves use the `pocketspace` state
+directory and format string.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
 lighting-environment header. Readers validate dimensions, payload size and values
 before publishing shared environment resources.

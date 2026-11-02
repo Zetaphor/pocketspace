@@ -1,7 +1,7 @@
 // Bounded native fixture: a root survivor shares the tool's render group.
 const asset=loadModel('assets/samples/Box/Box.glb');
 const root=createObject(asset,-.35,0,0,.1,{renderGroup:1});setObjectPhysics(root,{type:'static'});
-const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1});hud.canvas.clear();hud.present();
+const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,interactive:false});hud.canvas.clear();hud.present();
 setPhysicsGravity(0,0,0);setLaserVisible('left',false);setLaserVisible('right',false);
 let owner=0,owned=[],joint=0,phase=-1,next=0;const started=Date.now();
 function check(value){if(!value)throw Error('container lifecycle assertion');}
@@ -16,7 +16,7 @@ function update(){
         setObjectPhysics(id);owned.push(id);
       }
       joint=createPhysicsJoint(root,owned[0]);
-      const panel=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,container:owner});panel.canvas.clear(0,120,200,255);panel.present();
+      const panel=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,interactive:false,container:owner});panel.canvas.clear(0,120,200,255);panel.present();
       onInputEvent(()=>{},{container:owner});
     }else{
       disposeSceneContainer(owner);disposeSceneContainer(owner);

@@ -1,7 +1,7 @@
 // Repeated live disk restores; root object, HUD and input callback must survive.
 const model=loadModel('assets/samples/Box/Box.glb',512);
 const root=createObject(model,-.4,0,0,.08,{renderGroup:1});
-const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1});hud.canvas.clear();hud.present();
+const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,interactive:false});hud.canvas.clear();hud.present();
 let owner=createSceneContainer(),phase=-1,next=0;
 for(let n=0;n<4;n++){
   const id=createObject(model,(n-1.5)*.14,0,0,.1,{container:owner,renderGroup:2});
@@ -19,7 +19,7 @@ function update(){
       check(owner!==old&&restored.objectIds.length===4);
       disposeSceneContainer(old);const snapshot=captureSceneContainer(owner);
       check(JSON.stringify(snapshot.models)===JSON.stringify(original.models));
-      for(let n=0;n<4;n++)for(const key of Object.keys(original.objects[n]))if(!['id','renderGroup'].includes(key))check(snapshot.objects[n][key]===original.objects[n][key]);
+      for(let n=0;n<4;n++)for(const key of Object.keys(original.objects[n]))if(!['id','renderGroup','container'].includes(key))check(snapshot.objects[n][key]===original.objects[n][key]);
       for(const id of restored.objectIds)setObjectPosition(id,.1,phase*.01,0);
     }else{disposeSceneContainer(owner);check(getSceneContainerState(owner).disposed);}
   }

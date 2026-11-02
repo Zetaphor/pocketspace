@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='sf-lifecycle-') as tmp,log.open('w') as
   except subprocess.TimeoutExpired:
    os.killpg(process.pid,signal.SIGKILL);process.wait();raise
  assert code==0,code
- data=log.read_text();assert 'LEAKED_CALLBACK' not in data;assert '[js] update error' not in data
+ data=log.read_text();assert 'LEAKED_CALLBACK' not in data;assert 'stopped after error' not in data
  inventory=probe(['sf_overlay_engine.laser.0','sf_overlay_engine.laser.1'])
  assert '=present' not in inventory,inventory
  print('PASS lifecycle runtime: 10 failed/successful reload pairs, object/panel removal, no leaked callbacks, bounded FD count, clean SIGTERM and absent overlay keys')

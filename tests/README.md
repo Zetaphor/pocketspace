@@ -778,7 +778,7 @@ to an installed TTF when running panel persistence checks.
 
 ### Normal-engine mixed backend acceptance
 
-Run `./build/pocketspace tests/scenes/gpu-skinning-production.js` on Frame
+Run `./build/pocketspace --scripts-dir tests/scenes --launch gpu-skinning-production.js` on Frame
 with the normal display/library environment. No GPU experiment variable is used.
 Twelve instances mix Fox, CesiumMan, RiggedFigure, RiggedSimple, rigid-node
 InterpolationTest and AnimatedMorphCube. Grab with either hand using grip or
@@ -1172,7 +1172,7 @@ and the [prototype results](results/pbr-lod.md) for quality and memory tradeoffs
 For the interactive headset check, run:
 
 ```sh
-DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pocketspace tests/scenes/pbr-lod.js
+DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pocketspace --scripts-dir tests/scenes --launch pbr-lod.js
 ```
 
 Approach and move away from the car and normal-map fixture. Grip or trigger grabs

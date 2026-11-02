@@ -1,7 +1,7 @@
 // Bounded live simulation fixture: save once, restore and dispose three times.
 const floor=createObject(loadModel('assets/physics/ThinPlatform.glb',512),0,-.63,0,1.2);
 setObjectPhysics(floor,{type:'static',halfExtents:{x:.6,y:.03,z:.6}});
-const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1});hud.canvas.clear();hud.present();
+const hud=createPanel({widthPixels:64,heightPixels:64,widthMeters:.1,interactive:false});hud.canvas.clear();hud.present();
 let owner=createSceneContainer(),phase=-1,next=0,joints=[],freeBox=0;
 function body(path,x,y,type,shape='box'){
   const id=createObject(loadModel(path,512),x,y,0,.1,{container:owner,renderGroup:1});

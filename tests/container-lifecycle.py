@@ -29,7 +29,7 @@ with (a.output/'stderr.log').open('w') as errors:
         except subprocess.TimeoutExpired:
             process.kill();process.communicate();raise RuntimeError('shutdown timed out')
 log+='\n'+(a.output/'stderr.log').read_text();(a.output/'engine.log').write_text(log)
-if process.returncode or re.search(r'\[js\].*(?:load|update) error|\[(?:surface|panel)\].*error=|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+',log):
+if process.returncode or re.search(r'\[js\].*load error|\[lifecycle\].*stopped after error|\[(?:surface|panel)\].*error=|gl_error=(?!0(?:\s|$))[0-9a-fA-F]+',log):
     raise RuntimeError('native error; inspect engine log')
 samples=[json.loads(line.split('CONTAINER_SAMPLE ',1)[1]) for line in log.splitlines() if 'CONTAINER_SAMPLE ' in line]
 summary=[]

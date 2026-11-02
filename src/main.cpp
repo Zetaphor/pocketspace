@@ -2096,7 +2096,7 @@ int main(int argc,char **argv) {
   std::string calibrationPath;
   const char *userHome=std::getenv("HOME");
   std::filesystem::path scriptsDirectory=userHome?std::filesystem::path(userHome)/".local/share/pocketspace/scripts":"user-scripts";
-  std::vector<std::filesystem::path> additionalScripts;
+  std::vector<std::filesystem::path> launchScripts;
   for(int i=1;i<argc;i++){
     std::string arg=argv[i];
     if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
@@ -2110,7 +2110,7 @@ int main(int argc,char **argv) {
       scriptsDirectory=argv[++i];
     }else if(arg=="--launch"){
       if(i+1==argc){fprintf(stderr,"--launch requires a catalog-relative script\n");return 13;}
-      additionalScripts.emplace_back(argv[++i]);
+      launchScripts.emplace_back(argv[++i]);
     }else{fprintf(stderr,"Unknown argument: %s (use --scripts-dir and --launch for scripts)\n",arg.c_str());return 13;}
   }
   if(!calibrationPath.empty()){
@@ -2125,7 +2125,7 @@ int main(int argc,char **argv) {
   scenePersistence::catalogRoot=std::filesystem::absolute(scriptsDirectory).string();
   ScriptRegistry scriptRegistry;
   std::string launchError;
-  for(const auto &name:additionalScripts){
+  for(const auto &name:launchScripts){
     std::filesystem::path resolved;
     if(!resolveCatalogScript(scriptsDirectory,name,resolved,launchError)){
       fprintf(stderr,"[lifecycle] launch %s failed: %s\n",name.c_str(),launchError.c_str());return 13;

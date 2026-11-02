@@ -65,21 +65,17 @@ a namespace. Renaming or moving a script inside the catalog starts an empty
 namespace. Encoded names are limited to 255 bytes. Scratch instance `0` uses
 `scratch`.
 
-The storage root is `$XDG_STATE_HOME/sf-overlay-engine/scenes` when that
+The storage root is `$XDG_STATE_HOME/pocketspace/scenes` when that
 environment variable is an absolute path, otherwise
-`$HOME/.local/state/sf-overlay-engine/scenes`. `--scene-state-dir DIRECTORY`
+`$HOME/.local/state/pocketspace/scenes`. `--scene-state-dir DIRECTORY`
 replaces the root; relative paths resolve against the engine's working directory.
 Files are private to the user when initially created. Symlink files and symlinked
 namespace directories are rejected. Save writes a unique temporary file, syncs its
 contents, and renames it over the destination; it does not promise directory
 durability across sudden power loss.
 
-Files directly in the storage root, written before saves had namespaces, are
-ignored and never migrated. Delete them and save again from the owning script.
-
 ```sh
-# Lists only old top-level saves. Add -delete after reviewing the output.
-find "${XDG_STATE_HOME:-$HOME/.local/state}/sf-overlay-engine/scenes" -maxdepth 1 -type f -name '*.json'
+build/pocketspace --scene-state-dir /tmp/pocketspace-saves --launch my-scene.js
 ```
 
 ## Saves from other scripts
@@ -145,9 +141,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 
 ## Format and compatibility
 
-The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
-this identifier and its legacy default storage root for compatibility with
-existing snapshots.
+The `format` string is `pocketspace.scene-container`.
 New captures use `version: 14`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2
