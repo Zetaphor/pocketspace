@@ -14,16 +14,22 @@ vrserver interface is undocumented, so compatibility depends on SteamVR's
 implementation. Unsupported structured component values are invalidated;
 finite numbers and booleans retain real zero/false values.
 
-Native updates merge component deltas into per-hand state, invalidate snapshots
-on disconnect, and populate independent polling/callback queues. Script getters
-read cached state rather than issuing synchronous hardware queries. Callback
-delivery runs on the script thread in the host loop. Controller roles and poses
-are refreshed separately from the raw stream.
+The engine polls the physical raw stream once per frame, merges component deltas
+into shared per-hand state, then copies raw events into each running script's
+independent polling/callback queues. A script cannot drain another script's
+events. Disconnect invalidates the affected hand and clears its pending raw
+events from every script queue; reconnect resumes delivery. Script getters read
+cached state rather than issuing synchronous hardware queries. Callback delivery
+runs on the host thread with the owning script's scene selected. Controller roles
+and poses are refreshed separately from the raw stream.
 
-Custom controller beams pick transformed model triangles and drive native grabs
-from raw allowed-button state. Native rectangular surface hover is a separate
-signal and cannot substitute for a mesh hit when acquiring a custom-beam grab.
-SteamVR delivers interactive panel pointers in panel pixel coordinates.
+Custom controller beams pick transformed model triangles across running scenes.
+The closest eligible model hit wins per hand; equal distances use stable instance
+ID order. A held object keeps its owner until release or that script stops or
+reloads. Native rectangular surface hover is a separate signal and cannot
+substitute for a mesh hit when acquiring a custom-beam grab. SteamVR selects
+interactive panel overlays and delivers pointers to their owning scripts in
+panel pixel coordinates.
 
 Gaze polling is opt-in per loaded script and uses a separate action set. Any
 nonzero primary scene-process PID suppresses gaze action polling. Foveation

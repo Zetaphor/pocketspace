@@ -18,6 +18,8 @@ cmake --build build --target input-arbitration-regression -j2
 ./build/input-arbitration-regression
 ```
 
+## Multi-script headset validation
+
 For interactive two-script acceptance on Deckard, run the paired fixture while
 the headset is active:
 
@@ -31,6 +33,19 @@ The boxes overlap above the blue NEAR and orange FAR panels. The blue panel is
 closer where the panels overlap. Aim at the overlap and click; only blue should
 respond. Grab the boxes with both hands at once and move them independently.
 The engine log names the script that received each click or grab.
+Turn one controller off and back on while the other remains connected; the
+connected hand should keep working and the reconnected hand should resume grabs.
+To check reload isolation, an operator can schedule a reload from another Deckard
+shell while the headset user holds both boxes:
+
+```sh
+sleep 12; touch tests/scenes/multi-script-interaction-near.js
+```
+
+Only blue should reset; orange should stay held and movable. After releasing,
+both boxes should be grabbable again. `touch` changes only the file modification
+time and must be run from the repository root. The operator should give the user
+the countdown before starting it.
 Stop the engine with Ctrl-C after the check and verify that it exited.
 
 See the [test index](index.md) for a brief description of every test and helper.
