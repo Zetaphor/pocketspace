@@ -1075,7 +1075,7 @@ static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueCo
 static void forgetObjectInteraction(int id){
   pointerStates.erase(id);
   for(int h=0;h<2;h++){
-    if(hoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,h);hoveredObject[h]=0;frameInput.setHoveredObject(h,0);}
+    if(hoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,h);hoveredObject[h]=0;}
     if(meshHoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.meshHoverEnd",id,h);meshHoveredObject[h]=0;}
     if(meshCurrentObject[h]==id){meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};}
   }
@@ -2222,7 +2222,6 @@ int main(int argc,char **argv) {
     [&](Surface &surface){destroySurface(surface,display);},
     [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
   scriptRegistry.setBeforeStop([&](int id){
-    for(int hand=0;hand<2;hand++)if(hoveredObject[hand])frameInput.setHoveredObject(hand,0);
     if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
     if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
   });
@@ -2533,7 +2532,7 @@ int main(int argc,char **argv) {
       auto &state=pointerStates[id];
       state.scrollX=state.scrollY=0;
       while(overlays->PollNextOverlayEvent(surface->overlay,&event,sizeof(event))){
-        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;frameInput.setHoveredObject(state.hand,0);}state.hand=-1;continue;}
+        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;}state.hand=-1;continue;}
         if(event.eventType==vr::VREvent_ScrollSmooth){
           state.scrollX+=event.data.scroll.xdelta;
           state.scrollY+=event.data.scroll.ydelta;
@@ -2544,7 +2543,7 @@ int main(int argc,char **argv) {
           const auto eventRole=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
           const int eventHand=eventRole==vr::TrackedControllerRole_LeftHand?0:eventRole==vr::TrackedControllerRole_RightHand?1:-1;
           if(eventHand<0)continue;
-          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;frameInput.setHoveredObject(eventHand,id);sceneInput().addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
+          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;sceneInput().addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
           sceneInput().addOverlayEvent(event.eventType==vr::VREvent_MouseMove?"overlay.surfaceHover":"overlay.pointer",id,eventHand);
           state.x=(event.data.mouse.x-.5f)*surface->width;
           state.y=(.5f-event.data.mouse.y)*surface->width;
