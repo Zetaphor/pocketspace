@@ -15,9 +15,9 @@ In this order:
 - Move rendering out of `src/main.cpp` into a separately compiled file, and link it
   from the regressions that still include `main.cpp`, so a rendering edit recompiles
   only its own file. Add precompiled headers if they help the resulting smaller files.
-- Fix `light-work-regression`'s out-of-bounds read of its light list, and find out
-  why `pbr-index-production-regression`'s exact-pixel comparison fails at `-O0`. Both
-  pass at `-O3`.
+- Decide how to run `pbr-index-production-regression` in the `-O0` test tree. Its
+  exact-pixel comparison differs by 3 bytes in one view unless the compiler uses
+  fused multiply-add, as `-O3` production builds do on ARM64.
 - Replace the native model pointer with the engine laser, then confirm it in the
   headset:
   - Remove SteamVR's input on model overlays, `overlay.surfaceHover*`,

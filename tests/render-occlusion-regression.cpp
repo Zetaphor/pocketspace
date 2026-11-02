@@ -199,11 +199,14 @@ struct Renderer {
             activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
             if(pass>=0){
 #ifdef SF_LIGHT_WORK_EXPERIMENT
-              if(!selectLocalLights)activePbr.lights(frameLights,0,-.2f,0);else
+              // Without selection, objectLightSets is never populated.
+              const std::span<const ResolvedPointLight> drawLights=selectLocalLights?objectLightSets[size_t(&object-scene.objects.data())].values():std::span<const ResolvedPointLight>(frameLights);
+#else
+              const auto drawLights=objectLightSets[size_t(&object-scene.objects.data())].values();
 #endif
-              activePbr.lights(objectLightSets[size_t(&object-scene.objects.data())].values(),0,-.2f,0);
+              activePbr.lights(drawLights,0,-.2f,0);
+              activePbr.shadows(spotShadows,drawLights,0,-.2f,0);
             }
-            if(pass>=0)activePbr.shadows(spotShadows,objectLightSets[size_t(&object-scene.objects.data())].values(),0,-.2f,0);
             activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;
