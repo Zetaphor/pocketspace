@@ -1585,7 +1585,7 @@ static bool frameGrabDown(int hand,GrabButton button){
   const bool grip=button!=GrabButton::Trigger&&(frameButtonDown(hand,"/input/grip/click")||frameAxis(hand,"/input/grip/value")>.2f);
   return trigger||grip;
 }
-static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt,int instanceId,const std::array<int,2> &rayOwners){
+static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt,int instanceId,const std::array<int,2> &rayOwners,std::array<int,2> &grabOwners){
   for(int h=0;h<2;h++){
     const auto &hand=controllers[h];
     auto &grab=grabs[h];
@@ -1609,7 +1609,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
       const bool releaseKnown=frameInput.started()?frameInput.hand(h).valid:nativeKnown;
       if(hand.connected&&releaseKnown&&!frameGrabDown(h,GrabButton::Both)&&!nativeDown)grabNeedsRelease[h]=false;
     }
-    if(!object&&hand.valid&&hand.connected&&!grabNeedsRelease[h]){
+    if(!object&&hand.valid&&hand.connected&&!grabNeedsRelease[h]&&(grabOwners[h]==0||grabOwners[h]==instanceId)){
       for(auto &candidate:scene.objects){
         if(!candidate.visible||!candidate.autoManipulate||!candidate.grabbable||ownedByOther(candidate.id))continue;
         auto pointer=pointerStates.find(candidate.id);
@@ -1621,6 +1621,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
           const float reach=.10f+candidate.scale*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
           beginGrab(grab,candidate,hand,direct);
+          grabOwners[h]=instanceId;
           if(scene.physics&&scene.physics->contains(candidate.id))scene.physics->hold(candidate.id);
           grab.rawGrab=frameGrabDown(h,candidate.grabButton);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
@@ -2458,6 +2459,7 @@ int main(int argc,char **argv) {
     }
     std::array<std::optional<inputArbitration::Target>,2> rayTargets{};
     std::array<int,2> rayOwners{};
+    std::array<int,2> grabOwners{};
     const auto runningSceneIds=scriptRegistry.runningIds();
     for(int hand=0;hand<2;hand++){
       if(!controllers[hand].valid||!controllers[hand].connected)continue;
@@ -2465,6 +2467,7 @@ int main(int argc,char **argv) {
       for(int id:runningSceneIds)if(auto render=renderStates.find(id);render!=renderStates.end()&&render->second->grabs[hand].objectId){
         const auto *entry=scriptRegistry.find(id);
         rayTargets[hand]=inputArbitration::Target{id,render->second->grabs[hand].objectId,entry?entry->inputPriority:0,render->second->grabs[hand].laserDistance};
+        grabOwners[hand]=id;
         break;
       }
       if(rayTargets[hand]){rayOwners[hand]=rayTargets[hand]->instanceId;continue;}
@@ -2608,7 +2611,7 @@ int main(int argc,char **argv) {
       return 0;
     };
     if(const auto error=dispatchInputCallbacks();!error.empty())return failScene(error);
-    updateManipulation(script.scene,grabs,1.f/90.f,instance.id,rayOwners);
+    updateManipulation(script.scene,grabs,1.f/90.f,instance.id,rayOwners,grabOwners);
     for(int hand=0;hand<2;hand++)if(grabs[hand].objectId)meshHitDistance[hand]=grabs[hand].laserDistance;
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);

@@ -16,15 +16,15 @@ int main(){
   controllers[0].valid=controllers[0].connected=true;
   for(int i=0;i<3;i++)controllers[0].rotation[i*3+i]=1;
   pointerStates[1].valid=true;pointerStates[1].down=true;pointerStates[1].hand=0;
-  std::array<GrabState,2> grabs{};
-  updateManipulation(host.scene,grabs,1.f/90,0,{});assert(w.get(1).held);
+  std::array<GrabState,2> grabs{};std::array<int,2> grabOwners{};
+  updateManipulation(host.scene,grabs,1.f/90,0,{},grabOwners);assert(w.get(1).held);
   for(int i=0;i<15;i++){
-    controllers[0].x+=.01f;updateManipulation(host.scene,grabs,1.f/90,0,{});updateScenePhysics(host.scene,1./90);
+    controllers[0].x+=.01f;updateManipulation(host.scene,grabs,1.f/90,0,{},grabOwners);updateScenePhysics(host.scene,1./90);
   }
-  pointerStates[1].down=false;updateManipulation(host.scene,grabs,1.f/90,0,{});
+  pointerStates[1].down=false;updateManipulation(host.scene,grabs,1.f/90,0,{},grabOwners);
   assert(!w.get(1).held&&w.get(1).velocity.x>.8f);
-  pointerStates[1].down=true;updateManipulation(host.scene,grabs,1.f/90,0,{});assert(w.get(1).held);
-  controllers[0].connected=false;updateManipulation(host.scene,grabs,1.f/90,0,{});
+  pointerStates[1].down=true;updateManipulation(host.scene,grabs,1.f/90,0,{},grabOwners);assert(w.get(1).held);
+  controllers[0].connected=false;updateManipulation(host.scene,grabs,1.f/90,0,{},grabOwners);
   assert(!w.get(1).held&&w.get(1).velocity.x==0);
 
   assert(eval("removeObjectPhysics(box);check(getObjectPhysics(box)===null);setObjectPhysics(box);removeObject(box)"));
