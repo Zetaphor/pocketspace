@@ -21,8 +21,10 @@ cmake --build build --target input-arbitration-regression -j2
 ## Running regressions
 
 `python3 tools/run-regressions.py` builds and runs every regression in `build-test`,
-a separate tree that compiles them at `-O0` with assertions on. Pass target names to
-run only those. Logs go to `build-test/regression-logs`. Measurements and profiling
+a separate tree that compiles them at `-O0` with assertions on. The exception is
+`pbr-index-production-regression`, whose exact-pixel comparison depends on the fused
+multiply-add instructions optimized ARM64 builds use, so it stays at `-O3`. Pass
+target names to run only those. Logs go to `build-test/regression-logs`. Measurements and profiling
 runs belong in the optimized `build` tree.
 
 It uses one compile job and runs one regression at a time, because regressions share

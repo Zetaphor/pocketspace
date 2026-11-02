@@ -205,7 +205,9 @@ option(SF_FAST_TESTS "Compile regression targets without optimization" OFF)
 if(SF_FAST_TESTS)
   get_directory_property(sf_targets BUILDSYSTEM_TARGETS)
   foreach(sf_target ${sf_targets})
-    if(sf_target MATCHES "-regression$" AND NOT sf_target STREQUAL "physics-performance-regression")
+    # These measure production performance or compare exact pixels that depend on
+    # the fused multiply-add instructions optimized ARM64 builds use.
+    if(sf_target MATCHES "-regression$" AND NOT sf_target MATCHES "^(physics-performance|pbr-index-production)-regression$")
       target_compile_options(${sf_target} PRIVATE -O0)
     endif()
   endforeach()
