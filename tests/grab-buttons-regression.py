@@ -46,6 +46,7 @@ static void buttons(int hand,bool trigger,bool grip){
  frameInput.hands[hand].raw["/input/grip/click"]={true,grip,0};
 }
 int main(){
+ std::array<int,2> grabOwners{};
  for(int h=0;h<2;h++)for(auto mode:{GrabButton::Trigger,GrabButton::Grip,GrabButton::Both})for(int mask=0;mask<4;mask++){
   frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;pointerStates.clear();meshCurrentObject[0]=meshCurrentObject[1]=0;
   controllers[0]=controllers[1]={};controllers[h].connected=true;controllers[h].valid=true;
@@ -54,21 +55,21 @@ int main(){
   scene.objects.push_back(object);std::array<GrabState,2> grabs{};
   meshCurrentObject[h]=1;buttons(h,mask&1,mask&2);
   const bool allowed=(mode!=GrabButton::Grip&&(mask&1))||(mode!=GrabButton::Trigger&&(mask&2));
-  updateManipulation(scene,grabs,1.f/90,0,{});assert(bool(grabs[h].objectId)==allowed);assert(grabs[1-h].objectId==0);
+  updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(bool(grabs[h].objectId)==allowed);assert(grabs[1-h].objectId==0);
   if(allowed){
    assert(!grabs[h].direct);assert(frameInput.starts==1);
    // Losing selection/pose does not drop a held raw grab.
-   meshCurrentObject[h]=0;controllers[h].valid=false;updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[h].objectId==1);
+   meshCurrentObject[h]=0;controllers[h].valid=false;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[h].objectId==1);
    controllers[h].connected=true;controllers[h].valid=true;
-   if(mode==GrabButton::Both){buttons(h,false,true);updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[h].objectId==1);buttons(h,true,false);updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[h].objectId==1);}
+   if(mode==GrabButton::Both){buttons(h,false,true);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[h].objectId==1);buttons(h,true,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[h].objectId==1);}
    buttons(h,mode==GrabButton::Grip,mode==GrabButton::Trigger); // disallowed button must not keep a grab alive
-   for(int i=0;i<4;i++)updateManipulation(scene,grabs,1.f/90,0,{});
-   assert(grabs[h].objectId==1);updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[h].objectId);assert(frameInput.ends==1);
+   for(int i=0;i<4;i++)updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);
+   assert(grabs[h].objectId==1);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[h].objectId);assert(frameInput.ends==1);
   }
   // A native trigger event cannot bypass a grip-only policy.
   buttons(h,false,false);grabs={};scene.laserVisible[h]=false;
   pointerStates[1].down=true;pointerStates[1].hand=h;controllers[h].connected=true;controllers[h].valid=true;
-  updateManipulation(scene,grabs,1.f/90,0,{});assert(bool(grabs[h].objectId)==(mode!=GrabButton::Grip));
+  updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(bool(grabs[h].objectId)==(mode!=GrabButton::Grip));
  }
  // Analog thresholds, defaults, direct mode, current-hit requirement and hand ownership.
  frameInput={};pointerStates.clear();Scene scene;Object object{};
@@ -77,33 +78,33 @@ int main(){
  controllers[0]=controllers[1]={};for(auto &c:controllers){c.connected=true;c.valid=true;for(int i=0;i<3;i++)c.rotation[i*3+i]=1;}
  meshCurrentObject[0]=meshCurrentObject[1]=0;std::array<GrabState,2> grabs{};
  frameInput.hands[0].raw["/input/grip/value"].value=.21;
- updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId);
+ updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId);
  meshCurrentObject[0]=meshCurrentObject[1]=1;buttons(1,false,true);
- updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1&&grabs[0].direct);assert(!grabs[1].objectId);
+ updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1&&grabs[0].direct);assert(!grabs[1].objectId);
  // Changing the allowed button while held follows the new policy.
  scene.objects[0].grabButton=GrabButton::Trigger;meshCurrentObject[0]=meshCurrentObject[1]=0;
- for(int i=0;i<5;i++)updateManipulation(scene,grabs,1.f/90,0,{});
+ for(int i=0;i<5;i++)updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);
  assert(!grabs[0].objectId);
  frameInput.hands[0].raw["/input/grip/value"].value=.2;assert(!frameGrabDown(0,GrabButton::Grip));
  frameInput.hands[0].raw["/input/trigger/value"].value=.21;assert(frameGrabDown(0,GrabButton::Trigger));
  // Removed held IDs must end once and not block the other hand forever.
  frameInput={};pointerStates.clear();grabNeedsRelease[0]=grabNeedsRelease[1]=false;
  scene.objects[0].grabButton=GrabButton::Trigger;grabs={};meshCurrentObject[0]=1;buttons(0,true,false);
- updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1);
- scene.objects.clear();updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId&&frameInput.ends==1);
- updateManipulation(scene,grabs,1.f/90,0,{});assert(frameInput.ends==1);
+ updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
+ scene.objects.clear();updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId&&frameInput.ends==1);
+ updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(frameInput.ends==1);
  scene.objects.push_back(object);scene.objects[0].grabButton=GrabButton::Trigger;
- updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId); // held button cannot acquire replacement
- buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{});buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1);
+ updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId); // held button cannot acquire replacement
+ buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
  // Tracking loss preserves a hold, physical disconnect ends it and rearms.
- controllers[0].valid=false;updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1);
- controllers[0].connected=false;updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId&&grabNeedsRelease[0]);
- controllers[0].connected=controllers[0].valid=true;updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId);
- buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{});buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1);
- scene.objects[0].visible=false;updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId);
+ controllers[0].valid=false;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
+ controllers[0].connected=false;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId&&grabNeedsRelease[0]);
+ controllers[0].connected=controllers[0].valid=true;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId);
+ buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
+ scene.objects[0].visible=false;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId);
  // A committed scene reload also waits for release before accepting a held button.
- scene.objects[0].visible=true;grabNeedsRelease[0]=true;updateManipulation(scene,grabs,1.f/90,0,{});assert(!grabs[0].objectId);
- buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{});buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{});assert(grabs[0].objectId==1);
+ scene.objects[0].visible=true;grabNeedsRelease[0]=true;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId);
+ buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
  // A second scene may share local ID 1, but only the ray owner acquires it.
  frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;pointerStates.clear();
  controllers[0]={};controllers[0].connected=controllers[0].valid=true;
@@ -112,8 +113,13 @@ int main(){
  rival.visible=rival.grabbable=rival.autoManipulate=true;rival.grabButton=GrabButton::Trigger;
  competing.objects.push_back(rival);std::array<GrabState,2> competingGrabs{};
  meshCurrentObject[0]=1;buttons(0,true,false);
- updateManipulation(competing,competingGrabs,1.f/90,2,{1,0});assert(!competingGrabs[0].objectId);
- updateManipulation(competing,competingGrabs,1.f/90,2,{2,0});assert(competingGrabs[0].objectId==1);
+ updateManipulation(competing,competingGrabs,1.f/90,2,{1,0},grabOwners);assert(!competingGrabs[0].objectId);
+ // A native overlay press cannot acquire this hand while another scene holds it.
+ competing.laserVisible[0]=false;pointerStates[1].down=true;pointerStates[1].hand=0;
+ grabOwners[0]=1;
+ updateManipulation(competing,competingGrabs,1.f/90,2,{1,0},grabOwners);assert(!competingGrabs[0].objectId);
+ grabOwners[0]=0;pointerStates.clear();competing.laserVisible[0]=true;
+ updateManipulation(competing,competingGrabs,1.f/90,2,{2,0},grabOwners);assert(competingGrabs[0].objectId==1);
  puts("PASS grab buttons: modes, both hands, analogs, native gating, direct/laser, release, cross-scene ownership, policy changes");
 }
 '''
