@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded production reload check: instanced scene, empty scene, repeat."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -15,7 +16,7 @@ parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--lod', action='store_true', help='Exercise generated LOD buffer lifetime with ToyCar')
 args = parser.parse_args()
-for name in {'sf-overlay-engi', 'gpu-sync-experi', args.engine.name[:15]}:
+for name in {'pocketspace', 'gpu-sync-experi', args.engine.name[:15]}:
     if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
         parser.error('an engine is already running')
 args.output.mkdir(parents=True, exist_ok=True)
@@ -37,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='sf-instancing-lifecycle-') as directory
     path = Path(directory) / 'scene.js'
     path.write_text(scene(0))
     with (args.output / 'engine.log').open('w') as output, (args.output / 'stderr.log').open('w') as errors:
-        process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=output, stderr=errors,
+        process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=output, stderr=errors,
                                    env={**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'})
         try:
             for phase in range(4):

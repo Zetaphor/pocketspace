@@ -2,6 +2,7 @@
 Run after compiling tests/tools/lifecycle-probe.cpp as /tmp/sf-lifecycle-probe.
 No SteamVR restart or controller power cycling is performed by this script.
 """
+from engine_launch import catalog_arguments
 from pathlib import Path
 import os
 import signal
@@ -47,7 +48,7 @@ def resources(pid):
 assert all(f'{key}=absent' in probe() for key in keys),'another engine may be running'
 with tempfile.TemporaryDirectory(prefix='sf-lifecycle-') as tmp,log.open('w') as output:
  path=Path(tmp)/'scene.js';path.write_text(scene(0))
- process=subprocess.Popen(['stdbuf','-oL','-eL',str(root/'run-pocketspace.sh'),str(path)],cwd=root,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
+ process=subprocess.Popen(['stdbuf','-oL','-eL',str(root/'run-pocketspace.sh'),*catalog_arguments(path)],cwd=root,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
  samples=[]
  try:
   wait_for('LIFECYCLE_DRAINED 0');time.sleep(.1)

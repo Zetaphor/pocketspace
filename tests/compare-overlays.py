@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded native comparison; run from the repository root with VR available."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -22,7 +23,7 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 if args.seconds <= args.warmup + 2 or not all(1 <= count <= 240 for count in args.counts):
     parser.error('require counts 1..240 and duration more than warmup + 2 seconds')
-if subprocess.run(['pgrep', '-x', 'sf-overlay-engi'], capture_output=True).returncode == 0:
+if any(subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0 for name in {'pocketspace', args.engine.name[:15]}):
     parser.error('an engine is already running; stop the known test scene first')
 args.output.mkdir(parents=True, exist_ok=True)
 source = Path('tests/scenes/overlay-comparison.js').read_text()
@@ -40,7 +41,7 @@ for count in args.counts:
             with tempfile.TemporaryDirectory(prefix='sf-overlay-compare-') as temp:
                 scene = Path(temp) / 'scene.js'
                 scene.write_text('globalThis.overlayComparison=' + json.dumps(config) + ';\n' + source)
-                process = subprocess.Popen([str(args.engine.resolve()), str(scene)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+                process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(scene)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
                 try:
                     log, _ = process.communicate(timeout=args.seconds)
                     raise RuntimeError(f'{name}: engine exited early ({process.returncode})\n{log[-2000:]}')

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise live regrouping, visibility, removal, and script replacement on Frame."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -13,7 +14,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--engine', type=Path, default=Path('build/pocketspace'))
 parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
-if subprocess.run(['pgrep', '-x', 'sf-overlay-engi'], capture_output=True).returncode == 0:
+if subprocess.run(['pgrep', '-x', 'pocketspace'], capture_output=True).returncode == 0:
     parser.error('an engine is already running')
 source = Path('tests/scenes/auto-split.js').read_text()
 exercise = '''
@@ -38,7 +39,7 @@ def scene(models):
 with tempfile.TemporaryDirectory(prefix='sf-regroup-lifecycle-') as temp:
     path = Path(temp) / 'scene.js'; path.write_text(scene(False))
     env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
-    process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+    process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
     try:
         process.communicate(timeout=20)
         raise RuntimeError(f'early exit {process.returncode}')

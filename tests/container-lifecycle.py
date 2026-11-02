@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise live container disposal/recreation with shared surfaces and panels."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -12,12 +13,12 @@ p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--engine',type=Path,default=Path('build/pocketspace'))
 p.add_argument('--output',type=Path,required=True)
 a=p.parse_args()
-for name in {'sf-overlay-engi','gpu-sync-experi',a.engine.name[:15]}:
+for name in {'pocketspace','gpu-sync-experi',a.engine.name[:15]}:
     if subprocess.run(['pgrep','-x',name],capture_output=True).returncode==0:
         p.error('an engine is already running')
 a.output.mkdir(parents=True,exist_ok=True)
 with (a.output/'stderr.log').open('w') as errors:
-    process=subprocess.Popen([str(a.engine.resolve()),'tests/scenes/container-lifecycle.js'],stdout=subprocess.PIPE,stderr=errors,text=True,env={**os.environ,'DISPLAY':':0','EGL_PLATFORM':'x11'})
+    process=subprocess.Popen([str(a.engine.resolve()),*catalog_arguments('tests/scenes/container-lifecycle.js')],stdout=subprocess.PIPE,stderr=errors,text=True,env={**os.environ,'DISPLAY':':0','EGL_PLATFORM':'x11'})
     try:
         log,_=process.communicate(timeout=32)
         raise RuntimeError(f'early engine exit {process.returncode}')

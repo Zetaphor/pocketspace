@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Verify actual native submissions against known static/skin/rigid geometry."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -11,12 +12,12 @@ p=argparse.ArgumentParser(description=__doc__)
 p.add_argument('--engine',type=Path,default=Path('build/gpu-sync-experiment'))
 p.add_argument('--output',type=Path,required=True)
 a=p.parse_args()
-for name in ('sf-overlay-engi',a.engine.name[:15]):
+for name in ('pocketspace',a.engine.name[:15]):
     if subprocess.run(['pgrep','-x',name],capture_output=True).returncode==0:
         p.error('an engine is already running')
 env={k:v for k,v in os.environ.items() if not k.startswith('SF_GPU_')}
 env.update(DISPLAY=os.environ.get('DISPLAY',':0'),EGL_PLATFORM='x11',SF_GPU_SYNC_MODE='finish')
-process=subprocess.Popen([str(a.engine.resolve()),'tests/scenes/render-work-validation.js'],env=env,
+process=subprocess.Popen([str(a.engine.resolve()),*catalog_arguments('tests/scenes/render-work-validation.js')],env=env,
                          stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
 try:
     log,_=process.communicate(timeout=16)

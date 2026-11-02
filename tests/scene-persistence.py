@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run bounded live save/restore cycles using an isolated state directory."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -23,7 +24,7 @@ if subprocess.run(['pgrep','-x',a.engine.name[:15]],capture_output=True).returnc
     p.error('an engine is already running')
 a.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='sf-scene-state-') as state, (a.output/'stderr.log').open('w') as errors:
-    process=subprocess.Popen([str(a.engine.resolve()),f'tests/scenes/{scene}.js','--scene-state-dir',state],stdout=subprocess.PIPE,stderr=errors,text=True,env={**os.environ,'DISPLAY':':0','EGL_PLATFORM':'x11'})
+    process=subprocess.Popen([str(a.engine.resolve()),*catalog_arguments(f'tests/scenes/{scene}.js'),'--scene-state-dir',state],stdout=subprocess.PIPE,stderr=errors,text=True,env={**os.environ,'DISPLAY':':0','EGL_PLATFORM':'x11'})
     try:
         log,_=process.communicate(timeout=19)
         raise RuntimeError(f'early engine exit {process.returncode}')
