@@ -5,6 +5,13 @@ Each script is a complete scene you can run, read and adapt. Try grabbing for
 interaction, panels for UI, physics for simulation, or PBR for lit models.
 
 Run any example with `./run-pocketspace.sh --scripts-dir scripts --launch <name>.js`.
+The engine starts with no user scripts when no `--launch` entries are supplied.
+Repeat `--launch` to run multiple examples together; each has its own scene and
+local object/panel IDs. For example:
+
+```sh
+./run-pocketspace.sh --scripts-dir scripts --launch avocado.js --launch panels.js
+```
 
 | Script | Demonstrates |
 | --- | --- |

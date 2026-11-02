@@ -13,13 +13,13 @@ Measurements and rejected alternatives are linked separately below.
 ## Pipeline at a glance
 
 ```text
-Script + GLB assets + optional saved scene
+Catalog scripts + GLB assets + optional saved scenes
                  |
-        QuickJS candidate scene
+      per-script QuickJS candidate scenes
                  |
       validation / staged commit
                  |
-           active scene <----- input callbacks / update(dt)
+          active scenes <----- owned input callbacks / update(dt)
                  |                         ^
        animation + interaction      OpenVR / vrserver
                  |
@@ -43,8 +43,9 @@ and overlay submission path rather than the model passes.
 
 ## Process startup and execution model
 
-The executable loads the selected script, initializes OpenVR overlay services,
-EGL/GLES, and the GBM/DRM resources used for shared textures. The scene anchor
+The executable initializes OpenVR overlay services, EGL/GLES, and the GBM/DRM
+resources used for shared textures. It starts with no user scripts by default;
+each catalog `--launch` entry creates an independent scene. The shared scene anchor
 provides the transform between script coordinates and OpenVR standing space.
 Scripts use meters, with positive Z forward; the host converts this convention
 when building OpenVR transforms and shader axes.
@@ -85,10 +86,11 @@ unloaded slots are empty, not valid assets. The 32-asset limit counts loaded slo
 Runtime instancing/diagnostic geometry caches reset before rendering after release;
 feature-keyed shader programs own no model pointers and can remain cached.
 
-Script modification triggers evaluation in a new QuickJS context and candidate
-scene. Successful evaluation replaces the active scene after detaching old
-surfaces and clearing stale interaction and input state. Failure preserves the
-active scene and callback. File writes and other external side effects are not
+Modification of a running script triggers evaluation in a new QuickJS context and
+candidate scene. Successful evaluation replaces only that script's scene after
+detaching its old surfaces and clearing its stale interaction and input state.
+Failure preserves that script's active scene and callback. Other scripts continue
+running. File writes and other external side effects are not
 rolled back. See [lifecycle](lifecycle.md) for disconnect and shutdown behavior.
 
 [Scene persistence](scene-persistence.md) uses versioned snapshots of logical
@@ -103,13 +105,13 @@ the active scene intact. Restored poses rebuild independently owned GPU resource
 Each iteration follows this order in `src/main.cpp`:
 
 1. Process SteamVR quit events and refresh tracked controller roles and poses.
-2. Periodically check the script timestamp and attempt transactional reload.
+2. Periodically check each running script's timestamp and attempt scoped transactional reload.
 3. Advance native animation from elapsed time and evaluate changed poses.
 4. Synchronize model surfaces and panels; drain native overlay pointer events.
 5. Poll requested tracking actions and the raw controller stream. Apply connection
    cleanup, compute custom-beam mesh hits, and attempt bounded reconnection.
-6. Dispatch queued input callbacks, update native grabs, then call `update(dt)`.
-7. Advance scene physics and synchronize resulting object poses/events.
+6. Dispatch each scene's queued input callbacks, update its native grabs, then call its `update(dt)`.
+7. Advance each scene's physics and synchronize resulting object poses/events.
 8. Upload newly loaded assets and dirty animation data.
 9. Refresh head/eye poses, choose frame-level LOD, rebuild current bounds and
    surface membership/layout, then render visible model surfaces.

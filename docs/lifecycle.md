@@ -1,12 +1,14 @@
 # Scene lifecycle
 
-The engine periodically checks the script's modification time. It builds a new
-QuickJS context and candidate scene before replacing the current one. A failed
-load preserves the active scene, pointer state, event callback, and queues.
+The engine starts with no user scripts unless catalog `--launch` entries are
+provided. Each running script has its own QuickJS context and scene. The engine
+periodically checks each running script's modification time and builds a new
+context and candidate scene before replacing that script's scene. A failed
+reload preserves its active scene, pointer state, event callback, and queues.
 A candidate cannot drain the active event queue or remove active objects.
 `getPointer` has no active pointer snapshot during candidate initialization.
 
-A successful replacement detaches the old native surfaces before releasing
+A successful replacement detaches that script's old native surfaces before releasing
 textures, retires old objects/panels, clears pointer/grab/hover state and event
 queues, and installs the new callback. Allowed grab buttons must be released
 before they can acquire an object in the new scene. External side effects such
@@ -16,7 +18,8 @@ Removing an object cancels its grab/hover state and removes its physics body
 and attached joints. Body removal restores the surviving connected bodies
 through the normal joint cleanup path. Explicit removal does not emit a joint
 break event. Each scene owns an independent physics world, discarded on
-successful reload. Removing a panel defers resource release until its native
+successful reload. Stopping one script releases its scene resources while other
+scripts continue running. Removing a panel defers resource release until its native
 overlay has detached. Scene assets live until scene
 replacement or shutdown, even if their last object is removed, unless explicitly
 released with `unloadModel` after all users are gone.
