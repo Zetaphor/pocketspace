@@ -1,6 +1,8 @@
 # Multiple scripts and dashboard control: implementation plan
 
-Status: proposed. This document defines implementation slices and acceptance checks; it does not describe shipped behavior.
+Status: in progress. This document defines the approved behavior; the
+[implementation guide](multi-script-implementation.md) records what has shipped
+and what remains.
 
 Follow the [step-by-step implementation guide](multi-script-implementation.md)
 for code areas, test gates, and a completion record. This plan remains the
@@ -13,7 +15,7 @@ Run several independent Pocketspace scripts in one engine process, while keeping
 ## Baseline at the initial design audit
 
 - At the initial audit, `src/main.cpp` accepted one positional script path and drove one active `Scene`. Step 2 replaced that path with catalog launches and instance-scoped rendering and cleanup.
-- Each script already has a separate QuickJS runtime/context and scene during candidate reload, with a 128 MiB QuickJS memory limit. Scene containers isolate resources *within* a scene, but they are not script isolation.
+- At the initial audit, candidate reload used a separate QuickJS runtime/context and scene, with a 128 MiB QuickJS memory limit. Scene containers isolated resources *within* a scene. Step 1 added independent live script contexts.
 - Much of the renderer, input routing, physics dispatch, callback storage, overlay naming, and statistics use process-global state or scene-local numeric IDs. These need an ownership audit before running two live scenes. IDs must be qualified by script when used outside a scene.
 - `getEngineStats()` reports process CPU/RAM/GPU measurements and engine allocation estimates. Process measurements cannot honestly be assigned to individual scripts without new instrumentation.
 - Named scene saves currently share one directory. Multi-script storage must prevent same-name collisions between scripts; existing development/test saves may be deleted or recreated.
@@ -23,7 +25,7 @@ Run several independent Pocketspace scripts in one engine process, while keeping
 
 The engine owns a registry of `ScriptInstance` records, each with a stable instance ID, canonical script path, display name, lifecycle state, last error, start/reload timestamps, QuickJS runtime/context, and scene. Reserve instance ID `0` for the engine-owned scratch REPL scene; ordinary scripts receive positive IDs. Allow one live instance per canonical script file; reject duplicate launches clearly. Do not silently turn a second launch into reload. Start with no **user scripts** by default in managed mode, while the scratch scene remains available. Provide an explicit autostart list in one editable configuration file. The dashboard and CLI edit that same file through the engine, using validated atomic writes; external file edits are reloaded with validation and errors are shown without discarding the last valid settings. Validate each entry against the configured script catalog, launch independently, and show individual startup failures without preventing the host or other autostarts from running. A manual stop overrides autostart and automatic error recovery for the rest of that engine session; it does not remove the autostart entry, so the script may launch on the next engine start. The default catalog is a separate user scripts directory, not the repository's examples directory; make its path configurable and discover `.js` files in its subdirectories. Launch scripts only through catalog names; starting the engine with no launch entries leaves the user-script list empty.
 
-Each instance has its own object, panel, light, asset, physics, callback, persistence scope, and cleanup state. Shared input and tracking snapshots are read once per frame, then routed to instances. Rendering collects surfaces from all live scenes in deterministic instance order, retaining each scene's depth, transparency, stereo, and compositor contracts. Global selection picks the closest eligible target across scripts for each hand, then uses stable instance ID to break equal-distance ties. Input callbacks and events go only to the chosen owner. A held object remains owned by that script until release or its stop/reload.
+Each instance has its own object, panel, light, asset, physics, callback, persistence scope, and cleanup state. Shared input and tracking snapshots are read once per frame, then routed to instances. Rendering collects surfaces from all live scenes in deterministic instance order, retaining each scene's depth, transparency, stereo, and compositor contracts. For model-ray interaction, global selection picks the closest eligible target across scripts for each hand, then uses stable instance ID to break equal-distance ties. Native panel pointer events belong to the overlay SteamVR targets. Input callbacks and events go only to their owner. A held object remains owned by that script until release or its stop/reload.
 
 Lifecycle commands are queued and applied at a safe host-loop boundary: launch, reload, graceful stop, and forced stop only as a last resort for a stalled process (a stalled callback cannot be preempted safely within one process). Running script files retain automatic modification-time reload. Validate and stage a candidate scene before publishing it. A failed launch leaves the instance in an error state; a failed reload keeps the prior scene and records the error. An uncaught `update()` or event-callback exception stops only that script, records the exception and source, and leaves other scripts running. Show a SteamVR notification and a dashboard alert. One global automatic-restart setting controls whether scripts stopped by callback errors are restarted; it is off by default, so a stopped script stays stopped until explicitly started. If enabled, retries must be paced and bounded so a failing script cannot spin in a restart loop. An uncaught scratch callback exception resets only scratch instance `0`, leaving user scripts running. Stopping one instance detaches and releases only its resources. Engine shutdown stops all instances before OpenVR/EGL teardown.
 
@@ -91,7 +93,7 @@ Complete each slice and its checks before starting the next. Keep experimental f
 - **Script catalog: resolved.** Launch user scripts only from the configured directory, including through the CLI.
 - **Duplicate launches: resolved.** Allow one live instance per canonical script file; reject a duplicate start.
 - **File updates: resolved.** Automatically reload a running script when its file changes, preserving the current transactional reload behavior.
-- **Overlapping input: resolved.** Choose the closest eligible hit, with stable instance ID breaking equal-distance ties.
+- **Overlapping input: resolved.** Choose the closest eligible model-ray hit, with stable instance ID breaking equal-distance ties. SteamVR chooses native panel pointer targets.
 - **Stopped-script events: resolved.** Deliver only to currently running subscribers; discard events for stopped scripts.
 - **Autostart editing: resolved.** Dashboard, CLI, and direct file edits use the same validated configuration file.
 - **Scratch callback failure: resolved.** Reset scratch instance `0` without stopping user scripts.
