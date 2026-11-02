@@ -1,6 +1,4 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cstdlib>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);std::exit(1);}}while(0)
 struct Backend {

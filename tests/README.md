@@ -24,7 +24,8 @@ cmake --build build --target input-arbitration-regression -j2
 a separate tree that compiles them at `-O0` with assertions on. The exception is
 `pbr-index-production-regression`, whose exact-pixel comparison depends on the fused
 multiply-add instructions optimized ARM64 builds use, so it stays at `-O3`. Pass
-target names to run only those. Logs go to `build-test/regression-logs`. Measurements and profiling
+target names to run only those. Regressions whose experiment macros change shared code
+compile their own copy of it, so they only run with `--experiments` or by name. Logs go to `build-test/regression-logs`. Measurements and profiling
 runs belong in the optimized `build` tree.
 
 It uses one compile job and runs one regression at a time, because regressions share

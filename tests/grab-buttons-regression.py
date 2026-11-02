@@ -3,10 +3,19 @@ from pathlib import Path
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
-source=(root/'src/engine_state.h').read_text()+(root/'src/main.cpp').read_text()
+state=(root/'src/engine_state.h').read_text()
+render_header=(root/'src/render_host.h').read_text()
+render=(root/'src/render_host.cpp').read_text()
+source=state
+def body(start):
+    begin=render.index(start)
+    return render[begin:render.index('\n}',begin)+3]
 objects=source[source.index('enum class GrabButton'):source.index('struct Scene {')]
 controller=source[source.index('struct ControllerSnapshot'):source.index('inline vr::HmdMatrix34_t trackingAnchor')]
-functions=source[source.index('struct GrabState'):source.index('struct ProjectedBounds')]
+inline_input=render_header[render_header.index('inline bool frameButtonDown'):render_header.index('bool frameGrabDown')]
+functions=(render_header[render_header.index('struct GrabState'):render_header.index('void beginGrab(')]
+           +body('void beginGrab(')+body('void objectRotationMatrix(')+inline_input
+           +body('bool frameGrabDown(')+body('void updateManipulation('))
 header=r'''
 #include <algorithm>
 #include <array>

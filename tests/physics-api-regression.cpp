@@ -1,6 +1,4 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cassert>
 int main(){
   ScriptHost host;ScopeExit cleanup{[&]{closeScript(host);}};

@@ -1,7 +1,5 @@
 // Fixed-view GPU workload: same meshes, resolution and passes as the engine.
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cassert>
 #include <cstdlib>
 #undef assert

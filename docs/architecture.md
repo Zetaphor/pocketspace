@@ -520,7 +520,8 @@ deferred until a workload establishes sufficient CPU cost.
 
 | Area | Main sources |
 | --- | --- |
-| Host loop, surfaces, layout, passes | `src/main.cpp` |
+| Frame loop | `src/main.cpp` |
+| Surfaces, layout, passes | `src/render_host.cpp`, `src/render_host.h` |
 | JavaScript bindings and script loading | `src/script_api.cpp` |
 | Scene types and shared engine state | `src/engine_state.h` |
 | Import, CPU geometry, animation evaluation, pose upload | `src/model_asset.cpp`, `src/model_asset.h`, `src/animation.h` |

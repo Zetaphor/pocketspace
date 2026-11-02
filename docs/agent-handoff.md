@@ -20,7 +20,8 @@ after changing guide links, navigation or site configuration.
 | File | Responsibility |
 | --- | --- |
 | `src/script_api.cpp`, `src/engine_state.h` | QuickJS bindings, script loading, scene types and shared engine state. Compiled once and linked by regressions; keep shared globals `inline`, never `static`, in the header. |
-| `src/main.cpp` | Interaction, rendering, and OpenVR host loop. |
+| `src/render_host.cpp`, `src/render_host.h` | Interaction, surfaces, layout and render passes. Compiled once and linked by regressions. Targets whose macros change shared code define `SF_RENDER_UNITY` and compile it as one unit. |
+| `src/main.cpp` | OpenVR frame loop. |
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |

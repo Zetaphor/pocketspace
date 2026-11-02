@@ -1,6 +1,4 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cassert>
 static bool near(float a,float b){return std::abs(a-b)<1e-5;}
 int main(int argc,char **argv){

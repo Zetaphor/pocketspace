@@ -1,8 +1,6 @@
 #include "draw-uniforms-experiment.h"
 // Actual GLES shaders and render passes, without opening an OpenVR session.
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cassert>
 #include <cstdlib>
 #include "../src/mesh_index.h"

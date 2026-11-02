@@ -1,7 +1,5 @@
 // Exercise the real QuickJS loader with two independent scene hosts, no VR session.
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cassert>
 
 int main(){

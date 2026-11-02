@@ -10,7 +10,8 @@ import sys
 import tempfile
 
 root = Path(__file__).resolve().parents[1]
-source = (root / 'src/main.cpp').read_text()
+source = (root / 'src/render_host.cpp').read_text()
+inline_source = (root / 'src/render_host.h').read_text()
 blob = (root / 'assets/tests/HollowFrame.glb').read_bytes()
 length = struct.unpack_from('<I', blob, 12)[0]
 doc = json.loads(blob[20:20+length])
@@ -137,11 +138,18 @@ puts("PASS BVH: 8000 rays, nearest hits, inside origins, parallel rays, sparse l
 puts("PASS both hands: hollow center miss, rail hit, rotated opening miss, invalid tracking miss");}
 """
 
-rotation_start = source.index('static void objectRotationMatrix(')
-rotation_end = source.index('static bool frameButtonDown', rotation_start)
-picker_start = source.index('static bool rayTriangle(')
-picker_end = source.index('\nint main(', picker_start)
-program = (header + source[rotation_start:rotation_end] + source[picker_start:picker_end]
+def function(text, start):
+    # A definition ends at the closing brace in column 0; a one-liner ends its own line.
+    begin = text.index(start)
+    line_end = text.index('\n', begin)
+    if text[begin:line_end].rstrip().endswith('}'):
+        return text[begin:line_end] + '\n'
+    return text[begin:text.index('\n}', begin) + 3]
+
+program = (header + function(source, 'void objectRotationMatrix(')
+           + function(inline_source, 'inline bool rayTriangle(')
+           + 'float meshHit(const Object&,const ModelAsset&,const ControllerSnapshot&,int,bool accelerated=true);\n'
+           + function(source, 'float meshHit(')
            + reference + checks.replace('VERTICES', ','.join(map(str, vertices))))
 with tempfile.TemporaryDirectory() as directory:
     cpp = Path(directory) / 'picking.cpp'

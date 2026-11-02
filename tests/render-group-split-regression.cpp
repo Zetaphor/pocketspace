@@ -1,6 +1,4 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/render_host.h"
 #include <cstdlib>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x);std::exit(1);}}while(0)
 static vr::HmdMatrix34_t identity(){vr::HmdMatrix34_t m{};for(int axis=0;axis<3;axis++)m.m[axis][axis]=1;return m;}

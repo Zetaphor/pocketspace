@@ -12,9 +12,11 @@ planned development track.
 
 In this order:
 
-- Move rendering out of `src/main.cpp` into a separately compiled file, and link it
-  from the regressions that still include `main.cpp`, so a rendering edit recompiles
-  only its own file. Add precompiled headers if they help the resulting smaller files.
+- Run `python3 tools/run-regressions.py --experiments` once. The experiment
+  regressions have not been built since rendering moved to `src/render_host.cpp`.
+- Retire the experiment regressions that are no longer needed. `directional-light`,
+  `spot-shadow`, `sheen` and `gpu-skinning` also cover shipped features, so move that
+  coverage into the default run before retiring them.
 - Replace the native model pointer with the engine laser, then confirm it in the
   headset:
   - Remove SteamVR's input on model overlays, `overlay.surfaceHover*`,
@@ -27,8 +29,14 @@ In this order:
     `interactive` and `autoManipulate`. Custom grab systems use nongrabbable objects
     with hover and button events.
   - Read thumbstick yaw and depth directly from the controller.
-  - `setLaserVisible` alone decides whether a beam is drawn, including on panels.
-    Hover, grabs and panel clicks work whether or not it is drawn.
+  - Laser visibility is one engine-owned state per hand. Remove the `laserVisible`
+    flag from `Scene`, so scripts hold no laser state of their own. Any script can
+    request a change with `setLaserVisible(hand, visible)` and read it with a new
+    `getLaserVisible(hand)`; the latest call wins. Stopping or reloading a script
+    leaves it unchanged, even after the last script stops. It alone decides whether a
+    beam is drawn, including on panels. Hover, grabs and panel clicks work either way.
+  - Add a headset test scene under `tests/scenes` with a debug panel showing each
+    hand's mesh hover state, target, hit distance and 3D hit point.
 
 ## Material support
 
