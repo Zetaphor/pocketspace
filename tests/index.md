@@ -30,7 +30,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [grab-buttons-regression.py](grab-buttons-regression.py) | Native grab state machine for grip, trigger, and either-button selection without VR or graphics. |
 | [lifecycle-input-regression.cpp](lifecycle-input-regression.cpp) | Raw input device replacement, missing-state retry, idle streams, connection upgrades, reconnects, queues and resource cleanup using a local server. |
 | [lifecycle-script-regression.cpp](lifecycle-script-regression.cpp) | Script loading, failed-reload rollback, callbacks, and scene cleanup without VR or graphics. |
-| [multi-script-lifecycle-regression.cpp](multi-script-lifecycle-regression.cpp) | Two QuickJS hosts with colliding local IDs, independent callback ownership, duplicate rejection, failed reload rollback, scoped stop, and callback-error isolation without VR or graphics. |
+| [multi-script-lifecycle-regression.cpp](multi-script-lifecycle-regression.cpp) | Two QuickJS hosts with colliding local IDs, independent callback ownership, disconnect/reconnect fanout, held-owner stop, callback mutation, duplicate rejection, failed reload rollback, scoped stop, and callback-error isolation without VR or graphics. |
 | [panel-submission-regression.cpp](panel-submission-regression.cpp) | Cached panel writes and grouped surface handoffs, including injected presentation failures and fallback cleanup. |
 | [physics-api-regression.cpp](physics-api-regression.cpp) | Physics JavaScript fixtures against real bindings, with native simulation and lifecycle checks. |
 | [physics-collision-regression.cpp](physics-collision-regression.cpp) | Collision events and contact lifecycle, including interaction with input handling. |

@@ -2595,6 +2595,7 @@ int main(int argc,char **argv) {
     }
     for(int h=0;h<2;h++)if(!controllers[h].connected){
       frameInput.invalidateHand(h);
+      sceneInput().invalidateHand(h);
       for(auto &[id,pointer]:pointerStates)if(pointer.hand==h)pointer={};
       if(hoveredObject[h]){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
       if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHoverOwners.clear(h,{instance.id,panelHovered[h]});panelHovered[h]=0;}
