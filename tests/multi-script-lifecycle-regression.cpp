@@ -43,17 +43,6 @@ int main(){
   assert(a->host.scene.objects[0].id==1&&b->host.scene.objects[0].id==1);
   assert(a->host.scene.panels.size()==1&&b->host.scene.panels.size()==1);
   assert(a->host.scene.panels[0].id==1&&b->host.scene.panels[0].id==1);
-  assert(a->host.scene.inputPriority==0&&b->host.scene.inputPriority==0);
-  {
-    ScriptScope scope(registry.find(left)->host);
-    auto evaluate=[&](const char *source){JSValue value=JS_Eval(a->host.ctx,source,std::strlen(source),"priority-test",JS_EVAL_TYPE_GLOBAL);const bool ok=!JS_IsException(value);JS_FreeValue(a->host.ctx,value);if(!ok){JSValue error=JS_GetException(a->host.ctx);JS_FreeValue(a->host.ctx,error);}return ok;};
-    assert(evaluate("setInputPriority(7)"));
-    assert(!evaluate("setInputPriority(-1)"));
-    assert(!evaluate("setInputPriority(1.5)"));
-    assert(!evaluate("setInputPriority(101)"));
-    assert(currentScene->inputPriority==7);
-  }
-  assert(registry.find(left)->host.scene.inputPriority==7&&registry.find(right)->host.scene.inputPriority==0);
   assert(!JS_IsUndefined(a->host.callback)&&!JS_IsUndefined(b->host.callback));
   frame_input::Event raw{};raw.type="controller.button";raw.hand="left";raw.objectId=1;
   fanOutRawInput(registry,{raw});
@@ -94,7 +83,6 @@ int main(){
     assert(events.size()==1&&events[0].type=="overlay.pointer"&&events[0].objectId==1);
   }
   assert(registry.reload(left));
-  assert(registry.find(left)->host.scene.inputPriority==0);
   assert(registry.find(left)->host.instanceId==left&&activeInstanceId==0);
   assert(registry.find(left)->host.interaction.pointers.empty()&&registry.find(right)->host.interaction.pointers.at(1).hand==1);
   {

@@ -10,8 +10,8 @@ cmake --build build --target multi-script-render-regression -j2
 EGL_PLATFORM=surfaceless ./build/multi-script-render-regression
 ```
 
-The shared controller target comparator is a headless test of priority,
-distance, stable instance ties, and invalid hit rejection:
+The shared controller target comparator is a headless test of distance,
+stable instance ties, and invalid hit rejection:
 
 ```sh
 cmake --build build --target input-arbitration-regression -j2
@@ -32,11 +32,6 @@ closer where the panels overlap. Aim at the overlap and click; only blue should
 respond. Grab the boxes with both hands at once and move them independently.
 The engine log names the script that received each click or grab.
 Stop the engine with Ctrl-C after the check and verify that it exited.
-
-To check priority, replace `multi-script-interaction-far.js` with
-`multi-script-interaction-priority-far.js`. Aim at the overlap between the
-closer left box and farther right box. The farther right box should move alone,
-and the log should name `[far]` for the grab.
 
 See the [test index](index.md) for a brief description of every test and helper.
 

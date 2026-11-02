@@ -5,12 +5,11 @@
 
 namespace inputArbitration {
 struct Target {
-  int instanceId=0,localId=0,priority=0;
+  int instanceId=0,localId=0;
   float distance=0;
 };
 
 inline bool better(const Target &candidate,const Target &current){
-  if(candidate.priority!=current.priority)return candidate.priority>current.priority;
   if(candidate.distance!=current.distance)return candidate.distance<current.distance;
   if(candidate.instanceId!=current.instanceId)return candidate.instanceId<current.instanceId;
   return candidate.localId<current.localId;
