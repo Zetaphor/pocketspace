@@ -10,13 +10,21 @@ cmake --build build --target multi-script-render-regression -j2
 EGL_PLATFORM=surfaceless ./build/multi-script-render-regression
 ```
 
+The shared controller target comparator is a headless test of priority,
+distance, stable instance ties, and invalid hit rejection:
+
+```sh
+cmake --build build --target input-arbitration-regression -j2
+./build/input-arbitration-regression
+```
+
 See the [test index](index.md) for a brief description of every test and helper.
 
 This experiment leaves the published examples and engine defaults unchanged.
 Run from the repository root on the VR runtime host:
 
 ```sh
-./run-pocketspace.sh tests/scenes/overlay-comparison.js
+./run-pocketspace.sh --scripts-dir tests/scenes --launch overlay-comparison.js
 ```
 
 The HUD names the current renderer, geometry, body count, FPS, CPU, process RAM,
@@ -539,7 +547,7 @@ The generator supplies five-target STEP/LINEAR/CUBICSPLINE clips, node/mesh/zero
 weights, combined skinning, and malformed models. The native harness checks
 positions, animated picking/bounds, independent poses, the bundled Khronos cube,
 real JavaScript controls, and restored morph poses. No VR session is needed.
-Run `./run-pocketspace.sh scripts/morph.js` for headset visual acceptance.
+Run `./run-pocketspace.sh --scripts-dir scripts --launch morph.js` for headset visual acceptance.
 
 ## Raw controller subscription recovery
 
@@ -1269,7 +1277,7 @@ alternating eyes. GPU timer queries
 reject disjoint measurements; wall time includes rendering and GPU completion.
 This is a bounded light-loop comparison, not a many-model throughput guarantee.
 
-Run `./run-pocketspace.sh scripts/lights.js` for interactive acceptance. Grab the
+Run `./run-pocketspace.sh --scripts-dir scripts --launch lights.js` for interactive acceptance. Grab the
 small marker with grip or trigger and move it around the car. Check that the lit
 area follows it while moving your head; bumper cycles colors, A/X toggles light,
 and B/Y captures then restores the lit tool. Verify fresh attachments after
@@ -1298,7 +1306,7 @@ frame counts described above. Broad spotlight cones (inner 1.2, outer 1.4 radian
 fully illuminate the targets to avoid crediting a narrower illuminated workload
 as a cheaper BRDF. Each type uses the forward/reverse count sequence independently.
 
-Run `./run-pocketspace.sh scripts/spotlights.js` for interactive acceptance. Grab
+Run `./run-pocketspace.sh --scripts-dir scripts --launch spotlights.js` for interactive acceptance. Grab
 the blue handle with grip/trigger and rotate it to aim across the car. Bumper
 switches width, A/X toggles, and B/Y captures then restores. Check head motion,
 cone falloff and restored attachment behavior. Stop the demo immediately after
@@ -1497,7 +1505,7 @@ separately and must not be confused with the prepared measurements.
 
 ### Interactive PBR variant validation
 
-Run `./run-pocketspace.sh tests/scenes/pbr-variants.js` after the automated
+Run `./run-pocketspace.sh --scripts-dir tests/scenes --launch pbr-variants.js` after the automated
 variant checks pass. The normal engine now exercises the prepared policy;
 `gpu-sync-experiment` with `SF_GPU_PBR_VARIANTS=1` remains an equivalent diagnostic
 entry point. It shows a car,
@@ -1531,7 +1539,7 @@ OpenVR overlays. `--benchmark` adds bounded one/four-car comparisons at
 256/512/1024 map pixels and 768 pixels per eye. Keep the headset awake and worn
 for performance measurements; no pointer input is captured.
 
-`./run-pocketspace.sh scripts/shadows.js` is interactive: grab the blue light
+`./run-pocketspace.sh --scripts-dir scripts --launch shadows.js` is interactive: grab the blue light
 handle or yellow box, toggle shadows with A/X, cycle resolution with bumper,
 and capture/restore with B/Y. Check ground contact, head motion, moving light and
 caster, and the status/time HUD. Stop the demo after visual verification.
@@ -1544,7 +1552,7 @@ comparisons at 256/512/1024 map pixels, using a fixed 2-meter square and 4-meter
 depth. Runs are offscreen and capture no input. Keep the headset awake and worn
 for timing. The shared API suite includes `directional-shadow-api-smoke.js`.
 
-Run `./run-pocketspace.sh scripts/directional-shadows.js` for interaction. Move
+Run `./run-pocketspace.sh --scripts-dir scripts --launch directional-shadows.js` for interaction. Move
 the yellow caster and rotate the blue handle; its translation does not move
 world-space coverage. A/X toggles shadows, bumper cycles resolution, B/Y saves
 then restores. Check stable head motion, parallel shadows and active HUD status;
@@ -1555,7 +1563,7 @@ stop after user verification.
 Run `spot-shadow-regression --point` with the native GLES environment.
 `--point-benchmark` uses bounded paired one-car stages at 256/512 pixels per
 face with no overlays or pointer input. Keep the headset active for profiling.
-Run `./run-pocketspace.sh scripts/point-shadows.js` for interaction; grab the lamp
+Run `./run-pocketspace.sh --scripts-dir scripts --launch point-shadows.js` for interaction; grab the lamp
 and yellow caster, use bumper for resolution, A/X for shadows and B/Y to save
 then restore. Inspect floor/cube self-shadowing and transitions across face edges.
 Stop the demo after visual verification.

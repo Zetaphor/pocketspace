@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Compare shipped/minimal depth in the engine with fixed poses and view."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -40,7 +41,7 @@ for control in ((False, True) if args.workload == 'both' else (args.workload == 
             scene.write_text(f'globalThis.depthColorControl={json.dumps(control)};\n' + source)
             # File-backed logs avoid a full pipe stalling the renderer.
             with (args.output / f'{label}.log').open('w') as log_file:
-                process = subprocess.Popen([str(args.engine.resolve()), str(scene)], env=env,
+                process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(scene)], env=env,
                                            stdout=log_file, stderr=subprocess.STDOUT)
                 try:
                     process.wait(timeout=args.seconds)

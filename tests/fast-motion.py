@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded fast-motion workloads; retain logs and report actual throughput."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -20,7 +21,7 @@ parser.add_argument('--no-lod', action='store_true', help='Disable automatic mod
 parser.add_argument('--instancing', action='store_true', help='Opt loaded assets into ordered GPU instancing')
 parser.add_argument('--pbr-lights', type=int, choices=[0, 4, 8], help='Use PBR with this many mixed point/spot lights')
 args = parser.parse_args()
-for process_name in {'sf-overlay-engi', args.engine.name[:15], 'gpu-sync-experi'}:
+for process_name in {'pocketspace', args.engine.name[:15], 'gpu-sync-experi'}:
     if subprocess.run(['pgrep', '-x', process_name], capture_output=True).returncode == 0:
         parser.error('an engine is already running')
 args.output.mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,7 @@ for configuration in configurations:
         env = {**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'}
         error_path = args.output / f'{name}.stderr.log'
         with error_path.open('w') as errors:
-            process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=subprocess.PIPE, stderr=errors, text=True, env=env)
+            process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=subprocess.PIPE, stderr=errors, text=True, env=env)
             try:
                 log, _ = process.communicate(timeout=args.seconds)
                 raise RuntimeError(f'{name}: early exit {process.returncode}\n{log[-2000:]}')

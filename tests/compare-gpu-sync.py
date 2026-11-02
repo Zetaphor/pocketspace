@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded native producer-completion comparison; never submits unfinished work."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -22,7 +23,7 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 if not 1 <= args.count <= 240 or args.rounds < 1 or args.seconds <= args.warmup + 4:
     parser.error('require count 1..240, positive rounds, and duration > warmup + 4')
-for process_name in ('sf-overlay-engi', 'gpu-sync-experi'):
+for process_name in {'pocketspace', 'gpu-sync-experi', args.engine.name[:15]}:
     if subprocess.run(['pgrep', '-x', process_name], capture_output=True).returncode == 0:
         parser.error(f'{process_name} is already running')
 args.output.mkdir(parents=True, exist_ok=True)
@@ -38,7 +39,7 @@ for round_index in range(args.rounds):
             with tempfile.TemporaryDirectory(prefix='sf-gpu-sync-') as temp:
                 path = Path(temp) / 'scene.js'
                 path.write_text('globalThis.overlayComparison=' + json.dumps(config) + ';\n' + source)
-                process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+                process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
                 try:
                     log, _ = process.communicate(timeout=args.seconds)
                     raise RuntimeError(f'{name}: early exit {process.returncode}\n{log[-2000:]}')

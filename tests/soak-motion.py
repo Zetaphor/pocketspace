@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Bounded production-engine motion/reload soak with separate diagnostic logs."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -19,7 +20,7 @@ parser.add_argument('--phase-seconds', type=int, default=60)
 args = parser.parse_args()
 if args.phases < 3 or args.phase_seconds < 30:
     parser.error('require at least three phases and thirty seconds per phase')
-for name in {'sf-overlay-engi', 'gpu-sync-experi', args.engine.name[:15]}:
+for name in {'pocketspace', 'gpu-sync-experi', args.engine.name[:15]}:
     if subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0:
         parser.error('an engine is already running')
 args.output.mkdir(parents=True, exist_ok=True)
@@ -55,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='sf-motion-soak-') as directory:
     path = Path(directory) / 'scene.js'
     path.write_text(scene(0))
     with (args.output / 'engine.log').open('w') as output, (args.output / 'stderr.log').open('w') as errors:
-        process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=output, stderr=errors,
+        process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=output, stderr=errors,
                                    env={**os.environ, 'DISPLAY': os.environ.get('DISPLAY', ':0'), 'EGL_PLATFORM': 'x11'})
         (args.output / 'engine.pid').write_text(str(process.pid))
         (args.output / 'runner.pid').write_text(str(os.getpid()))

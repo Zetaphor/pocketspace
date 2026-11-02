@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Compare opt-in subdivision with the same fixed two-island native scene."""
+from engine_launch import catalog_arguments
 import argparse
 import json
 import os
@@ -18,7 +19,7 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 if args.seconds <= args.warmup + 2:
     parser.error('duration must exceed warmup + 2 seconds')
-if subprocess.run(['pgrep', '-x', 'sf-overlay-engi'], capture_output=True).returncode == 0:
+if any(subprocess.run(['pgrep', '-x', name], capture_output=True).returncode == 0 for name in {'pocketspace', args.engine.name[:15]}):
     parser.error('an engine is already running')
 args.output.mkdir(parents=True, exist_ok=True)
 source = Path('tests/scenes/auto-split.js').read_text()
@@ -31,7 +32,7 @@ for models in (False, True):
             path = Path(temp) / 'scene.js'
             config = {'splitModels': models, 'splitEnabled': enabled, 'splitKinematic': True}
             path.write_text('\n'.join(f'globalThis.{key}={json.dumps(value)};' for key, value in config.items()) + '\n' + source)
-            process = subprocess.Popen([str(args.engine.resolve()), str(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+            process = subprocess.Popen([str(args.engine.resolve()), *catalog_arguments(path)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
             try:
                 log, _ = process.communicate(timeout=args.seconds)
                 raise RuntimeError(f'{name}: exited early ({process.returncode})\n{log[-2000:]}')
