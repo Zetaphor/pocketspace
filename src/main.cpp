@@ -89,7 +89,7 @@ struct Object {
 };
 #include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1,inputPriority=0;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
 static size_t loadedAssetCount(const Scene &scene){return std::count_if(scene.assets.begin(),scene.assets.end(),[](const ModelAsset &asset){return !asset.path.empty();});}
 static bool loadedAsset(const Scene &scene,int id){return id>0&&size_t(id)<=scene.assets.size()&&!scene.assets[size_t(id)-1].path.empty();}
 static std::set<int> containerSubtree(const Scene &scene,int root){
@@ -424,6 +424,15 @@ static JSValue jsSetLaserVisible(JSContext *ctx,JSValueConst,int argc,JSValueCon
   int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;JS_FreeCString(ctx,hand);
   if(index<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
   currentScene->laserVisible[index]=JS_ToBool(ctx,argv[1])>0;
+  return JS_UNDEFINED;
+}
+static JSValue jsSetInputPriority(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc!=1)return JS_ThrowTypeError(ctx,"setInputPriority(priority)");
+  double value=0;
+  if(JS_ToFloat64(ctx,&value,argv[0])<0)return JS_EXCEPTION;
+  if(!JS_IsNumber(argv[0])||!std::isfinite(value)||std::floor(value)!=value||value<0||value>100)
+    return JS_ThrowRangeError(ctx,"input priority must be an integer from 0 to 100");
+  currentScene->inputPriority=static_cast<int>(value);
   return JS_UNDEFINED;
 }
 static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -1193,6 +1202,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"getInput",jsGetInput,1);
   bind(candidate.ctx,"pulse",jsPulse,3);
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
+  bind(candidate.ctx,"setInputPriority",jsSetInputPriority,1);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,2);
   bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
@@ -2466,7 +2476,7 @@ int main(int argc,char **argv) {
       // A held object keeps its owner until release or that instance stops.
       for(int id:runningSceneIds)if(auto render=renderStates.find(id);render!=renderStates.end()&&render->second->grabs[hand].objectId){
         const auto *entry=scriptRegistry.find(id);
-        rayTargets[hand]=inputArbitration::Target{id,render->second->grabs[hand].objectId,entry?entry->inputPriority:0,render->second->grabs[hand].laserDistance};
+        rayTargets[hand]=inputArbitration::Target{id,render->second->grabs[hand].objectId,entry?entry->host.scene.inputPriority:0,render->second->grabs[hand].laserDistance};
         grabOwners[hand]=id;
         break;
       }
@@ -2477,7 +2487,7 @@ int main(int argc,char **argv) {
           if(!object.visible)continue;
           const auto &asset=entry->host.scene.assets[size_t(object.asset)-1];
           const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
-          inputArbitration::consider(rayTargets[hand],{id,object.id,entry->inputPriority,distance});
+          inputArbitration::consider(rayTargets[hand],{id,object.id,entry->host.scene.inputPriority,distance});
         }
       }
       if(rayTargets[hand])rayOwners[hand]=rayTargets[hand]->instanceId;
