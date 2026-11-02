@@ -594,12 +594,6 @@ handle movement themselves. `enableObjectSurface(id)` is a compatibility no-op.
 `'left'` or `'right'`. Its raw-controller grabs are independent of native laser
 focus. SteamVR owns panel pointer delivery.
 
-`setInputPriority(priority)` sets this script's model-ray selection priority
-from `0` to `100`. The default is `0`. A higher priority wins before distance;
-equal priorities choose the closer hit. Set `0` to restore distance-only
-selection. The value belongs to this script instance and resets when the script
-reloads. Native panel input continues to use SteamVR's overlay targeting.
-
 `getPointer(id)` returns native surface state `{valid, down, x, y, hand}`;
 `hand` is `'left'`, `'right'`, or `null`. Coordinates are surface-local, not
 panel pixels. This is not the custom beam's grab state. `getPointer()` is usable

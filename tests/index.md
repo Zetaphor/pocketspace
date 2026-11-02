@@ -53,7 +53,6 @@ performance experiments are separate from correctness and visual acceptance.
 | --- | --- |
 | [scenes/multi-script-left.js](scenes/multi-script-left.js), [scenes/multi-script-right.js](scenes/multi-script-right.js) | Paired noninteractive scenes with the same top-level names and local object/panel IDs for concurrent context and overlay checks. |
 | [scenes/multi-script-interaction-near.js](scenes/multi-script-interaction-near.js), [scenes/multi-script-interaction-far.js](scenes/multi-script-interaction-far.js) | Paired interactive headset scenes with overlapping grabbable boxes and panels; log the owning script for clicks and grabs. |
-| [scenes/multi-script-interaction-priority-far.js](scenes/multi-script-interaction-priority-far.js) | Far scene variant with model-ray priority `5` for the headset override check. |
 
 ## JavaScript API smoke fixtures
 
@@ -88,7 +87,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
 | [scene-container-api-smoke.js](scene-container-api-smoke.js), [scene-container-regression.cpp](scene-container-regression.cpp) | Ownership, strict IDs/getters, transfers, physics/joints, self-disposing callbacks, rollback, shared surfaces and repeated cleanup. |
 | [multi-script-render-regression.cpp](multi-script-render-regression.cpp) | Two offscreen scenes with overlapping local object IDs, distinct pixels, and independent GPU target cleanup across three cycles. |
-| [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Priority, distance, stable instance-ID ties, order independence, and invalid-distance rejection for shared controller targets. |
+| [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Distance, stable instance-ID ties, order independence, and invalid-distance rejection for shared controller targets. |
 | [engine_launch.py](engine_launch.py) | Catalog-only launch arguments shared by device test runners. |
 | [container-lifecycle.py](container-lifecycle.py), [scenes/container-lifecycle.js](scenes/container-lifecycle.js) | Production container create/dispose cycles with a root survivor, shared surface, panels and physics. |
 | [lod-api-smoke.js](lod-api-smoke.js) | Default-on LOD, explicit opt-out, strict booleans, getter failures and cached-path conflicts. |
