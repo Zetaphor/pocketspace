@@ -30,9 +30,14 @@ header = r"""#include <algorithm>
 #include <cstdio>
 #include <random>
 #include "picking_bvh.h"
-struct Object {float x=0,y=0,z=0,scale=.5,pitch=0,yaw=0,roll=0;};
 struct Part {std::vector<float> vertices;};
 struct ModelAsset {float low[3]={-.5,-.5,-.08},high[3]={.5,.5,.08};std::vector<Part> primitives;std::vector<picking::Triangle> pickTriangles;std::vector<picking::Node> pickNodes;};
+// Rigid geometry only; animated picking is covered by the engine regressions.
+struct ModelPose {bool gpuSkin=false;ModelAsset geometry;};
+struct Object {float x=0,y=0,z=0,scale=.5,pitch=0,yaw=0,roll=0;int asset=0;ModelPose *animationPose=nullptr;};
+struct PickScene {std::vector<ModelAsset> assets;};
+static PickScene *currentScene=nullptr;
+static void prepareSkinPicking(const ModelAsset&,ModelPose&){}
 struct ControllerSnapshot {bool valid=true;float x=0,y=0,z=0;float rotation[9];};
 """
 
