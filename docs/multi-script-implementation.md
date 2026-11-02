@@ -89,10 +89,16 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 ## Step 4 — Saved scene namespaces
 
-- [ ] Scope `saveSceneContainer`/`loadSceneContainer` under a stable key derived from the script's canonical catalog path; use `scratch/` for instance `0`. Retain `--scene-state-dir` as the root and current save-name validation.
-- [ ] Add explicit cross-script import from a stable catalog key. Read detached snapshot data and restore through the existing staged path with fresh IDs. Reject traversal, symlink escapes, malformed content, and missing source files.
-- [ ] Treat legacy shared-directory test saves as disposable; document how to recreate them. Do not add a migration tool.
-- [ ] Extend `scene-persistence-regression` for same-name isolation, restart, scratch namespace, import, and failed restore without modifying either scene.
+**Complete:** `ScriptScope` selects the calling host's namespace, and reload preserves it. The directory name percent-encodes the script's canonical catalog-relative path into one path component; scratch uses `scratch/`. `importSceneContainer(sourceScript, name)` resolves its source through the catalog, then uses the normal file read and staged restore. Scratch saves are not an import source, because the approved import contract names catalog scripts and scratch has no live context until Step 8.
+
+**Automated evidence:** On Deckard, `scene-persistence-regression` runs two real QuickJS instances through same-name isolation, import in both directions, a symlink alias, nine rejected sources, six rejected or malformed save names, reservation failure rollback, symlinked namespace refusal, successful and failed reload, import from a stopped source, restart with swapped instance IDs, and scratch. Removing namespace preservation, the symlink check, or the import source each made it fail. The ARM64 engine builds; `examples`, `multi-script-lifecycle`, `lifecycle-script`, `lifecycle-input`, `scene-container`, `asset-lifetime`, `point-light`, `spotlight`, and `directional-light` regressions pass. A bounded production-engine run with objectless scripts (`--scripts-dir`, nested `--launch`, `--scene-state-dir`) wrote `first.js/layout.json` and `tools%2Fsecond.js/layout.json`, imported across scripts, rejected traversal, and left no process. No headset observation was needed or made.
+
+**Known gap:** `tests/scene-persistence.py` now reads the namespaced path but was not run. Its existing `version==4` assertion predates v14 snapshots and needs correcting before that live harness can pass.
+
+- [x] Scope `saveSceneContainer`/`loadSceneContainer` under a stable key derived from the script's canonical catalog path; use `scratch/` for instance `0`. Retain `--scene-state-dir` as the root and current save-name validation.
+- [x] Add explicit cross-script import from a stable catalog key. Read detached snapshot data and restore through the existing staged path with fresh IDs. Reject traversal, symlink escapes, malformed content, and missing source files.
+- [x] Treat legacy shared-directory test saves as disposable; document how to recreate them. Do not add a migration tool.
+- [x] Extend `scene-persistence-regression` for same-name isolation, restart, scratch namespace, import, and failed restore without modifying either scene.
 
 **Exit gate:** two scripts can each save `layout` without collision and explicitly import one another's save. Existing snapshot regressions pass.
 
@@ -168,7 +174,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 1 | Step 1 headless-registry commit | Fixture syntax, docs lint/site build pass | ARM64 production/new lifecycle targets build; new, old lifecycle, examples regressions and non-VR model inspect pass | Production frame loop in Step 2; scratch context in Step 8; event routing in Step 3 |
 | 2 | Instance-scoped scene traversal, catalog startup, and stop cleanup | Docs lint/site build and diff check pass | ARM64 engine and focused regressions pass; empty startup, two-scene runtime, injected error, and two reloads pass; offscreen overlapping-ID render and user headset visibility pass | External stop command in Step 7; scratch scene in Step 8 |
 | 3 | `6b414e6` input lifecycle closeout; headset evidence in this guide | Lifecycle input and grab-button regressions, docs lint/site build, diff check pass | ARM64 engine and focused lifecycle, arbitration, scene-container, and panel-submission regressions pass; user confirmed overlapping targets, two-hand grabs, controller reconnect, and held-object reload isolation | None |
-| 4 | Pending | Pending | Pending | Pending |
+| 4 | Step 4 per-script namespace and import commit | Not run; edited on Deckard | ARM64 engine, focused regressions, bounded objectless engine run, docs lint/site build, and diff check pass | Sigma sync; correct stale `tests/scene-persistence.py` version assertion |
 | 5 | Pending | Pending | Pending | Pending |
 | 6 | Pending | Pending | Pending | Pending |
 | 7 | Pending | Pending | Pending | Pending |

@@ -18,7 +18,7 @@ Run several independent Pocketspace scripts in one engine process, while keeping
 - At the initial audit, candidate reload used a separate QuickJS runtime/context and scene, with a 128 MiB QuickJS memory limit. Scene containers isolated resources *within* a scene. Step 1 added independent live script contexts.
 - At the initial audit, renderer and input routing, physics dispatch, callback storage, overlay naming, and statistics included process-global state and scene-local numeric IDs. Steps 0–3 mapped ownership and qualified live interaction and native resources by instance. Per-script telemetry remains planned for Step 9.
 - `getEngineStats()` reports process CPU/RAM/GPU measurements and engine allocation estimates. Process measurements cannot honestly be assigned to individual scripts without new instrumentation.
-- Named scene saves currently share one directory. Multi-script storage must prevent same-name collisions between scripts; existing development/test saves may be deleted or recreated.
+- At the initial audit, named scene saves shared one directory. Step 4 added per-script namespaces and explicit import; existing development/test saves may be deleted or recreated.
 - Keep a single OpenVR connection, input poller, compositor submission loop, EGL context, and engine process. Run QuickJS callbacks on the host thread initially. Multiple OS processes would duplicate host resources and leave cross-script interaction unresolved.
 
 ## Approved runtime model

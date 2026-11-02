@@ -1,4 +1,5 @@
 #pragma once
+#include <cctype>
 #include <filesystem>
 #include <string>
 
@@ -29,4 +30,22 @@ inline bool resolveCatalogScript(const std::filesystem::path &root,
     error="catalog script is not a file below the scripts directory";return false;
   }
   resolved=candidate;error.clear();return true;
+}
+
+// Encodes one path as one injective directory name, so distinct scripts cannot
+// share saves. Catalog-relative names survive moving the catalog; a script
+// outside the catalog falls back to its absolute path.
+inline std::string scriptStorageKey(const std::filesystem::path &root,const std::filesystem::path &script){
+  std::error_code ec;const auto catalog=std::filesystem::canonical(root,ec);
+  std::filesystem::path name=script;
+  if(!ec){
+    const auto relative=script.lexically_relative(catalog);
+    if(!relative.empty()&&*relative.begin()!="..")name=relative;
+  }
+  static const char hex[]="0123456789ABCDEF";std::string key;
+  for(unsigned char c:name.string()){
+    if((c<128&&std::isalnum(c))||c=='.'||c=='_'||c=='-')key+=char(c);
+    else{key+='%';key+=hex[c>>4];key+=hex[c&15];}
+  }
+  return key;
 }

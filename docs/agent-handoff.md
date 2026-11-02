@@ -112,8 +112,10 @@ merge with current surfaces or inherit split policies. `World::appendSnapshot`
 rolls back new bodies/joints, shape caches and joint IDs on native failure; use
 fresh object IDs and never attach to existing bodies. Rebuild animated poses
 before committing scene mutations; validate saved clip
-index/name/duration against supported model clips. Keep named runtime saves
-outside Git. Bound panel decode storage separately from the encoded file size;
+index/name/duration against supported model clips. Resolve named saves through
+the caller's `ScriptHost::saveNamespace`, selected by `ScriptScope` and preserved
+across reload; cross-script reads must go through `importSceneContainer`'s catalog
+validation and staged restore. Keep named runtime saves outside Git. Bound panel decode storage separately from the encoded file size;
 reserve new native panel overlays before committing and roll them back on later
 failures. Restore normal panel canvas handles and initialize the font library
 without needing a preexisting panel. Script file writes survive a later failed

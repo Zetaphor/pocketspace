@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory(prefix='sf-scene-state-') as state, (a.output/'
             log,_=process.communicate(timeout=10)
         except subprocess.TimeoutExpired:
             process.kill();process.communicate();raise RuntimeError('shutdown timed out')
-    saved=json.loads((Path(state)/'live.json').read_text())
+    saved=json.loads((Path(state)/f'{scene}.js'/'live.json').read_text())
     assert saved['version']==4 and len(saved['objects'])==owned
     assert len(saved['joints'])==(2 if a.physics else 0)
     assert len(saved['panels'])==(2 if a.panels else 0)

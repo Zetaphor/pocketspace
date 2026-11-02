@@ -6,11 +6,13 @@ struct ScriptScope {
   ScriptHost &host;
   Scene *previousCurrent=currentScene,*previousLive=liveScene;
   int previousInstanceId=activeInstanceId;
+  const std::string *previousNamespace=scenePersistence::activeNamespace;
   frame_input::Monitor *previousInput=activeSceneInput;
   explicit ScriptScope(ScriptHost &value):host(value){
     if(inputCallbackCtx)throw std::logic_error("script scope entered with another callback active");
     swapActiveInteraction(host.interaction);
     activeInstanceId=host.instanceId;
+    scenePersistence::activeNamespace=&host.saveNamespace;
     activeSceneInput=host.inputQueue.get();
     currentScene=liveScene=&host.scene;
     if(host.ctx&&!JS_IsUndefined(host.callback)){
@@ -27,6 +29,7 @@ struct ScriptScope {
     }
     swapActiveInteraction(host.interaction);
     activeInstanceId=previousInstanceId;
+    scenePersistence::activeNamespace=previousNamespace;
     activeSceneInput=previousInput;
     currentScene=previousCurrent;liveScene=previousLive;
   }
@@ -73,7 +76,7 @@ public:
     const std::string canonical=resolved.string();
     for(const auto &[otherId,entry]:instances_)if(otherId&&entry->path==canonical&&entry->state==ScriptState::Running){error="script is already running";return false;}
     if(nextId_==INT_MAX){error="script instance ID limit reached";return false;}
-    auto instance=std::make_unique<ScriptInstance>();instance->id=nextId_++;instance->host.instanceId=instance->id;instance->path=canonical;id=instance->id;
+    auto instance=std::make_unique<ScriptInstance>();instance->id=nextId_++;instance->host.instanceId=instance->id;instance->host.saveNamespace=scriptStorageKey(scenePersistence::catalogRoot,canonical);instance->path=canonical;id=instance->id;
     {ScriptScope scope(instance->host);if(loadScript(instance->host,canonical)){instance->state=ScriptState::Running;instance->generation=1;}else{instance->state=ScriptState::Failed;instance->lastError="script load failed";}}
     const bool loaded=instance->state==ScriptState::Running;error=instance->lastError;
     instances_.emplace(id,std::move(instance));return loaded;

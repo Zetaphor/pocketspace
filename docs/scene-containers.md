@@ -132,9 +132,10 @@ containers. See [scene lifecycle](lifecycle.md) and the
 
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
-named files. See [scene save and restore](scene-persistence.md) for the complete
+named files private to the calling script. `importSceneContainer(sourceScript, name)`
+explicitly copies another script's save. See [scene save and restore](scene-persistence.md) for the complete
 v14 schema (including v1–v13 compatibility), panels and pixels, animation
-playback, physics bodies/joints, storage paths,
+playback, physics bodies/joints, per-script storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 
 Capture and restore a tool without a save file: [scene-snapshot.js](../scripts/scene-snapshot.js).

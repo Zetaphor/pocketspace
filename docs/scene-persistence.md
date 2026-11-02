@@ -23,20 +23,18 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
   and panel IDs occupy separate namespaces. Group `0` stays independent and
   has no map entry.
 - `saveSceneContainer(containerId, name)` captures and atomically replaces the
-  named JSON file, returning its path. The previous file survives a failed write.
-- `loadSceneContainer(name)` reads a named JSON file and returns the same result
-  as `restoreSceneContainer`. A missing, malformed, unsupported, or oversized
-  file throws; it does not create an empty scene.
+  named JSON file in the calling script's namespace, returning its path. The
+  previous file survives a failed write.
+- `loadSceneContainer(name)` reads a named JSON file from the calling script's
+  namespace and returns the same result as `restoreSceneContainer`. A missing,
+  malformed, unsupported, or oversized file throws; it does not create an empty
+  scene.
+- `importSceneContainer(sourceScript, name)` reads a save from another script's
+  namespace and returns the same result as `loadSceneContainer`. See
+  [saves from other scripts](#saves-from-other-scripts).
 
 Names contain 1–64 ASCII letters, digits, underscores, or hyphens. The engine adds
-`.json`; names cannot contain directories. By default, files live in
-`$XDG_STATE_HOME/sf-overlay-engine/scenes` when that environment variable is an
-absolute path, otherwise `$HOME/.local/state/sf-overlay-engine/scenes`.
-`--scene-state-dir DIRECTORY` overrides the complete storage directory; relative
-paths resolve against the engine's working directory. Files are private to the
-user when initially created. Symlink files are rejected on load. Save writes a
-unique temporary file, syncs its contents, and renames it over the destination;
-it does not promise directory durability across sudden power loss.
+`.json`; names cannot contain directories.
 
 ```js
 const snapshot = captureSceneContainer(tool);
@@ -45,6 +43,64 @@ const path = saveSceneContainer(tool, 'desk');
 const restored = loadSceneContainer('desk');
 disposeSceneContainer(tool);
 tool = restored.containerId;
+```
+
+## Storage namespaces
+
+Each script has its own save directory, so two scripts can both use `desk` without
+overwriting each other. Saves survive reloads, stops and engine restarts because
+the directory comes from the script's path rather than its instance ID:
+
+```text
+<storage root>/my-scene.js/desk.json
+<storage root>/tools%2Fbench.js/desk.json
+<storage root>/scratch/desk.json
+```
+
+The directory name is the script's canonical path relative to the scripts catalog.
+Bytes other than ASCII letters, digits, `.`, `_` and `-` are percent-encoded,
+including `/`. A catalog symlink shares its target's namespace. Moving the catalog
+keeps its saves, and scripts with the same relative name in different catalogs share
+a namespace. Renaming or moving a script inside the catalog starts an empty
+namespace. Encoded names are limited to 255 bytes. Scratch instance `0` uses
+`scratch`.
+
+The storage root is `$XDG_STATE_HOME/sf-overlay-engine/scenes` when that
+environment variable is an absolute path, otherwise
+`$HOME/.local/state/sf-overlay-engine/scenes`. `--scene-state-dir DIRECTORY`
+replaces the root; relative paths resolve against the engine's working directory.
+Files are private to the user when initially created. Symlink files and symlinked
+namespace directories are rejected. Save writes a unique temporary file, syncs its
+contents, and renames it over the destination; it does not promise directory
+durability across sudden power loss.
+
+Files directly in the storage root, written before saves had namespaces, are
+ignored and never migrated. Delete them and save again from the owning script.
+
+```sh
+# Lists only old top-level saves. Add -delete after reviewing the output.
+find "${XDG_STATE_HOME:-$HOME/.local/state}/sf-overlay-engine/scenes" -maxdepth 1 -type f -name '*.json'
+```
+
+## Saves from other scripts
+
+`sourceScript` is the source's catalog-relative name, such as `tools/bench.js`. It
+must be a readable `.js` file in the configured catalog, but it does not need to be
+running. Traversal, absolute paths, and symlinks leaving the catalog throw. Scratch
+saves are not available as an import source.
+
+Import copies the JSON document through the normal validated restore, giving the
+caller fresh IDs. It never shares live objects or native handles with the source,
+and it never writes to the source's namespace. A failed import leaves both scenes
+and the file unchanged. Model paths in the save keep their normal working-directory
+meaning. Later saves by the caller go to the caller's own namespace.
+
+Run [scene-save.js](../scripts/scene-save.js) and
+[scene-import.js](../scripts/scene-import.js) from one catalog to copy a saved
+arrangement between scripts:
+
+```sh
+build/pocketspace --scripts-dir scripts --launch scene-save.js --launch scene-import.js
 ```
 
 Restoring does not replace or dispose the original container. When replacing a
@@ -90,8 +146,8 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 ## Format and compatibility
 
 The `format` string is `sf-overlay-engine.scene-container`. Pocketspace retains
-this identifier and its legacy default save directory for compatibility with
-existing snapshots and named saves.
+this identifier and its legacy default storage root for compatibility with
+existing snapshots.
 New captures use `version: 14`. Existing v1 static-instance, v2 physics, v3
 animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
 containing non-null physics or a nonempty joints array is rejected. V1 and v2

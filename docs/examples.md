@@ -41,6 +41,7 @@ and their documented controls.
 | [skinning.js](../scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
 | [containers.js](../scripts/containers.js) | Bumper opens/closes a tool with grabbable objects, a clickable panel and an owned callback |
 | [scene-save.js](../scripts/scene-save.js) | Save model arrangements with bumper and restore with A/X |
+| [scene-import.js](../scripts/scene-import.js) | Import the arrangement saved by `scene-save.js` into a second running script |
 | [physics-save.js](../scripts/physics-save.js) | Save and restore bodies, hinge motors, springs, and motion |
 | [animation-save.js](../scripts/animation-save.js) | Preserve independent animated poses and playback state |
 | [panel-save.js](../scripts/panel-save.js) | Preserve panel pixels and layout, then edit and click the restored UI |

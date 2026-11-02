@@ -3,7 +3,104 @@
 #undef main
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
+// Two real script instances: same-name isolation, reload, explicit import, failed
+// import rollback, symlink refusal, restart with different instance IDs, and scratch.
+static void namespaceRegression(){
+  namespace fs=std::filesystem;
+  const auto root=fs::temp_directory_path()/("sf-namespaces-"+std::to_string(getpid()));
+  const auto catalog=root/"catalog",state=root/"state";fs::create_directories(catalog/"nested");fs::create_directories(state);
+  ScopeExit cleanup{[&]{reserveObjectOverlay={};releaseObjectOverlay={};scenePersistence::catalogRoot.clear();scenePersistence::directory.clear();fs::remove_all(root);}};
+  scenePersistence::directory=state.string();scenePersistence::catalogRoot=catalog.string();
+  auto scriptWith=[](int objects){return "const model=loadModel('assets/samples/Box/Box.glb',512);const owner=createSceneContainer();for(let n=0;n<"+std::to_string(objects)+";n++)createObject(model,n*.1,0,0,.1,{container:owner});function check(v){if(!v)throw Error('namespace assertion');}function update(){}";};
+  auto writeFile=[](const fs::path &path,const std::string &text){std::ofstream(path)<<text;};
+  auto readFile=[](const fs::path &path){std::ifstream file(path,std::ios::binary);return std::string((std::istreambuf_iterator<char>(file)),{});};
+  writeFile(catalog/"left.js",scriptWith(1));writeFile(catalog/"nested"/"right.js",scriptWith(2));writeFile(catalog/"redirected.js",scriptWith(1));
+  fs::create_symlink(catalog/"left.js",catalog/"alias.js");
+  writeFile(root/"outside.js",scriptWith(1));fs::create_symlink(root/"outside.js",catalog/"escape.js");
+  auto run=[](ScriptHost &host,const std::string &code,bool success=true){
+    ScriptScope scope(host);
+    JSValue value=JS_Eval(host.ctx,code.c_str(),code.size(),"namespace regression",JS_EVAL_TYPE_GLOBAL);const bool ok=!JS_IsException(value);
+    if(!ok){JSValue e=JS_GetException(host.ctx);const char *s=JS_ToCString(host.ctx,e);if(success)fprintf(stderr,"%s: %s\n",code.c_str(),s?s:"exception");if(s)JS_FreeCString(host.ctx,s);JS_FreeValue(host.ctx,e);}
+    JS_FreeValue(host.ctx,value);assert(ok==success);
+  };
+  const auto leftKey=state/"left.js",rightKey=state/"nested%2Fright.js";
+  auto launch=[&](ScriptRegistry &registry,const char *name){
+    fs::path resolved;std::string error;assert(resolveCatalogScript(catalog,name,resolved,error));
+    int id=0;assert(registry.launch(resolved.string(),id,error));return id;
+  };
+  // Keys are stable across a moved catalog, injective, and never share scratch.
+  assert(scriptStorageKey("/nonexistent-catalog","/tmp/a b%.js")=="%2Ftmp%2Fa%20b%25.js");
+  assert(scriptStorageKey(catalog,fs::canonical(catalog)/"nested"/"right.js")=="nested%2Fright.js");
+  assert(scriptStorageKey(catalog,fs::canonical(catalog)/"nested%2Fright.js")=="nested%252Fright.js");
+  int firstLeft=0,firstRight=0;
+  {
+    ScriptRegistry registry;
+    firstLeft=launch(registry,"left.js");firstRight=launch(registry,"nested/right.js");
+    auto &left=registry.find(firstLeft)->host;auto &right=registry.find(firstRight)->host;
+    run(left,"saveSceneContainer(owner,'layout')");run(right,"saveSceneContainer(owner,'layout')");
+    assert(fs::is_regular_file(leftKey/"layout.json")&&fs::is_regular_file(rightKey/"layout.json"));
+    assert(!fs::exists(state/"layout.json")&&!fs::exists(state/"scratch"));
+    run(left,"{const c=loadSceneContainer('layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
+    run(right,"{const c=loadSceneContainer('layout');check(c.objectIds.length===2);disposeSceneContainer(c.containerId);}");
+    // Explicit import copies through restore with fresh IDs, in both directions.
+    const auto rightBytes=readFile(rightKey/"layout.json");
+    run(left,"{const c=importSceneContainer('nested/right.js','layout');check(c.objectIds.length===2&&!c.objectIds.includes(1));disposeSceneContainer(c.containerId);}");
+    run(right,"{const c=importSceneContainer('left.js','layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
+    run(left,"{const c=importSceneContainer('alias.js','layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
+    assert(readFile(rightKey/"layout.json")==rightBytes&&right.scene.objects.size()==2);
+    // Rejected sources and failed restores leave both scenes and files unchanged.
+    writeFile(rightKey/"malformed.json","{not json");writeFile(rightKey/"future.json","{\"version\":99}");
+    fs::create_symlink(leftKey/"layout.json",rightKey/"link.json");
+    fs::create_symlink(leftKey,state/"redirected.js");
+    const size_t leftObjects=left.scene.objects.size(),leftContainers=left.scene.containers.size();const int leftNext=left.scene.nextId;
+    for(const char *source:{"'../left.js'","'nested/../left.js'","'/tmp/left.js'","'left'","''","7","'missing.js'","'escape.js'","'redirected.js'"})
+      run(left,std::string("importSceneContainer(")+source+",'layout')",false);
+    for(const char *name:{"'missing'","'malformed'","'future'","'link'","'../layout'","''"})
+      run(left,std::string("importSceneContainer('nested/right.js',")+name+")",false);
+    run(left,"importSceneContainer('nested/right.js')",false);
+    int calls=0,releases=0;
+    reserveObjectOverlay=[&](int){return ++calls==2?"EXPECTED reservation failure":std::string{};};releaseObjectOverlay=[&](int){releases++;};
+    run(left,"importSceneContainer('nested/right.js','layout')",false);assert(calls==2&&releases==1);
+    reserveObjectOverlay={};releaseObjectOverlay={};
+    assert(left.scene.objects.size()==leftObjects&&left.scene.containers.size()==leftContainers&&left.scene.nextId==leftNext);
+    assert(right.scene.objects.size()==2&&readFile(rightKey/"layout.json")==rightBytes);
+    // A symlinked namespace cannot redirect a script's own saves or loads.
+    const int redirected=launch(registry,"redirected.js");auto &link=registry.find(redirected)->host;
+    run(link,"saveSceneContainer(owner,'stolen')",false);run(link,"loadSceneContainer('layout')",false);
+    assert(!fs::exists(leftKey/"stolen.json"));
+    // Reload replaces the host but keeps its namespace; failed reload changes nothing.
+    assert(registry.reload(firstLeft));
+    run(registry.find(firstLeft)->host,"saveSceneContainer(owner,'reloaded')");assert(fs::is_regular_file(leftKey/"reloaded.json"));
+    writeFile(catalog/"left.js","throw Error('EXPECTED candidate failure');");
+    assert(!registry.reload(firstLeft));
+    run(registry.find(firstLeft)->host,"saveSceneContainer(owner,'kept')");assert(fs::is_regular_file(leftKey/"kept.json"));
+    writeFile(catalog/"left.js",scriptWith(1));
+    // A save outlives its stopped source.
+    assert(registry.stop(firstRight));
+    run(registry.find(firstLeft)->host,"{const c=importSceneContainer('nested/right.js','layout');check(c.objectIds.length===2);disposeSceneContainer(c.containerId);}");
+  }
+  assert(scenePersistence::activeNamespace==&scenePersistence::scratchNamespace);
+  // A restarted engine assigns other instance IDs but finds the same saves.
+  {
+    ScriptRegistry registry;
+    const int right=launch(registry,"nested/right.js"),left=launch(registry,"left.js");
+    assert(right==firstLeft&&left==firstRight);
+    run(registry.find(left)->host,"{const c=loadSceneContainer('layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
+    run(registry.find(right)->host,"{const c=loadSceneContainer('layout');check(c.objectIds.length===2);disposeSceneContainer(c.containerId);}");
+  }
+  // Scratch has a separate namespace and uses the same explicit import path.
+  {
+    writeFile(root/"scratch.js",scriptWith(3));
+    ScriptHost scratch;ScopeExit close{[&]{ScriptScope scope(scratch);closeScript(scratch);resetActiveInteraction();}};
+    {ScriptScope scope(scratch);assert(loadScript(scratch,(root/"scratch.js").string()));}
+    run(scratch,"saveSceneContainer(owner,'layout')");assert(fs::is_regular_file(state/"scratch"/"layout.json"));
+    run(scratch,"{const c=loadSceneContainer('layout');check(c.objectIds.length===3);disposeSceneContainer(c.containerId);}");
+    run(scratch,"{const c=importSceneContainer('left.js','layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
+    assert(readFile(leftKey/"layout.json").find("\"objects\"")!=std::string::npos);
+  }
+}
 int main(){
+  namespaceRegression();
   const auto dir=std::filesystem::temp_directory_path()/("sf-persistence-"+std::to_string(getpid()));std::filesystem::create_directory(dir);
   scenePersistence::directory=dir.string();auto script=dir/"test.js";
   ScriptHost host;ScopeExit cleanup{[&]{reserveObjectOverlay={};releaseObjectOverlay={};reservePanelOverlay={};releasePanelOverlay={};closeScript(host);std::filesystem::remove_all(dir);}};
@@ -61,11 +158,12 @@ int main(){
   assert(host.scene.objects.size()==3&&host.scene.containers.size()==1);
   eval("{const a=loadModel('assets/samples/CesiumMan/CesiumMan.glb');const c=createSceneContainer();const id=createObject(a,0,0,0,.1,{container:c});check(captureSceneContainer(c).objects.length===1);playAnimation(id,0);check(captureSceneContainer(c).objects[0].animation.clip===0);disposeSceneContainer(c);}");
   // File validation, symlink refusal, failed replacement cleanup, original intact.
-  std::ofstream(dir/"future.json")<<"{\"version\":2}";eval("loadSceneContainer('future')",false);
-  std::ofstream(dir/"huge.json")<<std::string(scenePersistence::maxBytes+1,'x');eval("loadSceneContainer('huge')",false);
-  std::filesystem::create_symlink(dir/"roundtrip.json",dir/"link.json");eval("loadSceneContainer('link')",false);
-  std::filesystem::create_directory(dir/"blocked.json");eval("saveSceneContainer(owner,'blocked')",false);
-  for(const auto &entry:std::filesystem::directory_iterator(dir))assert(entry.path().filename().string().find(".tmp-")==std::string::npos);
+  const auto saves=dir/"scratch";
+  std::ofstream(saves/"future.json")<<"{\"version\":2}";eval("loadSceneContainer('future')",false);
+  std::ofstream(saves/"huge.json")<<std::string(scenePersistence::maxBytes+1,'x');eval("loadSceneContainer('huge')",false);
+  std::filesystem::create_symlink(saves/"roundtrip.json",saves/"link.json");eval("loadSceneContainer('link')",false);
+  std::filesystem::create_directory(saves/"blocked.json");eval("saveSceneContainer(owner,'blocked')",false);
+  for(const auto &entry:std::filesystem::directory_iterator(saves))assert(entry.path().filename().string().find(".tmp-")==std::string::npos);
   eval("const last=loadSceneContainer('roundtrip');disposeSceneContainer(last.containerId);");
   // A fresh QuickJS runtime and empty asset cache can load the on-disk save.
   closeScript(host);std::ofstream(script)<<"const restored=loadSceneContainer('roundtrip');if(restored.objectIds.length!==2)throw Error('fresh runtime restore');function update(){}";
@@ -128,5 +226,5 @@ int main(){
   eval("disposeSceneContainer(panelCopy.containerId)");assert(host.scene.panels.size()==4);
   closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('panels');if(c.panels.length!==4)throw Error('fresh panel restore');c.panels[0].canvas.text(1,1,'New text');c.panels[0].present();function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.panels.size()==4&&host.scene.panels[0].interactive&&!host.scene.panels[2].visible);
-  puts("PASS scene persistence: JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback");
+  puts("PASS scene persistence: per-script namespaces, restart, explicit import, JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback");
 }

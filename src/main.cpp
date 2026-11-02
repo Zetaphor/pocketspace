@@ -1157,7 +1157,7 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_light_api.h"
 #include "scene_persistence.h"
 
-struct ScriptHost {int instanceId=0;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
+struct ScriptHost {int instanceId=0;std::string saveNamespace=scenePersistence::scratchNamespace;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1256,6 +1256,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"restoreSceneContainer",jsRestoreSceneContainer,1);
   bind(candidate.ctx,"saveSceneContainer",jsSaveSceneContainer,2);
   bind(candidate.ctx,"loadSceneContainer",jsLoadSceneContainer,1);
+  bind(candidate.ctx,"importSceneContainer",jsImportSceneContainer,2);
   bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,1);
   bind(candidate.ctx,"setSceneContainerParent",jsSetSceneContainerParent,2);
   bind(candidate.ctx,"unloadModel",jsUnloadModel,1);
@@ -1274,9 +1275,9 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
   if(previousCallbackCtx)JS_FreeValue(previousCallbackCtx,previousCallback);
   if(beforeCommit)beforeCommit();
-  const int instanceId=active.instanceId;
+  const int instanceId=active.instanceId;std::string saveNamespace=std::move(active.saveNamespace);
   const bool queueActive=activeSceneInput==active.inputQueue.get();
-  closeScript(active);active=std::move(candidate);active.instanceId=instanceId;
+  closeScript(active);active=std::move(candidate);active.instanceId=instanceId;active.saveNamespace=std::move(saveNamespace);
   if(queueActive)activeSceneInput=active.inputQueue.get();
   currentScene=liveScene=&active.scene;
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
@@ -2121,6 +2122,7 @@ int main(int argc,char **argv) {
     if(!ok){fprintf(stderr,"Invalid eye calibration: %s\n",calibrationPath.c_str());return 13;}
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
+  scenePersistence::catalogRoot=std::filesystem::absolute(scriptsDirectory).string();
   ScriptRegistry scriptRegistry;
   std::string launchError;
   for(const auto &name:additionalScripts){

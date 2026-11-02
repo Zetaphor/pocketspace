@@ -5,9 +5,15 @@
 #include <climits>
 #include <stdexcept>
 #include <sys/stat.h>
+#include "script_catalog.h"
 namespace scenePersistence {
 constexpr size_t maxBytes=16*1024*1024;
 static std::string directory;
+// Script keys always end in .js, so they cannot collide with this namespace.
+static const std::string scratchNamespace="scratch";
+static std::string catalogRoot;
+// Selected with the active scene; the pointed-to string belongs to its ScriptHost.
+static const std::string *activeNamespace=&scratchNamespace;
 struct Value {
   JSContext *ctx;JSValue value;
   Value(JSContext *c,JSValue v):ctx(c),value(v){}
@@ -285,11 +291,21 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
-static std::filesystem::path slot(JSContext *ctx,JSValueConst name){
+static std::filesystem::path slot(JSContext *ctx,JSValueConst name,const std::string &storageKey=*activeNamespace){
   auto n=string(ctx,name);require(!n.empty()&&n.size()<=64&&std::all_of(n.begin(),n.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-';}),"scene name must contain 1..64 ASCII letters, digits, underscores or hyphens");
   std::filesystem::path base=directory;
   if(base.empty()){const char *state=getenv("XDG_STATE_HOME");if(state&&std::filesystem::path(state).is_absolute())base=state;else {const char *home=getenv("HOME");require(home&&*home,"HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}base/="sf-overlay-engine/scenes";}
-  return base/(n+".json");
+  require(storageKey.size()<=255,"script path is too long for a scene namespace");
+  const auto owner=base/storageKey;std::error_code ec;const auto type=std::filesystem::symlink_status(owner,ec).type();
+  require(type==std::filesystem::file_type::not_found||(!ec&&type==std::filesystem::file_type::directory),"scene namespace must be a directory, not a symlink");
+  return owner/(n+".json");
+}
+// Resolving through the catalog gives a symlink alias its target's namespace and
+// rejects traversal or links that leave the catalog.
+static std::string sourceNamespace(JSContext *ctx,JSValueConst source){
+  std::filesystem::path resolved;std::string error;
+  if(!resolveCatalogScript(catalogRoot,string(ctx,source),resolved,error))throw std::runtime_error("import source: "+error);
+  return scriptStorageKey(catalogRoot,resolved);
 }
 static void write(const std::filesystem::path &path,const std::string &data){
   std::filesystem::create_directories(path.parent_path());std::string temp=path.string()+".tmp-XXXXXX";std::vector<char> buffer(temp.begin(),temp.end());buffer.push_back(0);
@@ -302,6 +318,9 @@ static std::string read(const std::filesystem::path &path){
   const int fd=open(path.c_str(),O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);require(fd>=0,"could not open scene file");ScopeExit cleanup{[&]{close(fd);}};
   struct stat st{};require(fstat(fd,&st)==0&&S_ISREG(st.st_mode)&&st.st_size>=0&&uint64_t(st.st_size)<=maxBytes,"scene file must be a regular file of at most 16 MiB");
   std::string data;char buffer[4096];for(;;){auto n=::read(fd,buffer,sizeof(buffer));if(n<0&&errno==EINTR)continue;require(n>=0,"could not read scene file");if(!n)break;require(data.size()+size_t(n)<=maxBytes,"scene exceeds 16 MiB");data.append(buffer,size_t(n));}return data;
+}
+static JSValue restoreFile(JSContext *ctx,const std::filesystem::path &path){
+  auto data=read(path);Value value(ctx,JS_ParseJSON(ctx,data.data(),data.size(),path.c_str()));if(JS_IsException(value))return JS_EXCEPTION;return restore(ctx,value);
 }
 }
 static JSValue jsCaptureSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -318,5 +337,9 @@ static JSValue jsSaveSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValue
 }
 static JSValue jsLoadSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!argc)return JS_ThrowTypeError(ctx,"loadSceneContainer(name)");
-  try{auto path=scenePersistence::slot(ctx,argv[0]);auto data=scenePersistence::read(path);scenePersistence::Value value(ctx,JS_ParseJSON(ctx,data.data(),data.size(),path.c_str()));if(JS_IsException(value))return JS_EXCEPTION;return scenePersistence::restore(ctx,value);}catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
+  try{return scenePersistence::restoreFile(ctx,scenePersistence::slot(ctx,argv[0]));}catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
+}
+static JSValue jsImportSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<2)return JS_ThrowTypeError(ctx,"importSceneContainer(sourceScript, name)");
+  try{return scenePersistence::restoreFile(ctx,scenePersistence::slot(ctx,argv[1],scenePersistence::sourceNamespace(ctx,argv[0])));}catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
 }
