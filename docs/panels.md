@@ -22,10 +22,9 @@ to 0–255.
 | `image(x, y, path)` | Decode/draw an image at native size; return success. |
 | `present()` | Schedule upload of the retained canvas. |
 
-`panelLoadFont(panel, path, pixels)` stores the chosen font path and size;
+`panelLoadFont(panel, path)` stores the chosen font path;
 font loading occurs when text is drawn. Canvas text defaults to 32 pixels
-unless supplied explicitly. The legacy `panelText` default uses the stored
-font size. Font files must exist on the runtime host.
+unless supplied explicitly. Font files must exist on the runtime host.
 
 Draw and present a retained canvas with a clickable button: [panels.js](../scripts/panels.js).
 
@@ -54,20 +53,20 @@ panel is shown again. Failed submissions are retried automatically.
 
 Compare placement modes, rotation, visibility and removal: [panel-placement.js](../scripts/panel-placement.js).
 
-## Pointer events and compatibility
+## Pointer events
 
-Interactive panels receive native SteamVR pointer events through
-`onInputEvent` or `pollInputEvents`. Match `objectId === panel.id` and a
-`panel.*` type. Hover events are `panel.hoverStart`, `panel.hover`, and
-`panel.hoverEnd`. Buttons use `panel.pointerDown`/`panel.pointerUp`,
-`control: 'left' | 'right' | 'other'`, and `down`. `x` and `y` are panel pixels.
+The engine's controller laser drives interactive panels, and the trigger clicks
+them. Events arrive through `onInputEvent` or `pollInputEvents`. Match
+`objectId === panel.id` and a `panel.*` type. Hover events are `panel.hoverStart`,
+`panel.hover`, and `panel.hoverEnd`. Buttons use `panel.pointerDown`/`panel.pointerUp`,
+`control: 'left'`, and `down`. `x` and `y` are canvas pixels from the top left.
+
+The closest hit along the laser wins, whether panel or model, so a panel blocks
+objects behind it. A press stays on its panel until the trigger is released, and
+the panel receives `panel.pointerUp` even if the laser has moved away. The beam
+appears while it is on an interactive panel, even without `setLaserVisible`.
 The [panel example](../scripts/panels.js) redraws a button only after a click.
 
-Compatibility globals remain available:
-`panelClear(panel, r, g, b, a)`,
-`panelText(panel, x, y, text, r, g, b, a, pixels)`, and
-`panelPresent(panel)`. `panelCanvasClear` and `panelCanvasText` are aliases of
-`panelClear` and `panelText`.
 
 ## Saving and restoring panels
 
@@ -75,7 +74,7 @@ Scene snapshots preserve owned panels, including their lossless retained pixels,
 size, placement, rotation, visibility, input configuration and font settings.
 `loadSceneContainer` / `restoreSceneContainer` return `panels` with normal canvas
 handles, plus `panelIds` and `panelMap` for reconnecting script callbacks. See the
-[complete v4 persistence contract](scene-persistence.md#panels-and-ui-pixels-v4)
-for pixel encodings, file/decoded-memory limits and legacy save compatibility.
+[complete persistence contract](scene-persistence.md#panels-and-ui-pixels)
+for pixel encodings and file/decoded-memory limits.
 The [panel save example](../scripts/panel-save.js) demonstrates editing and
 clicking a restored panel.

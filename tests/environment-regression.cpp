@@ -10,8 +10,8 @@ int main(int argc,char **argv){
  std::ifstream input(path,std::ios::binary);std::string data((std::istreambuf_iterator<char>(input)),{});
  assert(data.substr(0,8)=="PSENV001");
  {
-  std::string legacy=data;legacy.replace(0,8,"SFENV001");const auto oldFile=dir/"legacy.sfenv";
-  std::ofstream(oldFile,std::ios::binary).write(legacy.data(),legacy.size());
+  std::string wrongHeader=data;wrongHeader.replace(0,8,"NOTPSENV");const auto oldFile=dir/"wrong-header.psenv";
+  std::ofstream(oldFile,std::ios::binary).write(wrongHeader.data(),wrongHeader.size());
   assert(!loadLightingEnvironment(oldFile.string()));
  }
  for(int variant=0;variant<5;variant++){
@@ -64,14 +64,13 @@ int main(int argc,char **argv){
    function check(v){if(!v)throw Error('environment assertion');}function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
    const model=loadModel('assets/samples/Box/Box.glb',512,{pbr:true});
    setModelLighting(model,{environment:'assets/environments/studio.psenv',environmentIntensity:.8,environmentRotation:.4});
-   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===14&&snap.models[0].lighting.environmentIntensity>.79);
+   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===1&&snap.models[0].lighting.environmentIntensity>.79);
    fails(()=>setModelLighting(model,{environment:'/missing.psenv',intensity:9}));fails(()=>setModelLighting(model,{environment:'x\0y'}));fails(()=>setModelLighting(model,{environment:1}));fails(()=>setModelLighting(model,{environmentIntensity:-1}));fails(()=>setModelLighting(model,{environmentRotation:Infinity}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    const copy=restoreSceneContainer(snap);disposeSceneContainer(copy.containerId);
    const bad=JSON.parse(JSON.stringify(snap));bad.models[0].lighting.environment='/missing.psenv';fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    bad.models[0].path='assets/samples/Lantern/Lantern.glb';fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    setModelLighting(model,{environment:null,environmentIntensity:1,environmentRotation:0});check(captureSceneContainer(owner).models[0].lighting.environment==='');
-   const old=JSON.parse(JSON.stringify(captureSceneContainer(owner)));old.version=6;delete old.models[0].lighting.environment;delete old.models[0].lighting.environmentIntensity;delete old.models[0].lighting.environmentRotation;const c=restoreSceneContainer(old);check(captureSceneContainer(c.containerId).models[0].lighting.environment==='');disposeSceneContainer(c.containerId);
    function update(){}
   )JS";
   ScriptHost host;assert(loadScript(host,script.string()));assert(host.scene.assets.size()==1);closeScript(host);
@@ -92,5 +91,5 @@ int main(int argc,char **argv){
   }
  }
  assert(glGetError()==GL_NO_ERROR);std::filesystem::remove_all(dir);eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
- std::printf("PASS environment: dark metal illumination, intensity/rotation, unlit invariance, Khronos stereo views, shared textures, malformed files, API rollback, v6/v7 snapshots and resource cleanup\n");
+ std::printf("PASS environment: dark metal illumination, intensity/rotation, unlit invariance, Khronos stereo views, shared textures, malformed files, API rollback, snapshots and resource cleanup\n");
 }

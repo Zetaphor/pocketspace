@@ -8,6 +8,20 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 The [multiple-script and dashboard plan](multi-script-plan.md) covers the next
 planned development track.
 
+## Before the event bus
+
+In this order:
+
+- Speed up builds with parallel builds and test runs, a lighter test build tree,
+  and precompiled headers. Record before-and-after times.
+- Split the script bindings and scene code out of `src/main.cpp` into separately
+  compiled files, so a change recompiles only what it touched and regressions link
+  shared code instead of each compiling the engine. Regressions must stop depending
+  on `main.cpp` file statics. Success means rebuilding after a typical binding edit
+  takes seconds to a minute, not 10 or more minutes.
+- Replace the native model pointer with the engine laser, add a continuous
+  `overlay.meshHover` event, then confirm both in the headset.
+
 ## Material support
 
 - Add Charlie-prefiltered environment sheen when a target experience needs sharp

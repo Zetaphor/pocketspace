@@ -89,9 +89,7 @@ ownership, input-source differences and other behavior that is easy to misread.
 - Engine statistics, worker policy and bounded object cleanup: `stress`, `grouped-stress`.
 - Raw/corrected gaze, foveation, finger sensing and calibration generation: `tracking`, `eye-calibration`.
 
-[Panel compatibility globals](panels.md#pointer-events-and-compatibility) and the
-no-op `enableObjectSurface` are documented for existing scripts; examples use the
-canvas API and current interaction helpers instead. [Custom fonts](panels.md)
+[Custom fonts](panels.md)
 are guide-only because font paths depend on the runtime host. Optional action
 input/haptics, native pointers and eye data depend on SteamVR focus, bindings and
 tracking availability and may be unavailable on a given runtime.

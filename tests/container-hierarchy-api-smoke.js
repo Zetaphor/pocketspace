@@ -12,7 +12,7 @@ const light=createDirectionalLight({container:child,objectId:object});
 onInputEvent(()=>{}, {container:grand});
 for(const call of [()=>setSceneContainerParent(parent,grand),()=>setSceneContainerParent(child,child),()=>setSceneContainerParent(0,parent),()=>createSceneContainer({parent:999}),()=>setSceneContainerParent(child,999)])fails(call);
 check(getSceneContainerState(child).parentId===parent);
-const snapshot=captureSceneContainer(parent);check(snapshot.version===14&&snapshot.containers.length===3&&snapshot.objects.length===2&&snapshot.panels.length===1);
+const snapshot=captureSceneContainer(parent);check(snapshot.version===1&&snapshot.containers.length===3&&snapshot.objects.length===2&&snapshot.panels.length===1);
 fails(()=>captureSceneContainer(child)); // The joint crosses this smaller subtree.
 const copy=restoreSceneContainer(snapshot);
 check(copy.containerIds.length===3&&copy.containerMap[parent]===copy.containerId);
@@ -25,8 +25,6 @@ for(const mutate of [s=>s.containers[1].parent=s.containers[1].id,s=>s.container
  const bad=JSON.parse(JSON.stringify(snapshot));mutate(bad);fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(parent))===JSON.stringify(snapshot));
 }
 saveSceneContainer(parent,'hierarchy');const saved=loadSceneContainer('hierarchy');check(saved.containerIds.length===3);disposeSceneContainer(saved.containerId);
-const legacy=JSON.parse(JSON.stringify(snapshot));legacy.version=10;delete legacy.containers;delete legacy.rootContainer;
-const flat=restoreSceneContainer(legacy);check(flat.containerIds.length===1&&getSceneContainerState(flat.containerId).objectIds.length===2);disposeSceneContainer(flat.containerId);
 const elsewhere=createSceneContainer();setSceneContainerParent(child,elsewhere);disposeSceneContainer(parent);
 check(!getSceneContainerState(child).disposed&&getSceneContainerState(parent).disposed);
 setSceneContainerParent(child,0);disposeSceneContainer(elsewhere);check(!getSceneContainerState(child).disposed);

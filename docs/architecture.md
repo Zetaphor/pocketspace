@@ -77,7 +77,7 @@ member lists and bounds are rebuilt after updates.
 [Containers](scene-containers.md) form an acyclic cleanup hierarchy, not transform nodes.
 They own related objects/panels/lights, child containers and optionally the input callback. Disposing a subtree
 uses the same cleanup paths as individual removal, including held state, bodies,
-and attached joints, while retaining scene-shared assets. V11 snapshots preserve
+and attached joints, while retaining scene-shared assets. Snapshots preserve
 the hierarchy and direct resource ownership.
 
 `unloadModel` rejects any live instance user, then releases model payload and
@@ -107,7 +107,7 @@ Each iteration follows this order in `src/main.cpp`:
 1. Process SteamVR quit events and refresh tracked controller roles and poses.
 2. Periodically check each running script's timestamp and attempt scoped transactional reload.
 3. Advance native animation from elapsed time and evaluate changed poses.
-4. Synchronize model surfaces and panels; drain native overlay pointer events.
+4. Synchronize model surfaces and panels; drain native surface pointer events.
 5. Poll requested tracking actions and the raw controller stream. Apply connection
    cleanup, compute custom-beam mesh hits, and attempt bounded reconnection.
 6. Dispatch each scene's queued input callbacks, update its native grabs, then call its `update(dt)`.
@@ -309,9 +309,8 @@ direction, unit attenuation and the same GGX BRDF; translation/range/cones do no
 affect them. They always survive per-object range/cone filtering. The existing
 uniform payload uses an internal negative-range sentinel, keeping the eight-light
 layout and prepared-program keys unchanged. Spot/directional lights can opt into
-the [shared shadow pass](#spotlight-shadow-pipeline). V10 snapshots
-add directional records; v9 stores point/spot types and cones, and v8 retains points.
-Snapshots stage owned lights, remap attachments and
+the [shared shadow pass](#spotlight-shadow-pipeline).
+Snapshots store each light's type and settings, stage owned lights, remap attachments and
 publish fresh IDs; cross-container capture attachments are rejected. Removal,
 container disposal and reload share normal scene cleanup. See the
 [point-light API](lighting-api.md#dynamic-point-lights) and
@@ -395,8 +394,7 @@ reloads do not compile a new shader after committing their candidate scene.
 The separate program restores legacy program, texture-unit and attribute state
 before subsequent objects/panels. Both member-color and external occluder passes
 use the same geometry and alpha policy. Directional/environment lighting state is per shared asset and
-is captured in snapshot v7 and later, with transactional cache-conflict validation; v6
-retains its direct-light behavior with environments disabled.
+is captured in snapshots, with transactional cache-conflict validation.
 External PBR depth draws use a dedicated program with the same vertex shader,
 geometry, deformation, LOD, winding and UV policy. Opaque depth returns before
 texture sampling; masked depth evaluates base alpha times factor and the identical
@@ -441,8 +439,9 @@ Panels maintain retained canvas pixels/layout, text through FreeType, and images
 Raster updates advance a texture revision even when the GL texture name is reused.
 Each native panel overlay caches successful texture, transform, and visibility
 submissions, retrying failed calls. Head-locked and viewer-facing transforms are
-computed from current tracking. SteamVR supplies panel pointer coordinates in
-pixels; panels do not use the model triangle picker.
+computed from current tracking. Panels are not SteamVR input overlays: the engine
+intersects each hand's ray with their rigid transforms in `src/panel_pointer.h`, and
+that ray also drives the model triangle picker.
 
 Removal detaches overlays before deferred texture destruction. Persistence stores
 bounded panel pixel/layout data and recreates normal canvas handles during staged
@@ -563,12 +562,11 @@ variant keys or draw-time compilation. Texture units 8/9 hold the two maps and
 See [fabric API and example](lighting-api.md#fabric-sheen) and the
 [sheen regression](../tests/sheen-regression.cpp).
 
-## Pocketspace compatibility identifiers
+## Pocketspace file and overlay identifiers
 
-The public executable, launcher and documentation use Pocketspace. Keep the
-existing SteamVR application key and overlay/mailbox keys stable so controller
-bindings and input remain compatible. Scene saves use the `pocketspace` state
-directory and format string.
+The SteamVR application key is `com.pocketspace.app`, native overlay keys start
+with `pocketspace.`, and scene saves use the `pocketspace` state directory and
+format string.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
 lighting-environment header. Readers validate dimensions, payload size and values
 before publishing shared environment resources.
@@ -613,8 +611,7 @@ light disable/re-enable or successful script reload reset the watchdog. Disabled
 removed, disposed or unresolved lights release their map; failed reload leaves
 the active resources intact. Map storage is counted once in engine estimates.
 
-V14 snapshots add point-shadow settings; v13 supports directional and v12 supports
-spotlights. Conflicting restores are
+Snapshots store shadow settings for every light type. Conflicting restores are
 rejected before native reservation. See [public API and example](lighting-api.md#spotlight-shadows)
 and [shadow regression](../tests/spot-shadow-regression.cpp).
 

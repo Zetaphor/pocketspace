@@ -70,14 +70,13 @@ int main(int argc,char **argv){
    const detached=getDirectionalLight(sun);detached.direction[0]=33;check(JSON.stringify(getDirectionalLight(sun))===initial);
    const outside=createObject(asset,0,0,0,.1),outgoing=createDirectionalLight({container:owner,objectId:outside});fails(()=>captureSceneContainer(owner));removeDirectionalLight(outgoing);removeObject(outside);
    const incoming=createDirectionalLight({objectId:object});fails(()=>captureSceneContainer(owner));removeDirectionalLight(incoming);
-   const snapshot=captureSceneContainer(owner);check(snapshot.version===14&&snapshot.lights.length===3);
+   const snapshot=captureSceneContainer(owner);check(snapshot.version===1&&snapshot.lights.length===3);
    saveSceneContainer(owner,'directional');const disk=loadSceneContainer('directional');check(getDirectionalLight(disk.lightMap[sun]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const beforeInvalid=createDirectionalLight();removeDirectionalLight(beforeInvalid);
-   for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=9]){
+   for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=2]){
     const bad=JSON.parse(JSON.stringify(snapshot));mutate(bad);fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snapshot));
    }
    const afterInvalid=createDirectionalLight();check(afterInvalid===beforeInvalid+1);removeDirectionalLight(afterInvalid);
-   const legacy=JSON.parse(JSON.stringify(snapshot));legacy.version=9;legacy.lights=legacy.lights.filter(l=>l.type!=='directional');const restored=restoreSceneContainer(legacy);check(getSpotLight(restored.lightMap[spot]).type==='spot');disposeSceneContainer(restored.containerId);
    const extras=Array.from({length:5},()=>createDirectionalLight({enabled:false}));fails(()=>createDirectionalLight());fails(()=>createPointLight());fails(()=>createSpotLight());extras.forEach(removeDirectionalLight);
    const removed=createDirectionalLight();fails(()=>setDirectionalLight(removed,{get direction(){removeDirectionalLight(removed);return [0,0,1]}}));
    const doomed=createSceneContainer(),gone=createDirectionalLight({container:doomed});fails(()=>setDirectionalLight(gone,{get intensity(){disposeSceneContainer(doomed);return 2}}));
@@ -107,5 +106,5 @@ int main(int argc,char **argv){
   destroy(1,&q);
  }
  assert(glGetError()==GL_NO_ERROR);eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
- printf("PASS directionals: %zu stereo/reference/mixed views, attachments, no distance filtering, typed API rollback, shared capacity, v10/v9 snapshots and cleanup\n",images);
+ printf("PASS directionals: %zu stereo/reference/mixed views, attachments, no distance filtering, typed API rollback, shared capacity, snapshots and cleanup\n",images);
 }

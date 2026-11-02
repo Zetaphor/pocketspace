@@ -9,7 +9,7 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 
 ## API
 
-- `captureSceneContainer(containerId)` returns a detached JSON-compatible v14
+- `captureSceneContainer(containerId)` returns a detached JSON-compatible
   snapshot. The ID must name an active positive container; root `0` is rejected.
 - `restoreSceneContainer(snapshot)` creates a new container subtree and returns
   `{containerId, containerIds, containerMap, objectIds, objectMap, renderGroups, jointIds, jointMap,
@@ -139,16 +139,12 @@ script reload, like calibration writes.
 
 Save supported body and joint state while keeping callbacks in the script: [physics-save.js](../scripts/physics-save.js).
 
-## Format and compatibility
+## Format
 
-The `format` string is `pocketspace.scene-container`.
-New captures use `version: 14`. Existing v1 static-instance, v2 physics, v3
-animation and v4 panel documents remain readable. V1 has no physics fields or joints; a v1 document
-containing non-null physics or a nonempty joints array is rejected. V1 and v2
-have no animation field; non-null animation requires v3. V1/v2 saves restore
-models with stopped playback. V1–v3 have no panels; a nonempty `panels` array
-requires v4. V1–v5 models restore with PBR disabled and default lighting. V6 preserves
-direct PBR lighting; environment selection/intensity/rotation require v7.
+The `format` string is `pocketspace.scene-container` and `version` is `1`. Restore
+rejects any other format or version.
+
+All fields below are required unless a table says otherwise.
 
 `models` is an array of at most 32 entries with required fields:
 
@@ -157,8 +153,8 @@ direct PBR lighting; environment selection/intensity/rotation require v7.
 | `path` | Nonempty model path string without NUL characters; no duplicate paths |
 | `eyePixels` | Integer multiple of 64, from 256 to 2048 |
 | `optimizeVertexCache`, `gpuInstancing`, `lod` | Booleans |
-| `pbr` | Boolean; required in v6. |
-| `lighting` | V6 object with three-component `direction` and `color` arrays, plus numeric `intensity`, `ambient`, and `exposure`; ranges match [model lighting](lighting-api.md). V7 also requires the `environment` path (empty when disabled), `environmentIntensity` and `environmentRotation`. Cached PBR lighting must match. |
+| `pbr` | Boolean |
+| `lighting` | Object with three-component `direction` and `color` arrays, numeric `intensity`, `ambient` and `exposure`, the `environment` path (empty when disabled), `environmentIntensity` and `environmentRotation`; ranges match [model lighting](lighting-api.md). Cached PBR lighting must match. |
 
 `objects` is an array of at most 256 entries with required fields:
 
@@ -173,20 +169,19 @@ direct PBR lighting; environment selection/intensity/rotation require v7.
 | `visible`, `interactive`, `laserPassThrough`, `grabbable`, `directGrab`, `autoManipulate` | Booleans |
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |
-| `physics` (v2+) | `null`, or `{settings, velocity, angularVelocity}` as described below |
-| `animation` (v3+) | `null`, or the playback object described below |
+| `physics` | `null`, or `{settings, velocity, angularVelocity}` as described below |
+| `animation` | `null`, or the playback object described below |
 
 `interactive` records membership in the engine's interaction registry;
-`autoManipulate` preserves the distinction between legacy script-controlled grabs
+`autoManipulate` preserves the distinction between script-controlled grabs
 and the automatic manipulation helper. These are snapshot fields, not additional
 `setObjectInteraction` options. Prefer editing snapshots obtained through capture.
-Required fields are validated without coercion. Unknown fields are ignored;
-unknown format versions are rejected. JSON documents are limited to 16 MiB, including encoded panel pixels.
+Required fields are validated without coercion. Unknown fields are ignored. JSON documents are limited to 16 MiB, including encoded panel pixels.
 
 See [scene containers](scene-containers.md), [JavaScript API](javascript-api.md),
 and the runnable [save/restore example](../scripts/scene-save.js).
 
-## Physics state (v2 and later)
+## Physics state
 
 Each object's `physics.settings` contains the complete authored body configuration:
 `type` (`static`, `dynamic`, `kinematic`), `shape` (`box`, `sphere`, `convex`, `mesh`),
@@ -204,7 +199,7 @@ and unheld, including a body saved while grabbed. Controller ownership, throw
 history, sleep timers, accumulated solver impulses and contact queues are not
 saved. This is a portable scene snapshot, not deterministic solver replay.
 
-V2 and later also require a `joints` array (at most 512). Each entry has:
+The `joints` array holds at most 512 entries. Each entry has:
 
 | Field | Value |
 | --- | --- |
@@ -242,7 +237,7 @@ a spring, and a throwable box; bumper saves and A/X restores them. Simulation
 continues immediately after restore, so moving objects will leave their saved
 positions again according to their saved velocities and current gravity.
 
-## Animation playback (v3)
+## Animation playback
 
 Each object's `animation` is `null` for stopped/default-pose instances. Otherwise
 it contains the complete selected playback state:
@@ -285,9 +280,9 @@ The [animation save example](../scripts/animation-save.js) uses independent
 skeletal and rigid-node playback. Bumper saves, A/X restores, and B/Y toggles
 playing/paused state; interaction remains available after restoring.
 
-## Panels and UI pixels (v4)
+## Panels and UI pixels
 
-V4 requires a `panels` array, including when it is empty. Snapshots contain at
+The `panels` array is required, even when empty. Snapshots contain at
 most 32 panels and at most 64 MiB of decoded RGBA panel pixels in total. Pixel
 and physical dimensions retain their normal creation limits. The overall 16 MiB
 JSON limit also applies: highly detailed large images can exceed the file limit
@@ -306,7 +301,6 @@ Each panel entry contains:
 | `rotation` | Nine finite float-range numbers, row-major 3×3 |
 | `visible`, `interactive` | Booleans |
 | `fontPath` | Stored font path string, possibly empty |
-| `fontPixels` | Integer legacy text size from 1 to 4096 |
 | `pixels` | `{encoding, data}` as described below |
 
 The pixels represent the latest retained canvas, including pending edits, with
@@ -349,9 +343,9 @@ The [panel save example](../scripts/panel-save.js) uses bumper to save, B/Y to
 change the pixels and placement, and A/X to restore. Clicking the restored panel
 shows that its new handle still supports pointer callbacks and canvas edits.
 
-## Animation transitions (v5)
+## Animation transitions
 
-V5 requires `animation.transition` for each non-null animation. It is null for
+Each non-null animation requires `animation.transition`. It is null for
 single-clip playback, or an object with `duration` (greater than zero, at most
 60 seconds), `elapsed` (at least zero and less than duration), `source` and
 `frozen`. The outer animation describes the incoming clip. An active fade
@@ -369,15 +363,12 @@ poses are limited to 65,536 nodes and the normal 16 MiB encoded snapshot bound.
 Restore validates outgoing clip metadata too and rebuilds independent blended
 geometry before committing. Both clocks, fade progress, and pause state resume
 from the save. Vertex arrays and GPU buffers remain external to the snapshot.
-V1–v4 saves restore without a transition; a non-null transition in those older
-versions is rejected rather than silently discarded. Existing v3 playback and
-v4 panel requirements continue to apply.
 
 Save and restore playback state; see [blending.js](../scripts/blending.js) for creating transitions: [animation-save.js](../scripts/animation-save.js).
 
-## Point lights (v8)
+## Point lights
 
-V8 requires a `lights` array of at most eight entries. Each entry stores `id`,
+The `lights` array holds at most eight entries, and is required even when empty. Each entry stores `id`,
 `position`, `color`, `intensity`, `range`, `enabled`, `objectId` and `container`.
 The source container field is informational: restore assigns the new container.
 All light values use the [point-light API limits](lighting-api.md#dynamic-point-lights).
@@ -387,9 +378,7 @@ the restore before publication. A capture also rejects light attachments crossin
 the captured boundary in either direction.
 
 Restore returns `lightIds` in snapshot order and `lightMap` from source IDs to
-fresh IDs, with object attachments remapped through `objectMap`. These arrays and
-maps are empty for v1–v7 snapshots. Older versions cannot contain nonempty light
-arrays. Eight is the total live-light limit, including lights in existing tools
+fresh IDs, with object attachments remapped through `objectMap`. Eight is the total live-light limit, including lights in existing tools
 and disabled lights; replacing a tool requires temporary capacity for both.
 Removing an object removes all attached lights. Disposing the restored container
 removes its lights through the same cleanup path.
@@ -397,26 +386,24 @@ removes its lights through the same cleanup path.
 Try capture/restore with a grabbable attached light in
 [lights.js](../scripts/lights.js).
 
-## Spotlights and light types (v9)
+## Spotlights and light types
 
-V9 requires `type: 'point'` or `type: 'spot'` on every `lights` entry. Spotlights
+Every `lights` entry requires `type`: `'point'`, `'spot'` or `'directional'`. Spotlights
 also require a nonzero three-component `direction`, `innerConeAngle` and
 `outerConeAngle`, using the [spotlight API ranges](lighting-api.md#dynamic-spotlights).
 Invalid types, vectors or cone ordering reject restoration before publication.
 Both types share the existing eight-light capacity and attachment/ownership rules.
 The returned `lightIds` and `lightMap` include both types in snapshot order.
 
-V8 documents restore their lights as points; an optional `type` may only be
-`'point'`. A spotlight type requires v9. V1–v7 continue restoring without scene
-lights. Restore stages a mixed set together and preserves the current scene and
+Restore stages a mixed set together and preserves the current scene and
 ID counters on failure.
 
 Try mixed-type persistence in the native regression, or run the grabbable
 flashlight capture/restore example: [spotlights.js](../scripts/spotlights.js).
 
-## Scene directional lights (v10)
+## Scene directional lights
 
-V10 adds `type: 'directional'` to the shared `lights` array. Directional entries
+Directional entries
 store `id`, `direction`, `color`, `intensity`, `enabled`, `container` and
 `objectId` as captured by the [directional API](lighting-api.md#scene-directional-lights).
 The source `container` is informational; restore assigns the new owner.
@@ -428,16 +415,13 @@ All three light types share the eight-light limit, snapshot ordering, fresh
 `lightIds`/`lightMap`, cleanup ownership and attachment remapping. Validation
 stages the entire set before publication; invalid fields, capacity overflow or
 attachments outside the snapshot leave the active scene and ID counters intact.
-V9 point/spot and v8 point-only documents remain readable. Directional entries
-in v9 or earlier are rejected. New captures use v14 even when they contain no
-lights.
 
 Capture and restore an attached directional key and an independent fill light:
 [directional-lights.js](../scripts/directional-lights.js).
 
-## Nested container subtrees (v11)
+## Nested container subtrees
 
-V11 captures a root container and all descendants, including empty containers.
+Snapshots capture a root container and all descendants, including empty containers.
 `rootContainer` identifies the source root. `containers` lists `{id, parent}`
 records with unique positive IDs; the captured root has parent `0`, and every
 other record must reach that root without a cycle. Object, panel and light
@@ -460,8 +444,7 @@ boundary. The active-plus-restored hierarchy must fit the 256-container limit.
 Validation and hierarchy staging precede publication; malformed parents, cycles,
 unknown owners and native resource failures leave active IDs/resources intact.
 
-V1–v10 restore as one flat container, with one `containerIds` entry and an empty
-`containerMap`. Input callbacks and JavaScript closures remain outside snapshots.
+Input callbacks and JavaScript closures remain outside snapshots.
 Model assets are referenced by path/options; an explicitly unloaded asset can be
 loaded again during restoration without reviving its old ID. The live asset limit
 is 32, independent of previously released IDs.
@@ -469,35 +452,34 @@ is 32, independent of previously released IDs.
 Run [nested-containers.js](../scripts/nested-containers.js) or
 [asset-lifetime.js](../scripts/asset-lifetime.js).
 
-## Spotlight shadow settings (v12)
+## Spotlight shadow settings
 
-V12 spotlights include a `shadow` object containing `enabled`, `resolution`,
+Spotlights include a `shadow` object containing `enabled`, `resolution`,
 `near`, `bias`, `normalBias`, `maxTriangles` and `maxGpuMs`. The shadow texture,
 GPU query, measured time and watchdog state are runtime resources and are not
 serialized. Restore validates the settings and single enabled-shadow slot before
 loading assets or reserving native objects. An occupied slot rejects the whole
-restore without changing the active scene. V1–v11 restore without shadows.
+restore without changing the active scene.
 
 See [shadow settings and limits](lighting-api.md#spotlight-shadows) and
 [shadows.js](../scripts/shadows.js) for replacement with shadow-slot recovery.
 
-## Directional shadow settings (v13)
+## Directional shadow settings
 
-V13 directional lights include `shadow` with `enabled`, `resolution`, `bias`,
+Directional lights include `shadow` with `enabled`, `resolution`, `bias`,
 `normalBias`, `maxTriangles`, `maxGpuMs`, world-space `center`, `size` and `depth`.
-They omit spotlight-only `near`. V1–v12 directional lights restore with shadows
-disabled. Spotlights retain their v12 fields. Both types share one enabled
+They omit spotlight-only `near`. All light types share one enabled
 shadow slot, validated across the existing and staged scene before native
 reservations. Only logical settings are serialized, never maps or timer state.
 
 See [coverage and limits](lighting-api.md#directional-light-shadows) and the
 [directional shadow example](../scripts/directional-shadows.js).
 
-## Point shadow settings (v14)
+## Point shadow settings
 
-V14 point lights include `shadow` with `enabled`, `resolution`, `near`, `bias`,
+Point lights include `shadow` with `enabled`, `resolution`, `near`, `bias`,
 `normalBias`, `maxTriangles` and `maxGpuMs`. Their per-face resolution is limited
-to 256 or 512. V1–v13 point lights restore with shadows disabled. All light types
+to 256 or 512. All light types
 share one enabled shadow slot, validated transactionally before native allocation.
 The six-view atlas and GPU timing state are never serialized.
 

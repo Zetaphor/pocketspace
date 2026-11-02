@@ -470,8 +470,8 @@ static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *
   currentScene->panels.push_back(std::move(panel));int id=currentScene->panels.back().id;
   return panelHandle(ctx,id);}
 static JSValue jsPanelClear(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<1)return JS_ThrowTypeError(ctx,"panel.clear(id,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");int r=argc>1?colorPart(ctx,argv[1],0):0,g=argc>2?colorPart(ctx,argv[2],0):0,b=argc>3?colorPart(ctx,argv[3],0):0,a=argc>4?colorPart(ctx,argv[4],255):255;panelClear(*p,r,g,b,a);return JS_UNDEFINED;}
-static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelLoadFont(panel,path,pixels)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;if(argc>2)JS_ToInt32(ctx,&p->fontPixels,argv[2]);JS_FreeCString(ctx,path);return JS_UNDEFINED;}
-static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED),x=0,y=0;if(argc<4||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=panelText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],p->fontPixels):p->fontPixels);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
+static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelLoadFont(panel,path)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;JS_FreeCString(ctx,path);return JS_UNDEFINED;}
+static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED),x=0,y=0;if(argc<4||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=panelText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],32):32);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
 static JSValue jsPanelSetTransform(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<5)return JS_ThrowTypeError(ctx,"panel.setTransform(id,mode,x,y,z)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*mode=JS_ToCString(ctx,argv[1]);if(mode){p->mode=mode;JS_FreeCString(ctx,mode);}double x=0,y=0,z=0;if(JS_ToFloat64(ctx,&x,argv[2])<0||JS_ToFloat64(ctx,&y,argv[3])<0||JS_ToFloat64(ctx,&z,argv[4])<0)return JS_EXCEPTION;p->x=(float)x;p->y=(float)y;p->z=(float)z;return JS_UNDEFINED;}
 static JSValue jsPanelSetRotation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<10)return JS_ThrowTypeError(ctx,"panel.setRotation(panel,pitch,yaw,roll,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");for(int i=0;i<9;i++){double value=0;if(JS_ToFloat64(ctx,&value,argv[i+1])<0)return JS_EXCEPTION;p->rotation[i]=(float)value;}return JS_UNDEFINED;}
 static JSValue jsPanelRemove(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1)return JS_ThrowTypeError(ctx,"removePanel(panel)");int id=panelArgumentId(ctx,argv[0]);auto &panels=currentScene->panels;auto it=std::find_if(panels.begin(),panels.end(),[id](const Panel &p){return p.id==id;});if(it==panels.end())return JS_ThrowRangeError(ctx,"unknown panel");currentScene->retiredPanels.push_back(std::move(*it));panels.erase(it);return JS_UNDEFINED;}
@@ -584,17 +584,12 @@ static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JS
   if(options&&(!JS_IsObject(argv[1])||JS_IsNull(argv[1])))return JS_ThrowTypeError(ctx,"enableObjectInteraction(id, options) requires an options object");
   if(options&&!readGrabButton(ctx,argv[1],button))return JS_EXCEPTION;
   object->grabButton=button;object->laserPassThrough=false;object->grabbable=true;
-  // Keep the legacy one-argument helper available to scripts doing their own movement.
+  // Without options the script moves the object itself.
   if(options)object->autoManipulate=true;
   auto &ids=currentScene->interactiveIds;
   if(std::find(ids.begin(),ids.end(),id)==ids.end()){
     ids.push_back(id);
   }
-  return JS_UNDEFINED;
-}
-static JSValue jsEnableObjectSurface(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0||!findObject(id))return JS_ThrowRangeError(ctx,"enableObjectSurface(objectId) requires a live object");
-  // Compatibility no-op: rendering allocates independent or grouped surfaces.
   return JS_UNDEFINED;
 }
 static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -1194,7 +1189,6 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"pulse",jsPulse,3);
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,2);
-  bind(candidate.ctx,"enableObjectSurface",jsEnableObjectSurface,1);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
   bind(candidate.ctx,"getPointer",jsGetPointer,0);
   bind(candidate.ctx,"getEngineStats",jsGetEngineStats,0);
@@ -1221,12 +1215,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
   bind(candidate.ctx,"seekAnimation",jsSeekAnimation,2);
   bind(candidate.ctx,"getAnimationState",jsGetAnimationState,1);
   bind(candidate.ctx,"createPanel",jsCreatePanel,1);
-  bind(candidate.ctx,"panelClear",jsPanelClear,5);
-  bind(candidate.ctx,"panelText",jsPanelText,9);
-  bind(candidate.ctx,"panelLoadFont",jsPanelSetFont,3);
-  bind(candidate.ctx,"panelPresent",jsPanelPresent,1);
-  bind(candidate.ctx,"panelCanvasClear",jsPanelClear,5);
-  bind(candidate.ctx,"panelCanvasText",jsPanelText,9);
+  bind(candidate.ctx,"panelLoadFont",jsPanelSetFont,2);
   bind(candidate.ctx,"panelSetTransform",jsPanelSetTransform,5);
   bind(candidate.ctx,"panelSetRotation",jsPanelSetRotation,10);
   bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
@@ -1286,6 +1275,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
 #include "script_registry.h"
 #include "script_catalog.h"
 #include "input_arbitration.h"
+#include "panel_pointer.h"
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
   EGLConfig config;EGLint count=0;
@@ -1520,7 +1510,7 @@ static vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34
   return transform;
 }
 static bool createLaser(vr::VROverlayHandle_t &handle,int hand){
-  auto *overlays=vr::VROverlay();const std::string key="sf_overlay_engine.laser."+std::to_string(hand);
+  auto *overlays=vr::VROverlay();const std::string key="pocketspace.laser."+std::to_string(hand);
   if(overlays->CreateOverlay(key.c_str(),key.c_str(),&handle)!=vr::VROverlayError_None)return false;
   unsigned char pixels[256*2*4]{};
   for(int x=0;x<256;x++)for(int y=0;y<2;y++){
@@ -1532,19 +1522,24 @@ static bool createLaser(vr::VROverlayHandle_t &handle,int hand){
   overlays->SetOverlayWidthInMeters(handle,2.f);
   return true;
 }
-static void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,int hand,const vr::TrackedDevicePose_t &controller,const vr::HmdMatrix34_t &head,float hitDistance){
-  auto *overlays=vr::VROverlay();
-  if(!visible||!controller.bPoseIsValid){if(shown){overlays->HideOverlay(handle);shown=false;}return;}
-  const auto &pose=controller.mDeviceToAbsoluteTracking;
-  // Frame controller /pose/tip and /pose/openxr_aim: 40 degrees about local X.
+// Frame controller /pose/tip and /pose/openxr_aim: 40 degrees about local X.
+static void laserRay(const vr::HmdMatrix34_t &pose,int hand,float origin[3],float direction[3]){
   constexpr float tilt=.6981317008f;
   const float localOrigin[3]={hand==0?.012694f:-.012694f,-.02522f,.020687f};
-  const float length=std::clamp(hitDistance,.02f,2.f);
-  float direction[3],origin[3],center[3],normal[3],up[3],viewLength=0;
   for(int i=0;i<3;i++){
     origin[i]=pose.m[i][3];
     for(int axis=0;axis<3;axis++)origin[i]+=pose.m[i][axis]*localOrigin[axis];
     direction[i]=-std::sin(tilt)*pose.m[i][1]-std::cos(tilt)*pose.m[i][2];
+  }
+}
+static void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,int hand,const vr::TrackedDevicePose_t &controller,const vr::HmdMatrix34_t &head,float hitDistance){
+  auto *overlays=vr::VROverlay();
+  if(!visible||!controller.bPoseIsValid){if(shown){overlays->HideOverlay(handle);shown=false;}return;}
+  const auto &pose=controller.mDeviceToAbsoluteTracking;
+  const float length=std::clamp(hitDistance,.02f,2.f);
+  float direction[3],origin[3],center[3],normal[3],up[3],viewLength=0;
+  laserRay(pose,hand,origin,direction);
+  for(int i=0;i<3;i++){
     center[i]=origin[i]+direction[i]*length*.5f;normal[i]=head.m[i][3]-center[i];
   }
   float along=normal[0]*direction[0]+normal[1]*direction[1]+normal[2]*direction[2];
@@ -1948,8 +1943,6 @@ struct SceneRenderState {
   FrameBoundsCache frameBounds;
   std::vector<ObjectLightSet> frameObjectLights;
   std::array<GrabState,2> grabs{};
-  std::array<int,2> panelHovered{};
-  std::array<float,2> panelCursorX{},panelCursorY{};
   std::vector<Surface*> ready;
   std::chrono::steady_clock::time_point lastAnimationTick=std::chrono::steady_clock::now();
   std::optional<PendingTileChange> pendingTileChange;
@@ -1961,7 +1954,6 @@ struct SceneRenderState {
   void resetScene(){
     spotShadows.reset();pbrVariants.clear();instanceExperiment.reset();
     frameBounds={};frameObjectLights.clear();ready.clear();grabs={};
-    panelHovered.fill(0);panelCursorX.fill(0);panelCursorY.fill(0);
     lastAnimationTick=std::chrono::steady_clock::now();
     pendingTileChange.reset();stableAdjustment.reset();
     adjustmentCursor=0;regroupAfter.clear();
@@ -2170,7 +2162,7 @@ int main(int argc,char **argv) {
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
   std::map<int,std::unique_ptr<SceneRenderState>> renderStates;
-  inputArbitration::PanelHoverOwners panelHoverOwners;
+  std::array<panelPointer::Pointer,2> panelPointers;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
 #ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
@@ -2226,7 +2218,7 @@ int main(int argc,char **argv) {
     [&](Surface &surface){destroySurface(surface,display);},
     [&](vr::VROverlayHandle_t handle){overlays->HideOverlay(handle);overlays->ClearOverlayTexture(handle);overlays->DestroyOverlay(handle);});};
   scriptRegistry.setBeforeStop([&](int id){
-    panelHoverOwners.clearInstance(id);
+    for(auto &pointer:panelPointers)pointer.forgetInstance(id);
     if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
     if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
   });
@@ -2314,7 +2306,6 @@ int main(int argc,char **argv) {
     const auto error=overlays->CreateOverlay(key.c_str(),key.c_str(),&handle);if(error!=vr::VROverlayError_None)return std::string("SteamVR: ")+overlays->GetOverlayErrorNameFromEnum(error);
     overlays->SetOverlayWidthInMeters(handle,panel.widthMeters);
     vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(handle,&bounds);
-    if(panel.interactive){overlays->SetOverlayInputMethod(handle,vr::VROverlayInputMethod_Mouse);overlays->SetOverlayFlag(handle,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);vr::HmdVector2_t scale{{(float)panel.width,(float)panel.height}};overlays->SetOverlayMouseScale(handle,&scale);}
     panelOverlays.emplace(panel.id,handle);
     return {};
   };
@@ -2329,20 +2320,18 @@ int main(int argc,char **argv) {
   auto syncPanels=[&](ScriptHost &host,SceneResources &resources,SceneRenderState &render){
     auto &panelOverlays=resources.panelOverlays;
     auto &panelSubmissions=resources.panelSubmissions;
-    auto &panelHovered=render.panelHovered;
     for(auto it=panelOverlays.begin();it!=panelOverlays.end();){
       const int id=it->first;
       const bool exists=findSceneItem(host.scene.panels,id)!=nullptr;
       if(exists){++it;continue;}
       overlays->HideOverlay(it->second);overlays->ClearOverlayTexture(it->second);overlays->DestroyOverlay(it->second);
       panelSubmissions.erase(id);
-      for(int hand=0;hand<2;hand++)if(panelHovered[hand]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,hand);panelHovered[hand]=0;panelHoverOwners.clear(hand,{host.instanceId,id});}
       it=panelOverlays.erase(it);
     }
     for(auto &retired:host.scene.retiredPanels)panelDestroy(retired);
     host.scene.retiredPanels.clear();
     for(auto &panel:host.scene.panels){
-      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);for(int h=0;h<2;h++)if(panelHovered[h]==panel.id){sceneInput().addOverlayEvent("panel.hoverEnd",panel.id,h);panelHovered[h]=0;panelHoverOwners.clear(h,{host.instanceId,panel.id});}}
+      if(!panel.visible){if(panelOverlays.count(panel.id))hidePanel(*overlays,panelOverlays.at(panel.id),panelSubmissions[panel.id]);}
       if(panel.dirty)panelUpload(panel);
       if(panelOverlays.count(panel.id))continue;
       reservePanelOverlay(panel);
@@ -2439,7 +2428,7 @@ int main(int argc,char **argv) {
       std::error_code ec;const auto modified=std::filesystem::last_write_time(entry->path,ec);
       if(ec||modified==host.mtime)continue;
       const bool loaded=scriptRegistry.reload(id,[&]{
-        panelHoverOwners.clearInstance(id);
+        for(auto &pointer:panelPointers)pointer.forgetInstance(id);
         if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
         if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
         pointerStates.clear();
@@ -2486,6 +2475,54 @@ int main(int argc,char **argv) {
       }
       if(rayTargets[hand])rayOwners[hand]=rayTargets[hand]->instanceId;
     }
+    // One ray per hand: the closest of the model hit and every interactive panel wins.
+    std::array<float,2> panelHitDistance{-1.f,-1.f};
+    {
+      vr::TrackedDevicePose_t rayPoses[vr::k_unMaxTrackedDeviceCount]{};
+      system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,rayPoses,vr::k_unMaxTrackedDeviceCount);
+      const auto &rayHead=rayPoses[vr::k_unTrackedDeviceIndex_Hmd];
+      for(int hand=0;hand<2;hand++){
+        auto &pointer=panelPointers[hand];
+        std::vector<panelPointer::Event> pointerEvents;
+        const auto *owner=scriptRegistry.find(pointer.current().instanceId);
+        const auto *ownerPanel=owner&&pointer.current().panelId&&owner->state==ScriptState::Running?findSceneItem(owner->host.scene.panels,pointer.current().panelId):nullptr;
+        if(pointer.current().panelId&&(!ownerPanel||!ownerPanel->visible||!ownerPanel->interactive))pointer.drop(pointerEvents);
+        std::optional<panelPointer::Target> target;float targetDistance=-1.f;
+        const auto device=system->GetTrackedDeviceIndexForControllerRole(hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand);
+        const bool tracked=controllers[hand].valid&&controllers[hand].connected&&device!=vr::k_unTrackedDeviceIndexInvalid&&rayPoses[device].bPoseIsValid&&rayHead.bPoseIsValid;
+        if(tracked&&!grabOwners[hand]){
+          float origin[3],direction[3];laserRay(rayPoses[device].mDeviceToAbsoluteTracking,hand,origin,direction);
+          for(int id:runningSceneIds)if(const auto *entry=scriptRegistry.find(id))for(const auto &panel:entry->host.scene.panels){
+            if(!panel.visible||!panel.interactive)continue;
+            const auto transform=panelTransform(panel,anchor,rayHead.mDeviceToAbsoluteTracking);
+            const auto hit=panelPointer::intersect(origin,direction,transform.m,panel.widthMeters,panel.heightMeters,panel.width,panel.height);
+            if(hit&&(targetDistance<0||hit->distance<targetDistance||(hit->distance==targetDistance&&(id<target->instanceId||(id==target->instanceId&&panel.id<target->panelId))))){
+              target=panelPointer::Target{id,panel.id,hit->x,hit->y};targetDistance=hit->distance;
+            }
+          }
+        }
+        // A press owns the hand until release, so it cannot also start a model grab.
+        if(target&&(pointer.pressed()||inputArbitration::panelWins(targetDistance,rayTargets[hand]))){
+          rayTargets[hand].reset();rayOwners[hand]=0;panelHitDistance[hand]=targetDistance;
+        }else{
+          if(pointer.pressed()){rayTargets[hand].reset();rayOwners[hand]=0;}
+          target.reset();
+        }
+        pointer.step(target,tracked&&frameTriggerDown(hand),pointerEvents);
+        for(const auto &event:pointerEvents){
+          auto *recipient=scriptRegistry.find(event.instanceId);
+          if(!recipient||recipient->state!=ScriptState::Running)continue;
+          auto &queue=*recipient->host.inputQueue;
+          switch(event.type){
+            case panelPointer::EventType::HoverStart:queue.addPanelEvent("panel.hoverStart",event.panelId,hand,event.x,event.y);break;
+            case panelPointer::EventType::Hover:queue.addPanelEvent("panel.hover",event.panelId,hand,event.x,event.y);break;
+            case panelPointer::EventType::HoverEnd:queue.addOverlayEvent("panel.hoverEnd",event.panelId,hand);break;
+            case panelPointer::EventType::Down:queue.addPanelEvent("panel.pointerDown",event.panelId,hand,event.x,event.y,"left",true);break;
+            case panelPointer::EventType::Up:queue.addPanelEvent("panel.pointerUp",event.panelId,hand,event.x,event.y,"left",false);break;
+          }
+        }
+      }
+    }
     auto renderActiveScene=[&](ScriptInstance &instance)->int{
     auto &script=instance.host;
     const int scriptInstanceId=instance.id;
@@ -2503,9 +2540,6 @@ int main(int argc,char **argv) {
     auto &regroupAfter=sceneRender.regroupAfter;
     auto &nextAdaptationCheck=sceneRender.nextAdaptationCheck;
     auto &nextGroupResize=sceneRender.nextGroupResize;
-    auto &panelHovered=sceneRender.panelHovered;
-    auto &panelCursorX=sceneRender.panelCursorX;
-    auto &panelCursorY=sceneRender.panelCursorY;
     auto &ready=sceneRender.ready;
     auto &frameBounds=sceneRender.frameBounds;
     auto &frameObjectLights=sceneRender.frameObjectLights;
@@ -2520,33 +2554,6 @@ int main(int argc,char **argv) {
     }
     if(!syncSurfaces(script,sceneResources)){running=false;return -1;}
     syncPanels(script,sceneResources,sceneRender);
-    for(auto &[id,handle]:panelOverlays){
-      vr::VREvent_t event{};
-      while(overlays->PollNextOverlayEvent(handle,&event,sizeof(event))){
-        const auto role=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
-        const int hand=role==vr::TrackedControllerRole_LeftHand?0:role==vr::TrackedControllerRole_RightHand?1:-1;
-        if(event.eventType==vr::VREvent_FocusLeave){for(int h=0;h<2;h++)if(panelHovered[h]==id){sceneInput().addOverlayEvent("panel.hoverEnd",id,h);panelHovered[h]=0;panelHoverOwners.clear(h,{instance.id,id});}continue;}
-        if(hand<0)continue;
-        auto *panelData=findPanel(id);if(!panelData||!panelData->visible)continue;
-        if(event.eventType==vr::VREvent_MouseMove){panelCursorX[hand]=std::clamp(event.data.mouse.x,0.f,(float)panelData->width);panelCursorY[hand]=std::clamp(event.data.mouse.y,0.f,(float)panelData->height);}
-        const float x=panelCursorX[hand],y=panelCursorY[hand];
-        if(event.eventType==vr::VREvent_MouseMove){
-          if(const auto previous=panelHoverOwners.move(hand,{instance.id,id})){
-            if(auto *other=scriptRegistry.find(previous->instanceId);other&&other->state==ScriptState::Running){
-              auto oldRender=renderStates.find(previous->instanceId);
-              if(oldRender!=renderStates.end()&&oldRender->second->panelHovered[hand]==previous->localId){
-                other->host.inputQueue->addOverlayEvent("panel.hoverEnd",previous->localId,hand);
-                oldRender->second->panelHovered[hand]=0;
-              }
-            }
-          }
-          if(panelHovered[hand]!=id){if(panelHovered[hand])sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[hand],hand);panelHovered[hand]=id;sceneInput().addPanelEvent("panel.hoverStart",id,hand,x,y);}sceneInput().addPanelEvent("panel.hover",id,hand,x,y);
-        }
-        const std::string button=event.data.mouse.button==vr::VRMouseButton_Left?"left":event.data.mouse.button==vr::VRMouseButton_Right?"right":"other";
-        if(event.eventType==vr::VREvent_MouseButtonDown)sceneInput().addPanelEvent("panel.pointerDown",id,hand,x,y,button,true);
-        if(event.eventType==vr::VREvent_MouseButtonUp)sceneInput().addPanelEvent("panel.pointerUp",id,hand,x,y,button,false);
-      }
-    }
     for(auto &[id,surface]:surfaces){
       if(id<=0)continue;
       vr::VREvent_t event{};
@@ -2592,7 +2599,7 @@ int main(int argc,char **argv) {
       }
     }else headBasisValid=false;
     if(streamWasStarted&&!frameInput.started()){
-      for(int h=0;h<2;h++){grabNeedsRelease[h]=true;if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHoverOwners.clear(h,{instance.id,panelHovered[h]});}panelHovered[h]=0;}
+      for(int h=0;h<2;h++)grabNeedsRelease[h]=true;
       for(const auto &object:script.scene.objects){forgetObjectInteraction(object.id);if(script.scene.physics)script.scene.physics->cancelThrow(object.id);}
     }
     for(int h=0;h<2;h++)if(!controllers[h].connected){
@@ -2600,7 +2607,6 @@ int main(int argc,char **argv) {
       sceneInput().invalidateHand(h);
       for(auto &[id,pointer]:pointerStates)if(pointer.hand==h)pointer={};
       if(hoveredObject[h]){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
-      if(panelHovered[h]){sceneInput().addOverlayEvent("panel.hoverEnd",panelHovered[h],h);panelHoverOwners.clear(h,{instance.id,panelHovered[h]});panelHovered[h]=0;}
     }
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){
@@ -3089,7 +3095,8 @@ int main(int argc,char **argv) {
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     const bool headValid=poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
     for(int hand=0;hand<2;hand++){
-      bool visible=false;
+      // Interactive panels need a visible pointer even when no script requests a beam.
+      bool visible=panelHitDistance[hand]>=0;
       for(int id:scriptRegistry.runningIds()){
         const auto *entry=scriptRegistry.find(id);
         if(entry&&entry->host.scene.laserVisible[hand]){visible=true;break;}
@@ -3098,7 +3105,7 @@ int main(int argc,char **argv) {
       const auto device=system->GetTrackedDeviceIndexForControllerRole(role);
       vr::TrackedDevicePose_t pose{};
       if(device!=vr::k_unTrackedDeviceIndexInvalid)pose=poses[device];
-      const float distance=rayTargets[hand]?rayTargets[hand]->distance:2.f;
+      const float distance=panelHitDistance[hand]>=0?panelHitDistance[hand]:rayTargets[hand]?rayTargets[hand]->distance:2.f;
       updateLaser(lasers[hand],laserShown[hand],visible&&headValid,hand,pose,
                   poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking,distance);
     }

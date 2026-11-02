@@ -19,6 +19,9 @@
 - This is a C++20 Linux/OpenVR engine with a QuickJS JavaScript API, GLES
   rendering, and Jolt physics. Keep host paths configurable through CMake.
 - Follow nearby code conventions. Keep changes focused on the requested work.
+- Pocketspace is unreleased, so a change defines the one canonical behavior. Remove
+  what it replaces in the same work: old formats, aliases, compatibility shims,
+  fallbacks, migrations, and their tests and docs. Version control keeps the history.
 - Preserve transactional script reload and scene restore: validate and stage
   changes before publishing them, and leave the active scene intact on failure.
 - Resolve object/panel IDs again after mutations; do not retain pointers into

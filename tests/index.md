@@ -14,7 +14,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [morph-regression.cpp](morph-regression.cpp) | Morph defaults, interpolation, skinning order, bounds, picking, independent poses and JavaScript playback. |
 | [morph-loader-regression.py](morph-loader-regression.py) | Generate valid and malformed GLB fixtures and run morph-regression. |
 | [morph-api-smoke.js](morph-api-smoke.js) | Morph clip playback and stop/reset through real bindings. |
-| [animation-blend-regression.cpp](animation-blend-regression.cpp) | TRS/morph blending, live clocks, interruptions, animated picking, pause/endpoints and v5 persistence. |
+| [animation-blend-regression.cpp](animation-blend-regression.cpp) | TRS/morph blending, live clocks, interruptions, animated picking, pause/endpoints and persistence. |
 | [animation-blend-api-smoke.js](animation-blend-api-smoke.js) | Actual animation transition options and malformed save fixtures for the blend harness. |
 | [animation-profile-regression.cpp](animation-profile-regression.cpp) | Real GLES animation phase counters, upload byte totals, clean-pose skip and stable sampling windows. |
 | [animation-profile-scene.cjs](animation-profile-scene.cjs) | Automated animated/paused stage counts, completion cleanup and abort behavior. |
@@ -87,7 +87,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
 | [scene-container-api-smoke.js](scene-container-api-smoke.js), [scene-container-regression.cpp](scene-container-regression.cpp) | Ownership, strict IDs/getters, transfers, physics/joints, self-disposing callbacks, rollback, shared surfaces and repeated cleanup. |
 | [multi-script-render-regression.cpp](multi-script-render-regression.cpp) | Two offscreen scenes with overlapping local object IDs, distinct pixels, and independent GPU target cleanup across three cycles. |
-| [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Distance, stable instance-ID ties, order independence, and invalid-distance rejection for shared controller targets. |
+| [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Distance, stable instance-ID ties, order independence, miss and invalid-distance rejection, panel/model selection, panel ray pixels, hover and press capture for shared controller targets. |
 | [engine_launch.py](engine_launch.py) | Catalog-only launch arguments shared by device test runners. |
 | [container-lifecycle.py](container-lifecycle.py), [scenes/container-lifecycle.js](scenes/container-lifecycle.js) | Production container create/dispose cycles with a root survivor, shared surface, panels and physics. |
 | [lod-api-smoke.js](lod-api-smoke.js) | Default-on LOD, explicit opt-out, strict booleans, getter failures and cached-path conflicts. |
@@ -132,7 +132,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [scenes/lifecycle-test.js](scenes/lifecycle-test.js) | Held-object removal, controller-loss follow-up, respawning, and panel churn. |
 | [scenes/model-selection-test.js](scenes/model-selection-test.js) | Picking through hollow geometry and checking mesh-aware selection cases. |
 | [scenes/overlay-comparison.js](scenes/overlay-comparison.js) | Interactive single/grouped renderer, geometry, and object-count comparison with a statistics HUD. |
-| [scenes/panel-api-smoke.js](scenes/panel-api-smoke.js) | Basic panel creation, transform, drawing aliases, and presentation. |
+| [scenes/panel-api-smoke.js](scenes/panel-api-smoke.js) | Basic panel creation, transform, canvas drawing, and presentation. |
 | [scenes/panel-smoke.js](scenes/panel-smoke.js) | Live controller values drawn on a panel. |
 | [scenes/panel-test-suite.js](scenes/panel-test-suite.js) | Panel transforms, drawing, interaction, and model occlusion checks in the headset. |
 | [scenes/performance-multi-model-test.js](scenes/performance-multi-model-test.js) | Four ToyCar instances sharing one asset and picking index. |
@@ -148,7 +148,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [tools/analyze-gaze-accuracy.py](tools/analyze-gaze-accuracy.py) | Summarizes gaze grids and evaluates affine correction on separate validation grids. |
 | [tools/generate-selection-fixture.py](tools/generate-selection-fixture.py) | Generates the hollow-frame GLB used by mesh selection checks. |
 | [tools/lifecycle-probe.cpp](tools/lifecycle-probe.cpp) | Read-only OpenVR overlay inventory for lifecycle integration checks. |
-| [tools/panel-ray-check.cpp](tools/panel-ray-check.cpp) | Compares panel ray math with actual runtime overlay transforms and intersections. |
+| [tools/panel-ray-check.cpp](tools/panel-ray-check.cpp) | Compares panel ray math with actual runtime overlay transforms and intersections, using SteamVR as an independent reference. |
 | [tools/steam-frame-input.py](tools/steam-frame-input.py) | Raw Steam Frame controller input monitor through the local vrserver WebSocket. |
 | [tools/tracking-probe.cpp](tools/tracking-probe.cpp) | Native OpenVR tracking capability and data probe. |
 | [fixtures/tracking-probe/actions.json](fixtures/tracking-probe/actions.json) | Action manifest fixture for the tracking probe. |
@@ -185,7 +185,7 @@ validation output associated with those reports, rather than additional tests.
 
 | File | Purpose |
 | --- | --- |
-| [scene-persistence-regression.cpp](scene-persistence-regression.cpp), [physics-persistence-api-smoke.js](physics-persistence-api-smoke.js), [animation-persistence-api-smoke.js](animation-persistence-api-smoke.js), [panel-persistence-api-smoke.js](panel-persistence-api-smoke.js) | Per-script save namespaces, restart with changed instance IDs, explicit cross-script import and failed-import rollback, symlink refusal, scratch namespace, JSON/disk roundtrips, v1–v3 compatibility, lossless panel pixels/layout/handles, independent skin/rigid poses and playback states, transform/model/body/joint/motor state, construction frames, ID/group remapping, held-body restore, boundary rejection, native rollback, cleanup and bounded atomic files. |
+| [scene-persistence-regression.cpp](scene-persistence-regression.cpp), [physics-persistence-api-smoke.js](physics-persistence-api-smoke.js), [animation-persistence-api-smoke.js](animation-persistence-api-smoke.js), [panel-persistence-api-smoke.js](panel-persistence-api-smoke.js) | Per-script save namespaces, restart with changed instance IDs, explicit cross-script import and failed-import rollback, symlink refusal, scratch namespace, JSON/disk roundtrips, rejection of other versions and missing fields, lossless panel pixels/layout/handles, independent skin/rigid poses and playback states, transform/model/body/joint/motor state, construction frames, ID/group remapping, held-body restore, boundary rejection, native rollback, cleanup and bounded atomic files. |
 | [scene-persistence.py](scene-persistence.py), [scenes/scene-persistence.js](scenes/scene-persistence.js), [scenes/physics-persistence.js](scenes/physics-persistence.js), [scenes/animation-persistence.js](scenes/animation-persistence.js), [scenes/panel-persistence.js](scenes/panel-persistence.js) | Live production model/panel/animation/physics save/restore/dispose cycles, root object/HUD survival, motor/spring connections, resource counts, GL errors and grouped-buffer release using temporary storage. |
 | [results/scene-persistence.md](results/scene-persistence.md) | Native roundtrip/rollback, live Frame save/restore resource evidence, and accepted headset check. |
 | [results/physics-persistence.md](results/physics-persistence.md) | V2 body/joint/motor roundtrips, construction frame preservation, native rollback, v1 compatibility, live simulation cleanup and accepted headset check. |
@@ -308,23 +308,23 @@ the bounded non-interactive
 - [directional-light-regression.cpp](directional-light-regression.cpp): scene-wide
   directional illumination, ray normalization, rotation-only attachment behavior,
   no-distance filtering, legacy point/spot pixel reference, mixed/prepared PBR,
-  typed API rollback, shared capacity, cleanup and v10/v9 persistence.
+  typed API rollback, shared capacity, cleanup and persistence.
   `--profile` records old/new point/spot and directional GPU costs;
   `--profile --reverse` reverses shader order. See
   [measurements and acceptance](results/directional-lights.md).
 - [spotlight-regression.cpp](spotlight-regression.cpp): real stereo cone pixels,
   hard edges, direction/attachment rotation, point-light equivalence, unlit/depth
-  invariance, type-safe APIs, mixed capacity, getter rollback and v9/v8 persistence.
+  invariance, type-safe APIs, mixed capacity, getter rollback and persistence.
   See [spotlight measurements and acceptance](results/spotlights.md).
 - [point-light-regression.cpp](point-light-regression.cpp): real GLES point-light
   stereo pixels, intensity/color/range, unlit/depth invariance, attachment transforms,
-  API rollback, cleanup and v8/legacy snapshots. `--profile` measures bounded
+  API rollback, cleanup and snapshots. `--profile` measures bounded
   zero/one/four/eight-light offscreen workloads. See the
   [point-light results](results/point-lights.md).
 - [pbr-regression.cpp](pbr-regression.cpp): real GLES tests for opt-in material
   import/rendering, sRGB transfer, linear packed metal/roughness channels, surface
   transforms, static/skeletal/morph poses, unlit invariance, GL cleanup, API
-  validation and snapshot compatibility. Does not open an OpenVR session.
+  validation and snapshots. Does not open an OpenVR session.
 - [scenes/pbr-materials.js](scenes/pbr-materials.js): non-interactive headset
   gallery for generated/supplied tangents, mirrored nodes, color encoding, unlit
   materials and emissive strength. The large sphere grids remain offscreen.
@@ -354,8 +354,8 @@ the bounded non-interactive
 - [environment-regression.cpp](environment-regression.cpp): actual GLES metal
   illumination, rotation/intensity, unlit invariance, generated/imported tangent
   frame and pixel equivalence, Khronos stereo views,
-  malformed and obsolete-header rejection, shared texture cleanup, transactional setter/restore
-  failures and v6/v7 snapshot compatibility. Optional `--benchmark` compares IBL
+  malformed and wrong-header rejection, shared texture cleanup, transactional setter/restore
+  failures and snapshots. Optional `--benchmark` compares IBL
   off/on with one and sixteen full-detail PBR cars, without overlays or input.
 
 - [Environment validation and cost](results/environment-lighting.md): corrected
@@ -449,8 +449,8 @@ storage mismatches and the next depth-only shader investigation.
 
 - [container-hierarchy-api-smoke.js](container-hierarchy-api-smoke.js): parent
   creation/reparenting, cycle rejection, direct membership, recursive disposal,
-  cross-subtree joints/attachments, v11 hierarchy maps, malformed hierarchy
-  rollback, legacy flat restore, named saves and child-owned callback cleanup.
+  cross-subtree joints/attachments, hierarchy maps, malformed hierarchy
+  rollback, named saves and child-owned callback cleanup.
 - [asset-lifetime-regression.cpp](asset-lifetime-regression.cpp): runs that API
   fixture with real bindings, then verifies GPU buffer/texture deletion, physics
   shape-cache release, hidden/live-user rejection, stable invalid IDs, getter and
@@ -473,7 +473,7 @@ See the [correctness and bounded profile report](results/sheen.md).
 ## Spotlight shadows
 
 - [spot-shadow-api-smoke.js](spot-shadow-api-smoke.js): atomic option validation,
-  getters, one-light capacity, attachments, v12 snapshots, conflicts and legacy restore.
+  getters, one-light capacity, attachments, snapshots and conflicts.
 - [spot-shadow-regression.cpp](spot-shadow-regression.cpp): native depth shadows,
   stereo coverage, alpha holes, hidden/BLEND exclusion, cross-group casters,
   prepared shaders, animation, GL-state restoration, resolution/work/time limits
@@ -488,7 +488,7 @@ See the [correctness, performance and headset report](results/spotlight-shadows.
 ## Directional shadows
 
 - [directional-shadow-api-smoke.js](directional-shadow-api-smoke.js): world coverage
-  validation, shared spot/directional capacity, getter mutations and v13/legacy restore.
+  validation, shared spot/directional capacity, getter mutations and restore.
 - [spot-shadow-regression.cpp](spot-shadow-regression.cpp): `--directional` runs
   orthographic stereo/alpha/animation/GL/budget checks, fixed coverage under
   attachment translation, rotated basis and out-of-volume behavior.
@@ -501,7 +501,7 @@ See the [directional shadow validation report](results/directional-shadows.md).
 ## Point shadows
 
 - [point-shadow-api-smoke.js](point-shadow-api-smoke.js): strict per-face limits,
-  shared capacity, transactional getters, v14 snapshots and legacy restore.
+  shared capacity, transactional getters and snapshots.
 - [spot-shadow-regression.cpp](spot-shadow-regression.cpp): `--point` exercises
   six-view matrices, atlas storage, stereo, alpha, animation, work/time limits
   and cleanup. `--point-benchmark` adds a bounded one-car offscreen comparison.

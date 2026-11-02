@@ -61,9 +61,9 @@ survive its disposal, unless another ordinary cleanup rule applies (for example,
 a light attached to an object being removed). Disposing a child leaves its
 parent and siblings intact. Closing an already disposed subtree is harmless.
 
-Capture/save includes every descendant and preserves direct ownership in v11 and later.
+Capture/save includes every descendant and preserves direct ownership.
 Restore returns `containerId` for the restored root, all fresh `containerIds` and
-`containerMap` from source IDs. Older snapshots restore as one flat container.
+`containerMap` from source IDs.
 Root `0` cannot be disposed, reparented or captured. JavaScript variables and
 closures are not nested resources and are not serialized.
 
@@ -134,7 +134,7 @@ Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memor
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files private to the calling script. `importSceneContainer(sourceScript, name)`
 explicitly copies another script's save. See [scene save and restore](scene-persistence.md) for the complete
-v14 schema (including v1–v13 compatibility), panels and pixels, animation
+schema, panels and pixels, animation
 playback, physics bodies/joints, per-script storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

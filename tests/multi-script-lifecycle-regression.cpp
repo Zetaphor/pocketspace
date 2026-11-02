@@ -20,12 +20,11 @@ int main(){
   {
     SceneRenderState leftRender,rightRender;
     leftRender.grabs[0].objectId=1;rightRender.grabs[0].objectId=1;
-    leftRender.panelHovered[0]=1;rightRender.panelHovered[1]=1;
     leftRender.ready.push_back(nullptr);rightRender.ready.push_back(nullptr);
     leftRender.pendingTileChange=SceneRenderState::PendingTileChange{-4,-260,false};
     leftRender.resetScene();
-    assert(!leftRender.grabs[0].objectId&&!leftRender.panelHovered[0]&&leftRender.ready.empty()&&!leftRender.pendingTileChange);
-    assert(rightRender.grabs[0].objectId==1&&rightRender.panelHovered[1]==1&&rightRender.ready.size()==1);
+    assert(!leftRender.grabs[0].objectId&&leftRender.ready.empty()&&!leftRender.pendingTileChange);
+    assert(rightRender.grabs[0].objectId==1&&rightRender.ready.size()==1);
   }
   ScriptRegistry registry;
   assert(registry.find(0)&&registry.find(0)->id==0);
@@ -142,8 +141,8 @@ int main(){
   leftNative.panelOverlays[1]=101;rightNative.panelOverlays[1]=201;
   SceneRenderState leftState,rightState;
   leftState.grabs[0].objectId=1;rightState.grabs[0].objectId=1;
-  inputArbitration::PanelHoverOwners hoverOwners;
-  hoverOwners.move(0,{left,1});hoverOwners.move(1,{right,1});
+  std::array<panelPointer::Pointer,2> pointers;
+  {std::vector<panelPointer::Event> ignored;pointers[0].step(panelPointer::Target{left,1,0,0},true,ignored);pointers[1].step(panelPointer::Target{right,1,0,0},true,ignored);}
   registry.find(right)->host.inputQueue->addOverlayEvent("panel.hover",1,1);
   int surfacesReleased=0,panelsReleased=0;
   registry.setBeforeStop([&](int stoppedId){
@@ -151,7 +150,7 @@ int main(){
     assert(activeInstanceId==left&&currentScene==&registry.find(left)->host.scene);
     leftNative.release([&](const TestSurface &surface){assert(surface.owner==left);++surfacesReleased;},[&](int handle){assert(handle==101);++panelsReleased;});
     leftState.resetScene();
-    hoverOwners.clearInstance(stoppedId);
+    for(auto &pointer:pointers)pointer.forgetInstance(stoppedId);
   });
   assert(registry.stop(left));
   registry.setBeforeStop({});
@@ -159,9 +158,8 @@ int main(){
   assert(leftNative.surfaces.empty()&&leftNative.panelOverlays.empty());
   assert(!leftState.grabs[0].objectId);
   assert(rightNative.surfaces.size()==1&&rightNative.panelOverlays.at(1)==201&&rightState.grabs[0].objectId==1);
-  assert(!hoverOwners.move(0,{right,1}));
-  const auto stillOwned=hoverOwners.move(1,{left,1});
-  assert(stillOwned&&stillOwned->instanceId==right&&stillOwned->localId==1);
+  assert(!pointers[0].current().panelId&&!pointers[0].pressed());
+  assert(pointers[1].current().instanceId==right&&pointers[1].current().panelId==1&&pointers[1].pressed());
   const auto survivingEvents=registry.find(right)->host.inputQueue->takeEvents();
   assert(survivingEvents.size()==1&&survivingEvents[0].type=="panel.hover");
   assert(registry.find(left)->state==ScriptState::Stopped&&registry.find(left)->manuallyStopped);

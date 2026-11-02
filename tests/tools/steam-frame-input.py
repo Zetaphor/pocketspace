@@ -46,7 +46,7 @@ def main():
         handshake += sock.recv(4096)
     sock.setblocking(False)
 
-    mailbox = f"sf_overlay_input_{os.getpid()}"
+    mailbox = f"pocketspace_input_{os.getpid()}"
     sock.sendall(client_frame(1, f"mailbox_open {mailbox}".encode()))
     sides = controllers()
     for path in sides:

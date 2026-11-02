@@ -1,6 +1,6 @@
 {
   "action_manifest_version": 0,
-  "app_key": "com.sf_overlay_engine.app",
+  "app_key": "com.pocketspace.app",
   "bindings": {
     "/actions/hands": {
       "sources": [

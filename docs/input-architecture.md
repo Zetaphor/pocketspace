@@ -5,7 +5,7 @@ The native host combines three sources into cached JavaScript snapshots:
 | Source | Responsibilities |
 | --- | --- |
 | OpenVR tracked poses | Controller/HMD transforms and controller role assignment. |
-| OpenVR overlay events and action bindings | Native surface/panel pointers, optional action snapshots, haptics, gaze actions, and system foveation centers. |
+| OpenVR overlay events and action bindings | Native surface pointers, optional action snapshots, haptics, gaze actions, and system foveation centers. |
 | Local vrserver WebSocket | Global controller boolean/scalar component deltas, including button, axis, and capacitive values. |
 
 The raw input monitor subscribes directly to left/right controller mailboxes.
@@ -23,13 +23,16 @@ cached state rather than issuing synchronous hardware queries. Callback delivery
 runs on the host thread with the owning script's scene selected. Controller roles
 and poses are refreshed separately from the raw stream.
 
-Custom controller beams pick transformed model triangles across running scenes.
-The closest eligible model hit wins per hand; equal distances use stable instance
-ID order. A held object keeps its owner until release or that script stops or
-reloads. Native rectangular surface hover is a separate signal and cannot
-substitute for a mesh hit when acquiring a custom-beam grab. SteamVR selects
-interactive panel overlays and delivers pointers to their owning scripts in
-panel pixel coordinates.
+Each hand has one engine ray, drawn by `setLaserVisible`. It tests transformed
+model triangles and interactive panels across all running scenes. The closest hit
+wins, with a panel winning an exact tie and equal model distances using stable
+instance ID order. A held object keeps its owner until release or that script stops
+or reloads. Native rectangular surface hover is a separate signal and cannot
+substitute for a mesh hit when acquiring a custom-beam grab.
+
+The trigger clicks the panel under the ray and delivers `panel.*` events to its
+owning script in canvas pixels. A press stays on its panel until release and blocks
+model grabs for that hand. A trigger already held when the ray arrives is not a click.
 
 Gaze polling is opt-in per loaded script and uses a separate action set. Any
 nonzero primary scene-process PID suppresses gaze action polling. Foveation

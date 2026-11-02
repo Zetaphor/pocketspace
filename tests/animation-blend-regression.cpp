@@ -53,8 +53,6 @@ int main(){
  }
  js("playAnimation(objects[0],0,{time:1.99,loop:false,blendDuration:.5})");step(.1);assert(findObject(1)->animation.playing&&!findObject(1)->animation.finished);step(.4);assert(!findObject(1)->animation.playing&&findObject(1)->animation.finished);
  js("playAnimation(objects[0],0,{blendDuration:.5});seekAnimation(objects[0],.4);check(getAnimationState(objects[0]).transition===null,'seek cancels fade');playAnimation(objects[0],0,{blendDuration:0});check(getAnimationState(objects[0]).transition===null,'zero fade');stopAnimation(objects[0]);check(getAnimationState(objects[0]).transition===null,'stop cancels fade')");
- // Old v4 snapshots restore with no transition. Their new optional null field is harmless.
- js("const legacy=captureSceneContainer(owner);legacy.version=4;for(const o of legacy.objects)if(o.animation)delete o.animation.transition;const old=restoreSceneContainer(legacy);disposeSceneContainer(old.containerId)");
  js("for(const id of objects){stopAnimation(id);playAnimation(id,0,{blendDuration:.5});check(getAnimationState(id).transition.sourceClip===null,'default source')}");
  for(int id=1;id<=3;id++){
   const auto &o=*findObject(id);const auto &a=host.scene.assets[o.asset-1];
@@ -65,5 +63,5 @@ int main(){
  button("/input/bumper/click",true);for(const auto &o:host.scene.objects)assert(o.animation.transition.duration==1);
  button("/input/a/click",true);button("/input/a/click",true);for(const auto &o:host.scene.objects)assert(!o.animation.playing);
  button("/input/a/click",false);button("/input/a/click",true);for(const auto &o:host.scene.objects)assert(o.animation.playing);
- puts("PASS animation transitions: analytic TRS/morph blending, live source clocks, independent rigid/skin/morph poses, interruptions, pause/resume, endpoint completion, validation, v5 roundtrip and v4 compatibility");
+ puts("PASS animation transitions: analytic TRS/morph blending, live source clocks, independent rigid/skin/morph poses, interruptions, pause/resume, endpoint completion, validation, snapshot roundtrip");
 }

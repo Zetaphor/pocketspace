@@ -31,7 +31,8 @@ the headset is active:
 
 The boxes overlap above the blue NEAR and orange FAR panels. The blue panel is
 closer where the panels overlap. Aim at the overlap and click; only blue should
-respond. Grab the boxes with both hands at once and move them independently.
+respond, and no box should be grabbed. Trigger and grip both grab a box. Grab the
+boxes with both hands at once and move them independently.
 The engine log names the script that received each click or grab.
 Turn one controller off and back on while the other remains connected; the
 connected hand should keep working and the reconnected hand should resume grabs.
@@ -604,8 +605,8 @@ cmake --build build --target animation-blend-regression -j2
 Checks local translation/scale/quaternion/morph blending, both live clocks,
 default and interrupted sources, endpoints, pause/resume/seek/stop, 900 blended
 BVH/reference picking comparisons, and independent rigid/skin/morph geometry.
-The real JavaScript fixture covers invalid options, live/frozen v5 snapshot
-roundtrips, malformed transition saves, v4 compatibility and example controls.
+The real JavaScript fixture covers invalid options, live/frozen snapshot
+roundtrips, malformed transition saves and example controls.
 No VR session is needed. `scripts/blending.js` is the headset example; left to
 right it shows node animation, skeletal animation and morph animation. Bumper
 crossfades to the next clip (or a different phase for single-clip assets) over
@@ -1297,7 +1298,7 @@ DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/
 The test opens no OpenVR session and captures no controller input. It checks both
 eyes, direct-light intensity/color, range cutoff, disabled and unlit invariance,
 external-depth silhouettes, local-offset transforms, option getter mutations,
-capacity, attachment/container cleanup, failed reloads and v8/legacy restoration.
+capacity, attachment/container cleanup, failed reloads and snapshot restoration.
 Failures exit with a diagnostic instead of deliberately generating a core dump.
 
 With the headset awake and worn, add `--profile` for zero/one/four/eight-light
@@ -1328,7 +1329,7 @@ DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/
 Checks cover narrow/wide/reversed cones in both eyes, normalization, equal-angle
 edges, full-hemisphere point-light equivalence, unlit/depth invariance, attachment
 rotation, type-safe APIs, cone validation, getter mutations, mixed capacity,
-named-file restoration, invalid mixed-snapshot rollback and legacy point lights.
+named-file restoration and invalid mixed-snapshot rollback.
 
 With the headset awake and worn, run `point-light-regression --profile-spots` for
 matched point/spotlight timings. It retains the Box/16-car workload and measured

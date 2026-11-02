@@ -117,5 +117,5 @@ These are raw capacitance/contact channels, not calibrated finger angles or
 five anatomical curl values. `skeleton` stays null; no native bones are invented.
 Existing `controller.value`/`controller.button` events still carry raw updates.
 The `getControllerInput(hand).capacitive` convenience object includes `ring`,
-`pinky`, `thumbrest`, and `dpad`, retaining its legacy zero-for-missing convention.
+`pinky`, `thumbrest`, and `dpad`, reporting zero for a missing channel.
 Use `getFingerTracking` for availability/freshness-sensitive code.

@@ -548,7 +548,7 @@ Each type supports color/intensity, enabled state, optional object attachment an
 container ownership. Typed functions reject another type's ID. Attachments are
 resolved after interaction/physics; removing their object removes its lights.
 Directional attachments follow rotation only. Container disposal removes owned
-lights, and [v10 snapshots](scene-persistence.md#scene-directional-lights-v10)
+lights, and [snapshots](scene-persistence.md#scene-directional-lights)
 preserve all three types with remapped attachment IDs.
 
 ## Grabbing and selection
@@ -586,13 +586,14 @@ object. A held object releases after all allowed buttons are up for five frames.
 
 `enableObjectInteraction(id, {grabButton})` enables native grabbing with the
 chosen button. Its options object recognizes `grabButton`; configure other
-fields with `setObjectInteraction`. The legacy one-argument form marks the
-object interactive without newly enabling automatic movement, for scripts that
-handle movement themselves. `enableObjectSurface(id)` is a compatibility no-op.
+fields with `setObjectInteraction`. `enableObjectInteraction(id)` without options
+marks the object interactive without newly enabling automatic movement, for scripts
+that handle movement themselves.
 
 `setLaserVisible(hand, visible)` controls the engine's selection beam for
 `'left'` or `'right'`. Its raw-controller grabs are independent of native laser
-focus. SteamVR owns panel pointer delivery.
+focus. The same ray clicks interactive panels, and the beam also appears while it
+is on one, even when no script requested it.
 
 `getPointer(id)` returns native surface state `{valid, down, x, y, hand}`;
 `hand` is `'left'`, `'right'`, or `null`. Coordinates are surface-local, not
@@ -670,9 +671,7 @@ Combine a scoped pointer callback with the independent polled queue: [containers
 ## Additional APIs
 
 - [Panels](panels.md): `createPanel`, canvas drawing, `panelLoadFont`,
-  `panelSetTransform`, `panelSetRotation`, `panelSetVisible`, `removePanel`, and
-  compatibility functions `panelClear`, `panelText`, `panelPresent`,
-  `panelCanvasClear`, `panelCanvasText`.
+  `panelSetTransform`, `panelSetRotation`, `panelSetVisible`, and `removePanel`.
 - [Physics](physics-api.md): `setObjectPhysics`, `getObjectPhysics`,
   `removeObjectPhysics`, `setPhysicsGravity`, `setObjectVelocity`,
   `setObjectAngularVelocity`, `applyObjectImpulse`, `setPhysicsCollisionEvents`,
@@ -697,7 +696,7 @@ Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memor
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files private to the calling script. `importSceneContainer(sourceScript, name)`
 explicitly copies another script's save. See [scene save and restore](scene-persistence.md) for the complete
-v14 schema (including v1–v13 compatibility), panels and pixels, animation
+schema, panels and pixels, animation
 playback, physics bodies/joints, per-script storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.
 

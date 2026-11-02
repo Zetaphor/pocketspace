@@ -43,10 +43,9 @@ static JSValue animationValue(JSContext *ctx,const Object &o,const ModelAsset &a
  }
  put(ctx,value,"transition",transition);return JS_DupValue(ctx,value);
 }
-static SavedAnimation animationRead(JSContext *ctx,JSValueConst value,int version){
+static SavedAnimation animationRead(JSContext *ctx,JSValueConst value){
  const auto cursor=cursorRead(ctx,value);SavedAnimation saved;static_cast<animation::Cursor&>(saved.playback)=cursor.state;saved.name=cursor.name;saved.duration=cursor.duration;
  auto transition=field(ctx,value,"transition");
- if(version<5){require(JS_IsUndefined(transition)||JS_IsNull(transition),"transitions require snapshot version 5");return saved;}
  require(!JS_IsUndefined(transition),"missing transition field");if(JS_IsNull(transition))return saved;
  auto &blend=saved.playback.transition;blend.duration=number(ctx,transition,"duration",0,60);require(blend.duration>0,"transition duration must be positive");
  blend.elapsed=number(ctx,transition,"elapsed",0,blend.duration);require(blend.elapsed<blend.duration,"completed transition must be null");

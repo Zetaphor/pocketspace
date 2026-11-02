@@ -15,14 +15,14 @@ for(const [i,id] of objects.entries()){
   check(JSON.stringify(getAnimationState(id))===before,'invalid fade changed playback');
 }
 function snapshotBlend(){
-  const snapshot=captureSceneContainer(owner);check(snapshot.version===14,'snapshot version');
+  const snapshot=captureSceneContainer(owner);check(snapshot.version===1,'snapshot version');
   globalThis.blendSnapshot=snapshot;
   globalThis.blendCopy=restoreSceneContainer(snapshot);
   for(const id of objects)check(JSON.stringify(getAnimationState(id))===JSON.stringify(getAnimationState(blendCopy.objectMap[id])),'transition state roundtrip');
 }
 function invalidBlendSnapshots(){
   function bad(edit){const s=JSON.parse(JSON.stringify(blendSnapshot));edit(s);rejected(()=>restoreSceneContainer(s));}
-  bad(s=>s.version=4);bad(s=>delete s.objects[0].animation.transition);
+  bad(s=>delete s.objects[0].animation.transition);
   bad(s=>s.objects[0].animation.transition.duration=0);
   bad(s=>s.objects[0].animation.transition.duration=61);
   bad(s=>s.objects[0].animation.transition.elapsed=1);

@@ -65,7 +65,7 @@ bool Monitor::start(){
  int error=0;socklen_t errorSize=sizeof(error);
  if(getsockopt(fd_,SOL_SOCKET,SO_ERROR,&error,&errorSize)<0||error)return fail();
  const std::string origin="127.0.0.1:"+std::to_string(port_);
- const std::string req="GET / HTTP/1.1\r\nHost: "+origin+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: sf_overlay_engine\r\nSec-WebSocket-Version: 13\r\nOrigin: http://"+origin+"\r\nReferer: http://"+origin+"/dashboard/controllerbinding.html\r\n\r\n";
+ const std::string req="GET / HTTP/1.1\r\nHost: "+origin+"\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: pocketspace\r\nSec-WebSocket-Version: 13\r\nOrigin: http://"+origin+"\r\nReferer: http://"+origin+"/dashboard/controllerbinding.html\r\n\r\n";
  size_t sent=0;
  while(sent<req.size()){
    if(!ready(POLLOUT))return fail();
@@ -84,9 +84,9 @@ bool Monitor::start(){
  }
  if(!reply.starts_with("HTTP/1.1 101 "))return fail();
  buffer_=reply.substr(end+4); // The first state frame may share the upgrade packet.
- if(!sendFrame(1,"mailbox_open sf_overlay_engine"))return fail();
+ if(!sendFrame(1,"mailbox_open pocketspace"))return fail();
  for(const char *side:{"left","right"}){
-   const std::string msg="mailbox_send input_server {\"type\":\"request_input_state_updates\",\"device_path\":\"/user/hand/"+std::string(side)+"\",\"returnAddress\":\"sf_overlay_engine\"}";
+   const std::string msg="mailbox_send input_server {\"type\":\"request_input_state_updates\",\"device_path\":\"/user/hand/"+std::string(side)+"\",\"returnAddress\":\"pocketspace\"}";
    if(!sendFrame(1,msg))return fail();
  }
  subscribedAt_=tracking::Clock::now();started_=true;return true;

@@ -22,17 +22,17 @@ static_assert(sizeof(definitions)/sizeof(definitions[0])==index(Control::Count))
 bool Input::init(const std::string &root,const std::string &executable){
   namespace fs=std::filesystem;
   const auto actionPath=fs::absolute(fs::path(root)/"cfg/actions.json").string();
-  const auto appPath=(fs::temp_directory_path()/"sf-overlay-engine.vrmanifest").string();
+  const auto appPath=(fs::temp_directory_path()/"pocketspace.vrmanifest").string();
   std::ofstream app(appPath,std::ios::trunc);
   if(!app)return false;
-  app<<"{\"source\":\"user\",\"applications\":[{\"app_key\":\"com.sf_overlay_engine.app\",\"launch_type\":\"binary\",\"binary_path_linux_arm\":\""
+  app<<"{\"source\":\"user\",\"applications\":[{\"app_key\":\"com.pocketspace.app\",\"launch_type\":\"binary\",\"binary_path_linux_arm\":\""
      <<fs::absolute(executable).string()<<"\",\"action_manifest_path\":\""<<actionPath
      <<"\",\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Pocketspace\"}}}]}\n";
   app.close();
   auto *apps=vr::VRApplications();auto *input=vr::VRInput();
   if(!apps||!input)return false;
   auto ae=apps->AddApplicationManifest(appPath.c_str(),false);
-  auto id=apps->IdentifyApplication(getpid(),"com.sf_overlay_engine.app");
+  auto id=apps->IdentifyApplication(getpid(),"com.pocketspace.app");
   auto me=input->SetActionManifestPath(actionPath.c_str());
   if(ae!=vr::VRApplicationError_None||id!=vr::VRApplicationError_None||me!=vr::VRInputError_None){
     fprintf(stderr,"[input] registration failed: app=%d identify=%d actions=%d\n",int(ae),int(id),int(me));return false;

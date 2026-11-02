@@ -124,7 +124,9 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(16*1024*1024));
-    bad(s=>s.version=15);bad(s=>s.format='other');bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>s.version=2);bad(s=>s.version=14);bad(s=>s.format='sf-overlay-engine.scene-container');bad(s=>s.format='other');
+    for(const key of ['joints','panels','lights','containers','rootContainer'])bad(s=>delete s[key]);
+    bad(s=>delete s.objects[0].physics);bad(s=>delete s.objects[0].animation);bad(s=>delete s.objects[0].container);bad(s=>delete s.models[0].pbr);bad(s=>delete s.models[0].lighting);bad(s=>delete s.models[0].lighting.environment);bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));
@@ -178,8 +180,6 @@ int main(){
   assert(host.scene.physics->jointSnapshots().size()==3&&!host.scene.physics->contains(objectNext)&&!host.scene.physics->hasConvexHull(2)&&!host.scene.physics->hasMesh(2));
   reserveObjectOverlay={};releaseObjectOverlay={};
   host.scene.physics->hold(2);eval("{const c=restoreSceneContainer(captureSceneContainer(physicsOwner));for(const id of c.objectIds)check(!getObjectPhysics(id).held);disposeSceneContainer(c.containerId);}");host.scene.physics->release(2,false);
-  // Old v1 documents still restore; new captures always use v3.
-  eval("{const s=captureSceneContainer(physicsOwner);s.version=1;delete s.joints;for(const o of s.objects)delete o.physics;const c=restoreSceneContainer(s);check(c.jointIds.length===0&&c.objectIds.every(id=>getObjectPhysics(id)===null));disposeSceneContainer(c.containerId);}");
   closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('physics');if(c.objectIds.length!==6||c.jointIds.length!==3)throw Error('fresh physics restore');function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.physics&&host.scene.physics->jointSnapshots().size()==3);
   for(const auto &o:host.scene.objects)assert(host.scene.physics->contains(o.id));

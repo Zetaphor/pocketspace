@@ -8,6 +8,7 @@
 #include "script_catalog.h"
 namespace scenePersistence {
 constexpr size_t maxBytes=16*1024*1024;
+constexpr int snapshotVersion=1;
 static std::string directory;
 // Script keys always end in .js, so they cannot collide with this namespace.
 static const std::string scratchNamespace="scratch";
@@ -60,7 +61,7 @@ static JSValue capture(JSContext *ctx,int owner){
   const auto owners=containerSubtree(*currentScene,owner);
   Value result(ctx,JS_NewObject(ctx)),models(ctx,JS_NewArray(ctx)),objects(ctx,JS_NewArray(ctx)),joints(ctx,JS_NewArray(ctx)),panels(ctx,JS_NewArray(ctx));std::map<int,int> modelIds;uint32_t index=0;
   put(ctx,result,"format",JS_NewString(ctx,"pocketspace.scene-container"));
-  put(ctx,result,"version",JS_NewInt32(ctx,14));
+  put(ctx,result,"version",JS_NewInt32(ctx,snapshotVersion));
   put(ctx,result,"rootContainer",JS_NewInt32(ctx,owner));
   Value hierarchy(ctx,JS_NewArray(ctx));uint32_t hierarchyIndex=0;
   for(int id:owners){Value item(ctx,JS_NewObject(ctx));put(ctx,item,"id",JS_NewInt32(ctx,id));put(ctx,item,"parent",JS_NewInt32(ctx,id==owner?0:currentScene->containerParents.at(id)));putIndex(ctx,hierarchy,hierarchyIndex++,JS_DupValue(ctx,item));}
@@ -110,24 +111,22 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const auto data=json(ctx,snapshot);Value root(ctx,JS_ParseJSON(ctx,data.data(),data.size(),"scene snapshot"));
   require(!JS_IsException(root),"invalid scene JSON");
   auto format=field(ctx,root,"format");require(string(ctx,format)=="pocketspace.scene-container","unsupported snapshot format");
-  const int version=int(number(ctx,root,"version",1,14,true));
+  number(ctx,root,"version",snapshotVersion,snapshotVersion,true);
   auto models=field(ctx,root,"models"),objects=field(ctx,root,"objects");
   const auto nm=length(ctx,models,32),no=length(ctx,objects,256);auto &scene=*currentScene;
   std::map<int,int> containerMap,newParents;int restoredRoot=scene.nextContainerId;
-  if(version>=11){
-    auto hierarchy=field(ctx,root,"containers");const auto count=length(ctx,hierarchy,256);require(count>0,"empty container hierarchy");
-    const int sourceRoot=int(number(ctx,root,"rootContainer",1,INT_MAX-1,true));
-    require(scene.containers.size()+count<=256&&scene.nextContainerId<=INT_MAX-int(count),"scene container limit reached");
-    std::map<int,int> sources;
-    for(uint32_t i=0;i<count;i++){Value item(ctx,JS_GetPropertyUint32(ctx,hierarchy,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));const int parent=int(number(ctx,item,"parent",0,INT_MAX-1,true));require(sources.emplace(source,parent).second,"duplicate container ID");containerMap[source]=scene.nextContainerId+int(i);}
-    require(sources.count(sourceRoot)&&sources.at(sourceRoot)==0,"invalid root container");restoredRoot=containerMap.at(sourceRoot);
-    for(auto [source,parent]:sources){
-      if(source!=sourceRoot)require(parent&&sources.count(parent),"unknown container parent");
-      std::set<int> visited;int cursor=source;while(cursor){require(visited.insert(cursor).second,"container cycle");auto found=sources.find(cursor);require(found!=sources.end(),"unknown ancestor");cursor=found->second;}
-      newParents[containerMap.at(source)]=parent?containerMap.at(parent):0;
-    }
-  }else{require(scene.containers.size()<256&&scene.nextContainerId<INT_MAX,"scene container limit reached");newParents[scene.nextContainerId]=0;}
-  auto restoredOwner=[&](JSValueConst item){if(version<11)return restoredRoot;const int source=int(number(ctx,item,"container",1,INT_MAX-1,true));require(containerMap.count(source),"unknown resource container");return containerMap.at(source);};
+  auto hierarchy=field(ctx,root,"containers");const auto count=length(ctx,hierarchy,256);require(count>0,"empty container hierarchy");
+  const int sourceRoot=int(number(ctx,root,"rootContainer",1,INT_MAX-1,true));
+  require(scene.containers.size()+count<=256&&scene.nextContainerId<=INT_MAX-int(count),"scene container limit reached");
+  std::map<int,int> sources;
+  for(uint32_t i=0;i<count;i++){Value item(ctx,JS_GetPropertyUint32(ctx,hierarchy,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));const int parent=int(number(ctx,item,"parent",0,INT_MAX-1,true));require(sources.emplace(source,parent).second,"duplicate container ID");containerMap[source]=scene.nextContainerId+int(i);}
+  require(sources.count(sourceRoot)&&sources.at(sourceRoot)==0,"invalid root container");restoredRoot=containerMap.at(sourceRoot);
+  for(auto [source,parent]:sources){
+    if(source!=sourceRoot)require(parent&&sources.count(parent),"unknown container parent");
+    std::set<int> visited;int cursor=source;while(cursor){require(visited.insert(cursor).second,"container cycle");auto found=sources.find(cursor);require(found!=sources.end(),"unknown ancestor");cursor=found->second;}
+    newParents[containerMap.at(source)]=parent?containerMap.at(parent):0;
+  }
+  auto restoredOwner=[&](JSValueConst item){const int source=int(number(ctx,item,"container",1,INT_MAX-1,true));require(containerMap.count(source),"unknown resource container");return containerMap.at(source);};
   // Allocate hierarchy nodes before native publication/reservation.
   auto stagedContainers=scene.containers;auto stagedParents=scene.containerParents;
   for(auto [id,parent]:newParents){stagedContainers.insert(id);stagedParents[id]=parent;}
@@ -138,17 +137,13 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     Value m(ctx,JS_GetPropertyUint32(ctx,models,i));auto path=field(ctx,m,"path");ModelAsset a;a.path=string(ctx,path);require(!a.path.empty()&&paths.insert(a.path).second,"empty or duplicate model path");
     a.eyePixels=int(number(ctx,m,"eyePixels",256,2048,true));require(a.eyePixels%64==0,"eyePixels must be a multiple of 64");
     a.optimizeVertexCache=boolean(ctx,m,"optimizeVertexCache");a.gpuInstancing=boolean(ctx,m,"gpuInstancing");a.lod=boolean(ctx,m,"lod");
-    if(version>=6){
-      a.pbr=boolean(ctx,m,"pbr");auto lighting=field(ctx,m,"lighting");
-      a.lighting.intensity=float(number(ctx,lighting,"intensity",0,64));a.lighting.ambient=float(number(ctx,lighting,"ambient",0,16));a.lighting.exposure=float(number(ctx,lighting,"exposure",.001,64));
-      for(auto [name,values,isColor]:{std::tuple{"direction",a.lighting.direction,false},std::tuple{"color",a.lighting.color,true}}){auto array=field(ctx,lighting,name);require(length(ctx,array,3)==3,"lighting vectors must have three components");for(int c=0;c<3;c++){Value v(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(v)&&JS_ToFloat64(ctx,&n,v)==0&&std::isfinite(n)&&n>=(isColor?0:-64)&&n<=64,"invalid lighting vector");values[c]=float(n);}}
-      double magnitude=0;for(float v:a.lighting.direction)magnitude+=double(v)*v;require(magnitude>=1e-12,"light direction must be nonzero");
-    }
-    if(version>=7){
-      auto lighting=field(ctx,m,"lighting"),environment=field(ctx,lighting,"environment");a.lighting.environment=string(ctx,environment);require(a.lighting.environment.size()<=4096,"invalid environment path");
-      a.lighting.environmentIntensity=float(number(ctx,lighting,"environmentIntensity",0,64));a.lighting.environmentRotation=float(number(ctx,lighting,"environmentRotation",-10000,10000));
-      require(a.pbr||a.lighting.environment.empty(),"environment requires PBR");
-    }
+    a.pbr=boolean(ctx,m,"pbr");auto lighting=field(ctx,m,"lighting");
+    a.lighting.intensity=float(number(ctx,lighting,"intensity",0,64));a.lighting.ambient=float(number(ctx,lighting,"ambient",0,16));a.lighting.exposure=float(number(ctx,lighting,"exposure",.001,64));
+    for(auto [name,values,isColor]:{std::tuple{"direction",a.lighting.direction,false},std::tuple{"color",a.lighting.color,true}}){auto array=field(ctx,lighting,name);require(length(ctx,array,3)==3,"lighting vectors must have three components");for(int c=0;c<3;c++){Value v(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(v)&&JS_ToFloat64(ctx,&n,v)==0&&std::isfinite(n)&&n>=(isColor?0:-64)&&n<=64,"invalid lighting vector");values[c]=float(n);}}
+    double magnitude=0;for(float v:a.lighting.direction)magnitude+=double(v)*v;require(magnitude>=1e-12,"light direction must be nonzero");
+    auto environment=field(ctx,lighting,"environment");a.lighting.environment=string(ctx,environment);require(a.lighting.environment.size()<=4096,"invalid environment path");
+    a.lighting.environmentIntensity=float(number(ctx,lighting,"environmentIntensity",0,64));a.lighting.environmentRotation=float(number(ctx,lighting,"environmentRotation",-10000,10000));
+    require(a.pbr||a.lighting.environment.empty(),"environment requires PBR");
     int id=0;for(size_t j=0;j<scene.assets.size();j++)if(scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod&&old.pbr==a.pbr&&(!a.pbr||old.lighting==a.lighting),"cached model options conflict");id=int(j)+1;break;}
     if(!id){require(loadedAssetCount(scene)+pending.size()<32&&scene.assets.size()+pending.size()<size_t(INT_MAX-1),"model asset limit reached");id=int(scene.assets.size()+pending.size())+1;pending.push_back(std::move(a));}assets.push_back(id);
   }
@@ -171,25 +166,20 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     auto button=field(ctx,item,"grabButton");auto name=string(ctx,button);require(name=="both"||name=="trigger"||name=="grip","invalid grabButton");o.grabButton=name=="both"?GrabButton::Both:name=="grip"?GrabButton::Grip:GrabButton::Trigger;
     if(boolean(ctx,item,"interactive"))interactive.push_back(o.id);
     auto body=field(ctx,item,"physics");
-    if(version>=2){require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}}
-    else require(JS_IsUndefined(body)||JS_IsNull(body),"physics requires snapshot version 2");
+    require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}
     auto animation=field(ctx,item,"animation");std::optional<SavedAnimation> saved;
-    if(version>=3){require(!JS_IsUndefined(animation),"missing animation field");if(!JS_IsNull(animation))saved=animationRead(ctx,animation,version);}
-    else require(JS_IsUndefined(animation)||JS_IsNull(animation),"animation requires snapshot version 3");
+    require(!JS_IsUndefined(animation),"missing animation field");if(!JS_IsNull(animation))saved=animationRead(ctx,animation);
     animations.push_back(std::move(saved));restored.push_back(std::move(o));
   }
   std::vector<physics::JointSnapshot> jointBatch;std::set<int> jointSources;
   auto jointArray=field(ctx,root,"joints");
-  const uint32_t nj=version>=2?length(ctx,jointArray,512):0;
-  if(version==1&&!JS_IsUndefined(jointArray))require(length(ctx,jointArray,512)==0,"joints require snapshot version 2");
+  const uint32_t nj=length(ctx,jointArray,512);
   for(uint32_t i=0;i<nj;i++){Value item(ctx,JS_GetPropertyUint32(ctx,jointArray,i));auto j=jointRead(ctx,item,bodyMap);require(jointSources.insert(j.state.id).second,"duplicate source joint ID");jointBatch.push_back(std::move(j));}
   const int firstJoint=scene.physics?scene.physics->nextJointId():1;require(nj<=uint32_t(INT_MAX-firstJoint),"joint ID limit reached");
-  auto panelArray=field(ctx,root,"panels");const uint32_t np=version>=4?length(ctx,panelArray,maxPanels):0;
-  if(version<4&&!JS_IsUndefined(panelArray))require(length(ctx,panelArray,maxPanels)==0,"panels require snapshot version 4");
+  auto panelArray=field(ctx,root,"panels");const uint32_t np=length(ctx,panelArray,maxPanels);
   require(scene.nextPanelId<=INT_MAX-int(np),"panel ID limit reached");std::vector<Panel> restoredPanels;std::vector<int> panelSources;std::set<int> uniquePanels;size_t pixelBytes=0;
   for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),restoredOwner(item),pixelBytes));}
-  auto lightArray=field(ctx,root,"lights");const uint32_t nl=version>=8?length(ctx,lightArray,maxPointLights):0;
-  if(version<8&&!JS_IsUndefined(lightArray))require(length(ctx,lightArray,maxPointLights)==0,"lights require snapshot version 8");
+  auto lightArray=field(ctx,root,"lights");const uint32_t nl=length(ctx,lightArray,maxPointLights);
   require(scene.lights.size()+nl<=maxPointLights&&scene.nextLightId<=INT_MAX-int(nl),"point light limit reached");
   std::vector<PointLight> restoredLights;std::vector<int> lightSources;std::set<int> uniqueLights;
   for(uint32_t i=0;i<nl;i++){
@@ -198,8 +188,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     light.id=scene.nextLightId+int(i);light.container=restoredOwner(item);
     light.intensity=float(number(ctx,item,"intensity",0,64));light.enabled=boolean(ctx,item,"enabled");
     auto type=field(ctx,item,"type");
-    if(version>=9){const auto name=string(ctx,type);require(name=="point"||name=="spot"||(version>=10&&name=="directional"),"invalid light type");light.spot=name=="spot";light.directional=name=="directional";}
-    else require(JS_IsUndefined(type)||string(ctx,type)=="point","spotlights require snapshot version 9");
+    const auto typeName=string(ctx,type);require(typeName=="point"||typeName=="spot"||typeName=="directional","invalid light type");light.spot=typeName=="spot";light.directional=typeName=="directional";
     if(!light.directional)light.range=float(number(ctx,item,"range",.001,64));
     else for(const char *name:{"position","range","innerConeAngle","outerConeAngle"}){auto unused=field(ctx,item,name);require(JS_IsUndefined(unused),"unsupported directional light field");}
     for(auto [name,destination,low,high]:{std::tuple{"position",&light.position,-10000.f,10000.f},std::tuple{"color",&light.color,0.f,64.f}}){
@@ -217,19 +206,17 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
       require(magnitude>=1e-12,"spotlight direction must be nonzero");
     }
     auto shadow=field(ctx,item,"shadow");
-    if((version>=12&&light.spot)||(version>=13&&light.directional)||version>=14){
-      light.shadow.enabled=boolean(ctx,shadow,"enabled");
-      light.shadow.resolution=int(number(ctx,shadow,"resolution",256,1024,true));require((light.shadow.resolution&(light.shadow.resolution-1))==0,"invalid shadow resolution");
-      light.shadow.maxTriangles=int(number(ctx,shadow,"maxTriangles",1,1000000,true));
-      if(light.directional){
-        auto center=field(ctx,shadow,"center");require(length(ctx,center,3)==3,"invalid directional shadow center");
-        for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,center,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=-10000&&n<=10000,"invalid directional shadow center");light.shadow.center[c]=float(n);}
-        light.shadow.size=float(number(ctx,shadow,"size",.01f,64));light.shadow.depth=float(number(ctx,shadow,"depth",.01f,64));
-        auto nearValue=field(ctx,shadow,"near");require(JS_IsUndefined(nearValue),"directional shadow does not support near");
-      }else {light.shadow.nearPlane=float(number(ctx,shadow,"near",.001f,1));for(const char *name:{"center","size","depth"}){auto unused=field(ctx,shadow,name);require(JS_IsUndefined(unused),"directional-only shadow field");}}
-      light.shadow.bias=float(number(ctx,shadow,"bias",0,.05f));light.shadow.normalBias=float(number(ctx,shadow,"normalBias",0,.1f));light.shadow.maxGpuMs=float(number(ctx,shadow,"maxGpuMs",.001f,16));
-      require(light.directional||!light.shadow.enabled||(light.shadow.nearPlane<light.range&&(!light.spot||light.outerConeAngle<=1.5f)),"invalid shadow camera");
-    }else if(!JS_IsUndefined(shadow))require(!boolean(ctx,shadow,"enabled"),"shadow settings require a supported light and snapshot version");
+    light.shadow.enabled=boolean(ctx,shadow,"enabled");
+    light.shadow.resolution=int(number(ctx,shadow,"resolution",256,1024,true));require((light.shadow.resolution&(light.shadow.resolution-1))==0,"invalid shadow resolution");
+    light.shadow.maxTriangles=int(number(ctx,shadow,"maxTriangles",1,1000000,true));
+    if(light.directional){
+      auto center=field(ctx,shadow,"center");require(length(ctx,center,3)==3,"invalid directional shadow center");
+      for(int c=0;c<3;c++){Value component(ctx,JS_GetPropertyUint32(ctx,center,c));double n=0;require(JS_IsNumber(component)&&JS_ToFloat64(ctx,&n,component)==0&&std::isfinite(n)&&n>=-10000&&n<=10000,"invalid directional shadow center");light.shadow.center[c]=float(n);}
+      light.shadow.size=float(number(ctx,shadow,"size",.01f,64));light.shadow.depth=float(number(ctx,shadow,"depth",.01f,64));
+      auto nearValue=field(ctx,shadow,"near");require(JS_IsUndefined(nearValue),"directional shadow does not support near");
+    }else {light.shadow.nearPlane=float(number(ctx,shadow,"near",.001f,1));for(const char *name:{"center","size","depth"}){auto unused=field(ctx,shadow,name);require(JS_IsUndefined(unused),"directional-only shadow field");}}
+    light.shadow.bias=float(number(ctx,shadow,"bias",0,.05f));light.shadow.normalBias=float(number(ctx,shadow,"normalBias",0,.1f));light.shadow.maxGpuMs=float(number(ctx,shadow,"maxGpuMs",.001f,16));
+    require(light.directional||!light.shadow.enabled||(light.shadow.nearPlane<light.range&&(!light.spot||light.outerConeAngle<=1.5f)),"invalid shadow camera");
     require(light.spot||light.directional||light.shadow.resolution<=512,"point shadow resolution must be 256 or 512");
     auto attachment=field(ctx,item,"objectId");if(!JS_IsNull(attachment)){const int id=int(number(ctx,item,"objectId",1,INT_MAX-1,true));require(objectIds.count(id),"light attachment must be inside snapshot");light.objectId=objectIds.at(id);}
     restoredLights.push_back(light);

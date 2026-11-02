@@ -174,5 +174,5 @@ The weight-stream and default-weight behavior follow the
 Scene snapshots save each instance's selected clip, playback time, speed, looping,
 playing/paused state, finished flag and active transition. Restore rebuilds independent skeletal or
 rigid-node/morph poses and picking geometry; it does not share mutable poses between
-instances. See the [animation save/restore format](scene-persistence.md#animation-playback-v3)
+instances. See the [animation save/restore format](scene-persistence.md#animation-playback)
 and [animation save example](../scripts/animation-save.js).

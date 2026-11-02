@@ -98,14 +98,13 @@ int main(){
    setModelLighting(a,{get ambient(){loadModel('assets/samples/Lantern/Lantern.glb');return .15;}});
    setModelLighting(a,{direction:[1,2,3],color:[1,.8,.6],intensity:4,ambient:.1,exposure:1.2});
    const owner=createSceneContainer();createObject(a,0,0,0,.2,{container:owner});
-   const snap=captureSceneContainer(owner);check(snap.version===14&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
+   const snap=captureSceneContainer(owner);check(snap.version===1&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
    for(const options of [{direction:[0,0,0]},{direction:[1,2]},{color:[-1,0,0]},{intensity:-1},{exposure:0},{ambient:Infinity}])fails(()=>setModelLighting(a,options));
    fails(()=>setModelLighting(a,{get ambient(){throw Error('getter');}}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    const restored=restoreSceneContainer(snap);check(captureSceneContainer(restored.containerId).models[0].pbr);disposeSceneContainer(restored.containerId);
    const bad=JSON.parse(JSON.stringify(snap));bad.models[0].lighting.intensity=7;fails(()=>restoreSceneContainer(bad));
    const unlit=loadModel('assets/Avocado.glb');fails(()=>setModelLighting(unlit,{}));
-   const old=JSON.parse(JSON.stringify(snap));old.models[0].path='assets/Avocado.glb';old.version=5;old.models[0].eyePixels=768;delete old.models[0].pbr;delete old.models[0].lighting;const c=restoreSceneContainer(old);check(!captureSceneContainer(c.containerId).models[0].pbr);disposeSceneContainer(c.containerId);
    function update(){}
   )JS";
   ScriptHost host;assert(loadScript(host,script.string()));auto *active=host.ctx;auto saved=host.scene.assets[0].lighting;

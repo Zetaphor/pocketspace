@@ -12,7 +12,7 @@ import time
 
 root=Path(__file__).resolve().parents[1]
 log=Path('/tmp/lifecycle-runtime.log')
-keys=['sf_overlay_engine.instance.1.object.1','sf_overlay_engine.instance.1.object.2','sf_overlay_engine.instance.1.panel.1','sf_overlay_engine.instance.1.panel.2']
+keys=['pocketspace.instance.1.object.1','pocketspace.instance.1.object.2','pocketspace.instance.1.panel.1','pocketspace.instance.1.panel.2']
 def probe(extra=()):
  return subprocess.check_output(['/tmp/sf-lifecycle-probe',*keys,*extra],text=True)
 def scene(generation):
@@ -72,7 +72,7 @@ with tempfile.TemporaryDirectory(prefix='sf-lifecycle-') as tmp,log.open('w') as
    os.killpg(process.pid,signal.SIGKILL);process.wait();raise
  assert code==0,code
  data=log.read_text();assert 'LEAKED_CALLBACK' not in data;assert 'stopped after error' not in data
- inventory=probe(['sf_overlay_engine.laser.0','sf_overlay_engine.laser.1'])
+ inventory=probe(['pocketspace.laser.0','pocketspace.laser.1'])
  assert '=present' not in inventory,inventory
  print('PASS lifecycle runtime: 10 failed/successful reload pairs, object/panel removal, no leaked callbacks, bounded FD count, clean SIGTERM and absent overlay keys')
  print('Resource samples:',samples)

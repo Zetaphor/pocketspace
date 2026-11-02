@@ -109,11 +109,10 @@ inside the range, and zero outside. The minimum denominator avoids a singularity
 at the light position. Lighting and exposure can saturate near bright lights;
 reduce intensity rather than relying on the range to control nearby brightness.
 
-Snapshots v8 and later save owned lights and return fresh `lightIds`/`lightMap` on restore.
+Snapshots save owned lights and return fresh `lightIds`/`lightMap` on restore.
 An attached light and its object must belong to the captured container; crossing
 that boundary throws rather than saving a dangling reference. Light attachments
-remap to restored object IDs. Root lights are not captured. Older v1–v7 snapshots
-restore without point lights. Restore stages the whole light set and requires
+remap to restored object IDs. Root lights are not captured. Restore stages the whole light set and requires
 room within the eight-light limit while the original tool is still live.
 
 With four or more active, nonzero lights, the engine conservatively excludes
@@ -185,11 +184,10 @@ point light's distance attenuation. The equal-angle case uses a step instead of
 dividing by zero. Cone width does not renormalize intensity: narrowing the beam
 keeps the center brightness unchanged.
 
-Snapshots v9 and later store a `type` for every light and the spotlight direction/cones.
-New captures use v14, preserving shadow settings for every light type.
+Snapshots store a `type` for every light, the spotlight direction/cones, and
+shadow settings for every light type.
 Restore returns the same shared `lightIds`/`lightMap` and remaps attachments.
-V8 snapshots retain their point-light behavior; v1–v7 restore without scene
-lights. Ownership and cross-container snapshot rules are identical for all scene light types.
+Ownership and cross-container snapshot rules are identical for all scene light types.
 
 Run [spotlights.js](../scripts/spotlights.js): grip/trigger grabs the blue handle,
 bumper switches cone width, A/X toggles the light, and B/Y captures then restores
@@ -268,8 +266,7 @@ fallback retries automatically when the scene fits again.
 and masked caster geometry before budgeting, not only geometry inside the cone.
 The map's estimated storage is also included once in `gpuAllocatedEstimateBytes`.
 
-V12 snapshots preserve the settings and remap attachments. Older snapshots restore
-without shadows. Restoring an enabled shadow light while the slot is occupied
+Snapshots preserve the settings and remap attachments. Restoring an enabled shadow light while the slot is occupied
 fails transactionally. [shadows.js](../scripts/shadows.js) demonstrates releasing
 the old tool's slot, restoring, and recovering its settings on failure. Its HUD
 shows current shadow status and time. A/X toggles shadows without turning off the
@@ -319,9 +316,8 @@ now interpreted in scene axes; supply a new direction in the same call if needed
 Typed point/spot/directional APIs reject IDs belonging to another light type.
 
 Removal, container transfer/disposal and attachment cleanup follow the point-light
-rules. V10 snapshots preserve directional type, direction, color, intensity,
-enabled state and remapped attachments. Earlier point/spot snapshots remain
-readable; directional entries require v10. Directional lights always contribute
+rules. Snapshots preserve directional type, direction, color, intensity,
+enabled state and remapped attachments. Directional lights always contribute
 to each eligible PBR object's light set; distance/cone rejection never removes
 them. More lights still add per-fragment work, so profile the intended scene.
 
@@ -374,8 +370,7 @@ These limits favor small play spaces; crossing a coverage edge can visibly remov
 a shadow. Opaque/masked/animated casting, stereo sharing, resource cleanup,
 GPU watchdog and `getEngineStats().shadow` work as for spotlights.
 
-V13 snapshots preserve directional shadow settings and remap attachments;
-older directional snapshots restore with shadows disabled. Slot conflicts reject
+Snapshots preserve directional shadow settings and remap attachments. Slot conflicts reject
 the entire restore. [directional-shadows.js](../scripts/directional-shadows.js)
 demonstrates grabbing a caster and rotating a sunlight handle, A/X shadow toggle,
 bumper resolution changes and B/Y save/restore with slot recovery.
@@ -428,7 +423,7 @@ A missing, malformed or unsupported file throws without publishing partial
 lighting changes. As with model paths, cached files are immutable while they are
 referenced; choose a new path to load different content. Scene snapshots store
 the path and controls, not the environment pixels. Keep the file available when
-restoring on another device. Older v1–v6 snapshots restore without an environment.
+restoring on another device.
 
 At runtime the engine uploads a prefiltered HDR cubemap and BRDF lookup once per
 shared environment. Shading uses a roughness-selected cube sample, one BRDF
@@ -596,8 +591,7 @@ on model complexity, materials and overlay layout.
 
 Scene-container snapshots preserve the PBR choice and lighting settings. Restore
 rejects a conflicting cached asset instead of changing existing objects' shared
-lighting. V1–v5 snapshots restore unlit models; v6 retains direct PBR lighting without an
-environment. See [scene persistence](scene-persistence.md).
+lighting. See [scene persistence](scene-persistence.md).
 
 See [pbr.js](../scripts/pbr.js) for a concise interactive example. The separate
 [Khronos material test scene](../tests/scenes/pbr-materials.js) covers the lighter
@@ -672,7 +666,6 @@ explicit retry and `getEngineStats().shadow` behave as documented for spotlights
 The reported triangle count includes six-view work, and memory estimates include
 the full atlas once. Driver/in-flight allocation overhead is additional.
 
-V14 snapshots preserve logical options and remap attachments; older point-light
-snapshots restore without shadows. [point-shadows.js](../scripts/point-shadows.js)
+Snapshots preserve logical options and remap attachments. [point-shadows.js](../scripts/point-shadows.js)
 demonstrates a grabbable lamp, caster, A/X shadow toggle, bumper resolution switch,
 and B/Y save/restore with recovery when the shared slot is occupied.

@@ -18,18 +18,16 @@ const spot=createSpotLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setSpotLight(spot,{enabled:true}));
 setDirectionalLight(sun,{enabled:false});setSpotLight(spot,{enabled:true});
 fails(()=>setDirectionalLight(sun,{enabled:true}));setSpotLight(spot,{enabled:false});setDirectionalLight(sun,{enabled:true});removeSpotLight(spot);
-const saved=captureSceneContainer(owner);check(saved.version===14&&saved.lights[0].shadow.depth===5);
+const saved=captureSceneContainer(owner);check(saved.version===1&&saved.lights[0].shadow.depth===5);
 fails(()=>restoreSceneContainer(saved));
 setDirectionalLight(sun,{shadow:{enabled:false}});
 const state=JSON.stringify(getSceneContainerState(owner));
-for(const mutate of [s=>delete s.lights[0].shadow,s=>delete s.lights[0].shadow.center,s=>s.lights[0].shadow.depth=0,s=>s.lights[0].shadow.size=65,s=>s.lights[0].shadow.center=[0,0,Infinity],s=>s.lights[0].shadow.near=.1,s=>s.version=12]){
+for(const mutate of [s=>delete s.lights[0].shadow,s=>delete s.lights[0].shadow.center,s=>s.lights[0].shadow.depth=0,s=>s.lights[0].shadow.size=65,s=>s.lights[0].shadow.center=[0,0,Infinity],s=>s.lights[0].shadow.near=.1,s=>s.version=2]){
  const bad=JSON.parse(JSON.stringify(saved));mutate(bad);fails(()=>restoreSceneContainer(bad));check(JSON.stringify(getSceneContainerState(owner))===state);
 }
 const restored=restoreSceneContainer(saved),copy=getDirectionalLight(restored.lightMap[sun]);
 check(copy.objectId===restored.objectMap[object]&&copy.shadow.enabled&&copy.shadow.center.join()=== '1,2,3'&&copy.shadow.size===3&&copy.shadow.depth===5);
 disposeSceneContainer(restored.containerId);
-const legacy=JSON.parse(JSON.stringify(saved));legacy.version=12;delete legacy.lights[0].shadow;
-const old=restoreSceneContainer(legacy);check(!getDirectionalLight(old.lightMap[sun]).shadow.enabled);disposeSceneContainer(old.containerId);
 // Getter mutations are revalidated before either source or slot is published.
 let rival=0;fails(()=>setDirectionalLight(sun,{shadow:{get enabled(){rival=createSpotLight({shadow:{enabled:true}});return true;}}}));
 check(!getDirectionalLight(sun).shadow.enabled);removeSpotLight(rival);

@@ -102,10 +102,10 @@ Disposal must reuse object/physics/interaction and deferred-panel cleanup, retai
 shared surfaces/assets, and preserve callback ownership on failed reloads. Hold
 a JS reference while dispatching a callback that may dispose its own owner.
 
-[Scene persistence](scene-persistence.md) v5 preserves model instances, panel
+[Scene persistence](scene-persistence.md) preserves model instances, panel
 pixels/layout,
 independent animation playback/poses and transitions, interaction flags, physics bodies and joints
-with original construction frames; v1–v4 saves remain readable. Reject joints
+with original construction frames. Restore accepts only the current snapshot version; there is no older-format support. Reject joints
 crossing ownership boundaries rather than losing state silently. Validate detached JSON and stage assets/overlay
 reservations before committing; reserve fresh render groups so restores cannot
 merge with current surfaces or inherit split policies. `World::appendSnapshot`
@@ -425,8 +425,7 @@ not justify adoption. Production planner and thresholds remain unchanged.
 `loadModel(..., {pbr: true})` selects a separate material/surface-frame path.
 `setModelLighting` stages a copy before reading script properties and resolves
 its asset again before publishing. Asset-cache conflicts include explicit PBR
-choice; snapshot v6 also requires matching lighting for cached lit models. V1–v5
-snapshots default to unlit rendering; v6 retains direct PBR lighting. Failed restores must not change lighting
+choice; snapshots also require matching lighting for cached lit models. Failed restores must not change lighting
 on already-visible objects.
 
 PBR keeps expanded CPU inputs but can compact full-detail GPU streams with the
@@ -489,8 +488,8 @@ incompatible sidedness/winding. Do not cull panels or controller laser geometry.
 ## Baked environment lighting
 
 `setModelLighting` stages environment file loading before publishing either the
-lighting struct or its shared resource pointer. V7 snapshots include its path,
-intensity and Y rotation; v6 defaults to no environment. Cached lighting must
+lighting struct or its shared resource pointer. Snapshots include its path,
+intensity and Y rotation. Cached lighting must
 match. Missing-environment failures while restoring new model assets must leave
 the scene, assets, IDs and active lighting intact.
 
@@ -542,9 +541,8 @@ before publication. The internal resolved range sentinel is -1; it bypasses
 CPU range/cone rejection and shader distance/cone attenuation. Keep point/spot
 ranges positive and their existing math intact. Prepared-color count keys include
 all contributing light types; no shader compilation occurs while drawing.
-V10 adds directional snapshots and rejects position/range/cone fields for that
-type, with complete staged validation and attachment remapping. V1–v9 remain
-readable under their existing contracts. See [API](lighting-api.md#scene-directional-lights)
+Directional snapshots reject position/range/cone fields for that
+type, with complete staged validation and attachment remapping. See [API](lighting-api.md#scene-directional-lights)
 and [regression](../tests/directional-light-regression.cpp).
 
 ## Dynamic point lights
@@ -560,18 +558,17 @@ Object-local offsets are meters, independent of scale; reflect Z into model axes
 consistently for positions, normals and surface origins. All eyes/surfaces use
 the same frame snapshot. Keep the per-program cached uniform payload free of
 scene pointers, update it after removals, and skip light setup for external depth.
-Unlit materials must remain invariant. V8 snapshots validate/stage lights and
+Unlit materials must remain invariant. Snapshots validate/stage lights and
 attachment maps before native publication; require both attachment endpoints
 inside the captured scope, honor total live capacity and return fresh light IDs.
-V1–v7 snapshots restore no lights. See the [API](lighting-api.md#dynamic-point-lights)
+See the [API](lighting-api.md#dynamic-point-lights)
 and [regression](../tests/point-light-regression.cpp).
 
 Spotlights share the eight-entry capacity and monotonically issued ID namespace.
 Keep point/spot APIs type-safe. Direction uses local +Z-forward axes when attached,
 rotates without translation/scale, and normalizes once in the resolved frame.
 Store cone cosines in the uniform payload; keep an explicit equal-angle branch to
-avoid zero division. V9 requires type and spotlight fields; v8 accepts point lights
-only. Invalid mixed sets must leave scene resources and counters intact. See the
+avoid zero division. Snapshots require type and spotlight fields. Invalid mixed sets must leave scene resources and counters intact. See the
 [spotlight regression](../tests/spotlight-regression.cpp) and
 [API](lighting-api.md#dynamic-spotlights).
 
@@ -613,9 +610,9 @@ per-program uniform caches when alternating specialized and general draws.
 Parent links are scene-owned integer metadata, acyclic and independent of
 transforms/render grouping. Resolve the complete subtree before disposal and
 use ordinary removal paths for members. Direct state arrays stay direct;
-`childIds`/`parentId` expose the hierarchy. V11 captures subtree resource owners,
+`childIds`/`parentId` expose the hierarchy. Snapshots capture subtree resource owners,
 stages fresh hierarchy maps before native reservation, and commits them with
-resource publication. Older snapshots remain flat. Never retain container/object
+resource publication. Never retain container/object
 pointers across getters or mutation.
 
 Unloaded assets leave empty, uploaded-marked slots; IDs are never reused or
@@ -646,8 +643,7 @@ See [architecture](architecture.md#fabric-sheen-pipeline) and
 One enabled light reserves the shared slot, including zero-intensity lights;
 disabled lights retain settings without reserving it. Validate capacity after
 option getters and across existing/staged snapshot lights before asset/native
-reservations. Current captures use v14: spot settings require v12, directional
-v13 and point v14. Older light records default to shadows off. Serialize logical
+reservations. Serialize logical
 settings only, never map/query handles or watchdog state.
 
 The pass retains no scene/object pointers. Resolve attachments by ID and render

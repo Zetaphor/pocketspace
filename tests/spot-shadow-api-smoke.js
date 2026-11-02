@@ -22,7 +22,7 @@ const second=createSpotLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setSpotLight(second,{enabled:true}));check(!getSpotLight(second).enabled);
 setSpotLight(spot,{enabled:false});setSpotLight(second,{enabled:true});
 fails(()=>setSpotLight(spot,{enabled:true}));setSpotLight(second,{shadow:{enabled:false}});setSpotLight(spot,{enabled:true});removeSpotLight(second);
-const snapshot=captureSceneContainer(owner);check(snapshot.version===14&&snapshot.lights[0].shadow.enabled);
+const snapshot=captureSceneContainer(owner);check(snapshot.version===1&&snapshot.lights[0].shadow.enabled);
 const before=JSON.stringify(snapshot),state=JSON.stringify(getSceneContainerState(owner));
 fails(()=>restoreSceneContainer(snapshot));check(JSON.stringify(captureSceneContainer(owner))===before);
 for(const mutate of [s=>delete s.lights[0].shadow,s=>s.lights[0].shadow.resolution=2048,s=>s.lights[0].shadow.maxTriangles=0,s=>s.lights[0].shadow.maxGpuMs=0,s=>s.lights[0].shadow.near=4,s=>s.lights[0].type='point'&&delete s.lights[0].shadow.near]) {
@@ -32,8 +32,6 @@ setSpotLight(spot,{shadow:{enabled:false}});
 const restored=restoreSceneContainer(snapshot),copy=getSpotLight(restored.lightMap[spot]);
 check(copy.objectId===restored.objectMap[object]&&copy.shadow.resolution===256&&copy.shadow.enabled);
 disposeSceneContainer(restored.containerId);
-const legacy=JSON.parse(before);legacy.version=11;delete legacy.lights[0].shadow;
-const flat=restoreSceneContainer(legacy);check(!getSpotLight(flat.lightMap[spot]).shadow.enabled);disposeSceneContainer(flat.containerId);
 setSpotLight(spot,{shadow:{enabled:true}});
 const removed=createSpotLight();fails(()=>setSpotLight(removed,{shadow:{get enabled(){removeSpotLight(removed);return false;}}}));
 // A getter may reserve the slot, so validation must run again after it returns.
