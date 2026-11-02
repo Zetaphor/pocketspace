@@ -73,6 +73,8 @@ Record each completed step in a small table here with commit, Sigma checks, Deck
 
 The pure comparator regression covers closest hit, priority, stable ties, order independence, and invalid distances. The native grab harness verifies that two scenes with local object ID `1` cannot both acquire a laser-triggered hold. Device runners now build catalog launch arguments instead of passing positional scene paths, and their process checks use the current engine name.
 
+**Headset evidence (2026-11-01):** The user confirmed both overlapping boxes and both panels worked, with one target reacting to each action. The bounded Deckard run logged near- and far-script grabs, left- and right-hand grabs, and a far-panel click. It reached frame 3600 at 90.0 FPS with two scenes/surfaces, GL error zero, then exited at frame 4203 with grouped buffer usage zero and no engine process left. The near-panel click was not present in the captured log, so its event delivery still needs a focused log check. Priority override, simultaneous hand interactions, and cross-script panel target ordering remain unverified in the headset.
+
 - [ ] Sample tracking and raw controller input once per frame. Fan out read-only snapshots without allowing one script's polling API to drain another's queue. Deliver callbacks only to their owning instance.
 - [ ] Arbitrate model and panel targets across all instances. Default to closest eligible hit; optional per-script priority wins first, then distance and stable instance ID. Keep a held object attached to its owner until release or that instance's stop/reload.
 - [ ] Qualify hover, grab, panel pointer, and laser state by instance. Clear only affected state when one script stops or reloads; preserve valid state in the other scripts.

@@ -18,6 +18,20 @@ cmake --build build --target input-arbitration-regression -j2
 ./build/input-arbitration-regression
 ```
 
+For interactive two-script acceptance on Deckard, run the paired fixture while
+the headset is active:
+
+```sh
+./run-pocketspace.sh --scripts-dir tests/scenes \
+  --launch multi-script-interaction-near.js \
+  --launch multi-script-interaction-far.js
+```
+
+The boxes overlap above the blue NEAR and orange FAR panels. Aim at each panel
+and click, then grab the boxes with either hand. Each action should affect one
+target. The engine log names the script that received each click or grab.
+Stop the engine with Ctrl-C after the check and verify that it exited.
+
 See the [test index](index.md) for a brief description of every test and helper.
 
 This experiment leaves the published examples and engine defaults unchanged.

@@ -51,7 +51,8 @@ performance experiments are separate from correctness and visual acceptance.
 
 | File | Purpose |
 | --- | --- |
-| [scenes/multi-script-left.js](scenes/multi-script-left.js), [scenes/multi-script-right.js](scenes/multi-script-right.js) | Paired noninteractive scenes with the same top-level names and local object/panel IDs. Step 1 uses them to check independent QuickJS contexts; Step 2 checks native overlay ownership. Concurrent execution is not implemented yet. |
+| [scenes/multi-script-left.js](scenes/multi-script-left.js), [scenes/multi-script-right.js](scenes/multi-script-right.js) | Paired noninteractive scenes with the same top-level names and local object/panel IDs for concurrent context and overlay checks. |
+| [scenes/multi-script-interaction-near.js](scenes/multi-script-interaction-near.js), [scenes/multi-script-interaction-far.js](scenes/multi-script-interaction-far.js) | Paired interactive headset scenes with overlapping grabbable boxes and panels; log the owning script for clicks and grabs. |
 
 ## JavaScript API smoke fixtures
 
