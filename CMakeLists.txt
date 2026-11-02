@@ -99,6 +99,8 @@ add_executable(lifecycle-script-regression EXCLUDE_FROM_ALL tests/lifecycle-scri
 add_executable(multi-script-lifecycle-regression EXCLUDE_FROM_ALL tests/multi-script-lifecycle-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 add_executable(multi-script-render-regression EXCLUDE_FROM_ALL tests/multi-script-render-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_options(multi-script-render-regression PRIVATE -UNDEBUG)
+add_executable(input-arbitration-regression EXCLUDE_FROM_ALL tests/input-arbitration-regression.cpp)
+target_compile_options(input-arbitration-regression PRIVATE -UNDEBUG)
 add_executable(scene-persistence-regression EXCLUDE_FROM_ALL tests/scene-persistence-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
 target_compile_options(scene-persistence-regression PRIVATE -UNDEBUG)
 add_executable(scene-container-regression EXCLUDE_FROM_ALL tests/scene-container-regression.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)

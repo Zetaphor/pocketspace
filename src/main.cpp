@@ -1284,6 +1284,7 @@ static bool loadScript(ScriptHost &active,const std::string &path,const std::fun
 #include "native_resource_key.h"
 #include "script_registry.h"
 #include "script_catalog.h"
+#include "input_arbitration.h"
 static bool initEgl(EGLDisplay &display,EGLContext &context,EGLSurface &surface) {
   display=eglGetDisplay(EGL_DEFAULT_DISPLAY);if(!eglInitialize(display,nullptr,nullptr))return false;
   EGLConfig config;EGLint count=0;
@@ -1584,7 +1585,7 @@ static bool frameGrabDown(int hand,GrabButton button){
   const bool grip=button!=GrabButton::Trigger&&(frameButtonDown(hand,"/input/grip/click")||frameAxis(hand,"/input/grip/value")>.2f);
   return trigger||grip;
 }
-static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt){
+static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt,int instanceId,const std::array<int,2> &rayOwners){
   for(int h=0;h<2;h++){
     const auto &hand=controllers[h];
     auto &grab=grabs[h];
@@ -1614,7 +1615,7 @@ static void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float
         auto pointer=pointerStates.find(candidate.id);
         // Native surfaces are rectangles: custom lasers must acquire only a current mesh hit.
         const bool nativeDown=candidate.grabButton!=GrabButton::Grip&&!scene.laserVisible[h]&&pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
-        const bool laserDown=meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton);
+        const bool laserDown=rayOwners[h]==instanceId&&meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton);
         if(nativeDown||laserDown){
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
           const float reach=.10f+candidate.scale*.5f;
@@ -2456,6 +2457,26 @@ int main(int argc,char **argv) {
       }
       if(!loaded)host.mtime=modified;
     }
+    std::array<std::optional<inputArbitration::Target>,2> rayTargets{};
+    std::array<int,2> rayOwners{};
+    const auto runningSceneIds=scriptRegistry.runningIds();
+    for(int hand=0;hand<2;hand++){
+      if(!controllers[hand].valid||!controllers[hand].connected)continue;
+      // A held object keeps its owner until release or that instance stops.
+      for(int id:runningSceneIds)if(auto render=renderStates.find(id);render!=renderStates.end()&&render->second->grabs[hand].objectId){
+        const auto *entry=scriptRegistry.find(id);
+        rayTargets[hand]=inputArbitration::Target{id,render->second->grabs[hand].objectId,entry?entry->inputPriority:0,render->second->grabs[hand].laserDistance};
+        break;
+      }
+      if(rayTargets[hand]){rayOwners[hand]=rayTargets[hand]->instanceId;continue;}
+      for(int id:runningSceneIds)if(const auto *entry=scriptRegistry.find(id))for(const auto &object:entry->host.scene.objects){
+        if(!object.visible)continue;
+        const auto &asset=entry->host.scene.assets[size_t(object.asset)-1];
+        const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
+        inputArbitration::consider(rayTargets[hand],{id,object.id,entry->inputPriority,distance});
+      }
+      if(rayTargets[hand])rayOwners[hand]=rayTargets[hand]->instanceId;
+    }
     auto renderActiveScene=[&](ScriptInstance &instance)->int{
     auto &script=instance.host;
     const int scriptInstanceId=instance.id;
@@ -2562,18 +2583,14 @@ int main(int argc,char **argv) {
     }
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){
-      int hit=0;float nearest=std::numeric_limits<float>::max();
-      for(const auto &object:script.scene.objects){
-        if(!object.visible)continue;
-        const auto &asset=script.scene.assets[(size_t)object.asset-1];
-        const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
-        if(distance<nearest){nearest=distance;hit=object.id;}
-      }
+      const bool ownsRay=rayOwners[hand]==instance.id;
+      int hit=ownsRay&&rayTargets[hand]?rayTargets[hand]->localId:0;
+      float nearest=ownsRay&&rayTargets[hand]?rayTargets[hand]->distance:std::numeric_limits<float>::max();
       meshCurrentObject[hand]=hit;
       const auto now=std::chrono::steady_clock::now();
       const auto *previousHit=findSceneItem(script.scene.objects,meshHoveredObject[hand]);
       if(hit)meshLastHit[hand]=now;
-      else if(controllers[hand].connected&&previousHit&&previousHit->visible&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
+      else if(ownsRay&&controllers[hand].connected&&previousHit&&previousHit->visible&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
         hit=meshHoveredObject[hand];nearest=meshHitDistance[hand];
       }
       if(hit!=meshHoveredObject[hand]){
@@ -2592,7 +2609,7 @@ int main(int argc,char **argv) {
       return 0;
     };
     if(const auto error=dispatchInputCallbacks();!error.empty())return failScene(error);
-    updateManipulation(script.scene,grabs,1.f/90.f);
+    updateManipulation(script.scene,grabs,1.f/90.f,instance.id,rayOwners);
     for(int hand=0;hand<2;hand++)if(grabs[hand].objectId)meshHitDistance[hand]=grabs[hand].laserDistance;
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);

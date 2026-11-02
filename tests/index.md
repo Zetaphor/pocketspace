@@ -86,6 +86,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
 | [scene-container-api-smoke.js](scene-container-api-smoke.js), [scene-container-regression.cpp](scene-container-regression.cpp) | Ownership, strict IDs/getters, transfers, physics/joints, self-disposing callbacks, rollback, shared surfaces and repeated cleanup. |
 | [multi-script-render-regression.cpp](multi-script-render-regression.cpp) | Two offscreen scenes with overlapping local object IDs, distinct pixels, and independent GPU target cleanup across three cycles. |
+| [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Priority, distance, stable instance-ID ties, order independence, and invalid-distance rejection for shared controller targets. |
+| [engine_launch.py](engine_launch.py) | Catalog-only launch arguments shared by device test runners. |
 | [container-lifecycle.py](container-lifecycle.py), [scenes/container-lifecycle.js](scenes/container-lifecycle.js) | Production container create/dispose cycles with a root survivor, shared surface, panels and physics. |
 | [lod-api-smoke.js](lod-api-smoke.js) | Default-on LOD, explicit opt-out, strict booleans, getter failures and cached-path conflicts. |
 | [auto-lod-regression.cpp](auto-lod-regression.cpp) | Production LOD selection/hysteresis, exact reduced-index reference pixels, mixed-level instancing and buffer cleanup. |
