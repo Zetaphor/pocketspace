@@ -27,9 +27,10 @@ the headset is active:
   --launch multi-script-interaction-far.js
 ```
 
-The boxes overlap above the blue NEAR and orange FAR panels. Aim at each panel
-and click, then grab the boxes with either hand. Each action should affect one
-target. The engine log names the script that received each click or grab.
+The boxes overlap above the blue NEAR and orange FAR panels. The blue panel is
+closer where the panels overlap. Aim at the overlap and click; only blue should
+respond. Grab the boxes with both hands at once and move them independently.
+The engine log names the script that received each click or grab.
 Stop the engine with Ctrl-C after the check and verify that it exited.
 
 To check priority, replace `multi-script-interaction-far.js` with

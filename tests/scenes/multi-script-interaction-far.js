@@ -4,7 +4,7 @@ const box=createObject(asset,.04,0,.12,.24);
 setObjectInteraction(box,{grabbable:true,directGrab:true});
 setLaserVisible('left',true);setLaserVisible('right',true);
 const panel=createPanel({widthPixels:512,heightPixels:192,widthMeters:.42,interactive:true});
-panelSetTransform(panel,'viewerFacing',.12,-.32,0);
+panelSetTransform(panel,'viewerFacing',.12,-.32,.1);
 let clicks=0,last='none',elapsed=0;
 onInputEvent(e=>{
   if(e.type==='panel.pointerDown'&&e.objectId===panel.id){clicks++;last=`click ${e.hand}`;print(`[far] panel click hand=${e.hand} count=${clicks}`);}
