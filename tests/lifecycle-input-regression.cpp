@@ -85,7 +85,6 @@ int main(){
  frame_input::Monitor monitor(ntohs(address.sin_port));assert(monitor.start());
  auto pollUntil=[&](auto predicate){until([&]{monitor.poll();return predicate();});};
  pollUntil([&]{return monitor.hand(0).valid&&monitor.hand(1).valid;});
- monitor.setHoveredObject(0,99);monitor.setHoveredObject(1,88);
  monitor.addOverlayEvent("overlay.grabStart",99,0);
  monitor.resetScene();assert(monitor.takeEvents().empty()&&monitor.takeCallbackEvents().empty());assert(monitor.hand(0).raw.size()==1);
  monitor.invalidateHand(0);assert(!monitor.hand(0).valid&&monitor.hand(0).raw.empty());assert(monitor.hand(1).valid);

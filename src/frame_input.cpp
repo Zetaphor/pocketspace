@@ -22,7 +22,7 @@ std::string jsonString(const std::string &s,const std::string &key,size_t from=0
 std::string randomKey(){std::random_device source;std::string mask(4,'\0');for(char &byte:mask)byte=static_cast<char>(source());return mask;}
 }
 Monitor::~Monitor(){if(fd_>=0)close(fd_);}
-void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;refreshRequested_=false;subscribedAt_={};buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};hovered_[0]=hovered_[1]=0;
+void Monitor::disconnect(){if(fd_>=0)close(fd_);fd_=-1;started_=false;refreshRequested_=false;subscribedAt_={};buffer_.clear();fragment_.clear();for(auto &hand:hands_)hand={};
   auto input=[](const Event &e){return !e.type.starts_with("physics.");};
   std::erase_if(events_,input);std::erase_if(callbackEvents_,input);}
 void Monitor::stop(){disconnect();}
@@ -34,10 +34,10 @@ void Monitor::setTrackedDevice(int hand,int device){
  // cleanup so stale presses/holds cannot survive the new subscription.
  if(started_)refreshRequested_=true;
 }
-void Monitor::resetScene(){events_.clear();callbackEvents_.clear();hovered_[0]=hovered_[1]=0;}
+void Monitor::resetScene(){events_.clear();callbackEvents_.clear();}
 void Monitor::invalidateHand(int hand){
  if(hand<0||hand>1)return;
- hands_[hand]={};hovered_[hand]=0;
+ hands_[hand]={};
  const std::string side=hand?"right":"left";
  auto remove=[&](std::vector<Event> &events){std::erase_if(events,[&](const Event &e){return e.hand==side&&e.type.starts_with("controller.");});};
  remove(events_);remove(callbackEvents_);
@@ -129,7 +129,7 @@ void Monitor::processMessage(const std::string &message){
    component.updatedAt=now;
    hands_[hand].valid=true;hands_[hand].updatedAt=now;hands_[hand].raw[name]=component;
    Event event;event.type=component.isBoolean?"controller.button":"controller.value";
-   event.hand=hand?"right":"left";event.control=name;event.component=component;event.objectId=hovered_[hand];
+   event.hand=hand?"right":"left";event.control=name;event.component=component;
    events_.push_back(event);callbackEvents_.push_back(std::move(event));
    if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);
    if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);
@@ -148,7 +148,6 @@ void Monitor::poll(tracking::Clock::time_point now){
 }
 std::vector<Event> Monitor::takeEvents(){std::vector<Event> result;result.swap(events_);return result;}
 std::vector<Event> Monitor::takeCallbackEvents(){auto result=std::move(callbackEvents_);callbackEvents_.clear();return result;}
-void Monitor::setHoveredObject(int hand,int objectId){if(hand>=0&&hand<2)hovered_[hand]=objectId;}
 void Monitor::addEvent(Event event){events_.push_back(event);callbackEvents_.push_back(std::move(event));if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);}
 void Monitor::clearPhysicsEvents(){auto physics=[](const Event &e){return e.type.starts_with("physics.collision");};std::erase_if(events_,physics);std::erase_if(callbackEvents_,physics);}
 void Monitor::addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button,bool down){Event event;event.type=type;event.objectId=panelId;event.x=x;event.y=y;event.control=button;event.component.isBoolean=!button.empty();event.component.boolean=down;if(hand>=0)event.hand=hand?"right":"left";events_.push_back(event);callbackEvents_.push_back(std::move(event));if(events_.size()>4096)events_.erase(events_.begin(),events_.begin()+1024);if(callbackEvents_.size()>4096)callbackEvents_.erase(callbackEvents_.begin(),callbackEvents_.begin()+1024);}

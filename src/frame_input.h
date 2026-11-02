@@ -26,7 +26,6 @@ public:
   void clearPhysicsEvents();
   void addOverlayEvent(const std::string &type,int objectId,int hand=-1,float dx=0,float dy=0,float dz=0,float dpitch=0,float dyaw=0,float droll=0);
   void addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button="",bool down=false);
-  void setHoveredObject(int hand,int objectId);
   bool reconnect();
   void stop();
   void resetScene();
@@ -37,7 +36,7 @@ private:
   tracking::Clock::time_point subscribedAt_{};
   uint16_t port_;
   int fd_=-1; std::string buffer_,fragment_; bool started_=false;
-  HandState hands_[2]; int hovered_[2]={0,0}; std::vector<Event> events_,callbackEvents_;
+  HandState hands_[2]; std::vector<Event> events_,callbackEvents_;
   void disconnect();
   bool sendFrame(unsigned char opcode,const std::string &payload);
   void processMessage(const std::string &message);
