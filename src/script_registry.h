@@ -1,7 +1,7 @@
 #pragma once
 
-// Included after ScriptHost and loadScript in main.cpp. This isolates the legacy
-// binding globals while the host is converted to a multi-instance frame loop.
+// Included after ScriptHost and loadScript in main.cpp. Each scope selects one
+// instance's bindings and interaction state for engine and QuickJS calls.
 struct ScriptScope {
   ScriptHost &host;
   Scene *previousCurrent=currentScene,*previousLive=liveScene;
@@ -41,7 +41,6 @@ struct ScriptInstance {
   ScriptHost host;
   ScriptState state=ScriptState::Stopped;
   uint64_t generation=0;
-  int inputPriority=0;
   bool manuallyStopped=false;
   std::string lastError;
 };
