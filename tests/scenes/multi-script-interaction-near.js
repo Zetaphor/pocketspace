@@ -1,6 +1,6 @@
 // Headset fixture: near model and left panel share local IDs with the far scene.
 const asset=loadModel('assets/samples/Box/Box.glb');
-const box=createObject(asset,0,0,.12,.24);
+const box=createObject(asset,-.04,0,-.12,.24);
 setObjectInteraction(box,{grabbable:true,directGrab:true});
 setLaserVisible('left',true);setLaserVisible('right',true);
 const panel=createPanel({widthPixels:512,heightPixels:192,widthMeters:.42,interactive:true});

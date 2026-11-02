@@ -53,6 +53,7 @@ performance experiments are separate from correctness and visual acceptance.
 | --- | --- |
 | [scenes/multi-script-left.js](scenes/multi-script-left.js), [scenes/multi-script-right.js](scenes/multi-script-right.js) | Paired noninteractive scenes with the same top-level names and local object/panel IDs for concurrent context and overlay checks. |
 | [scenes/multi-script-interaction-near.js](scenes/multi-script-interaction-near.js), [scenes/multi-script-interaction-far.js](scenes/multi-script-interaction-far.js) | Paired interactive headset scenes with overlapping grabbable boxes and panels; log the owning script for clicks and grabs. |
+| [scenes/multi-script-interaction-priority-far.js](scenes/multi-script-interaction-priority-far.js) | Far scene variant with model-ray priority `5` for the headset override check. |
 
 ## JavaScript API smoke fixtures
 
