@@ -520,7 +520,9 @@ deferred until a workload establishes sufficient CPU cost.
 
 | Area | Main sources |
 | --- | --- |
-| Host loop, scene bindings, surfaces, layout, passes | `src/main.cpp` |
+| Host loop, surfaces, layout, passes | `src/main.cpp` |
+| JavaScript bindings and script loading | `src/script_api.cpp` |
+| Scene types and shared engine state | `src/engine_state.h` |
 | Import, CPU geometry, animation evaluation, pose upload | `src/model_asset.cpp`, `src/model_asset.h`, `src/animation.h` |
 | GPU skinning, rigid batching, indexing, LOD, instancing | `src/gpu_skinning.h`, `src/gpu_skinning_asset.h`, `src/rigid_batching.h`, `src/mesh_index.h`, `src/model_lod.h`, `src/pbr_lod.h`, `src/model_instancing.h` |
 | Projection/material shaders and picking | `src/model_shaders.h`, `src/picking_bvh.h` |

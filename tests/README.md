@@ -18,6 +18,17 @@ cmake --build build --target input-arbitration-regression -j2
 ./build/input-arbitration-regression
 ```
 
+## Running regressions
+
+`python3 tools/run-regressions.py` builds and runs every regression in `build-test`,
+a separate tree that compiles them at `-O0` with assertions on. Pass target names to
+run only those. Logs go to `build-test/regression-logs`. Measurements and profiling
+runs belong in the optimized `build` tree.
+
+It uses one compile job and runs one regression at a time, because regressions share
+the GPU and memory with the SteamVR compositor. Do not run them concurrently on the
+headset; doing so destabilized a live session.
+
 ## Multi-script headset validation
 
 For interactive two-script acceptance on Deckard, run the paired fixture while

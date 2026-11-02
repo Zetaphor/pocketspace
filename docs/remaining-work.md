@@ -12,15 +12,26 @@ planned development track.
 
 In this order:
 
-- Speed up builds with parallel builds and test runs, a lighter test build tree,
-  and precompiled headers. Record before-and-after times.
-- Split the script bindings and scene code out of `src/main.cpp` into separately
-  compiled files, so a change recompiles only what it touched and regressions link
-  shared code instead of each compiling the engine. Regressions must stop depending
-  on `main.cpp` file statics. Success means rebuilding after a typical binding edit
-  takes seconds to a minute, not 10 or more minutes.
-- Replace the native model pointer with the engine laser, add a continuous
-  `overlay.meshHover` event, then confirm both in the headset.
+- Move rendering out of `src/main.cpp` into a separately compiled file, and link it
+  from the regressions that still include `main.cpp`, so a rendering edit recompiles
+  only its own file. Add precompiled headers if they help the resulting smaller files.
+- Fix `light-work-regression`'s out-of-bounds read of its light list, and find out
+  why `pbr-index-production-regression`'s exact-pixel comparison fails at `-O0`. Both
+  pass at `-O3`.
+- Replace the native model pointer with the engine laser, then confirm it in the
+  headset:
+  - Remove SteamVR's input on model overlays, `overlay.surfaceHover*`,
+    `overlay.pointer`, and the native `getPointer` state.
+  - Add `overlay.meshHover` and report a 3D hit point on model hover and press, with
+    a polled equivalent.
+  - Make `laserPassThrough` control the engine ray. It defaults to `false`, so visible
+    objects are hit unless marked; grabbable objects are always hit.
+  - Make `enableObjectInteraction(id)` mean grabbable with defaults, and remove
+    `interactive` and `autoManipulate`. Custom grab systems use nongrabbable objects
+    with hover and button events.
+  - Read thumbstick yaw and depth directly from the controller.
+  - `setLaserVisible` alone decides whether a beam is drawn, including on panels.
+    Hover, grabs and panel clicks work whether or not it is drawn.
 
 ## Material support
 

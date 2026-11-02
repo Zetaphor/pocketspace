@@ -1,6 +1,5 @@
 #pragma once
 // Included inside scenePersistence; pixel snapshots have no external codec dependency.
-constexpr size_t maxPanelBytes=64*1024*1024;
 constexpr uint32_t maxPanels=32;
 static std::string base64(const std::vector<unsigned char> &data){
   static constexpr char alphabet[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";

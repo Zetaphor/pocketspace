@@ -1,6 +1,8 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/engine_state.h"
+#include "../src/native_resource_key.h"
+#include "../src/script_registry.h"
+#include "../src/input_arbitration.h"
+#include "../src/panel_pointer.h"
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 int main(){

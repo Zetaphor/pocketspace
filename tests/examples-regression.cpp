@@ -1,7 +1,9 @@
 // Exercise the published examples against real bindings without a VR session.
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/engine_state.h"
+#include "../src/native_resource_key.h"
+#include "../src/script_registry.h"
+#include "../src/input_arbitration.h"
+#include "../src/panel_pointer.h"
 #include <cassert>
 #include <cstdlib>
 #undef assert

@@ -49,7 +49,7 @@ for guide in api_guides:
             errors.append(f'{guide.relative_to(ROOT)}: section lacks a usage example: {heading.group(1)}')
 
 combined = '\n'.join(p.read_text() for p in docs)
-bindings = re.findall(r'bind\(candidate.ctx,"([^"]+)"', (ROOT / 'src/main.cpp').read_text())
+bindings = re.findall(r'bind\(candidate.ctx,"([^"]+)"', (ROOT / 'src/script_api.cpp').read_text())
 for name in bindings:
     if not re.search(r'\b' + re.escape(name) + r'\b', combined):
         errors.append(f'undocumented global: {name}')

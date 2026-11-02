@@ -5,16 +5,8 @@
 #include <climits>
 #include <stdexcept>
 #include <sys/stat.h>
-#include "script_catalog.h"
 namespace scenePersistence {
-constexpr size_t maxBytes=16*1024*1024;
 constexpr int snapshotVersion=1;
-static std::string directory;
-// Script keys always end in .js, so they cannot collide with this namespace.
-static const std::string scratchNamespace="scratch";
-static std::string catalogRoot;
-// Selected with the active scene; the pointed-to string belongs to its ScriptHost.
-static const std::string *activeNamespace=&scratchNamespace;
 struct Value {
   JSContext *ctx;JSValue value;
   Value(JSContext *c,JSValue v):ctx(c),value(v){}

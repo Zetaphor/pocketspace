@@ -19,7 +19,8 @@ after changing guide links, navigation or site configuration.
 
 | File | Responsibility |
 | --- | --- |
-| `src/main.cpp` | QuickJS bindings, scene lifecycle, interaction, rendering, and OpenVR host loop. |
+| `src/script_api.cpp`, `src/engine_state.h` | QuickJS bindings, script loading, scene types and shared engine state. Compiled once and linked by regressions; keep shared globals `inline`, never `static`, in the header. |
+| `src/main.cpp` | Interaction, rendering, and OpenVR host loop. |
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |

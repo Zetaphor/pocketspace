@@ -1,6 +1,8 @@
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/engine_state.h"
+#include "../src/native_resource_key.h"
+#include "../src/script_registry.h"
+#include "../src/input_arbitration.h"
+#include "../src/panel_pointer.h"
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 // Two real script instances: same-name isolation, reload, explicit import, failed
@@ -220,7 +222,7 @@ int main(){
   reserveObjectOverlay={};releaseObjectOverlay={};reservePanelOverlay={};releasePanelOverlay={};
   // Budget rejection happens before allocating decoded pixel storage.
   size_t fullBudget=scenePersistence::maxPanelBytes;bool rejected=false;
-  try{scenePersistence::Value v(ctx,scenePersistence::panelValue(ctx,host.scene.panels[0],fullBudget));}catch(const std::exception&){rejected=true;}assert(rejected&&fullBudget==scenePersistence::maxPanelBytes);
+  try{JS_FreeValue(ctx,capturePanelSnapshot(ctx,host.scene.panels[0],fullBudget));}catch(const std::exception&){rejected=true;}assert(rejected&&fullBudget==scenePersistence::maxPanelBytes);
   frameInput.addOverlayEvent("panel.pointerDown",5,0);dispatchInputCallbacks();eval("check(clicks===1)");
   assert(host.scene.panels[4].rgba!=host.scene.panels[0].rgba);
   eval("disposeSceneContainer(panelCopy.containerId)");assert(host.scene.panels.size()==4);

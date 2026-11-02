@@ -1,7 +1,9 @@
 // Include the real loader/bindings; no VR session or graphics context is created.
-#define main overlayEngineMain
-#include "../src/main.cpp"
-#undef main
+#include "../src/engine_state.h"
+#include "../src/native_resource_key.h"
+#include "../src/script_registry.h"
+#include "../src/input_arbitration.h"
+#include "../src/panel_pointer.h"
 #include <cassert>
 int main(){
   const auto path=std::filesystem::temp_directory_path()/("sf-script-lifecycle-"+std::to_string(getpid())+".js");
