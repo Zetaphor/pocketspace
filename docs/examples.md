@@ -13,6 +13,10 @@ local object/panel IDs. For example:
 ./run-pocketspace.sh --scripts-dir scripts --launch avocado.js --launch panels.js
 ```
 
+For a paired interaction example with overlapping boxes and panels, use the
+[Step 3 headset fixtures](../tests/README.md#multi-script-headset-validation)
+and their documented controls.
+
 | Script | Demonstrates |
 | --- | --- |
 | [nested-containers.js](../scripts/nested-containers.js) | Parent/child tools, recursive disposal, reparenting and subtree snapshots |
