@@ -13,13 +13,13 @@ int main(){
   write("globalThis.received=0;onInputEvent(()=>received++);function update(){}");
   assert(loadScript(host,path.string()));
   JSContext *original=host.ctx;
-  pointerStates[1].valid=true;pointerStates[1].down=true;pointerStates[1].hand=0;
+  meshHoveredObject[0]=1;meshHitPoint[0]={.1f,.2f,.3f};
   frameInput.addOverlayEvent("overlay.grabStart",1,0);
   write("const asset=loadModel('assets/samples/Box/Box.glb',512);const id=createObject(asset,0,0,0,.1);removeObject(id);if(pollInputEvents().length)throw Error('candidate saw active queue');onInputEvent(()=>{throw Error('candidate callback leaked')});throw Error('EXPECTED_ROLLBACK');");
   bool committed=false;
   assert(!loadScript(host,path.string(),[&]{committed=true;}));
   assert(!committed&&host.ctx==original&&inputCallbackCtx==original&&currentScene==&host.scene&&liveScene==&host.scene);
-  assert(pointerStates[1].valid&&pointerStates[1].down);
+  assert(meshHoveredObject[0]==1&&meshHitPoint[0][2]==.3f);
   auto events=frameInput.takeEvents();assert(events.size()==1&&events[0].type=="overlay.grabStart");
   auto callbackEvents=frameInput.takeCallbackEvents();assert(callbackEvents.size()==1);
   JSValue event=inputEventValue(host.ctx,callbackEvents[0]);JSValue result=JS_Call(host.ctx,inputCallback,JS_UNDEFINED,1,&event);assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);JS_FreeValue(host.ctx,event);
@@ -27,8 +27,8 @@ int main(){
   // Deferred panel storage remains owned until the host detaches the overlay.
   write("const panel=createPanel({widthPixels:8,heightPixels:8,widthMeters:.1});removePanel(panel);function update(){}");
   frameInput.addOverlayEvent("overlay.grabEnd",1,0);
-  assert(loadScript(host,path.string(),[&]{committed=true;pointerStates.clear();frameInput.resetScene();}));
-  assert(committed&&inputCallbackCtx==nullptr&&pointerStates.empty());
+  assert(loadScript(host,path.string(),[&]{committed=true;resetActiveInteraction();frameInput.resetScene();}));
+  assert(committed&&inputCallbackCtx==nullptr&&meshHoveredObject[0]==0&&meshHitPoint[0][2]==0);
   assert(frameInput.takeEvents().empty()&&frameInput.takeCallbackEvents().empty());
   assert(host.scene.panels.empty()&&host.scene.retiredPanels.size()==1);
   for(int i=0;i<30;i++){

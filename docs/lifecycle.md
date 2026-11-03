@@ -4,12 +4,12 @@ The engine starts with no user scripts unless catalog `--launch` entries are
 provided. Each running script has its own QuickJS context and scene. The engine
 periodically checks each running script's modification time and builds a new
 context and candidate scene before replacing that script's scene. A failed
-reload preserves its active scene, pointer state, event callback, and queues.
+reload preserves its active scene, hover and grab state, event callback, and queues.
 A candidate cannot drain the active event queue or remove active objects.
-`getPointer` has no active pointer snapshot during candidate initialization.
+`getMeshHover` reports no hit during candidate initialization.
 
 A successful replacement detaches that script's old native surfaces before releasing
-textures, retires old objects/panels, clears pointer/grab/hover state and event
+textures, retires old objects/panels, clears grab/hover state and event
 queues, and installs the new callback. Allowed grab buttons must be released
 before they can acquire an object in the new scene. External side effects such
 as logging or saving calibration files are not rolled back with a failed scene.

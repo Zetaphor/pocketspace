@@ -166,16 +166,14 @@ All fields below are required unless a table says otherwise.
 | `x`, `y`, `z` | Finite float-range scene-anchor coordinates, metres |
 | `pitch`, `yaw`, `roll` | Finite float-range angles, radians |
 | `scale` | Greater than 0 and at most 2 |
-| `visible`, `interactive`, `laserPassThrough`, `grabbable`, `directGrab`, `autoManipulate` | Booleans |
+| `visible`, `laserPassThrough`, `grabbable`, `directGrab` | Booleans |
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |
 | `physics` | `null`, or `{settings, velocity, angularVelocity}` as described below |
 | `animation` | `null`, or the playback object described below |
 
-`interactive` records membership in the engine's interaction registry;
-`autoManipulate` preserves the distinction between script-controlled grabs
-and the automatic manipulation helper. These are snapshot fields, not additional
-`setObjectInteraction` options. Prefer editing snapshots obtained through capture.
+These match the `setObjectInteraction` options, with the three hand rotation
+axes stored separately. Prefer editing snapshots obtained through capture.
 Required fields are validated without coercion. Unknown fields are ignored. JSON documents are limited to 16 MiB, including encoded panel pixels.
 
 See [scene containers](scene-containers.md), [JavaScript API](javascript-api.md),

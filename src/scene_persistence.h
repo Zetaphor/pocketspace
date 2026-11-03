@@ -35,7 +35,7 @@ static std::string string(JSContext *ctx,JSValueConst value){
 static uint32_t length(JSContext *ctx,JSValueConst array,uint32_t limit){require(JS_IsArray(array),"expected array");return uint32_t(number(ctx,array,"length",0,limit,true));}
 static constexpr std::pair<const char*,bool Object::*> flags[]={
   {"visible",&Object::visible},{"laserPassThrough",&Object::laserPassThrough},{"grabbable",&Object::grabbable},
-  {"directGrab",&Object::directGrab},{"autoManipulate",&Object::autoManipulate},{"laserYaw",&Object::laserYaw},
+  {"directGrab",&Object::directGrab},{"laserYaw",&Object::laserYaw},
   {"laserPitchWithStickClick",&Object::laserPitchWithStickClick},{"depthAdjust",&Object::depthAdjust},
   {"handPitch",&Object::handPitch},{"handYaw",&Object::handYaw},{"handRoll",&Object::handRoll}};
 static constexpr std::pair<const char*,float Object::*> transforms[]={
@@ -75,7 +75,6 @@ static JSValue capture(JSContext *ctx,int owner){
     for(auto [key,member]:transforms)put(ctx,item,key,JS_NewFloat64(ctx,o.*member));
     for(auto [key,member]:flags)put(ctx,item,key,JS_NewBool(ctx,o.*member));
     put(ctx,item,"grabButton",JS_NewString(ctx,o.grabButton==GrabButton::Both?"both":o.grabButton==GrabButton::Grip?"grip":"trigger"));
-    put(ctx,item,"interactive",JS_NewBool(ctx,std::find(currentScene->interactiveIds.begin(),currentScene->interactiveIds.end(),o.id)!=currentScene->interactiveIds.end()));
     put(ctx,item,"physics",state?bodyValue(ctx,*state):JS_NULL);
     put(ctx,item,"animation",animationValue(ctx,o,currentScene->assets.at(o.asset-1)));
     putIndex(ctx,objects,index++,item);
@@ -141,7 +140,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   }
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);
   for(const auto &[id,policy]:scene.renderGroupSplits)occupied.insert(id);
-  std::map<int,int> groups;std::vector<Object> restored;std::vector<int> interactive;
+  std::map<int,int> groups;std::vector<Object> restored;
   std::map<int,int> objectIds;
   std::map<int,int> bodyMap;std::vector<physics::BodyRestore> bodies;std::vector<std::vector<physics::Vec3>> geometry;std::vector<std::optional<SavedAnimation>> animations;
   for(uint32_t i=0;i<no;i++){
@@ -156,7 +155,6 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     require(o.scale>0&&o.scale<=2,"scale must be greater than zero and at most 2");
     for(auto [key,member]:flags)o.*member=boolean(ctx,item,key);
     auto button=field(ctx,item,"grabButton");auto name=string(ctx,button);require(name=="both"||name=="trigger"||name=="grip","invalid grabButton");o.grabButton=name=="both"?GrabButton::Both:name=="grip"?GrabButton::Grip:GrabButton::Trigger;
-    if(boolean(ctx,item,"interactive"))interactive.push_back(o.id);
     auto body=field(ctx,item,"physics");
     require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}
     auto animation=field(ctx,item,"animation");std::optional<SavedAnimation> saved;
@@ -233,7 +231,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   }
   scene.lights.reserve(scene.lights.size()+nl);
   scene.panels.reserve(scene.panels.size()+np);
-  scene.assets.reserve(scene.assets.size()+pending.size());scene.objects.reserve(scene.objects.size()+no);scene.interactiveIds.reserve(scene.interactiveIds.size()+interactive.size());
+  scene.assets.reserve(scene.assets.size()+pending.size());scene.objects.reserve(scene.objects.size()+no);
   Value result(ctx,JS_NewObject(ctx)),ids(ctx,JS_NewArray(ctx)),mapping(ctx,JS_NewObject(ctx)),groupMap(ctx,JS_NewObject(ctx)),jointIds(ctx,JS_NewArray(ctx)),jointMap(ctx,JS_NewObject(ctx)),panelIds(ctx,JS_NewArray(ctx)),panelMap(ctx,JS_NewObject(ctx)),panelHandles(ctx,JS_NewArray(ctx));
   for(uint32_t i=0;i<no;i++){
     Value item(ctx,JS_GetPropertyUint32(ctx,objects,i));auto source=std::to_string(int(number(ctx,item,"id",1,INT_MAX-1,true)));
@@ -267,7 +265,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(auto &a:pending)scene.assets.push_back(std::move(a));for(auto &o:restored)scene.objects.push_back(std::move(o));
   for(auto &p:restoredPanels)scene.panels.push_back(std::move(p));scene.nextPanelId+=int(np);
   for(const auto &light:restoredLights)scene.lights.push_back(light);scene.nextLightId+=int(nl);
-  scene.interactiveIds.insert(scene.interactiveIds.end(),interactive.begin(),interactive.end());scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
+  scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
 static std::filesystem::path slot(JSContext *ctx,JSValueConst name,const std::string &storageKey=*activeNamespace){

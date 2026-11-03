@@ -3,6 +3,9 @@
 JSValue inputEventValue(JSContext *ctx,const frame_input::Event &event){JSValue item=JS_NewObject(ctx);JS_SetPropertyStr(ctx,item,"type",JS_NewString(ctx,event.type.c_str()));JS_SetPropertyStr(ctx,item,"hand",JS_NewString(ctx,event.hand.c_str()));JS_SetPropertyStr(ctx,item,"control",JS_NewString(ctx,event.control.c_str()));JS_SetPropertyStr(ctx,item,"objectId",JS_NewInt32(ctx,event.objectId));JS_SetPropertyStr(ctx,item,"x",JS_NewFloat64(ctx,event.x));JS_SetPropertyStr(ctx,item,"y",JS_NewFloat64(ctx,event.y));JS_SetPropertyStr(ctx,item,"down",JS_NewBool(ctx,event.component.boolean));JS_SetPropertyStr(ctx,item,"value",JS_NewFloat64(ctx,event.component.value));JS_SetPropertyStr(ctx,item,"dx",JS_NewFloat64(ctx,event.dx));JS_SetPropertyStr(ctx,item,"dy",JS_NewFloat64(ctx,event.dy));JS_SetPropertyStr(ctx,item,"dz",JS_NewFloat64(ctx,event.dz));JS_SetPropertyStr(ctx,item,"dpitch",JS_NewFloat64(ctx,event.dpitch));JS_SetPropertyStr(ctx,item,"dyaw",JS_NewFloat64(ctx,event.dyaw));JS_SetPropertyStr(ctx,item,"droll",JS_NewFloat64(ctx,event.droll));if(event.type=="physics.jointBreak"){
   JS_SetPropertyStr(ctx,item,"jointId",JS_NewInt32(ctx,event.jointId));JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
   JS_SetPropertyStr(ctx,item,"force",JS_NewFloat64(ctx,event.force));JS_SetPropertyStr(ctx,item,"torque",JS_NewFloat64(ctx,event.torque));
+}else if(event.type.starts_with("overlay.meshHover")||event.type=="overlay.grabStart"){
+  JSValue point=JS_NewObject(ctx);for(int i=0;i<3;i++)JS_SetPropertyStr(ctx,point,i==0?"x":i==1?"y":"z",JS_NewFloat64(ctx,event.point[i]));
+  JS_SetPropertyStr(ctx,item,"point",point);JS_SetPropertyStr(ctx,item,"distance",JS_NewFloat64(ctx,event.distance));
 }else if(event.type.starts_with("physics.collision")){
   JS_SetPropertyStr(ctx,item,"otherObjectId",JS_NewInt32(ctx,event.otherObjectId));
   auto vector=[&](const std::array<float,3> &v){JSValue o=JS_NewObject(ctx);for(int i=0;i<3;i++)JS_SetPropertyStr(ctx,o,i==0?"x":i==1?"y":"z",JS_NewFloat64(ctx,v[i]));return o;};
@@ -271,27 +274,35 @@ static JSValue jsPulse(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!std::isfinite(seconds)||!std::isfinite(amplitude)||seconds<0||seconds>1||amplitude<0||amplitude>1)return JS_ThrowRangeError(ctx,"invalid pulse duration or amplitude");
   return JS_NewBool(ctx,controllerInput.pulse(h,(float)seconds,(float)amplitude));
 }
+static int handArgument(JSContext *ctx,JSValueConst value){
+  const char *hand=JS_ToCString(ctx,value);if(!hand)return -2;
+  const int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;JS_FreeCString(ctx,hand);
+  if(index<0)JS_ThrowRangeError(ctx,"hand must be left or right");
+  return index;
+}
 static JSValue jsSetLaserVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  if(!currentScene||argc<2)return JS_ThrowTypeError(ctx,"setLaserVisible(hand, visible)");
-  const char *hand=JS_ToCString(ctx,argv[0]);if(!hand)return JS_EXCEPTION;
-  int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;JS_FreeCString(ctx,hand);
-  if(index<0)return JS_ThrowRangeError(ctx,"hand must be left or right");
-  currentScene->laserVisible[index]=JS_ToBool(ctx,argv[1])>0;
+  if(argc<2)return JS_ThrowTypeError(ctx,"setLaserVisible(hand, visible)");
+  const int index=handArgument(ctx,argv[0]);if(index<0)return JS_EXCEPTION;
+  laserVisible[index]=JS_ToBool(ctx,argv[1])>0;
   return JS_UNDEFINED;
 }
-static JSValue jsGetPointer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  int id=0;if(argc>0&&JS_ToInt32(ctx,&id,argv[0])<0)return JS_EXCEPTION;
-  if(argc==0&&currentScene&&currentScene->interactiveIds.size()==1)id=currentScene->interactiveIds.front();
-  const auto found=pointerStates.find(id);
-  PointerSnapshot state=currentScene!=liveScene||found==pointerStates.end()?PointerSnapshot{}:found->second;
-  if(currentScene)for(const auto &object:currentScene->objects)if(object.id==id&&!object.grabbable)state.down=false;
-  JSValue object=JS_NewObject(ctx);
-  JS_SetPropertyStr(ctx,object,"valid",JS_NewBool(ctx,state.valid));
-  JS_SetPropertyStr(ctx,object,"down",JS_NewBool(ctx,state.down));
-  JS_SetPropertyStr(ctx,object,"x",JS_NewFloat64(ctx,state.x));
-  JS_SetPropertyStr(ctx,object,"y",JS_NewFloat64(ctx,state.y));
-  JS_SetPropertyStr(ctx,object,"hand",state.hand==0?JS_NewString(ctx,"left"):state.hand==1?JS_NewString(ctx,"right"):JS_NULL);
-  return object;
+static JSValue jsGetLaserVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"getLaserVisible(hand)");
+  const int index=handArgument(ctx,argv[0]);if(index<0)return JS_EXCEPTION;
+  return JS_NewBool(ctx,laserVisible[index]);
+}
+static JSValue jsGetMeshHover(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"getMeshHover(hand)");
+  const int index=handArgument(ctx,argv[0]);if(index<0)return JS_EXCEPTION;
+  // Candidate scripts are not live yet, so they never report a hover.
+  const int id=currentScene==liveScene?meshHoveredObject[index]:0;
+  JSValue result=JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx,result,"hit",JS_NewBool(ctx,id!=0));
+  JS_SetPropertyStr(ctx,result,"objectId",JS_NewInt32(ctx,id));
+  JS_SetPropertyStr(ctx,result,"distance",JS_NewFloat64(ctx,id?meshHitDistance[index]:0));
+  JSValue point=JS_NewObject(ctx);for(int i=0;i<3;i++)JS_SetPropertyStr(ctx,point,i==0?"x":i==1?"y":"z",JS_NewFloat64(ctx,id?meshHitPoint[index][i]:0));
+  JS_SetPropertyStr(ctx,result,"point",point);
+  return result;
 }
 static JSValue jsPanelClear(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelText(JSContext *,JSValueConst,int,JSValueConst*);static JSValue jsPanelPresent(JSContext *,JSValueConst,int,JSValueConst*);
 Panel *findPanel(int id){return currentScene?findSceneItem(currentScene->panels,id):nullptr;}
@@ -436,13 +447,7 @@ static JSValue jsEnableObjectInteraction(JSContext *ctx,JSValueConst,int argc,JS
   const bool options=argc>1&&!JS_IsUndefined(argv[1]);
   if(options&&(!JS_IsObject(argv[1])||JS_IsNull(argv[1])))return JS_ThrowTypeError(ctx,"enableObjectInteraction(id, options) requires an options object");
   if(options&&!readGrabButton(ctx,argv[1],button))return JS_EXCEPTION;
-  object->grabButton=button;object->laserPassThrough=false;object->grabbable=true;
-  // Without options the script moves the object itself.
-  if(options)object->autoManipulate=true;
-  auto &ids=currentScene->interactiveIds;
-  if(std::find(ids.begin(),ids.end(),id)==ids.end()){
-    ids.push_back(id);
-  }
+  object->grabButton=button;object->grabbable=true;
   return JS_UNDEFINED;
 }
 static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -463,11 +468,6 @@ static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSVal
     readAxis("pitch",object->handPitch);readAxis("yaw",object->handYaw);readAxis("roll",object->handRoll);
   }
   JS_FreeValue(ctx,axes);
-  object->autoManipulate=object->grabbable;
-  if(object->grabbable)object->laserPassThrough=false;
-  auto &ids=currentScene->interactiveIds;
-  ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
-  if(!object->laserPassThrough)ids.push_back(id);
   return JS_UNDEFINED;
 }
 static bool number(JSContext *ctx,JSValueConst value,float &out){
@@ -921,10 +921,8 @@ static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueCo
   object->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;
 }
 void forgetObjectInteraction(int id){
-  pointerStates.erase(id);
   for(int h=0;h<2;h++){
-    if(hoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,h);hoveredObject[h]=0;}
-    if(meshHoveredObject[h]==id){sceneInput().addOverlayEvent("overlay.meshHoverEnd",id,h);meshHoveredObject[h]=0;}
+    if(meshHoveredObject[h]==id){sceneInput().addMeshEvent("overlay.meshHoverEnd",id,h,meshHitDistance[h],meshHitPoint[h]);meshHoveredObject[h]=0;meshHitPoint[h]={};}
     if(meshCurrentObject[h]==id){meshCurrentObject[h]=0;meshHitDistance[h]=2;meshLastHit[h]={};}
   }
 }
@@ -932,8 +930,6 @@ static void removeSceneObject(int id){
   auto *object=findObject(id);if(!object)return;
   std::erase_if(currentScene->lights,[&](const PointLight &light){return light.objectId==id;});
   if(currentScene->physics)currentScene->physics->remove(id);
-  auto &ids=currentScene->interactiveIds;
-  ids.erase(std::remove(ids.begin(),ids.end(),id),ids.end());
   if(currentScene==liveScene){
     forgetObjectInteraction(id);const int key=objectSurfaceKey(*object);
     const bool shared=std::any_of(currentScene->objects.begin(),currentScene->objects.end(),[&](const Object &other){return other.id!=id&&objectSurfaceKey(other)==key;});
@@ -1043,7 +1039,8 @@ bool loadScript(ScriptHost &active,const std::string &path,const std::function<v
   bind(candidate.ctx,"setLaserVisible",jsSetLaserVisible,2);
   bind(candidate.ctx,"enableObjectInteraction",jsEnableObjectInteraction,2);
   bind(candidate.ctx,"setObjectInteraction",jsSetObjectInteraction,2);
-  bind(candidate.ctx,"getPointer",jsGetPointer,0);
+  bind(candidate.ctx,"getLaserVisible",jsGetLaserVisible,1);
+  bind(candidate.ctx,"getMeshHover",jsGetMeshHover,1);
   bind(candidate.ctx,"getEngineStats",jsGetEngineStats,0);
   bind(candidate.ctx,"setRenderGroupAutoSplit",jsSetRenderGroupAutoSplit,2);
   bind(candidate.ctx,"setObjectPhysics",jsSetObjectPhysics,2);

@@ -10,26 +10,10 @@ planned development track.
 
 ## Before the event bus
 
-- Replace the native model pointer with the engine laser, then confirm it in the
-  headset:
-  - Remove SteamVR's input on model overlays, `overlay.surfaceHover*`,
-    `overlay.pointer`, and the native `getPointer` state.
-  - Add `overlay.meshHover` and report a 3D hit point on model hover and press, with
-    a polled equivalent.
-  - Make `laserPassThrough` control the engine ray. It defaults to `false`, so visible
-    objects are hit unless marked; grabbable objects are always hit.
-  - Make `enableObjectInteraction(id)` mean grabbable with defaults, and remove
-    `interactive` and `autoManipulate`. Custom grab systems use nongrabbable objects
-    with hover and button events.
-  - Read thumbstick yaw and depth directly from the controller.
-  - Laser visibility is one engine-owned state per hand. Remove the `laserVisible`
-    flag from `Scene`, so scripts hold no laser state of their own. Any script can
-    request a change with `setLaserVisible(hand, visible)` and read it with a new
-    `getLaserVisible(hand)`; the latest call wins. Stopping or reloading a script
-    leaves it unchanged, even after the last script stops. It alone decides whether a
-    beam is drawn, including on panels. Hover, grabs and panel clicks work either way.
-  - Add a headset test scene under `tests/scenes` with a debug panel showing each
-    hand's mesh hover state, target, hit distance and 3D hit point.
+- Confirm the engine laser model pointer in the headset with
+  `tests/scenes/mesh-hover-debug.js`: hover and 3D hit points on static, animated
+  and pass-through models, presses, grabs with thumbstick yaw and depth, panel
+  clicks, and beam toggling.
 
 ## Material support
 

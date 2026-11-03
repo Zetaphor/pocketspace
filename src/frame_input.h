@@ -7,7 +7,7 @@
 
 namespace frame_input {
 struct Component { bool boolean=false; float value=0; bool isBoolean=false; tracking::Clock::time_point updatedAt{}; };
-struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; int otherObjectId=0; std::array<float,3> point{},normal{}; float penetration=0,relativeSpeed=0;int jointId=0;float force=0,torque=0; };
+struct Event { std::string type, hand, control; Component component; int objectId=0; float x=0,y=0,dx=0,dy=0,dz=0,dpitch=0,dyaw=0,droll=0; int otherObjectId=0; std::array<float,3> point{},normal{}; float distance=0,penetration=0,relativeSpeed=0;int jointId=0;float force=0,torque=0; };
 struct HandState { bool valid=false; std::map<std::string,Component> raw; tracking::Clock::time_point updatedAt{}; };
 class Monitor {
 public:
@@ -25,11 +25,15 @@ public:
   void addEvent(Event event);
   void clearPhysicsEvents();
   void addOverlayEvent(const std::string &type,int objectId,int hand=-1,float dx=0,float dy=0,float dz=0,float dpitch=0,float dyaw=0,float droll=0);
+  // Engine-ray model hit: scene-space point and distance along the beam.
+  void addMeshEvent(const std::string &type,int objectId,int hand,float distance,const std::array<float,3> &point);
   void addPanelEvent(const std::string &type,int panelId,int hand,float x,float y,const std::string &button="",bool down=false);
   bool reconnect();
   void stop();
   void resetScene();
   void invalidateHand(int hand);
+  // Applies one vrserver component message; regressions feed controller state through it.
+  void processMessage(const std::string &message);
 private:
   int devices_[2]={-1,-1};
   bool refreshRequested_=false;
@@ -39,6 +43,5 @@ private:
   HandState hands_[2]; std::vector<Event> events_,callbackEvents_;
   void disconnect();
   bool sendFrame(unsigned char opcode,const std::string &payload);
-  void processMessage(const std::string &message);
 };
 }

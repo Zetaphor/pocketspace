@@ -63,8 +63,8 @@ them. Events arrive through `onInputEvent` or `pollInputEvents`. Match
 
 The closest hit along the laser wins, whether panel or model, so a panel blocks
 objects behind it. A press stays on its panel until the trigger is released, and
-the panel receives `panel.pointerUp` even if the laser has moved away. The beam
-appears while it is on an interactive panel, even without `setLaserVisible`.
+the panel receives `panel.pointerUp` even if the laser has moved away. Clicks work
+whether or not `setLaserVisible` draws the beam.
 The [panel example](../scripts/panels.js) redraws a button only after a click.
 
 

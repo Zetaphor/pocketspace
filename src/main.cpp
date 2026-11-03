@@ -226,17 +226,16 @@ int main(int argc,char **argv) {
       const auto *object=members.front();
       const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
       const int eyePixels=host.scene.assets[(size_t)object->asset-1].eyePixels;
-      const bool interactive=id>0&&!object->laserPassThrough;
       auto found=surfaces.find(id);
-      if(found!=surfaces.end()&&found->second->buffers[0].fbo&&((id>0&&found->second->referenceEyePixels!=eyePixels)||found->second->interactive!=interactive)){
-        pointerStates.erase(id);destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
+      if(found!=surfaces.end()&&found->second->buffers[0].fbo&&id>0&&found->second->referenceEyePixels!=eyePixels){
+        destroySurface(*found->second,display);surfaces.erase(found);found=surfaces.end();
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,host.instanceId,id,width,eyePixels,interactive,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!createSurface(*created,host.instanceId,id,width,eyePixels,gbm,display,anchor)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(!found->second->buffers[0].fbo){
-        if(!createSurface(*found->second,host.instanceId,id,width,eyePixels,interactive,gbm,display,anchor))return false;
+        if(!createSurface(*found->second,host.instanceId,id,width,eyePixels,gbm,display,anchor))return false;
       }
     }
     return true;
@@ -396,11 +395,10 @@ int main(int argc,char **argv) {
         for(auto &pointer:panelPointers)pointer.forgetInstance(id);
         if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
         if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
-        pointerStates.clear();
         sceneInput().resetScene();
         for(int hand=0;hand<2;hand++){
-          hoveredObject[hand]=meshHoveredObject[hand]=meshCurrentObject[hand]=0;
-          meshHitDistance[hand]=2;meshLastHit[hand]={};grabNeedsRelease[hand]=true;
+          meshHoveredObject[hand]=meshCurrentObject[hand]=0;
+          meshHitDistance[hand]=2;meshHitPoint[hand]={};meshLastHit[hand]={};grabNeedsRelease[hand]=true;
         }
 #ifdef SF_ANIMATION_PROFILE
         ++animationEpoch;
@@ -432,7 +430,8 @@ int main(int argc,char **argv) {
       for(int id:runningSceneIds)if(auto *entry=scriptRegistry.find(id)){
         ScriptScope pickScope(entry->host);
         for(const auto &object:entry->host.scene.objects){
-          if(!object.visible)continue;
+          // Grabbable objects always stop the ray; others only unless marked pass-through.
+          if(!object.visible||(object.laserPassThrough&&!object.grabbable))continue;
           const auto &asset=entry->host.scene.assets[size_t(object.asset)-1];
           const float distance=meshHit(object,object.animationPose?object.animationPose->geometry:asset,controllers[hand],hand);
           inputArbitration::consider(rayTargets[hand],{id,object.id,distance});
@@ -519,41 +518,6 @@ int main(int argc,char **argv) {
     }
     if(!syncSurfaces(script,sceneResources)){running=false;return -1;}
     syncPanels(script,sceneResources,sceneRender);
-    for(auto &[id,surface]:surfaces){
-      if(id<=0)continue;
-      vr::VREvent_t event{};
-      auto &state=pointerStates[id];
-      state.scrollX=state.scrollY=0;
-      while(overlays->PollNextOverlayEvent(surface->overlay,&event,sizeof(event))){
-        if(event.eventType==vr::VREvent_FocusLeave){state.valid=false;state.down=false;state.secondaryDown=false;if(state.hand>=0&&hoveredObject[state.hand]==id){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",id,state.hand);hoveredObject[state.hand]=0;}state.hand=-1;continue;}
-        if(event.eventType==vr::VREvent_ScrollSmooth){
-          state.scrollX+=event.data.scroll.xdelta;
-          state.scrollY+=event.data.scroll.ydelta;
-          continue;
-        }
-        if(event.eventType==vr::VREvent_MouseMove||event.eventType==vr::VREvent_MouseButtonDown||event.eventType==vr::VREvent_MouseButtonUp){
-          state.valid=true;
-          const auto eventRole=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
-          const int eventHand=eventRole==vr::TrackedControllerRole_LeftHand?0:eventRole==vr::TrackedControllerRole_RightHand?1:-1;
-          if(eventHand<0)continue;
-          if(eventHand>=0&&event.eventType==vr::VREvent_MouseMove&&hoveredObject[eventHand]!=id){if(hoveredObject[eventHand])sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[eventHand],eventHand);hoveredObject[eventHand]=id;sceneInput().addOverlayEvent("overlay.surfaceHoverStart",id,eventHand);}
-          sceneInput().addOverlayEvent(event.eventType==vr::VREvent_MouseMove?"overlay.surfaceHover":"overlay.pointer",id,eventHand);
-          state.x=(event.data.mouse.x-.5f)*surface->width;
-          state.y=(.5f-event.data.mouse.y)*surface->width;
-          if(event.eventType==vr::VREvent_MouseButtonDown){
-            if(event.data.mouse.button==vr::VRMouseButton_Left)state.down=true;
-            if(event.data.mouse.button==vr::VRMouseButton_Right)state.secondaryDown=true;
-            auto role=system->GetControllerRoleForTrackedDeviceIndex(event.trackedDeviceIndex);
-            state.hand=role==vr::TrackedControllerRole_LeftHand?0:role==vr::TrackedControllerRole_RightHand?1:-1;
-          }
-          if(event.eventType==vr::VREvent_MouseButtonUp){
-            if(event.data.mouse.button==vr::VRMouseButton_Left)state.down=false;
-            if(event.data.mouse.button==vr::VRMouseButton_Right)state.secondaryDown=false;
-          }
-          if(event.eventType!=vr::VREvent_MouseMove){fprintf(stdout,"[input] object=%d event=%u button=%u device=%u hand=%d down=%d\n",id,event.eventType,event.data.mouse.button,event.trackedDeviceIndex,state.hand,state.down);fflush(stdout);}
-        }
-      }
-    }
     if(script.scene.eyeTrackingRequested){
       vr::TrackedDevicePose_t headPoses[vr::k_unMaxTrackedDeviceCount]{};
       system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,headPoses,vr::k_unMaxTrackedDeviceCount);
@@ -570,8 +534,6 @@ int main(int argc,char **argv) {
     for(int h=0;h<2;h++)if(!controllers[h].connected){
       frameInput.invalidateHand(h);
       sceneInput().invalidateHand(h);
-      for(auto &[id,pointer]:pointerStates)if(pointer.hand==h)pointer={};
-      if(hoveredObject[h]){sceneInput().addOverlayEvent("overlay.surfaceHoverEnd",hoveredObject[h],h);hoveredObject[h]=0;}
     }
     const auto pickingStart=std::chrono::steady_clock::now();
     for(int hand=0;hand<2;hand++){
@@ -581,16 +543,26 @@ int main(int argc,char **argv) {
       meshCurrentObject[hand]=hit;
       const auto now=std::chrono::steady_clock::now();
       const auto *previousHit=findSceneItem(script.scene.objects,meshHoveredObject[hand]);
-      if(hit)meshLastHit[hand]=now;
-      else if(ownsRay&&controllers[hand].connected&&previousHit&&previousHit->visible&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
+      std::array<float,3> point=meshHitPoint[hand];
+      const bool current=hit!=0;
+      if(current){
+        meshLastHit[hand]=now;
+        float origin[3],direction[3];laserSceneRay(controllers[hand],hand,origin,direction);
+        for(int axis=0;axis<3;axis++)point[axis]=origin[axis]+direction[axis]*nearest;
+      }else if(ownsRay&&controllers[hand].connected&&previousHit&&previousHit->visible&&now-meshLastHit[hand]<std::chrono::milliseconds(100)){
+        // Bridge single-frame misses at triangle edges; the last hit stays reported.
         hit=meshHoveredObject[hand];nearest=meshHitDistance[hand];
       }
       if(hit!=meshHoveredObject[hand]){
-        if(meshHoveredObject[hand])sceneInput().addOverlayEvent("overlay.meshHoverEnd",meshHoveredObject[hand],hand);
-        if(hit)sceneInput().addOverlayEvent("overlay.meshHoverStart",hit,hand);
+        if(meshHoveredObject[hand])sceneInput().addMeshEvent("overlay.meshHoverEnd",meshHoveredObject[hand],hand,meshHitDistance[hand],meshHitPoint[hand]);
+        if(hit)sceneInput().addMeshEvent("overlay.meshHoverStart",hit,hand,nearest,point);
         meshHoveredObject[hand]=hit;
+      }else if(current){
+        float moved=0;for(int axis=0;axis<3;axis++)moved=std::max(moved,std::fabs(point[axis]-meshHitPoint[hand][axis]));
+        if(moved>.001f)sceneInput().addMeshEvent("overlay.meshHover",hit,hand,nearest,point);
       }
-      meshHitDistance[hand]=std::min(nearest,2.f);
+      if(hit){meshHitPoint[hand]=point;meshHitDistance[hand]=nearest;}
+      else{meshHitPoint[hand]={};meshHitDistance[hand]=2.f;}
     }
     pickingMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-pickingStart).count();
     const auto reconnectNow=std::chrono::steady_clock::now();
@@ -688,8 +660,8 @@ int main(int argc,char **argv) {
             fprintf(stderr,"[surface] group=%d adaptation budget deferred; retaining existing tiles\n",group);return;
           }
           static uint64_t generation=0;const auto suffix=".adapt."+std::to_string(++generation);
-          if(!createSurface(parent,scriptInstanceId,key,plan.widths[0],plan.pixels[0],false,gbm,display,anchor,suffix)||
-             (!merge&&!createSurface(*child,scriptInstanceId,childKey,plan.widths[1],plan.pixels[1],false,gbm,display,anchor,suffix))){
+          if(!createSurface(parent,scriptInstanceId,key,plan.widths[0],plan.pixels[0],gbm,display,anchor,suffix)||
+             (!merge&&!createSurface(*child,scriptInstanceId,childKey,plan.widths[1],plan.pixels[1],gbm,display,anchor,suffix))){
             destroySurface(parent,display);destroySurface(*child,display);allocationFailed=true;nextAdaptationCheck=now+std::chrono::seconds(5);
             fprintf(stderr,"[surface] group=%d adaptation allocation unavailable; retaining existing tiles\n",group);return;
           }
@@ -1060,12 +1032,7 @@ int main(int argc,char **argv) {
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     const bool headValid=poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
     for(int hand=0;hand<2;hand++){
-      // Interactive panels need a visible pointer even when no script requests a beam.
-      bool visible=panelHitDistance[hand]>=0;
-      for(int id:scriptRegistry.runningIds()){
-        const auto *entry=scriptRegistry.find(id);
-        if(entry&&entry->host.scene.laserVisible[hand]){visible=true;break;}
-      }
+      const bool visible=laserVisible[hand];
       const auto role=hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand;
       const auto device=system->GetTrackedDeviceIndexForControllerRole(role);
       vr::TrackedDevicePose_t pose{};

@@ -53,7 +53,7 @@ function draw(){
   c.text(430,202,`press events C/Q T/U/S ${presses(buttonCallback,'right')} : ${presses(buttonQueue,'right')}`,170,235,190,255,16);
   c.text(24,230,`Last: ${lastEvent}`,255,205,115,255,18);
   let y=254;
-  for(const type of ['controller.button','controller.value','panel.hoverStart','panel.pointerDown','panel.pointerUp','overlay.surfaceHoverStart',
+  for(const type of ['controller.button','controller.value','panel.hoverStart','panel.pointerDown','panel.pointerUp','overlay.meshHover',
     'overlay.meshHoverStart','overlay.grabStart','overlay.grabMove','overlay.grabEnd','overlay.move','overlay.rotate']){
     c.text(24,y,`${type}: callback ${callback[type]||0} / queue ${queued[type]||0}`,170,235,190,255,16);y+=19;
   }

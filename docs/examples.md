@@ -64,7 +64,7 @@ and their documented controls.
 | [container-transfer.js](../scripts/container-transfer.js) | Transfer object/panel ownership; B/Y transfers, A/X disposes left, bumper disposes right |
 | [physics-controls.js](../scripts/physics-controls.js) | Impulses, gravity, body removal/reattachment and a moving kinematic platform |
 | [panel-placement.js](../scripts/panel-placement.js) | World/head/arbitrary placement, rotation, visibility and panel removal/recreation |
-| [surface-pointer.js](../scripts/surface-pointer.js) | Native surface pointer, optional action input and haptics; requires SteamVR pointer focus |
+| [mesh-pointer.js](../scripts/mesh-pointer.js) | Custom model presses on the engine laser with a 3D hit point, plus haptics |
 
 ## Functionality coverage
 
@@ -76,7 +76,7 @@ Each script starts with its purpose and controls; inline comments explain units,
 ownership, input-source differences and other behavior that is easy to misread.
 
 - Models/transforms and full-sphere placement: `avocado`, `sample-gallery`, `full-sphere-gallery`.
-- Grabbing, grip/trigger policies and native/custom input: `grabbing`, `input`, `surface-pointer`.
+- Grabbing, grip/trigger policies and custom model input: `grabbing`, `input`, `mesh-pointer`.
 - Retained canvas, pointer clicks, placement and panel lifetime: `panels`, `panel-placement`, `panel-save`.
 - Clip playback, seeking/stopping, blending, skeletal/morph instances: `animation`, `blending`, `skinning`, `morph`, `animation-save`.
 - Box/sphere/convex/static-mesh colliders, contacts and throwing: `physics`, `colliders`, `convex`, `mesh-colliders`.

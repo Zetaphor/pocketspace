@@ -2,7 +2,7 @@
 // Surfaces, layout and render passes shared by the frame loop and regressions.
 #include "engine_state.h"
 struct Buffer {gbm_bo *bo=nullptr;int fd=-1;vr::SharedTextureHandle_t handle=0;EGLImageKHR image=EGL_NO_IMAGE_KHR;GLuint color=0,depth=0,fbo=0;bool ownsDepth=false;};
-struct Surface {int instanceId=0,objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,interactive=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;uint64_t groupBufferBytes=0;std::chrono::steady_clock::time_point resizeAfter{};};
+struct Surface {int instanceId=0,objectId=0,eyePixels=kDefaultEyePixels,referenceEyePixels=kDefaultEyePixels,shrinkFrames=0;float width=.7f;vr::VROverlayHandle_t overlay=vr::k_ulOverlayHandleInvalid,stagingOverlay=vr::k_ulOverlayHandleInvalid;Buffer buffers[3];bool stagingShown=false,shown=false,panel=false,resolutionLimited=false;std::unique_ptr<Surface> previous;uint64_t groupBufferBytes=0;std::chrono::steady_clock::time_point resizeAfter{};};
 inline GroupBufferBudget groupBufferBudget;
 float surfaceCoverageWidth(float width,int allocated,int requested,bool grouped);
 // Transfer retained snapshots before an in-flight output tile is removed.
@@ -27,7 +27,7 @@ void makeDepthStorage(Buffer &buffer,int width,int height,GLuint sharedDepth=0);
 bool makeBuffer(Buffer &b,gbm_device *gbm,EGLDisplay display,int eyePixels,GLuint sharedDepth=0);
 void destroyBuffer(Buffer &buffer,EGLDisplay display);
 void destroySurface(Surface &surface,EGLDisplay display);
-bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={});
+bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix={});
 // Keep the overlay handle stable while replacing its three color buffers.
 // Called between frames for this surface, after the previous frame's glFinish.
 bool resizeSurfaceBuffers(Surface &surface,int pixels,gbm_device *gbm,EGLDisplay display);
@@ -93,9 +93,11 @@ bool createLaser(vr::VROverlayHandle_t &handle,int hand);
 void laserRay(const vr::HmdMatrix34_t &pose,int hand,float origin[3],float direction[3]);
 void updateLaser(vr::VROverlayHandle_t handle,bool &shown,bool visible,int hand,const vr::TrackedDevicePose_t &controller,const vr::HmdMatrix34_t &head,float hitDistance);
 struct GrabState {
-  int objectId=0;bool direct=false,rawGrab=false;int releaseFrames=0;
+  int objectId=0;bool direct=false;int releaseFrames=0;
   float offset[3]{},startHand[9]{},startPitch=0,startYaw=0,startRoll=0,laserDistance=2.f;
 };
+// Distant-grab thumbstick control: dead zone, radians per second and meters per second.
+constexpr float kStickDeadZone=.15f,kStickTurnRate=3.f,kStickDepthRate=1.5f;
 void beginGrab(GrabState &grab,const Object &object,const ControllerSnapshot &hand,bool direct);
 void objectRotationMatrix(float pitch,float yaw,float roll,float m[9]);
 inline bool frameButtonDown(int hand,const char *path){auto it=frameInput.hand(hand).raw.find(path);return it!=frameInput.hand(hand).raw.end()&&it->second.isBoolean&&it->second.boolean;}
@@ -251,6 +253,8 @@ template<class Draw> static void renderObjectLayers(int targetId,Draw &&draw,con
   glDepthMask(GL_TRUE);glDisable(GL_BLEND);
 }
 inline bool rayTriangle(const float o[3],const float d[3],const float a[3],const float b[3],const float c[3],float &t){float e1[3],e2[3],p[3],q[3],s[3];for(int i=0;i<3;i++){e1[i]=b[i]-a[i];e2[i]=c[i]-a[i];}for(int i=0;i<3;i++){p[i]=d[(i+1)%3]*e2[(i+2)%3]-d[(i+2)%3]*e2[(i+1)%3];}float det=e1[0]*p[0]+e1[1]*p[1]+e1[2]*p[2];if(std::fabs(det)<1e-6f)return false;float inv=1.f/det;for(int i=0;i<3;i++)s[i]=o[i]-a[i];float u=(s[0]*p[0]+s[1]*p[1]+s[2]*p[2])*inv;if(u<0||u>1)return false;for(int i=0;i<3;i++)q[i]=s[(i+1)%3]*e1[(i+2)%3]-s[(i+2)%3]*e1[(i+1)%3];float v=(d[0]*q[0]+d[1]*q[1]+d[2]*q[2])*inv;if(v<0||u+v>1)return false;t=(e2[0]*q[0]+e2[1]*q[1]+e2[2]*q[2])*inv;return t>=0;}
+// The engine laser in scene coordinates; direction is unit length.
+void laserSceneRay(const ControllerSnapshot &hand,int handIndex,float origin[3],float direction[3]);
 float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated=true);
 #ifdef SF_RENDER_UNITY
 // Experiment definitions change these types, so those targets compile one unit.

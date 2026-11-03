@@ -66,20 +66,20 @@ int main(){
   {
     ScriptScope scope(registry.find(left)->host);
     assert(activeInstanceId==left);
-    pointerStates[1].valid=true;hoveredObject[0]=1;meshCurrentObject[1]=1;grabNeedsRelease[0]=true;
+    meshHoveredObject[0]=1;meshHitPoint[0]={.5f,0,0};meshCurrentObject[1]=1;grabNeedsRelease[0]=true;
   }
-  assert(activeInstanceId==0&&pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
-  assert(registry.find(left)->host.interaction.pointers.at(1).valid);
+  assert(activeInstanceId==0&&meshHoveredObject[0]==0&&meshHitPoint[0][0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
+  assert(registry.find(left)->host.interaction.meshHovered[0]==1&&registry.find(left)->host.interaction.meshPoint[0][0]==.5f);
   {
     ScriptScope scope(registry.find(right)->host);
     assert(activeInstanceId==right);
-    assert(pointerStates.empty()&&hoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
-    pointerStates[1].hand=1;
+    assert(meshHoveredObject[0]==0&&meshCurrentObject[1]==0&&!grabNeedsRelease[0]);
+    meshHoveredObject[1]=1;
   }
   {
     ScriptScope scope(registry.find(left)->host);
-    assert(pointerStates.at(1).valid&&hoveredObject[0]==1&&meshCurrentObject[1]==1&&grabNeedsRelease[0]);
-    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+    assert(meshHoveredObject[0]==1&&meshHoveredObject[1]==0&&meshHitPoint[0][0]==.5f&&meshCurrentObject[1]==1&&grabNeedsRelease[0]);
+    sceneInput().addOverlayEvent("overlay.meshHoverStart",1,0);
   }
   {
     ScriptScope scope(registry.find(right)->host);
@@ -89,11 +89,11 @@ int main(){
   {
     ScriptScope scope(registry.find(left)->host);
     const auto events=sceneInput().takeEvents();
-    assert(events.size()==1&&events[0].type=="overlay.pointer"&&events[0].objectId==1);
+    assert(events.size()==1&&events[0].type=="overlay.meshHoverStart"&&events[0].objectId==1);
   }
   assert(registry.reload(left));
   assert(registry.find(left)->host.instanceId==left&&activeInstanceId==0);
-  assert(registry.find(left)->host.interaction.pointers.empty()&&registry.find(right)->host.interaction.pointers.at(1).hand==1);
+  assert(registry.find(left)->host.interaction.meshHovered[0]==0&&registry.find(left)->host.interaction.meshPoint[0][0]==0&&registry.find(right)->host.interaction.meshHovered[1]==1);
   {
     ScriptScope scope(registry.find(left)->host);
     assert(sceneInput().takeCallbackEvents().empty());
@@ -183,11 +183,11 @@ int main(){
   assert(registry.find(fourth)->state==ScriptState::Failed);
   assert(registry.find(fourth)->lastError.find("EXPECTED_UPDATE_FAILURE")!=std::string::npos);
   assert(registry.find(right)->state==ScriptState::Running&&registry.update(right,1./90));
-  {std::ofstream out(temp);out<<"const asset=loadModel('assets/samples/Box/Box.glb');const object=createObject(asset,0,0,0,.2);const panel=createPanel({widthPixels:32,heightPixels:32,widthMeters:.1,interactive:false});onInputEvent(event=>{if(event.type==='overlay.pointer'){removeObject(object);removePanel(panel.id)}});";}
+  {std::ofstream out(temp);out<<"const asset=loadModel('assets/samples/Box/Box.glb');const object=createObject(asset,0,0,0,.2);const panel=createPanel({widthPixels:32,heightPixels:32,widthMeters:.1,interactive:false});onInputEvent(event=>{if(event.type==='overlay.meshHoverStart'){removeObject(object);removePanel(panel.id)}});";}
   int mutating=0;assert(registry.launch(temp.string(),mutating,error));
   {
     ScriptScope scope(registry.find(mutating)->host);
-    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+    sceneInput().addOverlayEvent("overlay.meshHoverStart",1,0);
     assert(dispatchInputCallbacks().empty());
     assert(registry.find(mutating)->host.scene.objects.empty());
     assert(registry.find(mutating)->host.scene.panels.empty());
@@ -212,7 +212,7 @@ int main(){
   int sixth=0;assert(registry.launch(temp.string(),sixth,error));
   {
     ScriptScope scope(registry.find(sixth)->host);
-    sceneInput().addOverlayEvent("overlay.pointer",1,0);
+    sceneInput().addOverlayEvent("overlay.meshHoverStart",1,0);
     const auto callbackError=dispatchInputCallbacks();
     assert(callbackError.find("EXPECTED_PRODUCTION_CALLBACK")!=std::string::npos);
     assert(registry.failActive(sixth,callbackError));

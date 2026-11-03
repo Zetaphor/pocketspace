@@ -63,13 +63,13 @@ void destroySurface(Surface &surface,EGLDisplay display){
   groupBufferBudget.release(surface.groupBufferBytes);surface.groupBufferBytes=0;
   surface.overlay=vr::k_ulOverlayHandleInvalid;
 }
-bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePixels,bool interactive,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix){
+bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &anchor,const std::string &suffix){
   if(id<0&&!surface.groupBufferBytes){
     const auto bytes=GroupBufferBudget::bytes(eyePixels);
     if(!groupBufferBudget.reserve(bytes))return false;
     surface.groupBufferBytes=bytes;
   }
-  surface.instanceId=instanceId;surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;surface.interactive=interactive;
+  surface.instanceId=instanceId;surface.objectId=id;surface.width=width;surface.eyePixels=surface.referenceEyePixels=eyePixels;
   const std::string key=objectOverlayKey({instanceId,id},suffix);
   auto *overlays=vr::VROverlay();
   auto error=vr::VROverlayError_None;
@@ -87,18 +87,6 @@ bool createSurface(Surface &surface,int instanceId,int id,float width,int eyePix
   if(error!=vr::VROverlayError_None)return false;
   vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(surface.overlay,&bounds);
   overlays->SetOverlayTransformAbsolute(surface.overlay,vr::TrackingUniverseStanding,&anchor);
-  if(interactive){
-    overlays->SetOverlayInputMethod(surface.overlay,vr::VROverlayInputMethod_Mouse);
-    overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_MakeOverlaysInteractiveIfVisible,true);
-    overlays->SetOverlayFlag(surface.overlay,vr::VROverlayFlags_SendVRSmoothScrollEvents,true);
-    vr::VROverlayIntersectionMaskPrimitive_t mask{};
-    mask.m_nPrimitiveType=vr::OverlayIntersectionPrimitiveType_Circle;
-    mask.m_Primitive.m_Circle.m_flCenterX=.5f;
-    mask.m_Primitive.m_Circle.m_flCenterY=.5f;
-    mask.m_Primitive.m_Circle.m_flRadius=.3f;
-    overlays->SetOverlayIntersectionMask(surface.overlay,&mask,1);
-    vr::HmdVector2_t scale{{1,1}};overlays->SetOverlayMouseScale(surface.overlay,&scale);
-  }
   if(id<0){
     if(surface.stagingOverlay==vr::k_ulOverlayHandleInvalid){
       error=overlays->CreateOverlay((key+".stage").c_str(),(key+".stage").c_str(),&surface.stagingOverlay);
@@ -129,19 +117,13 @@ bool resizeSurfaceBuffers(Surface &surface,int pixels,gbm_device *gbm,EGLDisplay
   vr::VROverlay()->ClearOverlayTexture(surface.overlay);
   for(int i=0;i<3;i++){destroyBuffer(surface.buffers[i],display);surface.buffers[i]=next[i];}
   surface.eyePixels=pixels;
-  if(surface.interactive){
-    vr::VROverlayIntersectionMaskPrimitive_t mask{};mask.m_nPrimitiveType=vr::OverlayIntersectionPrimitiveType_Circle;
-    mask.m_Primitive.m_Circle.m_flCenterX=mask.m_Primitive.m_Circle.m_flCenterY=.5f;
-    mask.m_Primitive.m_Circle.m_flRadius=std::min(.707107f,.3f*surface.referenceEyePixels/pixels);
-    vr::VROverlay()->SetOverlayIntersectionMask(surface.overlay,&mask,1);
-  }
   return true;
 }
 bool replaceGroupedSurface(Surface &surface,int pixels,gbm_device *gbm,EGLDisplay display,const vr::HmdMatrix34_t &transform){
   if(surface.previous)return true;
   static uint64_t generation=0;
   Surface replacement;
-  if(!createSurface(replacement,surface.instanceId,surface.objectId,surface.width,pixels,false,gbm,display,transform,".resize."+std::to_string(++generation))){destroySurface(replacement,display);return false;}
+  if(!createSurface(replacement,surface.instanceId,surface.objectId,surface.width,pixels,gbm,display,transform,".resize."+std::to_string(++generation))){destroySurface(replacement,display);return false;}
   replacement.referenceEyePixels=surface.referenceEyePixels;
   replacement.resolutionLimited=surface.resolutionLimited;
   replacement.previous=std::make_unique<Surface>(std::move(surface));
@@ -255,58 +237,46 @@ void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt,int
     auto ownedByOther=[&](int id){return grabs[1-h].objectId==id;};
     const int previousGrab=grab.objectId;
     Object *object=findSceneItem(scene.objects,grab.objectId);
-    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->autoManipulate||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);sceneInput().addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
+    if(previousGrab&&(!object||!hand.connected||!object->visible||!object->grabbable)){if(scene.physics)scene.physics->release(previousGrab,false);sceneInput().addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;grabNeedsRelease[h]=true;}
     if(object){
-      auto state=pointerStates.find(object->id);
-      const bool buttonDown=frameGrabDown(h,object->grabButton);
-      const bool nativeDown=object->grabButton!=GrabButton::Grip&&state!=pointerStates.end()&&state->second.hand==h&&state->second.down;
-      if(grab.rawGrab)grab.releaseFrames=buttonDown?0:grab.releaseFrames+1;
-      if((grab.rawGrab&&grab.releaseFrames>=5)||(!grab.rawGrab&&!nativeDown&&!buttonDown)){
+      grab.releaseFrames=frameGrabDown(h,object->grabButton)?0:grab.releaseFrames+1;
+      if(grab.releaseFrames>=5){
         if(scene.physics)scene.physics->release(previousGrab,true);
         sceneInput().addOverlayEvent("overlay.grabEnd",previousGrab,h);grab={};object=nullptr;
       }
     }
-    if(grabNeedsRelease[h]){
-      bool nativeDown=false,nativeKnown=false;
-      for(const auto &[id,pointer]:pointerStates)if(pointer.hand==h){nativeDown|=pointer.down;nativeKnown|=pointer.valid;}
-      const bool releaseKnown=frameInput.started()?frameInput.hand(h).valid:nativeKnown;
-      if(hand.connected&&releaseKnown&&!frameGrabDown(h,GrabButton::Both)&&!nativeDown)grabNeedsRelease[h]=false;
-    }
+    if(grabNeedsRelease[h]&&hand.connected&&frameInput.started()&&frameInput.hand(h).valid&&!frameGrabDown(h,GrabButton::Both))grabNeedsRelease[h]=false;
     if(!object&&hand.valid&&hand.connected&&!grabNeedsRelease[h]&&(grabOwners[h]==0||grabOwners[h]==instanceId)){
       for(auto &candidate:scene.objects){
-        if(!candidate.visible||!candidate.autoManipulate||!candidate.grabbable||ownedByOther(candidate.id))continue;
-        auto pointer=pointerStates.find(candidate.id);
-        // Native surfaces are rectangles: custom lasers must acquire only a current mesh hit.
-        const bool nativeDown=candidate.grabButton!=GrabButton::Grip&&!scene.laserVisible[h]&&pointer!=pointerStates.end()&&pointer->second.down&&pointer->second.hand==h;
-        const bool laserDown=rayOwners[h]==instanceId&&meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton);
-        if(nativeDown||laserDown){
+        if(!candidate.visible||!candidate.grabbable||ownedByOther(candidate.id))continue;
+        // Acquisition requires a current engine-ray hit on this mesh.
+        if(rayOwners[h]==instanceId&&meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton)){
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
           const float reach=.10f+candidate.scale*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
           beginGrab(grab,candidate,hand,direct);
           grabOwners[h]=instanceId;
           if(scene.physics&&scene.physics->contains(candidate.id))scene.physics->hold(candidate.id);
-          grab.rawGrab=frameGrabDown(h,candidate.grabButton);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
           grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,candidate.scale*.5f)),.02f,2.f);
-          sceneInput().addOverlayEvent("overlay.grabStart",candidate.id,h);object=&candidate;break;
+          sceneInput().addMeshEvent("overlay.grabStart",candidate.id,h,meshHitDistance[h],meshHitPoint[h]);object=&candidate;break;
         }
       }
     }
     if(object&&!hand.valid&&scene.physics)scene.physics->cancelThrow(object->id);
     if(object&&hand.valid){
       const float oldX=object->x,oldY=object->y,oldZ=object->z,oldPitch=object->pitch,oldYaw=object->yaw,oldRoll=object->roll;
-      auto pointer=pointerStates.find(object->id);
-      const float x=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollX,-1.f,1.f):0;
-      const float y=pointer!=pointerStates.end()?std::clamp(pointer->second.scrollY,-1.f,1.f):0;
+      // Thumbstick deflection past a small dead zone, read from the raw controller.
+      auto stick=[&](const char *path){const float v=std::clamp(frameAxis(h,path),-1.f,1.f);return std::fabs(v)<kStickDeadZone?0.f:v;};
+      const float x=stick("/input/thumbstick/x"),y=stick("/input/thumbstick/y");
       if(!grab.direct&&(x||y)){
         if(x){
-          if(pointer!=pointerStates.end()&&pointer->second.secondaryDown&&object->laserPitchWithStickClick)object->pitch+=x*6.f*dt;
-          else if(object->laserYaw)object->yaw+=x*6.f*dt;
+          if(object->laserPitchWithStickClick&&frameButtonDown(h,"/input/thumbstick/click"))object->pitch+=x*kStickTurnRate*dt;
+          else if(object->laserYaw)object->yaw+=x*kStickTurnRate*dt;
         }
         if(y&&object->depthAdjust){
           const float length=std::sqrt(grab.offset[0]*grab.offset[0]+grab.offset[1]*grab.offset[1]+grab.offset[2]*grab.offset[2]);
-          if(length>.001f){const float next=std::max(.06f,length+y*3.2f*dt);for(float &v:grab.offset)v*=next/length;grab.laserDistance=std::clamp(grab.laserDistance+next-length,.02f,2.f);}
+          if(length>.001f){const float next=std::max(.06f,length+y*kStickDepthRate*dt);for(float &v:grab.offset)v*=next/length;grab.laserDistance=std::clamp(grab.laserDistance+next-length,.02f,2.f);}
         }
       }
       const auto &r=hand.rotation;
@@ -520,15 +490,18 @@ GroupAdjustmentPlan planGroupAdjustment(const std::vector<const Object*> &first,
   }
   return result;
 }
-float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated){
-  if(!hand.valid)return std::numeric_limits<float>::max();
+void laserSceneRay(const ControllerSnapshot &hand,int handIndex,float origin[3],float direction[3]){
   constexpr float tilt=.6981317008f;
   const float tip[3]={handIndex==0?.012694f:-.012694f,-.02522f,.020687f};
-  float origin[3]={hand.x,hand.y,hand.z},direction[3]{};
+  origin[0]=hand.x;origin[1]=hand.y;origin[2]=hand.z;
   for(int row=0;row<3;row++){
     for(int axis=0;axis<3;axis++)origin[row]+=hand.rotation[row*3+axis]*tip[axis];
     direction[row]=-std::sin(tilt)*hand.rotation[row*3+1]-std::cos(tilt)*hand.rotation[row*3+2];
   }
+}
+float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated){
+  if(!hand.valid)return std::numeric_limits<float>::max();
+  float origin[3],direction[3];laserSceneRay(hand,handIndex,origin,direction);
   const float miss=std::numeric_limits<float>::max();
   if(object.scale<=0)return miss;
   // Invert the renderer's F*R transform once per ray, rather than applying it

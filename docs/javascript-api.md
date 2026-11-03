@@ -571,9 +571,10 @@ setLaserVisible('right', true);
 | --- | --- | --- |
 | `grabbable` | `false` | Enable native grab/movement handling. |
 | `grabButton` | `'trigger'` | `'trigger'`, `'grip'`, or `'both'`; either allowed button can acquire/hold. |
-| `laserPassThrough` | `true` | Let native laser input pass through the surface; grabbable forces this false. |
+| `laserPassThrough` | `false` | Let the engine laser pass through the object. Grabbable objects are always hit. |
 | `directGrab` | `true` | Use near-hand holding when acquired close to the controller. |
 | `laserYaw` | `false` | Distant grab: stick left/right changes yaw. |
+| `laserPitchWithStickClick` | `false` | Distant grab: while the stick is clicked, left/right changes pitch instead. |
 | `depthAdjust` | `false` | Distant grab: stick up moves farther, down moves nearer. |
 | `handRotationAxes` | All `false` | `{pitch, yaw, roll}` chooses hand rotation axes for direct grabs. |
 
@@ -583,22 +584,32 @@ the controller-to-object-center distance is below `0.10 + scale * 0.5` meters;
 there is no proximity-only pickup. Static picking uses a shared per-asset BVH;
 animated instances refit their own picking geometry. Each hand can hold its own
 object. A held object releases after all allowed buttons are up for five frames.
+Distant-grab stick control reads the raw thumbstick past a 0.15 dead zone: full
+deflection turns 3 radians per second and moves 1.5 meters per second.
 
-`enableObjectInteraction(id, {grabButton})` enables native grabbing with the
-chosen button. Its options object recognizes `grabButton`; configure other
-fields with `setObjectInteraction`. `enableObjectInteraction(id)` without options
-marks the object interactive without newly enabling automatic movement, for scripts
-that handle movement themselves.
+`enableObjectInteraction(id, {grabButton})` makes an object grabbable with the
+other fields at their defaults. Its options object recognizes `grabButton`;
+configure other fields with `setObjectInteraction`. For custom grab or press
+behavior, leave the object nongrabbable and combine mesh hover with
+`controller.button` events.
 
-`setLaserVisible(hand, visible)` controls the engine's selection beam for
-`'left'` or `'right'`. Its raw-controller grabs are independent of native laser
-focus. The same ray clicks interactive panels, and the beam also appears while it
-is on one, even when no script requested it.
+Each hand has one engine laser. It hits visible objects that are grabbable or not
+marked `laserPassThrough`, and interactive panels. Hover, grabs and panel clicks
+work whether or not its beam is drawn. While an object is held, its hit distance
+follows the held distance along the beam.
 
-`getPointer(id)` returns native surface state `{valid, down, x, y, hand}`;
-`hand` is `'left'`, `'right'`, or `null`. Coordinates are surface-local, not
-panel pixels. This is not the custom beam's grab state. `getPointer()` is usable
-only when exactly one object is interactive.
+`getMeshHover(hand)` returns that hand's current model hit in this script's scene:
+`{hit, objectId, distance, point: {x, y, z}}`. `point` is in scene coordinates and
+`distance` in meters along the beam; both are zero without a hit. It reads the
+same state as the `overlay.meshHover*` events, so a script can read it when a
+button event arrives to find what was pressed.
+
+`setLaserVisible(hand, visible)` requests that the engine draw or hide the beam for
+`'left'` or `'right'`, and `getLaserVisible(hand)` reads it. The beam state belongs
+to the engine, not to a script: with several scripts running, the latest request
+wins. Stopping or reloading a script leaves it unchanged. Beams start hidden.
+
+Use the engine laser for custom presses with a 3D hit point: [mesh-pointer.js](../scripts/mesh-pointer.js).
 
 ## Controllers
 
@@ -653,17 +664,15 @@ Events include `type`, `hand`, `control`, `objectId`, `x`, `y`, `down`, `value`,
 | `controller.value` | Raw numeric path in `control`, number in `value`. |
 | `physics.jointBreak` | Automatic joint release with joint/object IDs and estimated force/torque; see [breakable joints](physics-api.md#breakable-joints). |
 | `physics.collisionStart`, `physics.collisionStay`, `physics.collisionEnd` | Opt-in pair contacts with object IDs, point/normal, penetration, and closing speed; see [physics events](physics-api.md#collision-events). |
-| `overlay.pointer` | Native surface pointer update. |
-| `overlay.surfaceHoverStart`, `overlay.surfaceHover`, `overlay.surfaceHoverEnd` | Native rectangular surface hover. |
-| `overlay.meshHoverStart`, `overlay.meshHoverEnd` | Actual model hit transitions. |
-| `overlay.grabStart`, `overlay.grabMove`, `overlay.grabEnd` | Native object grab lifecycle. |
+| `overlay.meshHoverStart`, `overlay.meshHover`, `overlay.meshHoverEnd` | Engine laser model hits, with `point` and `distance`. `overlay.meshHover` follows a hit point that moves more than 1 mm. |
+| `overlay.grabStart`, `overlay.grabMove`, `overlay.grabEnd` | Object grab lifecycle; `overlay.grabStart` carries the hit `point` and `distance`. |
 | `overlay.move`, `overlay.rotate` | Object transform changes with position/rotation deltas. |
 | `panel.hoverStart`, `panel.hover`, `panel.hoverEnd` | Panel hover with top-left-origin pixel coordinates. |
 | `panel.pointerDown`, `panel.pointerUp` | Panel button transition; `control` is `left`, `right`, or `other`. |
 
-Raw controller events can carry the latest native surface-hover `objectId`,
-or zero. That field is not a promise that the hand owns or selected that object.
-Panel IDs and object IDs are separate numeric namespaces; distinguish them by
+Raw controller events reach every running script and carry `objectId` zero; use
+`getMeshHover` for the hovered model. Mesh hover events briefly hold the last hit
+across a miss shorter than 100 ms, so triangle edges do not flicker. Panel IDs and object IDs are separate numeric namespaces; distinguish them by
 `type`. Animation does not emit completion events; inspect playback state.
 
 Combine a scoped pointer callback with the independent polled queue: [containers.js](../scripts/containers.js).

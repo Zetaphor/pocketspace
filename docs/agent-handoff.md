@@ -197,7 +197,7 @@ replacement. Never clear the old texture before that handoff. Keep only one
 pending generation; retain it on submission failure, include its allocations in
 statistics, and destroy both generations on removal/reload/shutdown. Group
 handles may change on resize; object IDs and mesh interaction remain stable.
-Independent interactive surfaces retain their existing handle-preserving path.
+Independent object surfaces retain their existing handle-preserving path.
 
 Grouped frames must stage width, transform, and texture on the hidden overlay.
 `prepareSurface` never changes the visible grouped overlay; `submitSurface`

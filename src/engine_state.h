@@ -66,7 +66,7 @@ enum class GrabButton { Trigger, Grip, Both };
 #include "model_lod.h"
 struct Object {
   int id,asset;float x,y,z,scale,yaw,pitch=0,roll=0;
-  bool visible=true,laserPassThrough=true,grabbable=false,directGrab=true,autoManipulate=false;
+  bool visible=true,laserPassThrough=false,grabbable=false,directGrab=true;
   GrabButton grabButton=GrabButton::Trigger;
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
   bool handPitch=false,handYaw=false,handRoll=false;
@@ -77,7 +77,7 @@ struct Object {
 };
 #include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;std::vector<int> interactiveIds;int nextId=1,nextPanelId=1;bool laserVisible[2]{};bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;int nextId=1,nextPanelId=1;bool eyeTrackingRequested=false,foveationRequested=false;};
 inline size_t loadedAssetCount(const Scene &scene){return std::count_if(scene.assets.begin(),scene.assets.end(),[](const ModelAsset &asset){return !asset.path.empty();});}
 inline bool loadedAsset(const Scene &scene,int id){return id>0&&size_t(id)<=scene.assets.size()&&!scene.assets[size_t(id)-1].path.empty();}
 inline std::set<int> containerSubtree(const Scene &scene,int root){
@@ -102,22 +102,23 @@ inline controller_input::Input controllerInput;
 inline frame_input::Monitor frameInput;
 inline frame_input::Monitor *activeSceneInput=&frameInput;
 inline frame_input::Monitor &sceneInput(){return *activeSceneInput;}
-inline bool inputPollingRequested=false;inline int hoveredObject[2]={0,0},meshHoveredObject[2]={0,0},meshCurrentObject[2]={0,0};inline float meshHitDistance[2]={2.f,2.f};
+inline bool inputPollingRequested=false;inline int meshHoveredObject[2]={0,0},meshCurrentObject[2]={0,0};inline float meshHitDistance[2]={2.f,2.f};
+// Scene-space point on the hovered model, valid while meshHoveredObject is set.
+inline std::array<float,3> meshHitPoint[2]{};
 inline std::chrono::steady_clock::time_point meshLastHit[2]{};
-struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float x=0,y=0,scrollX=0,scrollY=0;int hand=-1;};
-inline std::map<int,PointerSnapshot> pointerStates;
 inline bool grabNeedsRelease[2]{};
+// One beam per hand, owned by the engine. Scripts request changes; the latest wins.
+inline bool laserVisible[2]{};
 struct InteractionState {
-  std::map<int,PointerSnapshot> pointers;
-  int hovered[2]{},meshHovered[2]{},meshCurrent[2]{};
+  int meshHovered[2]{},meshCurrent[2]{};
   float meshDistance[2]{2.f,2.f};
+  std::array<float,3> meshPoint[2]{};
   std::chrono::steady_clock::time_point meshLast[2]{};
   bool grabRelease[2]{};
 };
 inline void swapActiveInteraction(InteractionState &state){
-  pointerStates.swap(state.pointers);
-  std::swap(hoveredObject,state.hovered);
   std::swap(meshHoveredObject,state.meshHovered);
+  std::swap(meshHitPoint,state.meshPoint);
   std::swap(meshCurrentObject,state.meshCurrent);
   std::swap(meshHitDistance,state.meshDistance);
   std::swap(meshLastHit,state.meshLast);

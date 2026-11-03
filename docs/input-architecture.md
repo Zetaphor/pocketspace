@@ -5,7 +5,7 @@ The native host combines three sources into cached JavaScript snapshots:
 | Source | Responsibilities |
 | --- | --- |
 | OpenVR tracked poses | Controller/HMD transforms and controller role assignment. |
-| OpenVR overlay events and action bindings | Native surface pointers, optional action snapshots, haptics, gaze actions, and system foveation centers. |
+| OpenVR action bindings | Optional action snapshots, haptics, gaze actions, and system foveation centers. |
 | Local vrserver WebSocket | Global controller boolean/scalar component deltas, including button, axis, and capacitive values. |
 
 The raw input monitor subscribes directly to left/right controller mailboxes.
@@ -23,12 +23,18 @@ cached state rather than issuing synchronous hardware queries. Callback delivery
 runs on the host thread with the owning script's scene selected. Controller roles
 and poses are refreshed separately from the raw stream.
 
-Each hand has one engine ray, drawn by `setLaserVisible`. It tests transformed
-model triangles and interactive panels across all running scenes. The closest hit
-wins, with a panel winning an exact tie and equal model distances using stable
-instance ID order. A held object keeps its owner until release or that script stops
-or reloads. Native rectangular surface hover is a separate signal and cannot
-substitute for a mesh hit when acquiring a custom-beam grab.
+Each hand has one engine ray. It tests transformed model triangles and interactive
+panels across all running scenes; pass-through objects are skipped unless they are
+grabbable. The closest hit wins, with a panel winning an exact tie and equal model
+distances using stable instance ID order. A held object keeps its owner until
+release or that script stops or reloads. Model overlays take no SteamVR pointer
+input, so this ray is the only pointer. The owning script receives mesh hover with
+a scene-space hit point, and grabs acquire only a current mesh hit.
+
+Whether the beam is drawn is one engine-owned state per hand, set by
+`setLaserVisible` from any script; the latest request wins, and stopping or
+reloading a script leaves it unchanged. Hover, grabs and panel clicks do not depend
+on it. Grab buttons and distant-grab thumbstick control read the raw stream.
 
 The trigger clicks the panel under the ray and delivers `panel.*` events to its
 owning script in canvas pixels. A press stays on its panel until release and blocks

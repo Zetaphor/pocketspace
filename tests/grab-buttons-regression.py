@@ -34,19 +34,18 @@ mocks=r'''
 // This harness covers physics-disabled grabs; real-body integration lives in
 // physics-api-regression.cpp.
 struct NoPhysics {bool contains(int)const{return false;}void hold(int){}void release(int,bool){}void cancelThrow(int){}};
-struct Scene {std::vector<Object> objects;bool laserVisible[2]{true,true};NoPhysics *physics=nullptr;};
+struct Scene {std::vector<Object> objects;NoPhysics *physics=nullptr;};
 struct Component {bool isBoolean=false,boolean=false;float value=0;};
 struct Hand {bool valid=true;std::map<std::string,Component> raw;};
 struct Monitor {
  Hand hands[2];int starts=0,ends=0;
  const Hand &hand(int h){return hands[h];}
  bool started() const{return true;}
- void addOverlayEvent(const std::string &type,int,int,float=0,float=0,float=0,float=0,float=0,float=0){starts+=type=="overlay.grabStart";ends+=type=="overlay.grabEnd";}
+ void addOverlayEvent(const std::string &type,int,int,float=0,float=0,float=0,float=0,float=0,float=0){ends+=type=="overlay.grabEnd";}
+ void addMeshEvent(const std::string &type,int,int,float,const std::array<float,3>&){starts+=type=="overlay.grabStart";}
 } frameInput;
 Monitor &sceneInput(){return frameInput;}
-struct PointerSnapshot {bool valid=false,down=false,secondaryDown=false;float scrollX=0,scrollY=0;int hand=-1;};
-std::map<int,PointerSnapshot> pointerStates;
-int meshCurrentObject[2]{};float meshHitDistance[2]{2,2};
+int meshCurrentObject[2]{};float meshHitDistance[2]{2,2};std::array<float,3> meshHitPoint[2]{};
 bool grabNeedsRelease[2]{};
 '''
 tests=r'''
@@ -57,10 +56,10 @@ static void buttons(int hand,bool trigger,bool grip){
 int main(){
  std::array<int,2> grabOwners{};
  for(int h=0;h<2;h++)for(auto mode:{GrabButton::Trigger,GrabButton::Grip,GrabButton::Both})for(int mask=0;mask<4;mask++){
-  frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;pointerStates.clear();meshCurrentObject[0]=meshCurrentObject[1]=0;
+  frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;meshCurrentObject[0]=meshCurrentObject[1]=0;
   controllers[0]=controllers[1]={};controllers[h].connected=true;controllers[h].valid=true;
   for(int i=0;i<3;i++)controllers[h].rotation[i*3+i]=1;
-  Scene scene;Object object{};object.id=1;object.scale=.2;object.z=1;object.grabbable=object.autoManipulate=true;object.grabButton=mode;
+  Scene scene;Object object{};object.id=1;object.scale=.2;object.z=1;object.grabbable=true;object.grabButton=mode;
   scene.objects.push_back(object);std::array<GrabState,2> grabs{};
   meshCurrentObject[h]=1;buttons(h,mask&1,mask&2);
   const bool allowed=(mode!=GrabButton::Grip&&(mask&1))||(mode!=GrabButton::Trigger&&(mask&2));
@@ -75,15 +74,14 @@ int main(){
    for(int i=0;i<4;i++)updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);
    assert(grabs[h].objectId==1);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[h].objectId);assert(frameInput.ends==1);
   }
-  // A native trigger event cannot bypass a grip-only policy.
-  buttons(h,false,false);grabs={};scene.laserVisible[h]=false;
-  pointerStates[1].down=true;pointerStates[1].hand=h;controllers[h].connected=true;controllers[h].valid=true;
-  updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(bool(grabs[h].objectId)==(mode!=GrabButton::Grip));
+  // Without a current engine-ray hit, a held button cannot acquire.
+  grabs={};meshCurrentObject[h]=0;buttons(h,true,true);controllers[h].connected=true;controllers[h].valid=true;
+  updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[h].objectId);
  }
  // Analog thresholds, defaults, direct mode, current-hit requirement and hand ownership.
- frameInput={};pointerStates.clear();Scene scene;Object object{};
+ frameInput={};Scene scene;Object object{};
  assert(object.grabButton==GrabButton::Trigger);
- object.id=1;object.scale=.2;object.z=.05;object.grabbable=object.autoManipulate=true;object.grabButton=GrabButton::Grip;scene.objects.push_back(object);
+ object.id=1;object.scale=.2;object.z=.05;object.grabbable=true;object.grabButton=GrabButton::Grip;scene.objects.push_back(object);
  controllers[0]=controllers[1]={};for(auto &c:controllers){c.connected=true;c.valid=true;for(int i=0;i<3;i++)c.rotation[i*3+i]=1;}
  meshCurrentObject[0]=meshCurrentObject[1]=0;std::array<GrabState,2> grabs{};
  frameInput.hands[0].raw["/input/grip/value"].value=.21;
@@ -97,7 +95,7 @@ int main(){
  frameInput.hands[0].raw["/input/grip/value"].value=.2;assert(!frameGrabDown(0,GrabButton::Grip));
  frameInput.hands[0].raw["/input/trigger/value"].value=.21;assert(frameGrabDown(0,GrabButton::Trigger));
  // Removed held IDs must end once and not block the other hand forever.
- frameInput={};pointerStates.clear();grabNeedsRelease[0]=grabNeedsRelease[1]=false;
+ frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;
  scene.objects[0].grabButton=GrabButton::Trigger;grabs={};meshCurrentObject[0]=1;buttons(0,true,false);
  updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
  scene.objects.clear();updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId&&frameInput.ends==1);
@@ -115,21 +113,39 @@ int main(){
  scene.objects[0].visible=true;grabNeedsRelease[0]=true;updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(!grabs[0].objectId);
  buttons(0,false,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);buttons(0,true,false);updateManipulation(scene,grabs,1.f/90,0,{},grabOwners);assert(grabs[0].objectId==1);
  // A second scene may share local ID 1, but only the ray owner acquires it.
- frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;pointerStates.clear();
+ frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;
  controllers[0]={};controllers[0].connected=controllers[0].valid=true;
  for(int i=0;i<3;i++)controllers[0].rotation[i*3+i]=1;
  Scene competing;Object rival{};rival.id=1;rival.scale=.2f;rival.z=1;
- rival.visible=rival.grabbable=rival.autoManipulate=true;rival.grabButton=GrabButton::Trigger;
+ rival.visible=rival.grabbable=true;rival.grabButton=GrabButton::Trigger;
  competing.objects.push_back(rival);std::array<GrabState,2> competingGrabs{};
  meshCurrentObject[0]=1;buttons(0,true,false);
  updateManipulation(competing,competingGrabs,1.f/90,2,{1,0},grabOwners);assert(!competingGrabs[0].objectId);
- // A native overlay press cannot acquire this hand while another scene holds it.
- competing.laserVisible[0]=false;pointerStates[1].down=true;pointerStates[1].hand=0;
+ // Owning the ray is not enough while another scene holds this hand.
  grabOwners[0]=1;
- updateManipulation(competing,competingGrabs,1.f/90,2,{1,0},grabOwners);assert(!competingGrabs[0].objectId);
- grabOwners[0]=0;pointerStates.clear();competing.laserVisible[0]=true;
+ updateManipulation(competing,competingGrabs,1.f/90,2,{2,0},grabOwners);assert(!competingGrabs[0].objectId);
+ grabOwners[0]=0;
  updateManipulation(competing,competingGrabs,1.f/90,2,{2,0},grabOwners);assert(competingGrabs[0].objectId==1);
- puts("PASS grab buttons: modes, both hands, analogs, native gating, direct/laser, release, cross-scene ownership, policy changes");
+ // Distant grabs read yaw and depth from the raw thumbstick, past a dead zone.
+ {
+  frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;grabOwners={};
+  Scene stickScene;Object held{};held.id=1;held.scale=.2f;held.z=1;held.grabbable=held.laserYaw=held.depthAdjust=true;
+  stickScene.objects.push_back(held);std::array<GrabState,2> stickGrabs{};
+  meshCurrentObject[0]=1;buttons(0,true,false);
+  updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);assert(stickGrabs[0].objectId==1&&!stickGrabs[0].direct);
+  auto length=[&]{const auto &o=stickGrabs[0].offset;return std::sqrt(o[0]*o[0]+o[1]*o[1]+o[2]*o[2]);};
+  auto stick=[&](float x,float y){frameInput.hands[0].raw["/input/thumbstick/x"].value=x;frameInput.hands[0].raw["/input/thumbstick/y"].value=y;};
+  const float before=length();
+  stick(.1f,-.1f);updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);
+  assert(stickScene.objects[0].yaw==0&&std::fabs(length()-before)<1e-6f);
+  stick(1,0);updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);
+  assert(std::fabs(stickScene.objects[0].yaw-kStickTurnRate/90)<1e-5f);
+  stick(0,1);updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);
+  assert(std::fabs(length()-before-kStickDepthRate/90)<1e-4f);
+  stick(0,-1);updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);
+  assert(std::fabs(length()-before)<1e-4f);
+ }
+ puts("PASS grab buttons: modes, both hands, analogs, ray-hit gating, direct/laser, release, cross-scene ownership, policy changes, thumbstick yaw and depth");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

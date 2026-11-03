@@ -27,7 +27,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [eye-calibration-test.cjs](eye-calibration-test.cjs) | Calibration generator behavior with simulated gaze, jitter, invalid samples, and validation failures. |
 | [gaze-accuracy-test.cjs](gaze-accuracy-test.cjs) | Gaze measurement scene behavior using a simulated clock and tracking input. |
 | [gaze-analysis-test.py](gaze-analysis-test.py) | Offline gaze analyzer fitting and quality filtering against a known affine mapping. |
-| [grab-buttons-regression.py](grab-buttons-regression.py) | Native grab state machine for grip, trigger, and either-button selection without VR or graphics. |
+| [grab-buttons-regression.py](grab-buttons-regression.py) | Engine grab state machine for grip, trigger, and either-button selection, ray-hit gating, and thumbstick yaw/depth without VR or graphics. |
 | [lifecycle-input-regression.cpp](lifecycle-input-regression.cpp) | Raw input device replacement, missing-state retry, idle streams, connection upgrades, reconnects, queues and resource cleanup using a local server. |
 | [lifecycle-script-regression.cpp](lifecycle-script-regression.cpp) | Script loading, failed-reload rollback, callbacks, and scene cleanup without VR or graphics. |
 | [multi-script-lifecycle-regression.cpp](multi-script-lifecycle-regression.cpp) | Two QuickJS hosts with colliding local IDs, independent callback ownership, disconnect/reconnect fanout, held-owner stop, callback mutation, duplicate rejection, failed reload rollback, scoped stop, and callback-error isolation without VR or graphics. |
@@ -130,6 +130,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [scenes/input-api-smoke.js](scenes/input-api-smoke.js) | Controller input shape and values reported from the live runtime. |
 | [scenes/input-interaction-smoke.js](scenes/input-interaction-smoke.js) | Model interaction and input-event callback smoke check. |
 | [scenes/lifecycle-test.js](scenes/lifecycle-test.js) | Held-object removal, controller-loss follow-up, respawning, and panel churn. |
+| [scenes/mesh-hover-debug.js](scenes/mesh-hover-debug.js) | Display-only debug panel with each hand's mesh hover state, target, hit distance, 3D hit point, press point and beam toggle; covers pass-through, grabbable and animated models. |
 | [scenes/model-selection-test.js](scenes/model-selection-test.js) | Picking through hollow geometry and checking mesh-aware selection cases. |
 | [scenes/overlay-comparison.js](scenes/overlay-comparison.js) | Interactive single/grouped renderer, geometry, and object-count comparison with a statistics HUD. |
 | [scenes/panel-api-smoke.js](scenes/panel-api-smoke.js) | Basic panel creation, transform, canvas drawing, and presentation. |

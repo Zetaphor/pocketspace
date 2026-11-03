@@ -107,9 +107,9 @@ Each iteration follows this order in `src/main.cpp`:
 1. Process SteamVR quit events and refresh tracked controller roles and poses.
 2. Periodically check each running script's timestamp and attempt scoped transactional reload.
 3. Advance native animation from elapsed time and evaluate changed poses.
-4. Synchronize model surfaces and panels; drain native surface pointer events.
+4. Synchronize model surfaces and panels.
 5. Poll requested tracking actions and the raw controller stream. Apply connection
-   cleanup, compute custom-beam mesh hits, and attempt bounded reconnection.
+   cleanup, compute engine-laser mesh hits, and attempt bounded reconnection.
 6. Dispatch each scene's queued input callbacks, update its native grabs, then call its `update(dt)`.
 7. Advance each scene's physics and synchronize resulting object poses/events.
 8. Upload newly loaded assets and dirty animation data.
@@ -124,7 +124,7 @@ manipulation, and physics; interaction picking occurs earlier in the iteration.
 
 ## Input, tracking, and interaction
 
-OpenVR supplies HMD/controller poses, role assignment, overlay pointer events,
+OpenVR supplies HMD/controller poses, role assignment,
 action input, haptics, optional gaze, and system foveation centers. A separate
 local vrserver WebSocket monitor supplies global controller boolean/scalar
 component deltas, including finger capacitance/contact values. That interface is
@@ -137,8 +137,10 @@ coexistence restrictions; optional calibration corrects the reported gaze ray.
 See [input architecture](input-architecture.md), [tracking](tracking-api.md), and
 [eye calibration](eye-calibration.md) for validity and source contracts.
 
-Custom beams test transformed model triangles and select the nearest mesh hit.
-A rectangular overlay hover does not establish a mesh hit. Per-object grab
+Model overlays take no SteamVR pointer input. The engine laser tests transformed
+model triangles and selects the nearest mesh hit, skipping pass-through objects
+unless they are grabbable. Grabs, thumbstick control and custom presses read the
+raw controller stream. Per-object grab
 configuration allows grip, trigger, or both. Native manipulation maintains the
 controller/object relationship; physics-backed holds feed targets into the
 physics world and release through its velocity/throw handling. Disconnect,
