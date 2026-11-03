@@ -55,6 +55,14 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
 - Regression targets are generally excluded from the default build. Build the
   relevant targets explicitly and follow their documented fixture/environment
   requirements. Preserve enabled assertions in regression targets.
+- Use `python3 tools/run-regressions.py` (no flags) as the full check. Add
+  `--experiments` only when the change affects what those regressions test:
+  rendering, shaders, lighting, materials, model upload/LOD/indexing, skinning,
+  `src/render_host.*`, `src/pbr_*`, `src/model_*`, the experiment macros, or the
+  experiment tests themselves. Each experiment target compiles its own copy of the
+  engine, so the flag adds about ten minutes; do not use it for scripting, input,
+  lifecycle, bus, settings, or control-socket work. During iteration, build and run
+  only the focused targets and run the full check once before committing.
 - Run checks appropriate to the change. Exercise meaningful failure cases and
   resource cleanup when changing lifecycle, persistence, input, or ownership.
 - Distinguish automated correctness, measured performance, and user-confirmed
