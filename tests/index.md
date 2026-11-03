@@ -125,6 +125,7 @@ performance experiments are separate from correctness and visual acceptance.
 | --- | --- |
 | [scenes/animation-test.js](scenes/animation-test.js) | Interactive clip selection and playback on a grabbable animated model. |
 | [scenes/auto-split.js](scenes/auto-split.js) | Boxes/models moved between compact and wide layouts to inspect tile split/merge/rebalance behavior. |
+| [scenes/event-bus-peer.js](scenes/event-bus-peer.js) | Display-only peer for `scripts/event-bus.js`: shows received counters, replies on the next frame, and publishes a ping on A/X. Launch both with `--scripts-dir . --launch scripts/event-bus.js --launch tests/scenes/event-bus-peer.js`. |
 | [scenes/fast-motion.js](scenes/fast-motion.js) | Deterministic kinematic movers crossing tile boundaries; shared by bounded motion runners. |
 | [scenes/gaze-accuracy-test.js](scenes/gaze-accuracy-test.js) | Raw gaze accuracy measurements over a target grid without modifying calibration. |
 | [scenes/grab-buttons-test.js](scenes/grab-buttons-test.js) | Side-by-side trigger-only, grip-only, and either-button grabbing. |
