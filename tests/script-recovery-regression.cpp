@@ -121,6 +121,9 @@ int main(){
       now+=std::chrono::milliseconds(1);
       assert(registry.tickRestarts()==std::vector<int>{id});++restarts;
       assert(registry.tickRestarts().empty()&&instance->state==ScriptState::Running&&instance->generation==uint64_t(restarts+1));
+      // The restarted scene keeps its instance identity and save namespace.
+      assert(instance->host.instanceId==id&&instance->host.saveNamespace==scriptStorageKey(scenePersistence::catalogRoot,instance->path));
+      {ScriptScope scope(instance->host);assert(activeInstanceId==id);}
     }
     assert(!registry.update(id,1./90));
     assert(registry.find(id)->state==ScriptState::Failed&&!registry.find(id)->restartAt&&restarts==restart::maxAttempts);

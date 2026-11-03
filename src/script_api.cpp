@@ -1046,7 +1046,9 @@ void closeScript(ScriptHost &s){
   s.scene.busSubscriptions.clear();
   if(s.ctx){clearInputCallback(s.ctx);JS_FreeValue(s.ctx,s.callback);JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
   if(activeSceneInput==s.inputQueue.get())activeSceneInput=&frameInput;
-  s={};
+  // The host keeps its identity, so a later restart loads as the same instance.
+  const int instanceId=s.instanceId;std::string saveNamespace=std::move(s.saveNamespace);
+  s={};s.instanceId=instanceId;s.saveNamespace=std::move(saveNamespace);
 }
 bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit){
   std::ifstream file(path);if(!file){fprintf(stderr,"script unreadable: %s\n",path.c_str());return false;}
