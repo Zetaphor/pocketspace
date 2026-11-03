@@ -35,6 +35,7 @@
 #include <functional>
 #include <quickjs.h>
 #include <tuple>
+#include <optional>
 #include <iterator>
 #include "model_asset.h"
 #include "model_shaders.h"
@@ -146,6 +147,16 @@ inline const std::string *activeNamespace=&scratchNamespace;
 }
 struct ScriptHost {int instanceId=0;std::string saveNamespace=scenePersistence::scratchNamespace;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
 bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit={});
+// Same transaction for source that is not a file, such as the scratch scene's empty start.
+bool loadScriptSource(ScriptHost &active,const std::string &name,const std::string &source,const std::function<void()> &beforeCommit={});
+// Evaluation bounds: while set, print() output is captured and running code is
+// interrupted after the deadline.
+namespace evaluation {
+inline std::string *capture=nullptr;
+constexpr size_t maxSourceBytes=256*1024,maxOutputBytes=64*1024;
+inline std::optional<std::chrono::steady_clock::time_point> deadline;
+inline bool interrupted=false;
+}
 void closeScript(ScriptHost &s);
 // Called by the host loop and regressions.
 JSValue capturePanelSnapshot(JSContext *ctx,const Panel &panel,size_t &budgetUsed);

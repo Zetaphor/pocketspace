@@ -1,0 +1,12 @@
+[Unit]
+Description=Start Pocketspace with SteamVR when engineAutostart is set
+After=steamvr.service
+
+[Service]
+Type=oneshot
+# The settings file decides; with engineAutostart false this unit does nothing.
+ExecCondition=@ROOT@/run-pocketspace.sh --engine-autostart-enabled
+ExecStart=/usr/bin/systemctl --user start --no-block pocketspace.service
+
+[Install]
+WantedBy=steamvr.service

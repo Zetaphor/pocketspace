@@ -105,8 +105,9 @@ the active scene intact. Restored poses rebuild independently owned GPU resource
 Each iteration follows this order in `src/main.cpp`:
 
 1. Process SteamVR quit events and refresh tracked controller roles and poses.
-2. Reread changed engine settings, retry due automatic restarts, and periodically
-   check each running script's timestamp and attempt scoped transactional reload.
+2. Reread changed engine settings, retry due automatic restarts, periodically
+   check each running script's timestamp and attempt scoped transactional reload,
+   then answer queued [control socket](control-protocol.md) requests and send watch events.
 3. Advance native animation from elapsed time and evaluate changed poses.
 4. Synchronize model surfaces and panels.
 5. Poll requested tracking actions and the raw controller stream. Apply connection

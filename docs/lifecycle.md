@@ -1,7 +1,8 @@
 # Scene lifecycle
 
 The engine starts with no user scripts unless catalog `--launch` entries or
-[autostart settings](#startup-and-recovery) provide them. Each running script has its own QuickJS context and scene. The engine
+[autostart settings](#startup-and-recovery) provide them. It always runs the
+[scratch scene](control-protocol.md#scratch), instance `0`, which has no file. Each running script has its own QuickJS context and scene. The engine
 periodically checks each running script's modification time and builds a new
 context and candidate scene before replacing that script's scene. A failed
 reload preserves its active scene, hover and grab state, event callback, and queues.
@@ -90,4 +91,4 @@ seconds if it keeps failing; after five attempts it stays stopped. A script that
 runs for a minute without failing gets five attempts again. A restart that fails to
 load counts as an attempt. Stopping a script by hand cancels a pending restart for
 the rest of the session, and turning `autoRestart` off cancels all pending restarts.
-The scratch scene is never restarted this way.
+The scratch scene is never restarted this way; an error in it recreates it empty.

@@ -35,7 +35,8 @@ export default defineConfig({
         { text: 'Tracking', link: '/tracking-api' },
         { text: 'Eye calibration', link: '/eye-calibration' },
         { text: 'Input architecture', link: '/input-architecture' },
-        { text: 'Lifecycle', link: '/lifecycle' }
+        { text: 'Lifecycle', link: '/lifecycle' },
+        { text: 'Control protocol', link: '/control-protocol' }
       ] },
       { text: 'Project', items: [
         { text: 'Engine architecture', link: '/architecture' },

@@ -50,6 +50,8 @@ struct ScriptInstance {
   int restartAttempts=0;
   std::optional<std::chrono::steady_clock::time_point> restartAt;
   std::chrono::steady_clock::time_point startedAt{};
+  // The last reload's result in this session; unset before any reload.
+  std::optional<bool> lastReloadOk;
 };
 namespace restart {
 constexpr int maxAttempts=5;
@@ -62,10 +64,18 @@ class ScriptRegistry {
   std::function<void(int)> beforeStop_;
   std::function<void(const ScriptInstance&)> onFailure_;
   std::function<std::chrono::steady_clock::time_point()> clock_=[]{return std::chrono::steady_clock::now();};
-  bool autoRestart_=false;
-  // Called after a callback error stops a user script.
+  bool autoRestart_=false,scratchEnabled_=false;
+  bool startScratch(ScriptInstance &scratch){
+    bool loaded=false;
+    {ScriptScope scope(scratch.host);loaded=loadScriptSource(scratch.host,"scratch","");}
+    scratch.state=loaded?ScriptState::Running:ScriptState::Failed;
+    if(loaded){++scratch.generation;scratch.startedAt=clock_();}
+    return loaded;
+  }
+  // Called after a callback error stops a script. Scratch is recreated empty instead.
   void failed(ScriptInstance &instance){
     instance.restartAt.reset();
+    if(!instance.id&&scratchEnabled_){if(onFailure_)onFailure_(instance);startScratch(instance);return;}
     if(instance.id&&autoRestart_&&!instance.manuallyStopped&&instance.restartAttempts<restart::maxAttempts)
       instance.restartAt=clock_()+restart::firstDelay*(1<<instance.restartAttempts++);
     if(onFailure_)onFailure_(instance);
@@ -101,6 +111,54 @@ public:
     if(!enabled)for(auto &[id,instance]:instances_)instance->restartAt.reset();
   }
   bool autoRestart()const{return autoRestart_;}
+  // The engine-owned scratch scene: instance 0 with an empty, persistent context.
+  bool enableScratch(){scratchEnabled_=true;auto &scratch=*instances_.at(0);return scratch.state==ScriptState::Running||startScratch(scratch);}
+  // Clears and recreates only instance 0.
+  bool resetScratch(){
+    auto &scratch=*instances_.at(0);if(!scratchEnabled_)return false;
+    if(scratch.host.ctx){ScriptScope scope(scratch.host);if(beforeStop_)beforeStop_(0);closeScript(scratch.host);resetActiveInteraction();}
+    return startScratch(scratch);
+  }
+  struct Evaluation {
+    enum class Status {Ok,Exception,Timeout,NotRunning,StaleGeneration,TooLarge} status=Status::Ok;
+    std::string result,exception,output;uint64_t generation=0;
+  };
+  // Runs source in a live scene's existing context. A nonzero generation must match.
+  // A timeout leaves the scene in an unknown state, so it stops that script (or resets
+  // scratch) like a callback error; an exception is only reported.
+  Evaluation evaluate(int id,uint64_t generation,const std::string &source,std::chrono::milliseconds timeout){
+    Evaluation outcome;auto *instance=find(id);
+    if(!instance||instance->state!=ScriptState::Running||!instance->host.ctx){outcome.status=Evaluation::Status::NotRunning;return outcome;}
+    if(generation&&generation!=instance->generation){outcome.status=Evaluation::Status::StaleGeneration;outcome.generation=instance->generation;return outcome;}
+    if(source.size()>evaluation::maxSourceBytes){outcome.status=Evaluation::Status::TooLarge;return outcome;}
+    outcome.generation=instance->generation;
+    ScriptScope scope(instance->host);JSContext *ctx=instance->host.ctx;
+    evaluation::capture=&outcome.output;evaluation::interrupted=false;evaluation::deadline=std::chrono::steady_clock::now()+timeout;
+    JSValue value=JS_Eval(ctx,source.c_str(),source.size(),"<eval>",JS_EVAL_TYPE_GLOBAL);
+    evaluation::deadline.reset();evaluation::capture=nullptr;
+    auto text=[&](JSValueConst v){const char *s=JS_ToCString(ctx,v);std::string r=s?s:"";if(s)JS_FreeCString(ctx,s);return r;};
+    if(JS_IsException(value)){
+      JSValue error=JS_GetException(ctx);
+      const bool timedOut=evaluation::interrupted;evaluation::interrupted=false;
+      outcome.exception=text(error);JS_FreeValue(ctx,error);
+      if(timedOut){
+        outcome.status=Evaluation::Status::Timeout;
+        instance->lastError="evaluation timed out after "+std::to_string(timeout.count())+" ms";
+        if(beforeStop_)beforeStop_(id);
+        closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;
+        publishLifecycle("engine.scriptStopped",*instance,"failed");
+        failed(*instance);
+      }else outcome.status=Evaluation::Status::Exception;
+      return outcome;
+    }
+    // Results are reported as JSON when possible, otherwise as their string form.
+    JSValue json=JS_JSONStringify(ctx,value,JS_UNDEFINED,JS_UNDEFINED);
+    if(JS_IsException(json)){JSValue e=JS_GetException(ctx);JS_FreeValue(ctx,e);outcome.result=JS_IsUndefined(value)?"undefined":text(value);}
+    else outcome.result=JS_IsUndefined(json)?(JS_IsUndefined(value)?"undefined":text(value)):text(json);
+    JS_FreeValue(ctx,json);JS_FreeValue(ctx,value);
+    if(outcome.result.size()>evaluation::maxOutputBytes)outcome.result.resize(evaluation::maxOutputBytes);
+    return outcome;
+  }
   // Retries due restarts and clears the attempt count of scripts that stayed up.
   // Returns the instances that started again.
   std::vector<int> tickRestarts(){
@@ -149,7 +207,8 @@ public:
   bool reload(int id,const std::function<void()> &beforeCommit={}){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
     ScriptScope scope(instance->host);
-    if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";return false;}
+    if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";instance->lastReloadOk=false;return false;}
+    instance->lastReloadOk=true;
     resetActiveInteraction();
     ++instance->generation;instance->lastError.clear();
     publishLifecycle("engine.scriptReloaded",*instance);return true;

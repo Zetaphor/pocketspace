@@ -30,7 +30,12 @@ static JSValue jsGetEngineStats(JSContext *ctx,JSValueConst,int,JSValueConst*){
   return value;
 }
 static JSValue jsLog(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){fprintf(stdout,"[js] %s\n",s);JS_FreeCString(ctx,s);}}
+  if(argc){const char *s=JS_ToCString(ctx,argv[0]);if(s){
+    if(auto *out=evaluation::capture){
+      if(out->size()<evaluation::maxOutputBytes)out->append(s).append("\n");
+      if(out->size()>evaluation::maxOutputBytes)out->resize(evaluation::maxOutputBytes);
+    }else fprintf(stdout,"[js] %s\n",s);
+    JS_FreeCString(ctx,s);}}
   return JS_UNDEFINED;
 }
 static JSValue jsGetController(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
@@ -1050,11 +1055,19 @@ void closeScript(ScriptHost &s){
   const int instanceId=s.instanceId;std::string saveNamespace=std::move(s.saveNamespace);
   s={};s.instanceId=instanceId;s.saveNamespace=std::move(saveNamespace);
 }
+static int interruptEvaluation(JSContext*,void*){
+  if(!evaluation::deadline||std::chrono::steady_clock::now()<*evaluation::deadline)return 0;
+  evaluation::interrupted=true;return 1;
+}
 bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit){
   std::ifstream file(path);if(!file){fprintf(stderr,"script unreadable: %s\n",path.c_str());return false;}
-  std::ostringstream stream;stream<<file.rdbuf();std::string source=stream.str();
+  std::ostringstream stream;stream<<file.rdbuf();
+  return loadScriptSource(active,path,stream.str(),beforeCommit);
+}
+bool loadScriptSource(ScriptHost &active,const std::string &path,const std::string &source,const std::function<void()> &beforeCommit){
   ScriptHost candidate;candidate.rt=JS_NewRuntime();if(!candidate.rt)return false;
   JS_SetMemoryLimit(candidate.rt,128*1024*1024);
+  JS_SetInterruptHandler(candidate.rt,interruptEvaluation,nullptr);
   candidate.ctx=JS_NewContext(candidate.rt);if(!candidate.ctx){closeScript(candidate);return false;}
   currentScene=&candidate.scene;
   JSContext *previousCallbackCtx=inputCallbackCtx;JSValue previousCallback=inputCallback;const int previousCallbackContainer=inputCallbackContainer;inputCallbackCtx=nullptr;inputCallback=JS_UNDEFINED;inputCallbackContainer=0;
@@ -1149,7 +1162,7 @@ bool loadScript(ScriptHost &active,const std::string &path,const std::function<v
   }
   JS_FreeValue(candidate.ctx,result);
   JSValue global=JS_GetGlobalObject(candidate.ctx);candidate.update=JS_GetPropertyStr(candidate.ctx,global,"update");JS_FreeValue(candidate.ctx,global);
-  std::error_code ec;candidate.mtime=std::filesystem::last_write_time(path,ec);
+  std::error_code ec;if(std::filesystem::is_regular_file(path,ec))candidate.mtime=std::filesystem::last_write_time(path,ec);
   if(previousCallbackCtx)JS_FreeValue(previousCallbackCtx,previousCallback);
   if(beforeCommit)beforeCommit();
   const int instanceId=active.instanceId;std::string saveNamespace=std::move(active.saveNamespace);

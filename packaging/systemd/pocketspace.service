@@ -1,0 +1,13 @@
+[Unit]
+Description=Pocketspace engine
+# SteamVR is run by the system; the engine only needs it already up.
+After=steamvr.service
+
+[Service]
+ExecStart=@ROOT@/run-pocketspace.sh
+WorkingDirectory=@ROOT@
+Restart=on-failure
+RestartSec=5
+# 13: invalid arguments or launch entries; 14: another engine already owns the socket.
+RestartPreventExitStatus=13 14
+Slice=session.slice

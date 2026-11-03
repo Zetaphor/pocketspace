@@ -57,7 +57,9 @@ To start scripts every time the engine starts, list them in
 ```
 
 See [startup and recovery](lifecycle.md#startup-and-recovery) for how autostart,
-automatic restart and invalid settings behave.
+automatic restart and invalid settings behave. To run the engine as a systemd user
+service, optionally starting with SteamVR, see
+[running the engine as a service](control-protocol.md#running-the-engine-as-a-service).
 
 Inspect a model without opening VR:
 

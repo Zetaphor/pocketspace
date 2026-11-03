@@ -64,6 +64,8 @@ int main(int argc,char **argv) {
   std::filesystem::path scriptsDirectory=userHome?std::filesystem::path(userHome)/".local/share/pocketspace/scripts":"user-scripts";
   std::vector<std::filesystem::path> launchScripts;
   std::filesystem::path settingsPath=settings::defaultPath();
+  std::filesystem::path controlSocketPath=control::defaultSocketPath();
+  bool engineAutostartQuery=false;
   for(int i=1;i<argc;i++){
     std::string arg=argv[i];
     if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
@@ -78,6 +80,11 @@ int main(int argc,char **argv) {
     }else if(arg=="--settings"){
       if(i+1==argc){fprintf(stderr,"--settings requires a file path\n");return 13;}
       settingsPath=argv[++i];
+    }else if(arg=="--control-socket"){
+      if(i+1==argc){fprintf(stderr,"--control-socket requires a path\n");return 13;}
+      controlSocketPath=argv[++i];
+    }else if(arg=="--engine-autostart-enabled"){
+      engineAutostartQuery=true;
     }else if(arg=="--launch"){
       if(i+1==argc){fprintf(stderr,"--launch requires a catalog-relative script\n");return 13;}
       launchScripts.emplace_back(argv[++i]);
@@ -93,7 +100,14 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[eye] calibration loaded: %s\n",calibrationPath.c_str());
   }
   scenePersistence::catalogRoot=std::filesystem::absolute(scriptsDirectory).string();
+  // For the autostart service: exit 0 only when valid settings ask to start with SteamVR.
+  if(engineAutostartQuery){settings::File file(settingsPath);file.refresh();return file.error().empty()&&file.current().engineAutostart?0:1;}
+  // One engine per user: the control socket doubles as the single-instance lock.
+  control::Server controlServer;
+  {std::string error;if(!controlServer.start(controlSocketPath,error)){fprintf(stderr,"[control] %s\n",error.c_str());return 14;}}
+  fprintf(stdout,"[control] listening on %s\n",controlSocketPath.c_str());
   ScriptRegistry scriptRegistry;
+  if(!scriptRegistry.enableScratch())fprintf(stderr,"[lifecycle] scratch scene unavailable\n");
   settings::File engineSettings(settingsPath);engineSettings.refresh();
   if(!engineSettings.error().empty())fprintf(stderr,"[settings] %s: %s; using defaults\n",settingsPath.c_str(),engineSettings.error().c_str());
   scriptRegistry.setAutoRestart(engineSettings.current().autoRestart);
@@ -371,6 +385,32 @@ int main(int argc,char **argv) {
   animationProfileFrame=&animationFrame;ScopeExit clearAnimationProfiler{[]{animationProfileFrame=nullptr;}};
   std::fprintf(stdout,"ANIMATION_PROFILE_BEGIN gpu=%s version=%s\n",glGetString(GL_RENDERER),glGetString(GL_VERSION));
 #endif
+  // File-change and control-socket reloads share the host's cleanup of native state.
+  auto reloadInstance=[&](int id)->bool{
+    const bool loaded=scriptRegistry.reload(id,[&]{
+      for(auto &pointer:panelPointers)pointer.forgetInstance(id);
+      if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
+      if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
+      sceneInput().resetScene();
+      for(int hand=0;hand<2;hand++){
+        meshHoveredObject[hand]=meshCurrentObject[hand]=0;
+        meshHitDistance[hand]=2;meshHitPoint[hand]={};meshLastHit[hand]={};grabNeedsRelease[hand]=true;
+      }
+#ifdef SF_ANIMATION_PROFILE
+      ++animationEpoch;
+#endif
+#ifdef SF_GPU_SYNC_EXPERIMENT
+      primitiveExperiment.reset();clusterExperiment.reset();
+#endif
+      fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
+    });
+    if(auto *entry=scriptRegistry.find(id);loaded&&entry&&pbrVariantsEnabled&&renderStates.count(id)){
+      for(auto &asset:entry->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
+      renderStates.at(id)->pbrVariants.prepare(entry->host.scene);
+    }
+    return loaded;
+  };
+  control::Service controlService(scriptRegistry,scriptsDirectory,engineSettings,{reloadInstance,[&](const settings::Settings &current){scriptRegistry.setAutoRestart(current.autoRestart);}});
   while(running){
 #ifdef SF_ANIMATION_PROFILE
     animationFrame={};const auto animationFrameStart=AnimationProfileClock::now();
@@ -421,33 +461,14 @@ int main(int argc,char **argv) {
     }
     if(frame%30==0)for(int id:scriptRegistry.runningIds()){
       auto *entry=scriptRegistry.find(id);
-      if(!entry||entry->state!=ScriptState::Running)continue;
-      auto &host=entry->host;
+      if(!entry||entry->state!=ScriptState::Running||!id)continue;
       std::error_code ec;const auto modified=std::filesystem::last_write_time(entry->path,ec);
-      if(ec||modified==host.mtime)continue;
-      const bool loaded=scriptRegistry.reload(id,[&]{
-        for(auto &pointer:panelPointers)pointer.forgetInstance(id);
-        if(auto owner=resourcesByInstance.find(id);owner!=resourcesByInstance.end())releaseResources(*owner->second);
-        if(auto owner=renderStates.find(id);owner!=renderStates.end())owner->second->resetScene();
-        sceneInput().resetScene();
-        for(int hand=0;hand<2;hand++){
-          meshHoveredObject[hand]=meshCurrentObject[hand]=0;
-          meshHitDistance[hand]=2;meshHitPoint[hand]={};meshLastHit[hand]={};grabNeedsRelease[hand]=true;
-        }
-#ifdef SF_ANIMATION_PROFILE
-        ++animationEpoch;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-        primitiveExperiment.reset();clusterExperiment.reset();
-#endif
-        fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
-      });
-      if(loaded&&pbrVariantsEnabled&&renderStates.count(id)){
-        for(auto &asset:host.scene.assets)if(!asset.uploaded)uploadModel(asset);
-        renderStates.at(id)->pbrVariants.prepare(host.scene);
-      }
-      if(!loaded)host.mtime=modified;
+      if(ec||modified==entry->host.mtime)continue;
+      if(!reloadInstance(id))entry->host.mtime=modified;
     }
+    // Control requests run here, between frames, outside every scene scope.
+    controlServer.poll([&](control::Client &client,const std::string &line){return controlService.handle(client,line);});
+    for(const auto &line:controlService.takeEvents())controlServer.broadcast(line);
     std::array<std::optional<inputArbitration::Target>,2> rayTargets{};
     std::array<int,2> rayOwners{};
     std::array<int,2> grabOwners{};

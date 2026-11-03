@@ -38,17 +38,20 @@ inline std::string jsonString(const std::string &value){
   std::string out="\"";
   for(unsigned char c:value){
     if(c=='"'||c=='\\'){out+='\\';out+=char(c);}
+    else if(c=='\n')out+="\\n";else if(c=='\r')out+="\\r";else if(c=='\t')out+="\\t";
     else if(c<0x20){static const char *hex="0123456789abcdef";out+="\\u00";out+=hex[c>>4];out+=hex[c&15];}
     else out+=char(c);
   }
   return out+'"';
 }
-inline std::string serialize(const Settings &value){
-  std::string out="{\n  \"version\": 1,\n  \"autostart\": [";
-  for(size_t i=0;i<value.autostart.size();i++)out+=(i?", ":"")+jsonString(value.autostart[i]);
-  out+="],\n  \"autoRestart\": ";out+=value.autoRestart?"true":"false";
-  out+=",\n  \"engineAutostart\": ";out+=value.engineAutostart?"true":"false";
-  return out+"\n}\n";
+// Pretty for the file people edit; compact for single-line protocol messages.
+inline std::string serialize(const Settings &value,bool pretty=true){
+  const std::string field=pretty?",\n  ":",",colon=pretty?": ":":";
+  std::string out=std::string("{")+(pretty?"\n  ":"")+"\"version\""+colon+"1"+field+"\"autostart\""+colon+"[";
+  for(size_t i=0;i<value.autostart.size();i++)out+=(i?(pretty?", ":","):"")+jsonString(value.autostart[i]);
+  out+="]"+field+"\"autoRestart\""+colon+(value.autoRestart?"true":"false");
+  out+=field+"\"engineAutostart\""+colon+(value.engineAutostart?"true":"false");
+  return out+(pretty?"\n}\n":"}");
 }
 // Strict: version 1, known keys only, correct types, unique valid autostart names.
 inline bool parse(const std::string &text,Settings &result,std::string &error){
