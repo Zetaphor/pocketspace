@@ -139,15 +139,6 @@ int main(int argc,char **argv) {
   std::array<panelPointer::Pointer,2> panelPointers;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
-#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
-  PbrProgram minimalDepthProgram;
-  const bool minimalPbrDepth=std::getenv("SF_PBR_MINIMAL_DEPTH")&&std::strcmp(std::getenv("SF_PBR_MINIMAL_DEPTH"),"1")==0;
-  if(minimalPbrDepth&&!minimalDepthProgram.initMinimalDepth())return 5;
-  PbrProgram &selectedDepthProgram=minimalPbrDepth?minimalDepthProgram:depthPbrProgram;
-  printf("PBR_MINIMAL_DEPTH enabled=%d\n",int(minimalPbrDepth));
-#else
-  PbrProgram &selectedDepthProgram=depthPbrProgram;
-#endif
 #ifdef SF_GPU_SYNC_EXPERIMENT
   const bool pbrVariantsEnabled=std::getenv("SF_GPU_PBR_VARIANTS")&&std::strcmp(std::getenv("SF_GPU_PBR_VARIANTS"),"1")==0;
 #else
@@ -177,7 +168,7 @@ int main(int argc,char **argv) {
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
   auto anchor=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
   for(int r=0;r<3;r++)anchor.m[r][3]+=anchor.m[r][1]*-.2f+anchor.m[r][2]*-1.f;
-#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+#ifdef SF_GPU_SYNC_EXPERIMENT
   // Profiling only: a canonical scene basis removes cross-run tracking noise.
   const bool fixedDepthView=std::getenv("SF_PBR_DEPTH_FIXED_VIEW")&&std::strcmp(std::getenv("SF_PBR_DEPTH_FIXED_VIEW"),"1")==0;
   if(fixedDepthView){anchor={};for(int axis=0;axis<3;axis++)anchor.m[axis][axis]=1;}
@@ -641,7 +632,7 @@ int main(int argc,char **argv) {
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
-#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
+#ifdef SF_GPU_SYNC_EXPERIMENT
       if(fixedDepthView){head=anchor;head.m[1][3]=.2f;head.m[2][3]=1.f;}
 #endif
       const auto renderStart=std::chrono::steady_clock::now();
@@ -929,7 +920,7 @@ int main(int argc,char **argv) {
                   gpuSync.beginPbr();ScopeExit finishPbrTiming{[&]{gpuSync.endPbr();}};
 #endif
                   auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
-                  auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?selectedDepthProgram:pbrProgram);
+                  auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram);
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
                   if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);

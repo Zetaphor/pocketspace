@@ -3,7 +3,9 @@
 Measured on Steam Frame on **2026-10-29** with the headset awake and worn.
 At this initial measurement the implementation was test-only. The subsequent
 [production integration](pbr-index-production.md) uses explicitly enabled cache
-ordering; plain indexing remains diagnostic-only.
+ordering. Plain indexing was not adopted, and its comparison targets
+(`pbr-index-regression`, `pbr-index-demo`) have been removed; the commands below
+record how these results were produced.
 
 ## Implementation and correctness
 

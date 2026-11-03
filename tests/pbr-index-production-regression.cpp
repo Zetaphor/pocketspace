@@ -1,6 +1,38 @@
-// Actual production upload policy; no SF_PBR_INDEX_EXPERIMENT routing controls.
-#define SF_PBR_INDEX_HELPERS_ONLY
-#include "pbr-index-regression.cpp"
+// Production static PBR indexing: exact pixels, exact reconstructed streams and rollback.
+#define SF_OCCLUSION_HELPERS_ONLY
+#include "render-occlusion-regression.cpp"
+#include <GLES2/gl2ext.h>
+static uint64_t geometryBytes(const ModelAsset &asset){
+ uint64_t bytes=0;
+ for(const auto &part:asset.primitives)for(GLuint buffer:{part.vbo,part.surfaceVbo,part.indexBuffer})if(buffer){glBindBuffer(GL_ARRAY_BUFFER,buffer);GLint size=0;glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&size);bytes+=size;}
+ return bytes;
+}
+static bool verifyStream(const PrimitiveAsset &p,bool reordered=false){
+ if(!p.indexBuffer)return false;
+ glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,p.indexBuffer);
+ size_t bytes=size_t(p.vertexCount)*(p.indexType==GL_UNSIGNED_SHORT?2:4);
+ const void *indices=glMapBufferRange(GL_ELEMENT_ARRAY_BUFFER,0,bytes,GL_MAP_READ_BIT);assert(indices);
+ std::vector<uint32_t> order(p.vertexCount);for(size_t v=0;v<order.size();v++)order[v]=p.indexType==GL_UNSIGNED_SHORT?static_cast<const uint16_t*>(indices)[v]:static_cast<const uint32_t*>(indices)[v];
+ assert(glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER));
+ std::vector<std::array<uint32_t,42>> actual((order.size()+2)/3),expected(actual.size());
+ for(bool surface:{false,true}){
+  const size_t width=surface?9:5;const auto &expanded=surface?p.surface:p.vertices;
+  glBindBuffer(GL_ARRAY_BUFFER,surface?p.surfaceVbo:p.vbo);
+  const auto *data=static_cast<const float*>(glMapBufferRange(GL_ARRAY_BUFFER,0,size_t(p.gpuVertexCount)*width*sizeof(float),GL_MAP_READ_BIT));assert(data);
+  for(size_t v=0;v<order.size();v++){
+   assert(order[v]<uint32_t(p.gpuVertexCount));
+   if(!reordered)assert(std::memcmp(data+order[v]*width,expanded.data()+v*width,width*sizeof(float))==0);
+   for(size_t c=0;c<width;c++){
+    size_t offset=(v%3)*14+(surface?5:0)+c;
+    actual[v/3][offset]=std::bit_cast<uint32_t>(data[order[v]*width+c]);
+    expected[v/3][offset]=std::bit_cast<uint32_t>(expanded[v*width+c]);
+   }
+  }
+  assert(glUnmapBuffer(GL_ARRAY_BUFFER));
+ }
+ const bool changed=actual!=expected;
+ std::sort(actual.begin(),actual.end());std::sort(expected.begin(),expected.end());assert(actual==expected);return changed;
+}
 #include "../src/pbr_lod.h"
 static uint64_t allGeometryBytes(const ModelAsset &asset){
  uint64_t bytes=geometryBytes(asset);for(const auto &p:asset.primitives)for(const auto &lod:p.lod)bytes+=lod.budgetBytes;return bytes;
@@ -38,8 +70,6 @@ static void benchmarkMaterials(){
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  size_t views=0,indexed=0;bool reduced=false;uint64_t compactBudget=0;
- // Production ignores the diagnostic override, even when it asks for expansion.
- setenv("SF_PBR_INDEXED","0",1);
  for(const char *name:{"ToyCar","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","AlphaBlendModeTest","TextureEncodingTest","Fox","AnimatedMorphCube","Lantern","MetalRoughSpheres","MetalRoughSpheresNoTextures","UnlitTest","EmissiveStrengthTest","Box","RiggedSimple","RiggedFigure","CesiumMan","InterpolationTest","Avocado"}){
   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[2];std::vector<GLuint> owned;
   for(int mode=0;mode<2;mode++){

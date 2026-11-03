@@ -10,13 +10,6 @@ planned development track.
 
 ## Before the event bus
 
-In this order:
-
-- Run `python3 tools/run-regressions.py --experiments` once. The experiment
-  regressions have not been built since rendering moved to `src/render_host.cpp`.
-- Retire the experiment regressions that are no longer needed. `directional-light`,
-  `spot-shadow`, `sheen` and `gpu-skinning` also cover shipped features, so move that
-  coverage into the default run before retiring them.
 - Replace the native model pointer with the engine laser, then confirm it in the
   headset:
   - Remove SteamVR's input on model overlays, `overlay.surfaceHover*`,

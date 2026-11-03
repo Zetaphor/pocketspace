@@ -1131,37 +1131,6 @@ studio environment. Compare tangent-test highlights and horizon orientation,
 negative-scale check marks/spheres, matching encoding-test columns, invariant
 unlit colors and increasing emissive brightness. It remains non-interactive.
 
-## Static PBR indexing experiment
-
-Reconfigure CMake and build the excluded `pbr-index-regression` target. Run it
-from the repository root with the same native GLES environment as
-`pbr-regression`. No OpenVR session, overlay or controller input is created.
-It compares expanded geometry, plain full-input indexing, and indexing with
-opaque/mask vertex-cache/fetch ordering explicitly enabled in mode 2. The earlier
-recorded run left the policy off; new samples record the actual flag. Uploaded
-ToyCar streams must demonstrate changed triangle order in opaque/mask modes and
-preserved order in blend mode. Alpha modes are assigned before upload; changing
-an opaque upload to blend afterward would incorrectly test reordered transparency.
-Both member-color and external-depth views are compared. Identity includes all 14 position/UV/surface floats;
-retained CPU geometry stays expanded. Animated, skinned and morph assets retain
-the expanded upload. Both 16-bit and 32-bit index boundaries are checked.
-
-`--benchmark` compares one/sixteen full-detail ToyCars with environment lighting,
-a fixed 768×768 offscreen target and alternating eyes. Each variant uses an
-expanded/indexed/indexed/expanded sequence, with 30 warmup and 120 measured frames
-per stage. Geometry, shaders, lighting and quality stay matched; GPU disjoint and
-GL errors fail the run. The reported storage is geometry VBOs plus index buffers,
-excluding textures, environment storage and retained CPU arrays. Every measured
-frame asserts matching color draw/triangle counts and zero external-depth work. Keep the headset
-awake and worn. Results are offscreen costs, not compositor FPS.
-
-The excluded `pbr-index-demo` executable is the normal engine compiled with the
-test-only path. `SF_PBR_INDEXED=0` retains expanded uploads, `1` enables indexing
-with triangle order retained, and `2`, when `optimizeVertexCache` is enabled, additionally orders static non-blend
-triangles for the vertex cache and vertex fetch. Use the same environment as the
-normal engine and pass a script such as `scripts/pbr.js`. This switch is not a
-public API and is absent from the production executable.
-
 ## Surface-aware PBR LOD checks
 
 Reconfigure CMake and build the excluded `pbr-lod-regression` target. Run it from the repository root with the normal GLES
@@ -1228,9 +1197,8 @@ Production enables the cheaper depth pass automatically. Only the excluded
 ## Production PBR indexing checks
 
 Reconfigure CMake and build `pbr-index-production-regression` explicitly. Run from
-the repository root with the normal GLES environment. Unlike the earlier
-comparison target, this target uses the production opt-in policy and ignores
-`SF_PBR_INDEXED`. It compares both eyes at all three LOD choices, color/external
+the repository root with the normal GLES environment. It uses the production
+opt-in policy. It compares both eyes at all three LOD choices, color/external
 depth, original blended materials and animated fallbacks. It checks reconstructed
 full shader inputs, CPU preservation, shared snapshots, cache conflicts, rejected
 reload preservation, buffer cleanup, a full LOD budget and partial allocation

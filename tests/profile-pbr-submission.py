@@ -33,7 +33,7 @@ for control in ((False, True) if args.workload == 'both' else (args.workload == 
         env = {k: v for k, v in os.environ.items() if not k.startswith('SF_GPU_')}
         env.update(DISPLAY=env.get('DISPLAY', ':0'), EGL_PLATFORM='x11',
                    SF_GPU_SYNC_MODE='finish', SF_GPU_PBR_VARIANTS='1',
-                   SF_GPU_PROFILE_PASSES='0', SF_PBR_MINIMAL_DEPTH='0',
+                   SF_GPU_PROFILE_PASSES='0',
                    SF_GPU_PROFILE_PBR_SUBMIT=str(mode),
                    SF_PBR_DEPTH_FIXED_VIEW='1')
         label = f'{"color" if control else "grouped"}-stage-{stage}'
@@ -60,7 +60,7 @@ for control in ((False, True) if args.workload == 'both' else (args.workload == 
         whole = [s for s in samples('GPU_SYNC_SAMPLE ') if s['seconds'] >= 6]
         stats = samples('[js] DEPTH_CONTROL_STATS ')
         budget = re.search(r'grouped_buffer_bytes=(\d+) peak=(\d+) limit=(\d+)', log)
-        assert process.returncode == 0 and 'PBR_MINIMAL_DEPTH enabled=0' in log
+        assert process.returncode == 0
         assert 'PBR_DEPTH_FIXED_VIEW enabled=1' in log
         assert len(whole) >= 3 and stats and budget and int(budget[1]) == 0
         assert int(budget[2]) <= int(budget[3])

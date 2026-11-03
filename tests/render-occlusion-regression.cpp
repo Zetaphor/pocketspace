@@ -44,10 +44,7 @@ struct Renderer {
   PbrVariantPrograms directionalVariants;
 #endif
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
-#ifdef SF_PBR_MINIMAL_DEPTH_EXPERIMENT
-  PbrProgram minimalDepthProgram;bool minimalDepth=false;
-#endif
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
   uint64_t pbrDepthDraws=0,pbrColorDraws=0,pbrDepthTriangles=0,pbrColorTriangles=0;
 #endif
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
@@ -85,7 +82,7 @@ struct Renderer {
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
     assert(samplePixels>0&&samplePixels<=backingPixels);const int pixels=samplePixels;
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
 #endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
@@ -160,7 +157,7 @@ struct Renderer {
             special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
           }
           if(asset.pbr){
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
+#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
             if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
 #endif
@@ -176,9 +173,6 @@ struct Renderer {
             if(referenceLightLoop)assert(depthOnly?referenceLightDepthProgram.initLightReference(true):referenceLightProgram.initLightReference());
             auto *prepared=preparedDirectional&&!depthOnly?directionalVariants.ready(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count,pixels):nullptr;
             auto &activePbr=referenceLightLoop?(depthOnly?referenceLightDepthProgram:referenceLightProgram):(prepared?*prepared:(depthOnly?depthPbrProgram:pbrProgram));
-#elif defined(SF_PBR_MINIMAL_DEPTH_EXPERIMENT)
-            if(depthOnly&&minimalDepth)assert(minimalDepthProgram.initMinimalDepth());
-            auto &activePbr=depthOnly?(minimalDepth?minimalDepthProgram:depthPbrProgram):pbrProgram;
 #else
             auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;
 #endif

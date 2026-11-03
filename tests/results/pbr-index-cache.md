@@ -4,6 +4,8 @@ Measured on Steam Frame on 2026-10-29 with the headset awake and worn.
 At measurement time the prototype was excluded from production; this comparison establishes a
 candidate for production/LOD integration. See the subsequent
 [production validation](pbr-index-production.md) for the opt-in integration.
+The `pbr-index-regression` comparison target has since been removed;
+`pbr-index-production-regression` covers the shipped path.
 
 ## Verified implementation
 

@@ -1,7 +1,9 @@
 # Minimal PBR depth shader investigation
 
 Closed without adoption on Steam Frame, 2026-10-29. Production retains the
-shipped fast-depth program. The candidate remains available in excluded tests.
+shipped fast-depth program. The candidate, its regression and
+`tests/profile-minimal-depth.py` have since been removed; the commands below
+record how these results were produced.
 The reference is the **shipped fast-depth shader**, rather than the older full
 PBR color shader used as a depth pass in the original depth investigation.
 

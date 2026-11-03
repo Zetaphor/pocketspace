@@ -289,11 +289,6 @@ the bounded non-interactive
 - [scenes/pbr-lod.js](scenes/pbr-lod.js): interactive PBR car and normal-map
   fixture for automatic detail transitions and full-detail restoration on grab;
   runs in the normal engine; `pbr-lod-demo` additionally logs transitions.
-- [pbr-index-regression.cpp](pbr-index-regression.cpp): test-only static PBR
-  indexing and explicitly enabled vertex-cache ordering; full-input seam identity,
-  verified reordered opaque/mask and order-preserving blend streams, 16/32-bit indices,
-  exact stereo/alpha/overlap/depth pixels, animation fallback, buffer cleanup and an
-  optional native ABBA comparison.
 - [scenes/light-filtering.js](scenes/light-filtering.js): interactive combined
   acceptance of range/cone filtering with four active point/spot lights, movable
   car/normal-map targets and grabbable light markers.
@@ -363,16 +358,6 @@ the bounded non-interactive
 
 ## PBR depth optimization
 
-- [pbr-minimal-depth-regression.cpp](pbr-minimal-depth-regression.cpp): test-only
-  minimal vertex/fragment depth program at 768 and 2048 pixels per eye,
-  compared byte-for-byte with the shipped
-  fast-depth shader; stereo, masks, overlaps, LOD, animated poses, GL state and
-  cleanup. Build `pbr-minimal-depth-regression` explicitly; run from the repo
-  root with `DISPLAY=:0 EGL_PLATFORM=x11` and the SteamVR library path. `--benchmark` adds
-  matched depth-only and unchanged color controls; `--benchmark --reverse`
-  reverses the ABBA program order. The excluded `gpu-sync-experiment` accepts
-  `SF_PBR_MINIMAL_DEPTH=1` for engine integration; normal builds ignore it.
-
 - [profile-pbr-submission.py](profile-pbr-submission.py): fixed-view PBR
   submission attribution with probes off/on/on/off, preserving exact work and
   storage. The excluded engine's `SF_GPU_PROFILE_PBR_SUBMIT=1` samples PBR
@@ -380,15 +365,6 @@ the bounded non-interactive
   execution from enqueue wall time. See the
   [submission cost report](results/pbr-submission.md) for scope and the separate
   128-Avocado check. This measures existing draws, not an instancing prototype.
-- [profile-minimal-depth.py](profile-minimal-depth.py): bounded actual-engine
-  ABBA comparison with a canonical camera, identical static geometry, eight
-  lights and exact external/member work plus storage validation. Uses
-  [scenes/pbr-depth-controlled.js](scenes/pbr-depth-controlled.js); includes a
-  single-group color-only control. Run with the native EGL/SteamVR environment:
-  `python3 tests/profile-minimal-depth.py --output /tmp/depth-controlled`.
-  `--reverse` reverses program order; `--workload grouped` limits a repeat to the
-  external-depth workload. The fixed camera is test-only and is not suitable for
-  judging head-motion rendering.
 - [pbr-depth-regression.cpp](pbr-depth-regression.cpp): 1,248 exact stereo, alpha,
   overlap, LOD and animated-pose comparisons; GL state/resource cleanup and
   matched depth/color performance workloads.

@@ -303,17 +303,11 @@ static void prepareVertexArrays(const PrimitiveAsset &part){
  glBindVertexArray(GLuint(previous));glBindBuffer(GL_ARRAY_BUFFER,GLuint(arrayBuffer));
 }
 #endif
-// Static PBR indexing keeps every shader input in vertex identity. Production
-// requires cache ordering; diagnostic builds can compare plain/expanded streams.
+// Static PBR indexing keeps every shader input in vertex identity and requires
+// cache ordering; plain indexing measured slower.
 static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
-#ifdef SF_PBR_INDEX_EXPERIMENT
-  const char *enabled=std::getenv("SF_PBR_INDEXED");
-  if(!enabled||(std::string(enabled)!="1"&&std::string(enabled)!="2")||!asset.pbr||asset.hasAnimation||asset.hasSkin||asset.hasMorph)return false;
-  const bool reorder=std::string(enabled)=="2"&&asset.optimizeVertexCache&&part.alphaMode!=2;
-#else
   if(!asset.pbr||!asset.optimizeVertexCache||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode==2)return false;
   constexpr bool reorder=true;
-#endif
 #ifdef SF_PBR_INDEX_VALIDATION
   if(pbrIndexValidation::failCpu)throw std::bad_alloc();
 #endif
