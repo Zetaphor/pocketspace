@@ -46,12 +46,30 @@ struct ScriptInstance {
   uint64_t generation=0;
   bool manuallyStopped=false;
   std::string lastError;
+  // Automatic restart after callback errors; attempts reset after a healthy minute.
+  int restartAttempts=0;
+  std::optional<std::chrono::steady_clock::time_point> restartAt;
+  std::chrono::steady_clock::time_point startedAt{};
 };
+namespace restart {
+constexpr int maxAttempts=5;
+constexpr auto firstDelay=std::chrono::seconds(1),healthyRun=std::chrono::seconds(60);
+}
 
 class ScriptRegistry {
   std::map<int,std::unique_ptr<ScriptInstance>> instances_;
   int nextId_=1;
   std::function<void(int)> beforeStop_;
+  std::function<void(const ScriptInstance&)> onFailure_;
+  std::function<std::chrono::steady_clock::time_point()> clock_=[]{return std::chrono::steady_clock::now();};
+  bool autoRestart_=false;
+  // Called after a callback error stops a user script.
+  void failed(ScriptInstance &instance){
+    instance.restartAt.reset();
+    if(instance.id&&autoRestart_&&!instance.manuallyStopped&&instance.restartAttempts<restart::maxAttempts)
+      instance.restartAt=clock_()+restart::firstDelay*(1<<instance.restartAttempts++);
+    if(onFailure_)onFailure_(instance);
+  }
   void publishLifecycle(const char *topic,const ScriptInstance &instance,const char *reason=nullptr){
     std::string payload="{\"instanceId\":"+std::to_string(instance.id)+",\"path\":"+bus::jsonText(instance.path);
     if(reason)payload+=std::string(",\"reason\":")+bus::jsonText(reason)+",\"error\":"+bus::jsonText(instance.lastError);
@@ -67,6 +85,7 @@ class ScriptRegistry {
     if(beforeStop_)beforeStop_(instance.id);
     closeScript(instance.host);resetActiveInteraction();instance.state=ScriptState::Failed;
     publishLifecycle("engine.scriptStopped",instance,"failed");
+    failed(instance);
   }
 public:
   ScriptRegistry(){auto scratch=std::make_unique<ScriptInstance>();scratch->id=0;instances_.emplace(0,std::move(scratch));}
@@ -74,6 +93,35 @@ public:
   ScriptRegistry(const ScriptRegistry&)=delete;
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
   void setBeforeStop(std::function<void(int)> callback){beforeStop_=std::move(callback);}
+  void setOnFailure(std::function<void(const ScriptInstance&)> callback){onFailure_=std::move(callback);}
+  void setClock(std::function<std::chrono::steady_clock::time_point()> clock){clock_=std::move(clock);}
+  // Off by default. Turning it off cancels pending restarts.
+  void setAutoRestart(bool enabled){
+    autoRestart_=enabled;
+    if(!enabled)for(auto &[id,instance]:instances_)instance->restartAt.reset();
+  }
+  bool autoRestart()const{return autoRestart_;}
+  // Retries due restarts and clears the attempt count of scripts that stayed up.
+  // Returns the instances that started again.
+  std::vector<int> tickRestarts(){
+    const auto now=clock_();std::vector<int> restarted;
+    for(auto &[id,instance]:instances_){
+      if(!id)continue;
+      if(instance->state==ScriptState::Running&&instance->restartAttempts&&now-instance->startedAt>=restart::healthyRun)instance->restartAttempts=0;
+      if(instance->state!=ScriptState::Failed||!instance->restartAt||now<*instance->restartAt)continue;
+      instance->restartAt.reset();
+      bool duplicate=false;
+      for(const auto &[otherId,other]:instances_)duplicate|=otherId!=id&&other->path==instance->path&&other->state==ScriptState::Running;
+      if(duplicate)continue;
+      bool loaded=false;
+      {ScriptScope scope(instance->host);loaded=loadScript(instance->host,instance->path);}
+      if(loaded){
+        instance->state=ScriptState::Running;++instance->generation;instance->startedAt=now;instance->lastError.clear();
+        publishLifecycle("engine.scriptStarted",*instance);restarted.push_back(id);
+      }else{instance->lastError="script restart failed";failed(*instance);}
+    }
+    return restarted;
+  }
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   ScriptInstance *find(int id){auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   std::vector<int> allIds()const{
@@ -93,7 +141,7 @@ public:
     for(const auto &[otherId,entry]:instances_)if(otherId&&entry->path==canonical&&entry->state==ScriptState::Running){error="script is already running";return false;}
     if(nextId_==INT_MAX){error="script instance ID limit reached";return false;}
     auto instance=std::make_unique<ScriptInstance>();instance->id=nextId_++;instance->host.instanceId=instance->id;instance->host.saveNamespace=scriptStorageKey(scenePersistence::catalogRoot,canonical);instance->path=canonical;id=instance->id;
-    {ScriptScope scope(instance->host);if(loadScript(instance->host,canonical)){instance->state=ScriptState::Running;instance->generation=1;}else{instance->state=ScriptState::Failed;instance->lastError="script load failed";}}
+    {ScriptScope scope(instance->host);if(loadScript(instance->host,canonical)){instance->state=ScriptState::Running;instance->generation=1;instance->startedAt=clock_();}else{instance->state=ScriptState::Failed;instance->lastError="script load failed";}}
     const bool loaded=instance->state==ScriptState::Running;error=instance->lastError;
     publishLifecycle(loaded?"engine.scriptStarted":"engine.scriptStopped",*instance,loaded?nullptr:"failed");
     instances_.emplace(id,std::move(instance));return loaded;
@@ -113,7 +161,10 @@ public:
     }
   }
   bool stop(int id,bool manual=true){
-    auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
+    auto *instance=find(id);if(!instance||!id)return false;
+    // A manual stop also cancels a pending automatic restart.
+    if(instance->state==ScriptState::Failed&&manual&&instance->restartAt){instance->restartAt.reset();instance->state=ScriptState::Stopped;instance->manuallyStopped=true;return true;}
+    if(instance->state!=ScriptState::Running)return false;
     {ScriptScope scope(instance->host);if(beforeStop_)beforeStop_(id);closeScript(instance->host);resetActiveInteraction();}
     instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;
     publishLifecycle("engine.scriptStopped",*instance,"stopped");return true;
@@ -126,7 +177,8 @@ public:
     if(beforeStop_)beforeStop_(id);
     closeScript(instance->host);resetActiveInteraction();
     instance->state=ScriptState::Failed;
-    publishLifecycle("engine.scriptStopped",*instance,"failed");return true;
+    publishLifecycle("engine.scriptStopped",*instance,"failed");
+    failed(*instance);return true;
   }
   bool update(int id,double dt){
     auto *instance=find(id);if(!instance||instance->state!=ScriptState::Running)return false;
@@ -193,4 +245,15 @@ inline void fanOutRawInput(ScriptRegistry &registry,std::vector<frame_input::Eve
     for(int id:recipients)if(auto *instance=registry.find(id))
       instance->host.inputQueue->addEvent(event);
   }
+}
+
+// Launches each autostart entry independently, in order. Returns one message per
+// entry that could not start; the others still run.
+inline std::vector<std::string> launchAutostart(ScriptRegistry &registry,const std::filesystem::path &catalog,const std::vector<std::string> &names){
+  std::vector<std::string> errors;
+  for(const auto &name:names){
+    std::filesystem::path resolved;std::string error;int id=0;
+    if(!resolveCatalogScript(catalog,name,resolved,error)||!registry.launch(resolved.string(),id,error))errors.push_back(name+": "+error);
+  }
+  return errors;
 }

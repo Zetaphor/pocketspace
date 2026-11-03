@@ -63,6 +63,7 @@ int main(int argc,char **argv) {
   const char *userHome=std::getenv("HOME");
   std::filesystem::path scriptsDirectory=userHome?std::filesystem::path(userHome)/".local/share/pocketspace/scripts":"user-scripts";
   std::vector<std::filesystem::path> launchScripts;
+  std::filesystem::path settingsPath=settings::defaultPath();
   for(int i=1;i<argc;i++){
     std::string arg=argv[i];
     if(arg=="--eye-calibration"||arg=="--eye-calibration-output"){
@@ -74,6 +75,9 @@ int main(int argc,char **argv) {
     }else if(arg=="--scripts-dir"){
       if(i+1==argc){fprintf(stderr,"--scripts-dir requires a directory\n");return 13;}
       scriptsDirectory=argv[++i];
+    }else if(arg=="--settings"){
+      if(i+1==argc){fprintf(stderr,"--settings requires a file path\n");return 13;}
+      settingsPath=argv[++i];
     }else if(arg=="--launch"){
       if(i+1==argc){fprintf(stderr,"--launch requires a catalog-relative script\n");return 13;}
       launchScripts.emplace_back(argv[++i]);
@@ -90,6 +94,9 @@ int main(int argc,char **argv) {
   }
   scenePersistence::catalogRoot=std::filesystem::absolute(scriptsDirectory).string();
   ScriptRegistry scriptRegistry;
+  settings::File engineSettings(settingsPath);engineSettings.refresh();
+  if(!engineSettings.error().empty())fprintf(stderr,"[settings] %s: %s; using defaults\n",settingsPath.c_str(),engineSettings.error().c_str());
+  scriptRegistry.setAutoRestart(engineSettings.current().autoRestart);
   std::string launchError;
   for(const auto &name:launchScripts){
     std::filesystem::path resolved;
@@ -101,6 +108,9 @@ int main(int argc,char **argv) {
       fprintf(stderr,"[lifecycle] launch %s failed: %s\n",name.c_str(),launchError.c_str());return 13;
     }
   }
+  // Autostart entries start independently after explicit launches; failures are reported, not fatal.
+  for(const auto &failure:launchAutostart(scriptRegistry,scriptsDirectory,engineSettings.current().autostart))
+    fprintf(stderr,"[lifecycle] autostart %s\n",failure.c_str());
   EGLDisplay display=EGL_NO_DISPLAY;EGLContext context=EGL_NO_CONTEXT;EGLSurface surface=EGL_NO_SURFACE;
   ScopeExit eglCleanup{[&]{if(display!=EGL_NO_DISPLAY){eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);if(surface!=EGL_NO_SURFACE)eglDestroySurface(display,surface);if(context!=EGL_NO_CONTEXT)eglDestroyContext(display,context);eglTerminate(display);}}};
   ScopeExit scriptCleanup{[&]{
@@ -194,6 +204,21 @@ int main(int argc,char **argv) {
     fprintf(stdout,"[surface] grouped_buffer_bytes=%llu peak=%llu limit=%llu\n",(unsigned long long)groupBufferBudget.used,(unsigned long long)groupBufferBudget.peak,(unsigned long long)GroupBufferBudget::limit);
   }};
   if(!createLaser(lasers[0],0)||!createLaser(lasers[1],1))return 9;
+  // Notifications need a source overlay; this one is never shown.
+  vr::VROverlayHandle_t notificationSource=vr::k_ulOverlayHandleInvalid;
+  if(overlays->CreateOverlay("pocketspace.notifications","Pocketspace",&notificationSource)!=vr::VROverlayError_None)notificationSource=vr::k_ulOverlayHandleInvalid;
+  ScopeExit notificationCleanup{[&]{if(notificationSource!=vr::k_ulOverlayHandleInvalid)overlays->DestroyOverlay(notificationSource);}};
+  scriptRegistry.setOnFailure([&](const ScriptInstance &instance){
+    const std::string retry=instance.restartAt?" (restarting)":"";
+    std::string text="Pocketspace: "+std::filesystem::path(instance.path).filename().string()+" stopped"+retry+"\n"+instance.lastError;
+    if(text.size()>=vr::k_unNotificationTextMaxSize)text.resize(vr::k_unNotificationTextMaxSize-1);
+    fprintf(stderr,"[lifecycle] instance=%d stopped after error%s: %s\n",instance.id,retry.c_str(),instance.lastError.c_str());
+    vr::VRNotificationId notification=0;
+    if(notificationSource==vr::k_ulOverlayHandleInvalid||!vr::VRNotifications()||
+       vr::VRNotifications()->CreateNotification(notificationSource,0,vr::EVRNotificationType_Transient,text.c_str(),vr::EVRNotificationStyle_Application,nullptr,&notification)!=vr::VRNotificationError_OK)
+      fprintf(stderr,"[lifecycle] SteamVR notification unavailable\n");
+  });
+  ScopeExit clearFailureHook{[&]{scriptRegistry.setOnFailure({});}};
   GLint maxRenderbufferPixels=0;glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE,&maxRenderbufferPixels);
   const int maxGroupPixels=std::min(4096,maxRenderbufferPixels/2);
   using SurfaceMembers=std::map<int,std::vector<const Object*>>;
@@ -385,6 +410,15 @@ int main(int argc,char **argv) {
       foveationRequested|=instance->host.scene.foveationRequested;
     }
     controllerInput.poll(eyeTrackingRequested,foveationRequested);
+    if(frame%90==0&&engineSettings.refresh()){
+      // Autostart edits apply at the next engine start; the restart flag applies now.
+      if(!engineSettings.error().empty())fprintf(stderr,"[settings] %s; keeping the last valid settings\n",engineSettings.error().c_str());
+      else{scriptRegistry.setAutoRestart(engineSettings.current().autoRestart);fprintf(stdout,"[settings] reloaded autoRestart=%d\n",int(engineSettings.current().autoRestart));}
+    }
+    for(int id:scriptRegistry.tickRestarts())if(auto *entry=scriptRegistry.find(id);entry&&pbrVariantsEnabled&&renderStates.count(id)){
+      for(auto &asset:entry->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
+      renderStates.at(id)->pbrVariants.prepare(entry->host.scene);
+    }
     if(frame%30==0)for(int id:scriptRegistry.runningIds()){
       auto *entry=scriptRegistry.find(id);
       if(!entry||entry->state!=ScriptState::Running)continue;
@@ -568,7 +602,7 @@ int main(int argc,char **argv) {
     const auto reconnectNow=std::chrono::steady_clock::now();
     if(!frameInput.started()&&reconnectNow>=reconnectAt){frameInput.reconnect();reconnectAt=reconnectNow+std::chrono::seconds(1);}
     auto failScene=[&](const std::string &error){
-      fprintf(stderr,"[lifecycle] instance=%d stopped after error: %s\n",instance.id,error.c_str());
+      // The registry's failure hook logs and notifies.
       scriptRegistry.failActive(instance.id,error);
       return 0;
     };

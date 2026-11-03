@@ -19,6 +19,7 @@ inline std::atomic<bool> running{true};
 inline void stop(int){running=false;}
 #include "native_resource_key.h"
 #include "script_registry.h"
+#include "engine_settings.h"
 #include "script_catalog.h"
 #include "input_arbitration.h"
 #include "panel_pointer.h"

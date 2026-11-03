@@ -32,6 +32,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [lifecycle-script-regression.cpp](lifecycle-script-regression.cpp) | Script loading, failed-reload rollback, callbacks, and scene cleanup without VR or graphics. |
 | [multi-script-lifecycle-regression.cpp](multi-script-lifecycle-regression.cpp) | Two QuickJS hosts with colliding local IDs, independent callback ownership, disconnect/reconnect fanout, held-owner stop, callback mutation, duplicate rejection, failed reload rollback, scoped stop, and callback-error isolation without VR or graphics. |
 | [event-bus-regression.cpp](event-bus-regression.cpp) | Event bus with real QuickJS contexts and scratch: exact/catch-all/self rules, engine lifecycle topics, payload copies and rejection, deferred and chained delivery, bounded loops and overflow, transactional reload, stop during delivery, no replay, failure isolation and unsubscribe. |
+| [script-recovery-regression.cpp](script-recovery-regression.cpp) | Recursive catalog keys, links and escapes; strict settings validation, atomic writes and last-good live edits; isolated autostart failures; restart off by default; bounded restart backoff on a fake clock, healthy reset, manual-stop override and scratch exclusion. |
 | [panel-submission-regression.cpp](panel-submission-regression.cpp) | Cached panel writes and grouped surface handoffs, including injected presentation failures and fallback cleanup. |
 | [physics-api-regression.cpp](physics-api-regression.cpp) | Physics JavaScript fixtures against real bindings, with native simulation and lifecycle checks. |
 | [physics-collision-regression.cpp](physics-collision-regression.cpp) | Collision events and contact lifecycle, including interaction with input handling. |
@@ -125,6 +126,7 @@ performance experiments are separate from correctness and visual acceptance.
 | --- | --- |
 | [scenes/animation-test.js](scenes/animation-test.js) | Interactive clip selection and playback on a grabbable animated model. |
 | [scenes/auto-split.js](scenes/auto-split.js) | Boxes/models moved between compact and wide layouts to inspect tile split/merge/rebalance behavior. |
+| [scenes/crash-on-button.js](scenes/crash-on-button.js) | Display-only scene that throws from its input callback on B/Y, for checking the SteamVR error notification and paced automatic restart with `autoRestart` enabled. |
 | [scenes/event-bus-peer.js](scenes/event-bus-peer.js) | Display-only peer for `scripts/event-bus.js`: shows received counters, replies on the next frame, and publishes a ping on A/X. Launch both with `--scripts-dir . --launch scripts/event-bus.js --launch tests/scenes/event-bus-peer.js`. |
 | [scenes/fast-motion.js](scenes/fast-motion.js) | Deterministic kinematic movers crossing tile boundaries; shared by bounded motion runners. |
 | [scenes/gaze-accuracy-test.js](scenes/gaze-accuracy-test.js) | Raw gaze accuracy measurements over a target grid without modifying calibration. |

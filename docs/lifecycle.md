@@ -1,7 +1,7 @@
 # Scene lifecycle
 
-The engine starts with no user scripts unless catalog `--launch` entries are
-provided. Each running script has its own QuickJS context and scene. The engine
+The engine starts with no user scripts unless catalog `--launch` entries or
+[autostart settings](#startup-and-recovery) provide them. Each running script has its own QuickJS context and scene. The engine
 periodically checks each running script's modification time and builds a new
 context and candidate scene before replacing that script's scene. A failed
 reload preserves its active scene, hover and grab state, event callback, and queues.
@@ -51,3 +51,43 @@ Ctrl-C, SIGTERM, and native shutdown unwind overlay, GPU/EGL, input, and OpenVR
 resources. A SteamVR quit event is acknowledged and exits the process. Relaunch
 the engine after SteamVR restarts; there is no in-process session recreation.
 Forced termination such as SIGKILL cannot run scoped cleanup.
+
+## Startup and recovery
+
+Scripts come from one catalog directory, `$HOME/.local/share/pocketspace/scripts` by
+default or the one given with `--scripts-dir`. Every readable `.js` file below it,
+including in subdirectories, is a catalog entry named by its path relative to the
+catalog, such as `tools/notes.js`. A link to another catalog file is the same entry
+as that file. Links that lead outside the catalog, and symbolic links to
+directories, are not followed. Only one instance of a file runs at a time.
+
+Settings live in `$HOME/.config/pocketspace/settings.json`, or in the file given with
+`--settings`. A missing file means the defaults:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `version` | Required | Must be `1`. |
+| `autostart` | `[]` | Catalog names launched in order at engine start, at most 256, without duplicates. |
+| `autoRestart` | `false` | Restart scripts stopped by a callback error. |
+| `engineAutostart` | `false` | Start the engine with SteamVR. Stored now; used by the dashboard service. |
+
+Unknown keys, other types and malformed names make the whole file invalid. The
+engine checks the file about once a second while running. A valid edit to
+`autoRestart` applies immediately; `autostart` edits take effect at the next engine
+start. An invalid edit is reported, and the engine keeps the last valid settings.
+Tools that change the file write a complete temporary file and rename it over the
+original, so readers never see a partial file.
+
+At startup, `--launch` entries start first and stop the engine if one cannot load.
+Autostart entries then start independently: a missing, failing or duplicate entry
+is reported and the others still run.
+
+An uncaught exception in `update`, an input callback or a bus callback stops only
+that script. The engine shows a SteamVR notification naming the script and error,
+and publishes `engine.scriptStopped`. By default the script stays stopped. With
+`autoRestart`, the engine reloads it after 1 second, then after 2, 4, 8 and 16
+seconds if it keeps failing; after five attempts it stays stopped. A script that
+runs for a minute without failing gets five attempts again. A restart that fails to
+load counts as an attempt. Stopping a script by hand cancels a pending restart for
+the rest of the session, and turning `autoRestart` off cancels all pending restarts.
+The scratch scene is never restarted this way.

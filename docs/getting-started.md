@@ -44,6 +44,21 @@ subdirectories; paths that leave the catalog are rejected.
 ./run-pocketspace.sh --launch clock.js --launch tools/notes.js
 ```
 
+To start scripts every time the engine starts, list them in
+`$HOME/.config/pocketspace/settings.json` (or the file given with `--settings`):
+
+```json
+{
+  "version": 1,
+  "autostart": ["clock.js", "tools/notes.js"],
+  "autoRestart": false,
+  "engineAutostart": false
+}
+```
+
+See [startup and recovery](lifecycle.md#startup-and-recovery) for how autostart,
+automatic restart and invalid settings behave.
+
 Inspect a model without opening VR:
 
 ```sh

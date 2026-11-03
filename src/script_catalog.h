@@ -1,7 +1,11 @@
 #pragma once
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <set>
 #include <string>
+#include <vector>
 
 inline bool resolveCatalogScript(const std::filesystem::path &root,
                                  const std::filesystem::path &name,
@@ -48,4 +52,29 @@ inline std::string scriptStorageKey(const std::filesystem::path &root,const std:
     else{key+='%';key+=hex[c>>4];key+=hex[c&15];}
   }
   return key;
+}
+
+// The stable catalog key of a resolved script: its canonical path relative to the
+// canonical catalog root, with '/' separators.
+inline std::string catalogKey(const std::filesystem::path &root,const std::filesystem::path &resolved){
+  std::error_code ec;const auto catalog=std::filesystem::canonical(root,ec);
+  return ec?std::string():resolved.lexically_relative(catalog).generic_string();
+}
+// Readable .js files anywhere below the catalog, by stable key. A link to another
+// catalog file is listed once under the file's own key; links leaving the catalog,
+// unreadable entries and directory loops are skipped.
+inline std::vector<std::string> listCatalogScripts(const std::filesystem::path &root,std::string &error){
+  std::vector<std::string> keys;std::set<std::filesystem::path> seen;
+  std::error_code ec;const auto catalog=std::filesystem::canonical(root,ec);
+  if(ec||!std::filesystem::is_directory(catalog,ec)){error="scripts directory is unavailable";return keys;}
+  std::filesystem::recursive_directory_iterator it(catalog,std::filesystem::directory_options::skip_permission_denied,ec),end;
+  for(;!ec&&it!=end;it.increment(ec)){
+    const auto &entry=*it;
+    if(entry.path().extension()!=".js")continue;
+    std::filesystem::path resolved;std::string ignored;
+    if(!resolveCatalogScript(catalog,entry.path().lexically_relative(catalog),resolved,ignored))continue;
+    if(std::ifstream(resolved).good()&&seen.insert(resolved).second)keys.push_back(catalogKey(catalog,resolved));
+  }
+  if(ec){error="scripts directory cannot be listed";keys.clear();return keys;}
+  std::sort(keys.begin(),keys.end());error.clear();return keys;
 }

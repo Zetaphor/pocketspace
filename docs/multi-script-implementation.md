@@ -117,10 +117,12 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 ## Step 6 — Catalog, settings, autostart, and recovery
 
-- [ ] Add a configurable user scripts root separate from repository examples. Recursively list readable `.js` files under that root; canonicalize and reject traversal and symlink escapes. Use stable catalog keys for launch, autostart, and saved scenes.
-- [ ] Put the autostart list, global automatic-restart flag, and engine-autostart setting in a validated configuration file. Dashboard and CLI changes write this one file atomically. Reload valid external edits and retain the last good settings on an invalid edit.
-- [ ] Start no user script by default. Launch configured autostarts independently. Keep manually stopped scripts down for the current session. On callback error, notify, stop that instance, and leave it stopped by default; if global restart is enabled, apply bounded backoff and a retry ceiling. Scratch callback errors reset only scratch.
-- [ ] Test duplicate and invalid catalog entries, recursive discovery, config edits while running, autostart failure isolation, manual-stop override, crash-loop pacing, and restart-disabled default.
+- [x] Add a configurable user scripts root separate from repository examples. Recursively list readable `.js` files under that root; canonicalize and reject traversal and symlink escapes. Use stable catalog keys for launch, autostart, and saved scenes.
+- [x] Put the autostart list, global automatic-restart flag, and engine-autostart setting in a validated configuration file. Dashboard and CLI changes write this one file atomically. Reload valid external edits and retain the last good settings on an invalid edit.
+- [x] Start no user script by default. Launch configured autostarts independently. Keep manually stopped scripts down for the current session. On callback error, notify, stop that instance, and leave it stopped by default; if global restart is enabled, apply bounded backoff and a retry ceiling. Scratch callback errors reset only scratch.
+- [x] Test duplicate and invalid catalog entries, recursive discovery, config edits while running, autostart failure isolation, manual-stop override, crash-loop pacing, and restart-disabled default.
+
+**Complete.** `listCatalogScripts` and `catalogKey` in `src/script_catalog.h` give recursive discovery with stable keys. `src/engine_settings.h` validates, serializes, atomically writes and watches `$HOME/.config/pocketspace/settings.json` (`--settings` overrides it); the CLI and dashboard will use the same writer. `launchAutostart` and the registry's restart policy live in `src/script_registry.h`, with an injectable clock for tests. Decisions made for this step: `--launch` stays as a one-session launch that runs before autostart; live `autostart` edits apply at the next engine start, while `autoRestart` applies at once; restarts wait 1, 2, 4, 8 and 16 seconds, with attempts reset after 60 healthy seconds; callback-error stops show a SteamVR notification from a hidden source overlay. Scratch is excluded from restarts; its reset arrives with Step 8.
 
 **Exit gate:** config, lifecycle, and catalog regressions pass. Restart policy never spins; one failing autostart does not prevent a healthy one.
 
@@ -180,7 +182,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 3 | `6b414e6` input lifecycle closeout; headset evidence in this guide | Lifecycle input and grab-button regressions, docs lint/site build, diff check pass | ARM64 engine and focused lifecycle, arbitration, scene-container, and panel-submission regressions pass; user confirmed overlapping targets, two-hand grabs, controller reconnect, and held-object reload isolation | None |
 | 4 | Per-script save namespaces, import, and removal of earlier save support | Headless regressions, standalone Python regressions, docs lint/site build pass | ARM64 engine, focused regressions, and noninteractive live persistence/container harnesses pass | Full target set in Step 11 |
 | 5 | Event bus commit | Docs lint/site build and diff check pass | ARM64 engine builds; `event-bus-regression` and the full regression set, experiments included, pass | None. Live run with `scripts/event-bus.js` and `tests/scenes/event-bus-peer.js`: lifecycle events, counters, next-frame replies, catch-all self-exclusion, and single delivery after a peer reload, at 88–90 FPS |
-| 6 | Pending | Pending | Pending | Pending |
+| 6 | Catalog, settings, autostart and recovery commit | Docs lint/site build and diff check pass | ARM64 engine builds; `script-recovery-regression` and the full regression set pass | Headset check of the SteamVR notification and of a live restart |
 | 7 | Pending | Pending | Pending | Pending |
 | 8 | Pending | Pending | Pending | Pending |
 | 9 | Pending | Pending | Pending | Pending |
