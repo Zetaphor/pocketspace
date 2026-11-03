@@ -128,10 +128,12 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 ## Step 7 — Local control protocol and supervised engine start
 
-- [ ] Implement a versioned Unix-domain socket under a same-user runtime directory. Define request IDs, instance generation, status/error schema, bounded messages, and a bounded recent-outcome lookup for uncertain mutating requests. Queue mutations/evaluation onto the host thread.
-- [ ] Expose catalog/list/status/start/stop/reload/settings/stats/watch/publish/eval/scratch-reset operations. Reject stale instance generations and malformed requests. Keep socket operations responsive when no user script runs.
-- [ ] Add a supervised user service for the engine, with autostart alongside SteamVR optional and off by default. Make offline Start Engine possible through the service manager, independent of the engine socket, when SteamVR is already running. Neither the dashboard nor CLI start command may launch SteamVR implicitly.
-- [ ] Test concurrent clients, disconnect during a command, duplicate request IDs, timeout with later outcome lookup, service restart, socket permissions, and engine shutdown cleanup.
+- [x] Implement a versioned Unix-domain socket under a same-user runtime directory. Define request IDs, instance generation, status/error schema, bounded messages, and a bounded recent-outcome lookup for uncertain mutating requests. Queue mutations/evaluation onto the host thread.
+- [x] Expose catalog/list/status/start/stop/reload/settings/stats/watch/publish/eval/scratch-reset operations. Reject stale instance generations and malformed requests. Keep socket operations responsive when no user script runs.
+- [x] Add a supervised user service for the engine, with autostart alongside SteamVR optional and off by default. Make offline Start Engine possible through the service manager, independent of the engine socket, when SteamVR is already running. Neither the dashboard nor CLI start command may launch SteamVR implicitly.
+- [x] Test concurrent clients, disconnect during a command, duplicate request IDs, timeout with later outcome lookup, service restart, socket permissions, and engine shutdown cleanup.
+
+**Complete.** `src/control_server.h` is the socket transport, polled from the host loop so requests run between frames; `src/control_service.h` holds the operations, request-ID outcomes, generation checks and watch events. The protocol is documented in [control protocol](control-protocol.md). Decisions made for this step: line-delimited version 1 JSON; the persistent scratch context and bounded `eval` (moved forward from Step 8) so `eval` and `scratch.reset` work now; an `eval` timeout stops only that scene. SteamVR is run by the Frame's OS, so the units need no SteamVR guards: `pocketspace.service` runs the engine and `pocketspace-autostart.service`, wanted by `steamvr.service`, starts it only when `engineAutostart` is true. Settings and units always live under `$HOME/.config`, independent of a shell's `XDG_CONFIG_HOME`.
 
 **Exit gate:** a test client can manage two scripts through the socket without racing frame mutation; the offline start path works on Deckard without starting SteamVR implicitly.
 
@@ -183,7 +185,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 4 | Per-script save namespaces, import, and removal of earlier save support | Headless regressions, standalone Python regressions, docs lint/site build pass | ARM64 engine, focused regressions, and noninteractive live persistence/container harnesses pass | Full target set in Step 11 |
 | 5 | Event bus commit | Docs lint/site build and diff check pass | ARM64 engine builds; `event-bus-regression` and the full regression set, experiments included, pass | None. Live run with `scripts/event-bus.js` and `tests/scenes/event-bus-peer.js`: lifecycle events, counters, next-frame replies, catch-all self-exclusion, and single delivery after a peer reload, at 88–90 FPS |
 | 6 | Catalog, settings, autostart and recovery commit | Docs lint/site build and diff check pass | ARM64 engine builds; `script-recovery-regression` and the full regression set pass | None. Headset run with `tests/scenes/crash-on-button.js` autostarted from a settings file: SteamVR notifications appeared, and five paced restarts brought the panel back before the sixth stop left it down. That run found and fixed a restart that lost the instance identity |
-| 7 | Pending | Pending | Pending | Pending |
+| 7 | Control socket, scratch and user service commits | Docs lint/site build and diff check pass | ARM64 engine builds; `control-regression` and the full regression set pass; `tests/control-live-check.py` managed two scripts in the live engine, a second engine was refused, and `--service` started, restarted and stopped the unit; the autostart unit started the engine only with `engineAutostart` true | None |
 | 8 | Pending | Pending | Pending | Pending |
 | 9 | Pending | Pending | Pending | Pending |
 | 10 | Pending | Pending | Pending | Pending |

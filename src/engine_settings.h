@@ -20,9 +20,9 @@ struct Settings {
   bool autoRestart=false,engineAutostart=false;
   bool operator==(const Settings&)const=default;
 };
+// Always under $HOME/.config, so a shell with another XDG_CONFIG_HOME and the user
+// service read the same file. --settings overrides it.
 inline std::filesystem::path defaultPath(){
-  const char *config=std::getenv("XDG_CONFIG_HOME");
-  if(config&&*config)return std::filesystem::path(config)/"pocketspace/settings.json";
   const char *home=std::getenv("HOME");
   return home?std::filesystem::path(home)/".config/pocketspace/settings.json":std::filesystem::path("settings.json");
 }

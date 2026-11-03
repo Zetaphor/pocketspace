@@ -4,7 +4,8 @@
 #   tools/install-user-service.sh --remove   stop and remove them
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-UNITS="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+# The user manager reads ~/.config/systemd/user, whatever this shell's XDG_CONFIG_HOME is.
+UNITS="$HOME/.config/systemd/user"
 if [[ "${1:-}" == "--remove" ]]; then
   systemctl --user disable --now pocketspace-autostart.service 2>/dev/null || true
   systemctl --user stop pocketspace.service 2>/dev/null || true
