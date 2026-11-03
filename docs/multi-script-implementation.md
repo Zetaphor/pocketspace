@@ -4,7 +4,7 @@ Status: execution checklist for the [approved design](multi-script-plan.md). The
 
 ## How to use this guide
 
-Work from Step 0 through Step 12. Finish a step's exit gate before starting the next. Keep each step in a focused commit, update this checklist with the commit and evidence, and never claim a headset result from a build or offscreen test. Preserve unrelated work. If a step exposes a conflict with the approved behavior, record it in the plan and resolve it before changing the contract.
+Work from Step 0 through Step 12, with Step 7a between Steps 7 and 8. Finish a step's exit gate before starting the next. Keep each step in a focused commit, update this checklist with the commit and evidence, and never claim a headset result from a build or offscreen test. Preserve unrelated work. If a step exposes a conflict with the approved behavior, record it in the plan and resolve it before changing the contract.
 
 Begin with Step 0. At the end of each step, report the changed files, exact checks and outcomes, and any evidence still needed. Use the next step's checklist as the next work item; do not start several broad steps in one change.
 
@@ -137,6 +137,18 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 **Exit gate:** a test client can manage two scripts through the socket without racing frame mutation; the offline start path works on Deckard without starting SteamVR implicitly.
 
+## Step 7a — Remove unshipped experiments
+
+Keep in the repository only what production uses now. Experiments stay available in Git history, and the documentation points to the commit that removed them, so nothing is lost if one is picked up again. This also removes the extra compile time they cost.
+
+- [ ] Inventory every experiment, prototype, demo, diagnostic and profiling target in `CMakeLists.txt`, including the experiment regressions, `*-experiment`, `*-demo`, `*-pixels`, `*-profile`, `*-prototype` and benchmark targets. Mark each as production or not, and confirm the list with the user before deleting anything.
+- [ ] Remove the unshipped ones: their targets, test sources and scenes, the `SF_*_EXPERIMENT` and validation macros and every code path they guard in `src/`, the `tests/*-experiment.h` headers that `src/` includes, `SF_RENDER_UNITY`, profiling scripts and runners that only serve them, and the `--experiments` option in `tools/run-regressions.py`.
+- [ ] Keep coverage of shipped features. Where an experiment regression also checks shipped behavior, such as directional lights, spot shadows, sheen, GPU skinning, PBR depth, PBR LOD or PBR indexing, either move that check onto the shared test objects without experiment macros or ask the user whether to drop it.
+- [ ] Keep measurement reports in `tests/results/`, but mark each removed experiment's report with the removal commit and how to recover the code (`git show <commit>^:<path>`). Update `docs/architecture.md`, `docs/optimizations.md`, `tests/index.md`, `tests/README.md` and `AGENTS.md` (which then no longer needs its `--experiments` rule) so they describe only what remains, with links to the removal commit where they mention a removed experiment.
+- [ ] Record full regression build and run times before and after.
+
+**Exit gate:** no experiment macros or unity builds remain in `src/`; `tools/run-regressions.py` builds and runs every remaining regression in one pass; the production engine and all remaining regressions pass; docs lint and site build pass; and the documentation names the removal commit.
+
 ## Step 8 — CLI and scratch REPL
 
 - [ ] Implement `pocketspace-cli` commands from the approved plan, including `start-engine` while the engine socket is offline. Make all one-shot commands noninteractive and deterministic with `--json`, stable exit codes, stderr diagnostics, explicit timeouts, and JSONL `watch`.
@@ -186,6 +198,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 5 | Event bus commit | Docs lint/site build and diff check pass | ARM64 engine builds; `event-bus-regression` and the full regression set, experiments included, pass | None. Live run with `scripts/event-bus.js` and `tests/scenes/event-bus-peer.js`: lifecycle events, counters, next-frame replies, catch-all self-exclusion, and single delivery after a peer reload, at 88–90 FPS |
 | 6 | Catalog, settings, autostart and recovery commit | Docs lint/site build and diff check pass | ARM64 engine builds; `script-recovery-regression` and the full regression set pass | None. Headset run with `tests/scenes/crash-on-button.js` autostarted from a settings file: SteamVR notifications appeared, and five paced restarts brought the panel back before the sixth stop left it down. That run found and fixed a restart that lost the instance identity |
 | 7 | Control socket, scratch and user service commits | Docs lint/site build and diff check pass | ARM64 engine builds; `control-regression` and the full regression set pass; `tests/control-live-check.py` managed two scripts in the live engine, a second engine was refused, and `--service` started, restarted and stopped the unit; the autostart unit started the engine only with `engineAutostart` true | None |
+| 7a | Pending | Pending | Pending | Pending |
 | 8 | Pending | Pending | Pending | Pending |
 | 9 | Pending | Pending | Pending | Pending |
 | 10 | Pending | Pending | Pending | Pending |
