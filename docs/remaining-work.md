@@ -8,13 +8,6 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 The [multiple-script and dashboard plan](multi-script-plan.md) covers the next
 planned development track.
 
-## Before the event bus
-
-- Confirm the engine laser model pointer in the headset with
-  `tests/scenes/mesh-hover-debug.js`: hover and 3D hit points on static, animated
-  and pass-through models, presses, grabs with thumbstick yaw and depth, panel
-  clicks, and beam toggling.
-
 ## Material support
 
 - Add Charlie-prefiltered environment sheen when a target experience needs sharp
