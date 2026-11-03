@@ -29,6 +29,11 @@ a scene, with optional parent/child ownership. Recursive disposal reuses individ
 physics and optionally owned input callbacks, while retaining shared assets.
 Callback ownership is isolated with the candidate scene during reload.
 
+[Bus subscriptions](javascript-api.md#messages-between-scripts) follow the scene:
+a successful reload replaces them, a failed reload keeps them, and stopping a script
+removes them along with any messages not yet delivered to it. Messages a candidate
+publishes while loading are sent only after it commits.
+
 Controller disconnection invalidates raw hand/pointer state and cancels held
 objects. Temporary pose loss preserves a hold while an allowed button remains
 down. Loss of the raw vrserver connection clears cached values and queued input

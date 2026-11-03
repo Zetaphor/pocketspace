@@ -677,6 +677,64 @@ across a miss shorter than 100 ms, so triangle edges do not flicker. Panel IDs a
 
 Combine a scoped pointer callback with the independent polled queue: [containers.js](../scripts/containers.js).
 
+## Messages between scripts
+
+```js
+const id = subscribe('space.scoreChanged', event => print(event.payload.score));
+publish('space.scoreChanged', {score: 3});
+subscribe('*', event => print(`${event.topic} from ${event.sourceInstanceId}`));
+unsubscribe(id);
+```
+
+Running scripts exchange messages through an in-memory bus. There is no persistence
+and no replay: a script started later never sees earlier messages.
+
+| Function | Behavior |
+| --- | --- |
+| `publish(topic, payload = null)` | Queue a copy of `payload` for `topic` and return its sequence number, or `null` when the queue is full and the message is dropped. Invalid topics or payloads throw. |
+| `subscribe(topic, callback)` | Call `callback(event)` for matching messages and return a subscription ID. `topic` is an exact topic or `'*'`. |
+| `unsubscribe(subscriptionId)` | Remove one of this script's own subscriptions; returns whether it existed. |
+
+Scripts publish only `space.*` topics. `engine.*` topics come from the engine and can
+be subscribed to exactly or through `'*'`. Topics are at most 128 bytes, contain a
+name after the dot, and never contain `*` or control characters.
+
+An exact subscription receives every message on its topic, including the
+subscribing script's own. `'*'` receives every topic from other scripts and from the
+engine, but never the subscribing script's own publications. A script can hold
+several subscriptions, and each matching one is called.
+
+`event` contains `topic`, `payload`, `sourceInstanceId` and `sequence`.
+`sourceInstanceId` is the publishing script's instance ID, `0` for the scratch
+scene, or `null` for engine events. `sequence` increases across the engine.
+
+Payloads are JSON-compatible data: `null`, booleans, finite numbers, strings,
+arrays and plain objects, at most 32 levels deep and 64 KiB as JSON. Functions,
+`undefined`, symbols, BigInts, non-finite numbers, cycles and class instances such
+as `Date` are rejected. Each subscriber receives its own copy.
+
+Delivery happens once per frame, after every script's input callbacks and
+`update`, never during `publish`. Messages arrive in publish order and, for each
+message, in subscription order. A message published by a subscriber is delivered on
+the next frame. Up to 1024 callbacks run per frame; the rest wait. Each script can
+have 256 undelivered messages, and the bus holds at most 4 MiB.
+
+Subscribers are chosen when a message's delivery begins. One that stops or reloads
+before its turn is skipped. An uncaught exception in a callback stops only that
+script, like other callbacks. Subscriptions belong to the scene: a successful reload
+replaces them with the new scene's, and messages published while loading are sent
+only if the reload succeeds. A failed reload keeps the old subscriptions.
+
+The engine publishes script lifecycle events:
+
+| Topic | Payload |
+| --- | --- |
+| `engine.scriptStarted` | `{instanceId, path}` |
+| `engine.scriptReloaded` | `{instanceId, path}` |
+| `engine.scriptStopped` | `{instanceId, path, reason, error}`; `reason` is `'stopped'` or `'failed'`. A script that fails to launch also reports `'failed'`. |
+
+Share a counter between running scripts: [event-bus.js](../scripts/event-bus.js).
+
 ## Additional APIs
 
 - [Panels](panels.md): `createPanel`, canvas drawing, `panelLoadFont`,

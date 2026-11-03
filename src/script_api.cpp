@@ -1002,6 +1002,37 @@ static JSValue jsSetPanelContainer(JSContext *ctx,JSValueConst,int argc,JSValueC
 #include "scene_persistence.h"
 JSValue capturePanelSnapshot(JSContext *ctx,const Panel &panel,size_t &budgetUsed){return scenePersistence::panelValue(ctx,panel,budgetUsed);}
 
+static JSValue jsPublish(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<1||!JS_IsString(argv[0]))return JS_ThrowTypeError(ctx,"publish(topic, payload)");
+  const char *text=JS_ToCString(ctx,argv[0]);if(!text)return JS_EXCEPTION;std::string topic=text;JS_FreeCString(ctx,text);
+  if(!bus::scriptPublishable(topic))return JS_ThrowRangeError(ctx,"publish topics are space.* names of at most 128 bytes without *");
+  std::string error;std::string payload=argc>1&&!JS_IsUndefined(argv[1])?bus::encodePayload(ctx,argv[1],error):"null";
+  if(!error.empty())return JS_ThrowTypeError(ctx,"%s",error.c_str());
+  bus::Message message{0,std::move(topic),std::move(payload),activeInstanceId};
+  if(currentScene!=liveScene){
+    // A loading candidate publishes only if it commits.
+    auto &staged=currentScene->stagedPublications;size_t bytes=message.bytes();for(const auto &m:staged)bytes+=m.bytes();
+    if(!eventBus.hasRoom(message.source,bytes,staged.size())){eventBus.countDrop();return JS_NULL;}
+    message.sequence=eventBus.reserveSequence();const double sequence=double(message.sequence);staged.push_back(std::move(message));return JS_NewFloat64(ctx,sequence);
+  }
+  const auto sequence=eventBus.publish(message.source,std::move(message.topic),std::move(message.payload));
+  return sequence?JS_NewFloat64(ctx,double(*sequence)):JS_NULL;
+}
+static JSValue jsSubscribe(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene||argc<2||!JS_IsString(argv[0])||!JS_IsFunction(ctx,argv[1]))return JS_ThrowTypeError(ctx,"subscribe(topic, callback)");
+  const char *text=JS_ToCString(ctx,argv[0]);if(!text)return JS_EXCEPTION;std::string topic=text;JS_FreeCString(ctx,text);
+  if(!bus::subscribable(topic))return JS_ThrowRangeError(ctx,"subscribe topics are \"*\" or space.* and engine.* names of at most 128 bytes");
+  const uint64_t id=eventBus.newSubscriptionId();
+  currentScene->busSubscriptions.push_back({id,std::move(topic),JS_DupValue(ctx,argv[1])});
+  return JS_NewFloat64(ctx,double(id));
+}
+static JSValue jsUnsubscribe(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  double id=0;if(!currentScene||argc<1||JS_ToFloat64(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"unsubscribe(subscriptionId)");
+  auto &subscriptions=currentScene->busSubscriptions;
+  const auto found=std::find_if(subscriptions.begin(),subscriptions.end(),[&](const bus::Subscription &s){return double(s.id)==id;});
+  if(found==subscriptions.end())return JS_FALSE;
+  JS_FreeValue(ctx,found->callback);subscriptions.erase(found);return JS_TRUE;
+}
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1011,6 +1042,8 @@ void closeScript(ScriptHost &s){
   for(auto &panel:s.scene.retiredPanels)panelDestroy(panel);
   if(currentScene==&s.scene)currentScene=nullptr;
   if(liveScene==&s.scene)liveScene=nullptr;
+  if(s.ctx)for(auto &subscription:s.scene.busSubscriptions)JS_FreeValue(s.ctx,subscription.callback);
+  s.scene.busSubscriptions.clear();
   if(s.ctx){clearInputCallback(s.ctx);JS_FreeValue(s.ctx,s.callback);JS_FreeValue(s.ctx,s.update);JS_FreeContext(s.ctx);}if(s.rt)JS_FreeRuntime(s.rt);
   if(activeSceneInput==s.inputQueue.get())activeSceneInput=&frameInput;
   s={};
@@ -1103,6 +1136,9 @@ bool loadScript(ScriptHost &active,const std::string &path,const std::function<v
   bind(candidate.ctx,"getSceneContainerState",jsGetSceneContainerState,1);
   bind(candidate.ctx,"setObjectContainer",jsSetObjectContainer,2);
   bind(candidate.ctx,"setPanelContainer",jsSetPanelContainer,2);
+  bind(candidate.ctx,"publish",jsPublish,2);
+  bind(candidate.ctx,"subscribe",jsSubscribe,2);
+  bind(candidate.ctx,"unsubscribe",jsUnsubscribe,1);
   JSValue result=JS_Eval(candidate.ctx,source.c_str(),source.size(),path.c_str(),JS_EVAL_TYPE_GLOBAL);
   if(JS_IsException(result)){
     JSValue exception=JS_GetException(candidate.ctx);const char *message=JS_ToCString(candidate.ctx,exception);
@@ -1119,5 +1155,8 @@ bool loadScript(ScriptHost &active,const std::string &path,const std::function<v
   closeScript(active);active=std::move(candidate);active.instanceId=instanceId;active.saveNamespace=std::move(saveNamespace);
   if(queueActive)activeSceneInput=active.inputQueue.get();
   currentScene=liveScene=&active.scene;
+  // Committed: the candidate's subscriptions replaced the old ones with the scene.
+  for(auto &message:active.scene.stagedPublications)eventBus.enqueue(std::move(message));
+  active.scene.stagedPublications.clear();
   fprintf(stdout,"[js] loaded %s objects=%zu assets=%zu\n",path.c_str(),active.scene.objects.size(),active.scene.assets.size());fflush(stdout);return true;
 }

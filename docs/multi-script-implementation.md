@@ -106,10 +106,12 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 ## Step 5 — Event bus
 
-- [ ] Implement `publish`, `subscribe`, and `unsubscribe` with per-instance subscription ownership. Script topics use `space.*`; only the engine publishes `engine.*`, which scripts may subscribe to. `subscribe("*")` receives events from other instances and engine events, never the subscriber's own publications; an exact-topic subscription may receive its own publication.
-- [ ] Copy bounded JSON-compatible payloads between runtimes. Reject unsupported/cyclic/oversized values. Defer dispatch until after the publisher callback; preserve publish order and stable subscription order. Limit per-frame work and queued bytes, count drops, and expose overflow to the publisher.
-- [ ] On reload, atomically replace subscriptions only after the candidate commits. On stop, remove subscriptions and undelivered events. Do not replay events to later-started scripts. Scratch uses source ID `0`; engine events use null source ID.
-- [ ] Add a focused bus regression covering exact/catch-all/self rules, multiple subscribers, chained publishing, loops/overflow, failed reload, stop during delivery, and one subscriber throwing while others continue.
+- [x] Implement `publish`, `subscribe`, and `unsubscribe` with per-instance subscription ownership. Script topics use `space.*`; only the engine publishes `engine.*`, which scripts may subscribe to. `subscribe("*")` receives events from other instances and engine events, never the subscriber's own publications; an exact-topic subscription may receive its own publication.
+- [x] Copy bounded JSON-compatible payloads between runtimes. Reject unsupported/cyclic/oversized values. Defer dispatch until after the publisher callback; preserve publish order and stable subscription order. Limit per-frame work and queued bytes, count drops, and expose overflow to the publisher.
+- [x] On reload, atomically replace subscriptions only after the candidate commits. On stop, remove subscriptions and undelivered events. Do not replay events to later-started scripts. Scratch uses source ID `0`; engine events use null source ID.
+- [x] Add a focused bus regression covering exact/catch-all/self rules, multiple subscribers, chained publishing, loops/overflow, failed reload, stop during delivery, and one subscriber throwing while others continue.
+
+**Complete.** `src/event_bus.h` holds the topic rules, payload validation and copying, per-source accounting, and a resumable delivery cursor. `ScriptRegistry::dispatchBus` runs one budgeted turn per frame after every scene's callbacks and update. Subscriptions and a loading candidate's publications live in the candidate's `Scene`, so commit replaces them atomically and failure discards them. Decisions made for this step: topics up to 128 bytes, payloads up to 64 KiB and 32 levels deep, 256 undelivered messages per publisher, 4 MiB in total, and 1024 deliveries per frame. `publish` returns `null` on overflow and throws on invalid input. The engine publishes `engine.scriptStarted`, `engine.scriptReloaded` and `engine.scriptStopped`. Scratch participates as instance `0` on the bus; its persistent context and reset arrive with Step 8, so the regression loads a script into instance `0` directly.
 
 **Exit gate:** bus tests pass with two real QuickJS contexts and scratch, including cleanup under failure. Public JS API documentation and one small example are updated.
 
@@ -177,7 +179,7 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 2 | Instance-scoped scene traversal, catalog startup, and stop cleanup | Docs lint/site build and diff check pass | ARM64 engine and focused regressions pass; empty startup, two-scene runtime, injected error, and two reloads pass; offscreen overlapping-ID render and user headset visibility pass | External stop command in Step 7; scratch scene in Step 8 |
 | 3 | `6b414e6` input lifecycle closeout; headset evidence in this guide | Lifecycle input and grab-button regressions, docs lint/site build, diff check pass | ARM64 engine and focused lifecycle, arbitration, scene-container, and panel-submission regressions pass; user confirmed overlapping targets, two-hand grabs, controller reconnect, and held-object reload isolation | None |
 | 4 | Per-script save namespaces, import, and removal of earlier save support | Headless regressions, standalone Python regressions, docs lint/site build pass | ARM64 engine, focused regressions, and noninteractive live persistence/container harnesses pass | Full target set in Step 11 |
-| 5 | Pending | Pending | Pending | Pending |
+| 5 | Event bus commit | Docs lint/site build and diff check pass | ARM64 engine builds; `event-bus-regression` and the full regression set, experiments included, pass | Live engine run of the bus between two scripts |
 | 6 | Pending | Pending | Pending | Pending |
 | 7 | Pending | Pending | Pending | Pending |
 | 8 | Pending | Pending | Pending | Pending |

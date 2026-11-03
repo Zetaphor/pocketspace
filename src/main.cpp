@@ -1028,6 +1028,8 @@ int main(int argc,char **argv) {
     }
     if(sceneResult>0)return sceneResult;
     if(sceneResult<0)break;
+    // Bus delivery runs after every scene's callbacks and update for this frame.
+    scriptRegistry.dispatchBus();
     // Lasers are shared overlays: apply visibility and the selected hit once after all scenes update.
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     const bool headValid=poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid;

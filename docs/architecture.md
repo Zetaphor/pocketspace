@@ -112,6 +112,7 @@ Each iteration follows this order in `src/main.cpp`:
    cleanup, compute engine-laser mesh hits, and attempt bounded reconnection.
 6. Dispatch each scene's queued input callbacks, update its native grabs, then call its `update(dt)`.
 7. Advance each scene's physics and synchronize resulting object poses/events.
+   After every scene, deliver one budgeted turn of inter-script bus messages.
 8. Upload newly loaded assets and dirty animation data.
 9. Refresh head/eye poses, choose frame-level LOD, rebuild current bounds and
    surface membership/layout, then render visible model surfaces.

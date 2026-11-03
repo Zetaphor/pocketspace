@@ -57,6 +57,7 @@
 #include "runtime_stats.h"
 #include "group_buffer_budget.h"
 #include "script_catalog.h"
+#include "event_bus.h"
 #ifdef SF_GPU_SYNC_EXPERIMENT
 #include "../tests/gpu-sync-experiment.h"
 #endif
@@ -77,7 +78,9 @@ struct Object {
 };
 #include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
-struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;int nextId=1,nextPanelId=1;bool eyeTrackingRequested=false,foveationRequested=false;};
+struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;int nextId=1,nextPanelId=1;bool eyeTrackingRequested=false,foveationRequested=false;
+  // Bus callbacks live in this scene's context; a candidate's publications wait for its commit.
+  std::vector<bus::Subscription> busSubscriptions;std::vector<bus::Message> stagedPublications;};
 inline size_t loadedAssetCount(const Scene &scene){return std::count_if(scene.assets.begin(),scene.assets.end(),[](const ModelAsset &asset){return !asset.path.empty();});}
 inline bool loadedAsset(const Scene &scene,int id){return id>0&&size_t(id)<=scene.assets.size()&&!scene.assets[size_t(id)-1].path.empty();}
 inline std::set<int> containerSubtree(const Scene &scene,int root){

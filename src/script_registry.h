@@ -52,9 +52,25 @@ class ScriptRegistry {
   std::map<int,std::unique_ptr<ScriptInstance>> instances_;
   int nextId_=1;
   std::function<void(int)> beforeStop_;
+  void publishLifecycle(const char *topic,const ScriptInstance &instance,const char *reason=nullptr){
+    std::string payload="{\"instanceId\":"+std::to_string(instance.id)+",\"path\":"+bus::jsonText(instance.path);
+    if(reason)payload+=std::string(",\"reason\":")+bus::jsonText(reason)+",\"error\":"+bus::jsonText(instance.lastError);
+    eventBus.publish(std::nullopt,topic,payload+"}");
+  }
+  // Records a callback exception and stops only this instance. The caller owns its scope.
+  void failScoped(ScriptInstance &instance,const char *fallback){
+    JSValue exception=JS_GetException(instance.host.ctx);
+    const char *message=JS_ToCString(instance.host.ctx,exception);
+    instance.lastError=message?message:fallback;
+    if(message)JS_FreeCString(instance.host.ctx,message);
+    JS_FreeValue(instance.host.ctx,exception);
+    if(beforeStop_)beforeStop_(instance.id);
+    closeScript(instance.host);resetActiveInteraction();instance.state=ScriptState::Failed;
+    publishLifecycle("engine.scriptStopped",instance,"failed");
+  }
 public:
   ScriptRegistry(){auto scratch=std::make_unique<ScriptInstance>();scratch->id=0;instances_.emplace(0,std::move(scratch));}
-  ~ScriptRegistry(){for(auto &[id,instance]:instances_)if(instance->host.ctx){ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}}
+  ~ScriptRegistry(){for(auto &[id,instance]:instances_)if(instance->host.ctx){ScriptScope scope(instance->host);closeScript(instance->host);resetActiveInteraction();}eventBus.clear();}
   ScriptRegistry(const ScriptRegistry&)=delete;
   ScriptRegistry& operator=(const ScriptRegistry&)=delete;
   void setBeforeStop(std::function<void(int)> callback){beforeStop_=std::move(callback);}
@@ -79,6 +95,7 @@ public:
     auto instance=std::make_unique<ScriptInstance>();instance->id=nextId_++;instance->host.instanceId=instance->id;instance->host.saveNamespace=scriptStorageKey(scenePersistence::catalogRoot,canonical);instance->path=canonical;id=instance->id;
     {ScriptScope scope(instance->host);if(loadScript(instance->host,canonical)){instance->state=ScriptState::Running;instance->generation=1;}else{instance->state=ScriptState::Failed;instance->lastError="script load failed";}}
     const bool loaded=instance->state==ScriptState::Running;error=instance->lastError;
+    publishLifecycle(loaded?"engine.scriptStarted":"engine.scriptStopped",*instance,loaded?nullptr:"failed");
     instances_.emplace(id,std::move(instance));return loaded;
   }
   bool reload(int id,const std::function<void()> &beforeCommit={}){
@@ -86,7 +103,8 @@ public:
     ScriptScope scope(instance->host);
     if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";return false;}
     resetActiveInteraction();
-    ++instance->generation;instance->lastError.clear();return true;
+    ++instance->generation;instance->lastError.clear();
+    publishLifecycle("engine.scriptReloaded",*instance);return true;
   }
   void reloadChanged(){
     for(auto &[id,entry]:instances_)if(id&&entry->state==ScriptState::Running){
@@ -97,7 +115,8 @@ public:
   bool stop(int id,bool manual=true){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
     {ScriptScope scope(instance->host);if(beforeStop_)beforeStop_(id);closeScript(instance->host);resetActiveInteraction();}
-    instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;return true;
+    instance->state=ScriptState::Stopped;instance->manuallyStopped=manual;
+    publishLifecycle("engine.scriptStopped",*instance,"stopped");return true;
   }
   // Called from a running scene pass, which already owns this host's scope.
   bool failActive(int id,const std::string &error){
@@ -106,7 +125,8 @@ public:
     instance->lastError=error;
     if(beforeStop_)beforeStop_(id);
     closeScript(instance->host);resetActiveInteraction();
-    instance->state=ScriptState::Failed;return true;
+    instance->state=ScriptState::Failed;
+    publishLifecycle("engine.scriptStopped",*instance,"failed");return true;
   }
   bool update(int id,double dt){
     auto *instance=find(id);if(!instance||instance->state!=ScriptState::Running)return false;
@@ -117,13 +137,7 @@ public:
     JS_FreeValue(instance->host.ctx,arg);
     if(!JS_IsException(result)){JS_FreeValue(instance->host.ctx,result);return true;}
     JS_FreeValue(instance->host.ctx,result);
-    JSValue exception=JS_GetException(instance->host.ctx);
-    const char *message=JS_ToCString(instance->host.ctx,exception);
-    instance->lastError=message?message:"script update failed";
-    if(message)JS_FreeCString(instance->host.ctx,message);
-    JS_FreeValue(instance->host.ctx,exception);
-    if(beforeStop_)beforeStop_(id);
-    closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
+    failScoped(*instance,"script update failed");return false;
   }
   bool dispatchInput(int id,const frame_input::Event &event){
     auto *instance=find(id);if(!instance||instance->state!=ScriptState::Running)return false;
@@ -135,13 +149,39 @@ public:
     JS_FreeValue(instance->host.ctx,callback);JS_FreeValue(instance->host.ctx,value);
     if(!JS_IsException(result)){JS_FreeValue(instance->host.ctx,result);return true;}
     JS_FreeValue(instance->host.ctx,result);
-    JSValue exception=JS_GetException(instance->host.ctx);
-    const char *message=JS_ToCString(instance->host.ctx,exception);
-    instance->lastError=message?message:"script input callback failed";
-    if(message)JS_FreeCString(instance->host.ctx,message);
-    JS_FreeValue(instance->host.ctx,exception);
-    if(beforeStop_)beforeStop_(id);
-    closeScript(instance->host);resetActiveInteraction();instance->state=ScriptState::Failed;return false;
+    failScoped(*instance,"script input callback failed");return false;
+  }
+  // One delivery turn of the event bus. Recipients are fixed when a message's
+  // delivery begins; stopped or reloaded subscribers are skipped when their turn comes.
+  size_t dispatchBus(){
+    return eventBus.dispatch([&](const bus::Message &message){
+      std::vector<bus::Recipient> recipients;
+      for(const auto &[id,instance]:instances_)if(instance->state==ScriptState::Running)
+        for(const auto &subscription:instance->host.scene.busSubscriptions)
+          if(bus::matches(subscription,message,id))recipients.push_back({id,subscription.id});
+      std::sort(recipients.begin(),recipients.end(),[](const bus::Recipient &a,const bus::Recipient &b){return a.subscriptionId<b.subscriptionId;});
+      return recipients;
+    },[&](const bus::Recipient &recipient,const bus::Message &message){
+      auto *instance=find(recipient.instanceId);
+      if(!instance||instance->state!=ScriptState::Running)return;
+      const auto &subscriptions=instance->host.scene.busSubscriptions;
+      const auto found=std::find_if(subscriptions.begin(),subscriptions.end(),[&](const bus::Subscription &s){return s.id==recipient.subscriptionId;});
+      if(found==subscriptions.end())return;
+      ScriptScope scope(instance->host);
+      JSContext *ctx=instance->host.ctx;
+      JSValue envelope=JS_NewObject(ctx);
+      JS_SetPropertyStr(ctx,envelope,"topic",JS_NewStringLen(ctx,message.topic.data(),message.topic.size()));
+      JS_SetPropertyStr(ctx,envelope,"payload",JS_ParseJSON(ctx,message.payload.c_str(),message.payload.size(),"bus"));
+      JS_SetPropertyStr(ctx,envelope,"sourceInstanceId",message.source?JS_NewInt32(ctx,*message.source):JS_NULL);
+      JS_SetPropertyStr(ctx,envelope,"sequence",JS_NewFloat64(ctx,double(message.sequence)));
+      // The subscription may be removed by its own callback.
+      JSValue callback=JS_DupValue(ctx,found->callback);
+      JSValue result=JS_Call(ctx,callback,JS_UNDEFINED,1,&envelope);
+      JS_FreeValue(ctx,callback);JS_FreeValue(ctx,envelope);
+      if(!JS_IsException(result)){JS_FreeValue(ctx,result);return;}
+      JS_FreeValue(ctx,result);
+      failScoped(*instance,"script bus callback failed");
+    });
   }
 };
 
