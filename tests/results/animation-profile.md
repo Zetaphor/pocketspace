@@ -81,7 +81,7 @@ numbers to independent compositor surfaces or unrelated detailed-model scenes.
 
 - [Filtered native windows and workload/HUD records](animation-profile/profile-frame.txt)
 - [Weighted steady summaries](animation-profile/summary-frame.json)
-- [Build, scene, and analysis instructions](../README.md#animated-model-performance-profiling)
+- Build, scene, and analysis instructions (in `tests/README.md` at `92f4137^`)
 
 Native counter/upload checks passed on the workstation and Frame for rigid,
 skinned and morph assets. Scene tests verified stage sizes, playback mode,

@@ -151,6 +151,8 @@ Keep in the repository only what production uses now. Experiments stay available
 
 Clean full check on Deckard with one compile job: before, `run-regressions.py --experiments` took 1377 s (1030 s build, 347 s tests); after, `run-regressions.py` takes 742 s (560 s build, 182 s tests), 42/42 passing. The shared test objects stay optimized in the fast tree, because `pbr-index-production-regression` needs optimized arithmetic for exact pixels; the first after-run caught that.
 
+Follow-up `32839bf` (build time only, no production code change): the GLES regressions link one compiled `tests/render_harness.cpp`, fast-tree regressions reuse one precompiled `src/render_host.h`, the test tree no longer compiles the production engine objects, and CMake uses `ccache` when it is on `PATH`. Clean regression build 560 s → 442 s (full check 616 s, 42/42); a same-tree clean rebuild with a warm cache takes 35 s.
+
 **Exit gate:** no experiment macros or unity builds remain in `src/`; `tools/run-regressions.py` builds and runs every remaining regression in one pass; the production engine and all remaining regressions pass; docs lint and site build pass; and the documentation names the removal commit.
 
 ## Step 8 — CLI and scratch REPL

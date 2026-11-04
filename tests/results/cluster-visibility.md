@@ -108,7 +108,7 @@ controlled two-group fixture rather than relaxing the matching checks. The
 [initial data](cluster-visibility-rejected-frame.json) also includes the first
 fixed-group control trio, which is not used in the table above.
 
-See [instructions](../README.md#spatial-occluder-cluster-experiment) and the
+See instructions (in `tests/README.md` at `92f4137^`) and the
 [controlled summary](cluster-visibility-frame.json). Logs remain on Frame under
 `/tmp/sf-cluster-controlled` and `/tmp/sf-cluster-comparison`; final correctness
 output is `/tmp/sf-cluster-validation.log`. All demos are stopped. Keep clusters

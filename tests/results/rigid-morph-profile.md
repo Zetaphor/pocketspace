@@ -100,7 +100,7 @@ shows substantial CPU deformation cost.
 
 ## Evidence and reproduction
 
-- [Run instructions](../README.md#rigid-node-and-morph-profiling)
+- Run instructions (in `tests/README.md` at `92f4137^`)
 - [Filtered Frame log](rigid-morph-profile/profile-frame.txt)
 - [Frame-weighted summary](rigid-morph-profile/summary-frame.json)
 

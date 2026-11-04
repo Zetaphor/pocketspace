@@ -72,7 +72,7 @@ A narrower repeated-only design would need its own measurements and memory polic
 - [Final matched results](multipart-instancing-frame.json), including separate
   preliminary timings before cached material locations and explicit gradients.
 - [Pixel validation and tested source/binary hashes](multipart-instancing-validation-frame.txt).
-- [Commands and supported test flags](../README.md#multi-part-instancing-experiment).
+- Commands and supported test flags (in `tests/README.md` at `92f4137^`).
 
 Raw Frame logs remain under `/tmp/sf-multipart-final` and the separate preliminary
 `/tmp/sf-multipart-comparison`. Validation logs are `/tmp/sf-multipart-pixels.log`

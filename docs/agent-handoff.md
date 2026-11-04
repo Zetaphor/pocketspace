@@ -19,13 +19,13 @@ after changing guide links, navigation or site configuration.
 
 | File | Responsibility |
 | --- | --- |
-| `src/script_api.cpp`, `src/engine_state.h` | QuickJS bindings, script loading, scene types and shared engine state. Compiled once and linked by regressions; keep shared globals `inline`, never `static`, in the header. |
+| `src/script_api.cpp`, `src/engine_state.h` | QuickJS bindings, script loading, scene types and shared engine state. Compiled once for the engine and once with `SF_TEST_HOOKS` for regressions; keep shared globals `inline`, never `static`, in the header. |
 | `src/render_host.cpp`, `src/render_host.h` | Interaction, surfaces, layout and render passes. Compiled once for the engine and once with `SF_TEST_HOOKS` for regressions. |
 | `src/main.cpp` | OpenVR frame loop. |
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
 | `src/model_asset.cpp` | GLB import, animation evaluation, skinning, and picking geometry. |
-| `src/model_instancing.h` | Opt-in ordered static-model batches, streamed instance data, fallback, and shader/resource lifetime. |
+| `src/model_instancing.h` | Default-on ordered static-model batches (asset opt-out), streamed instance data, fallback, and shader/resource lifetime. |
 | `src/controller_input.cpp` | OpenVR controller actions and haptics. |
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |

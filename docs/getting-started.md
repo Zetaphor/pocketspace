@@ -21,8 +21,9 @@ Jolt configuration; use `-DFETCHCONTENT_SOURCE_DIR_MESHOPTIMIZER=/path/to/meshop
 for an offline meshoptimizer 1.0 checkout at commit
 `73583c335e541c139821d0de2bf5f12960a04941`.
 
-When `ccache` (4.8 or newer) is on `PATH`, CMake uses it automatically, so new build
-directories and clean rebuilds reuse earlier compiler output. Pass
+When `ccache` (4.8 or newer) is on `PATH`, CMake uses it automatically. A clean
+rebuild of an existing build directory then reuses earlier compiler output; a new
+directory reuses Pocketspace's own objects but still compiles Jolt. Pass
 `-DCMAKE_CXX_COMPILER_LAUNCHER=` (empty) to build without it.
 
 ## Run an example

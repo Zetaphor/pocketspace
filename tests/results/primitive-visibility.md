@@ -78,7 +78,7 @@ mixed scenes at 418 MiB, within the 512 MiB budget. All demos are stopped.
 
 ## Reproduction and follow-up
 
-See [instructions](../README.md#primitive-occluder-visibility-experiment) and the
+See instructions (in `tests/README.md` at `92f4137^`) and the
 [raw summary](primitive-visibility-frame.json). The candidate is selected only
 by `SF_GPU_PRIMITIVE_VISIBILITY=1` in the excluded `gpu-sync-experiment` target;
 production builds compile out its code, option, caches, and counters. No script

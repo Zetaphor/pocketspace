@@ -78,7 +78,7 @@ actual draw count/driver submission cost and narrowly ordered reductions, with
 new geometry/material/lifetime checks. Do not assume the earlier combined
 multi-material stream would help; its prior comparison also rejected adoption.
 
-- [Run instructions](../README.md#vertex-array-submission-comparison)
+- Run instructions (in `tests/README.md` at `92f4137^`)
 - [Ordinary log](vertex-arrays/full-frame.txt), [summary](vertex-arrays/full-summary.json)
 - [VAO log](vertex-arrays/cache-frame.txt), [summary](vertex-arrays/cache-summary.json)
 - [Frame pixel check](vertex-arrays/pixels-frame.txt)

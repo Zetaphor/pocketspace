@@ -96,7 +96,7 @@ transition quality remains a separate validation item.
 - [Matched native timing](lod-frame.json).
 - [All upload/error and per-view pixel measurements](lod-pixels-frame.txt).
 - [Regression results and tested source/binary hashes](lod-validation-frame.txt).
-- [Build/run commands and experimental flag](../README.md#bounded-error-model-lod-experiment).
+- Build/run commands and experimental flag (in `tests/README.md` at `92f4137^`).
 
 The base is `3619c85` plus this investigation. Raw Frame measurements remain at
 `/tmp/sf-lod-comparison` and `/tmp/sf-lod-quarter`; original PPMs are under

@@ -75,7 +75,7 @@ and animation timing can vary pixel work despite matching allocations.
 - [Full filtered log](rigid-pose-cache/full-frame.txt), [summary](rigid-pose-cache/full-summary.json)
 - [Cached filtered log](rigid-pose-cache/cache-frame.txt), [summary](rigid-pose-cache/cache-summary.json)
 - [Frame correctness checks](rigid-pose-cache/correctness-frame.txt)
-- [Run instructions](../README.md#rigid-primitive-update-comparison)
+- Run instructions (in `tests/README.md` at `92f4137^`)
 
 Reproduce summaries with `tests/analyze-animation-profile.py`. Scene, analyzer,
 documentation lint and site checks pass. Animation blending, pause/resume and grabbing passed the subsequent user

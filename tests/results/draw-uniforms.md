@@ -84,7 +84,7 @@ investigate actual primitive draw/vertex-state submission cost or narrowly
 ordered draw reductions with a new design; the prior combined material stream
 is not justified by this result.
 
-- [Instructions](../README.md#draw-uniform-submission-comparison)
+- Instructions (in `tests/README.md` at `92f4137^`)
 - [Full log](draw-uniforms/full-frame.txt), [summary](draw-uniforms/full-summary.json)
 - [Cached log](draw-uniforms/cache-frame.txt), [summary](draw-uniforms/cache-summary.json)
 - [Frame pixel result](draw-uniforms/pixels-frame.txt)

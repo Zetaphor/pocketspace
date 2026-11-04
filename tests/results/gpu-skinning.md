@@ -80,7 +80,7 @@ checks do not replace headset occlusion/reprojection acceptance.
 
 ## Reproduction and evidence
 
-See [build/run instructions](../README.md#gpu-skinning-prototype) and
+See [build/run instructions](../README.md#gpu-skinning) and
 the bounded scene (`tests/scenes/gpu-skinning-profile.js`). Demos were stopped after
 both completion markers and verified absent.
 

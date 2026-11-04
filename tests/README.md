@@ -1,4 +1,4 @@
-# Rendering comparison experiment
+# Running tests and comparisons
 
 The multi-script offscreen regression renders two independent scenes whose
 objects both use local ID `1`, then destroys one renderer and confirms the other
@@ -20,17 +20,21 @@ cmake --build build --target input-arbitration-regression -j2
 
 ## Running regressions
 
-`python3 tools/run-regressions.py` builds and runs every regression in `build-test`,
-a separate tree that compiles regression sources at `-O0` with assertions on. The
-shared test engine objects stay optimized, and so does
-`pbr-index-production-regression`, whose exact-pixel comparison depends on the fused
-multiply-add instructions optimized ARM64 builds use. Pass
-target names to run only those. Engine regressions share one copy of the engine
-compiled with test hooks (`SF_TEST_HOOKS`): fault injection, counters and reference
-shaders that production builds do not contain. The GLES regressions also share one
-compiled offscreen renderer (`tests/render_harness.cpp`), and the fast-tree
-regressions reuse one precompiled `src/render_host.h`. Logs go to `build-test/regression-logs`. Measurements and profiling
-runs belong in the optimized `build` tree.
+`python3 tools/run-regressions.py` builds and runs every regression declared in
+`CMakeLists.txt` in `build-test`, a separate tree that compiles regression sources
+at `-O0` with assertions on. The physics regressions in `cmake/Physics.cmake` are
+not discovered; build and run them by name. The shared test engine objects stay
+optimized, and so does `pbr-index-production-regression`, whose exact-pixel
+comparison depends on the fused multiply-add instructions optimized ARM64 builds
+use. Pass target names to run only those. Logs go to `build-test/regression-logs`.
+Measurements and profiling runs belong in the optimized `build` tree.
+
+Engine regressions share one copy of the engine compiled with test hooks
+(`SF_TEST_HOOKS`): fault injection, counters and reference shaders that production
+builds do not contain. The GLES regressions also share one compiled offscreen
+renderer (`tests/render_harness.cpp`), and the fast-tree regressions reuse one
+precompiled `src/render_host.h`. When `ccache` is on `PATH`, CMake uses it, so a
+clean rebuild of an existing tree mostly reads cached objects.
 
 It uses one compile job and runs one regression at a time, because regressions share
 the GPU and memory with the SteamVR compositor. Do not run them concurrently on the

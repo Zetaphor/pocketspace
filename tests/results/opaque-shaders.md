@@ -67,7 +67,7 @@ or deployed production rendering behavior changes as a result of this experiment
 
 ## Reproduction and follow-up
 
-See [test instructions](../README.md#opaque-shader-specialization-experiment).
+See test instructions (in `tests/README.md` at `92f4137^`).
 `SF_GPU_OPAQUE_SHADER=1` exists only in the excluded `gpu-sync-experiment` target.
 The native benchmark refuses any non-opaque asset; it is not a general-purpose
 renderer setting. Its programs are created only when enabled and destroyed

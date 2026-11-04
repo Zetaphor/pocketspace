@@ -1,11 +1,12 @@
 # Test index
 
-Brief descriptions of the checks, scenes, experiments, and supporting tools in this
-folder. Paths are relative to `tests/`; run commands from the repository root.
-See [experiment instructions](README.md) for rendering comparisons and native
-runtime setup. API smoke files are fixtures for regression harnesses, rather
-than independent test runners. Headset scenes require the engine and VR runtime;
-performance experiments are separate from correctness and visual acceptance.
+Brief descriptions of the checks, scenes, performance comparisons, and supporting
+tools in this folder. Paths are relative to `tests/`; run commands from the
+repository root. See [test instructions](README.md) for running regressions,
+rendering comparisons and native runtime setup. API smoke files are fixtures for
+regression harnesses, rather than independent test runners. Headset scenes require
+the engine and VR runtime; performance comparisons are separate from correctness
+and visual acceptance.
 
 ## Automated regression checks
 
@@ -29,6 +30,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [lifecycle-input-regression.cpp](lifecycle-input-regression.cpp) | Raw input device replacement, missing-state retry, idle streams, connection upgrades, reconnects, queues and resource cleanup using a local server. |
 | [lifecycle-script-regression.cpp](lifecycle-script-regression.cpp) | Script loading, failed-reload rollback, callbacks, and scene cleanup without VR or graphics. |
 | [multi-script-lifecycle-regression.cpp](multi-script-lifecycle-regression.cpp) | Two QuickJS hosts with colliding local IDs, independent callback ownership, disconnect/reconnect fanout, held-owner stop, callback mutation, duplicate rejection, failed reload rollback, scoped stop, and callback-error isolation without VR or graphics. |
+| [native-resource-key-regression.cpp](native-resource-key-regression.cpp) | Instance-scoped native resource keys: distinct object/panel/group overlay keys for colliding local IDs. |
+| [native-scene-resources-regression.cpp](native-scene-resources-regression.cpp) | Per-instance surfaces, panel overlays and submissions with the same local IDs stay separate. |
 | [event-bus-regression.cpp](event-bus-regression.cpp) | Event bus with real QuickJS contexts and scratch: exact/catch-all/self rules, engine lifecycle topics, payload copies and rejection, deferred and chained delivery, bounded loops and overflow, transactional reload, stop during delivery, no replay, failure isolation and unsubscribe. |
 | [script-recovery-regression.cpp](script-recovery-regression.cpp) | Recursive catalog keys, links and escapes; strict settings validation, atomic writes and last-good live edits; isolated autostart failures; restart off by default; bounded restart backoff on a fake clock, healthy reset, manual-stop override and scratch exclusion. |
 | [control-regression.cpp](control-regression.cpp) | Control socket with real Unix-socket clients: private socket and single instance, stale socket replacement, malformed requests, generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate request IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown cleanup. |
@@ -44,6 +47,8 @@ performance experiments are separate from correctness and visual acceptance.
 | [render-group-split-regression.cpp](render-group-split-regression.cpp) | Subdivision, merging, rebalancing, allocation budgets, planner stability, and API validation. |
 | [render-occlusion-regression.cpp](render-occlusion-regression.cpp) | Actual GLES pixels for occlusion, materials, stereo views, grouping, and optimized mesh upload; no OpenVR session. |
 | [render_harness.h](render_harness.h), [render_harness.cpp](render_harness.cpp) | Offscreen stereo `Renderer` shared by the GLES regressions through production render paths; compiled once and linked by each. |
+| [test_pch.cpp](test_pch.cpp) | Empty source that owns the precompiled `src/render_host.h` reused by fast-tree regressions. |
+| [directional-light-reference.h](directional-light-reference.h) | Frozen point/spot light loop used by the harness for directional-light reference pixels. |
 | [runtime-stats-regression.cpp](runtime-stats-regression.cpp) | CPU stat parsing, sampling cadence, FPS, CPU usage, and resident memory. |
 | [scene-lookup-regression.cpp](scene-lookup-regression.cpp) | Object lookup with missing IDs, erasures, vector growth, and scene replacement. |
 | [skinning-loader-regression.py](skinning-loader-regression.py) | Generated valid and malformed skin GLBs passed to the real animation/loader regression. |
@@ -77,7 +82,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [physics-api-smoke.js](physics-api-smoke.js) | Body setup, gravity, velocity, forces, state, and invalid calls. |
 | [spring-api-smoke.js](spring-api-smoke.js) | Distance-joint spring settings, defaults, removal, and validation. |
 
-## Native runners and performance experiments
+## Native runners and performance comparisons
 
 | File | Purpose |
 | --- | --- |

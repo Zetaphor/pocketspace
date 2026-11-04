@@ -83,7 +83,7 @@ Require exact pixel comparisons for opaque/masked/blended output and matched
 native throughput measurements before adoption. Conservative visibility work
 remains a candidate if shader specialization shows no benefit.
 
-See [runner instructions](../README.md#render-pass-attribution) and the
+See runner instructions (in `tests/README.md` at `92f4137^`) and the
 [raw summary](render-passes-frame.json). Native logs remain under
 `/tmp/sf-pass-profile` on Frame, with build/validation output in
 `/tmp/sf-pass-build.log` and `/tmp/sf-pass-validation.log`.
