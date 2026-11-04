@@ -170,11 +170,11 @@ validation output associated with those reports, rather than additional tests.
 ## Removed experiments
 
 Rendering, shader, culling, synchronization and profiling experiments that did
-not ship were removed in commit `REMOVAL_COMMIT`, together with their comparison
+not ship were removed in commit `92f4137`, together with their comparison
 builds, runners and scenes. Their reports remain in [results/](results/), and each
 names the files it used. Recover any of them from Git history, for example
-`git show REMOVAL_COMMIT^:tests/opaque-shader-pixels.cpp`, or restore the whole
-set with `git checkout REMOVAL_COMMIT^ -- tests src CMakeLists.txt` on a branch.
+`git show 92f4137^:tests/opaque-shader-pixels.cpp`, or restore the whole
+set with `git checkout 92f4137^ -- tests src CMakeLists.txt` on a branch.
 
 ## Scene persistence
 

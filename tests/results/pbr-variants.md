@@ -1,7 +1,7 @@
 # Bounded PBR shader specialization
 
 > Some targets, tests, runners or scenes used for this report were removed in
-> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> commit `92f4137`. Recover one with `git show 92f4137^:<path>`; see
 > [removed experiments](../index.md#removed-experiments).
 
 This is the historical lazy-prototype report. The [prepared production policy](pbr-prewarm.md) supersedes its first-use compilation and adoption status.

@@ -507,7 +507,7 @@ Measurements are workload-specific, not FPS guarantees. Tests/results document
 correctness, measured performance, and user headset acceptance separately.
 The rejected uniform-cache, owned-VAO, primitive and cluster occluder-culling,
 specialized opaque shader, shared-scene-depth and alternate GPU synchronization
-experiments were removed in commit `REMOVAL_COMMIT`; their reports remain, and the
+experiments were removed in commit `92f4137`; their reports remain, and the
 [test index](../tests/index.md#removed-experiments) explains how to recover the
 code. So were the [static-only ordinary vertex shader prototype](../tests/results/dense-model-current.md)
 and its [mixed-program integration](../tests/results/ordinary-program-routing.md),

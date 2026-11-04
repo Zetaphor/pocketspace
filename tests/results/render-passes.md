@@ -1,7 +1,7 @@
 # Dense moving model draw-pass attribution
 
 > Some targets, tests, runners or scenes used for this report were removed in
-> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> commit `92f4137`. Recover one with `git show 92f4137^:<path>`; see
 > [removed experiments](../index.md#removed-experiments).
 
 Frame completed twelve bounded 16-second native runs: two rounds of fixed and

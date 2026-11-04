@@ -1,7 +1,7 @@
 # PBR submission cost triage
 
 > Some targets, tests, runners or scenes used for this report were removed in
-> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> commit `92f4137`. Recover one with `git show 92f4137^:<path>`; see
 > [removed experiments](../index.md#removed-experiments).
 
 Steam Frame, 2026-10-29. **PBR instancing remains conditional; no batching

@@ -238,7 +238,7 @@ padding; projection reuse does not change buffers, sampling density, or shaders.
 
 
 Shared scene-depth reuse is not enabled. The matching-grid prototype was removed
-in commit `REMOVAL_COMMIT`; see its
+in commit `92f4137`; see its
 [measured results and adoption constraints](../tests/results/shared-depth-prototype.md).
 Do not replace per-group occluder passes with an all-scene prepass based on
 unculled comparisons. Current bounds culling can make per-group rendering faster,
@@ -283,7 +283,7 @@ changes may eliminate either pending tile; resolve keys again before submission.
 
 
 Normal builds use `glFinish` for GPU completion. The alternate fence-wait
-experiment and its profiler were removed in commit `REMOVAL_COMMIT`. See the
+experiment and its profiler were removed in commit `92f4137`. See the
 [contract review and comparison](../tests/results/gpu-sync.md) before revisiting
 synchronization: a producer-complete fence does not acknowledge compositor
 consumption, and `WaitFrameSync` is pacing rather than ownership. Preserve the
@@ -353,14 +353,14 @@ extending this optimization.
 
 The [pass-local uniform cache comparison](../tests/results/draw-uniforms.md)
 preserved exact pixels and removed most uniform calls, but did not improve
-end-to-end throughput; it was removed in commit `REMOVAL_COMMIT`, and normal
+end-to-end throughput; it was removed in commit `92f4137`, and normal
 draws retain direct uniform calls.
 Do not infer GPU duration from completion-wait changes. Future submission work
 must target the actual draw/vertex-state cost and preserve primitive order.
 
 
 The [owned VAO comparison](../tests/results/vertex-arrays.md) was not adopted and
-was removed in commit `REMOVAL_COMMIT`. A future VAO cache must destroy VAOs with
+was removed in commit `92f4137`. A future VAO cache must destroy VAOs with
 their geometry owner rather than cache them by GL name, restore VAO 0 after each
 cached draw, and include driver metadata limits in allocation estimates.
 
@@ -389,7 +389,7 @@ refreshes pass attribution with automatic LOD and ordered instancing. Its
 static-only vertex shader and the later
 [mixed-program integration](../tests/results/ordinary-program-routing.md) passed
 exact rendering and lifecycle checks without consistent native gains, and were
-removed in commit `REMOVAL_COMMIT`. Normal builds retain the general skin-capable
+removed in commit `92f4137`. Normal builds retain the general skin-capable
 shader. A future mixed-program path must restore complete view/object/material
 state, invalidate cached binding after instanced batches, and never delete a
 borrowed host program.
@@ -397,7 +397,7 @@ borrowed host program.
 
 [Geometry-aware grouping profiling](../tests/results/group-occluder-policy.md)
 found that an equal-minimum-area partition tie-break did not justify adoption; it
-and its render-work counters were removed in commit `REMOVAL_COMMIT`. Comparisons
+and its render-work counters were removed in commit `92f4137`. Comparisons
 of grouping policies must count actual selected index/skin ranges, full merged
 rigid ranges and instanced multiplicity, and reject geometry/LOD drift and
 incomplete member work, not just allocation mismatch.
