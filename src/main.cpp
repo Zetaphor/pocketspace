@@ -124,18 +124,14 @@ int main(int argc,char **argv) {
   destroyImage=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   imageRenderbuffer=(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
-  const char *vertexSource=modelVertexShader;
-  GLuint generalProgram=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
-  ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
-  glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
+  GLuint program=glCreateProgram(),v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
+  ScopeExit shaderCleanup{[&]{glDeleteProgram(program);glDeleteShader(v);glDeleteShader(f);}};
+  glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);if(!linked)return 5;
   // Validate color and depth material programs before publishing a live scene.
   std::map<int,std::unique_ptr<SceneRenderState>> renderStates;
   std::array<panelPointer::Pointer,2> panelPointers;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
-  constexpr bool pbrVariantsEnabled=true;
-  constexpr bool fastPbrDepth=true;
-  const GLuint program=generalProgram;
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
@@ -318,7 +314,7 @@ int main(int argc,char **argv) {
       }
       fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
     });
-    if(auto *entry=scriptRegistry.find(id);loaded&&entry&&pbrVariantsEnabled&&renderStates.count(id)){
+    if(auto *entry=scriptRegistry.find(id);loaded&&entry&&renderStates.count(id)){
       for(auto &asset:entry->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
       renderStates.at(id)->pbrVariants.prepare(entry->host.scene);
     }
@@ -366,7 +362,7 @@ int main(int argc,char **argv) {
       if(!engineSettings.error().empty())fprintf(stderr,"[settings] %s; keeping the last valid settings\n",engineSettings.error().c_str());
       else{scriptRegistry.setAutoRestart(engineSettings.current().autoRestart);fprintf(stdout,"[settings] reloaded autoRestart=%d\n",int(engineSettings.current().autoRestart));}
     }
-    for(int id:scriptRegistry.tickRestarts())if(auto *entry=scriptRegistry.find(id);entry&&pbrVariantsEnabled&&renderStates.count(id)){
+    for(int id:scriptRegistry.tickRestarts())if(auto *entry=scriptRegistry.find(id);entry&&renderStates.count(id)){
       for(auto &asset:entry->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
       renderStates.at(id)->pbrVariants.prepare(entry->host.scene);
     }
@@ -757,24 +753,19 @@ int main(int argc,char **argv) {
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))return false;
               return true;
             };
-            auto restoredProgram=[]{};
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
-              {
-                glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
-                glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-              }
+              glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+              glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
-                {
-                  glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
-                }
+                glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
                 culling.material(part,object.animationPose.get());
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
                 if(asset.pbr){
-                  auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
-                  auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram);
+                  auto *variant=pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
+                  auto &activePbr=variant?*variant:(pass<0?depthPbrProgram:pbrProgram);
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
                   activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
                   if(pass>=0)activePbr.lights(frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
@@ -784,9 +775,8 @@ int main(int argc,char **argv) {
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
                   continue;
                 }
-                GLuint activeProgram=program;
-                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
-                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);
+                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
+                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
                   continue;
                 }
                 if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive)){
@@ -799,9 +789,7 @@ int main(int argc,char **argv) {
             if(useInstancing){
               std::vector<const Object*> objects;objects.reserve(script.scene.objects.size());for(const auto &object:script.scene.objects)if(selected(object))objects.push_back(&object);
               const float origin[3]={surfaceX,surfaceY,surfaceZ};
-              instancing.draw(script.scene,culling,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
-                (void)count;
-              },restoredProgram);return;
+              instancing.draw(script.scene,culling,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[](unsigned){});return;
             }
             for(const auto &object:script.scene.objects)if(selected(object))drawObject(object);
           },&region);
@@ -839,7 +827,7 @@ int main(int argc,char **argv) {
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,int(error));
       }
       const int completedFrame=frame+1;
-      if(completedFrame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
+      if(completedFrame%900==0)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
     }
       return 0;
     };
@@ -850,10 +838,8 @@ int main(int argc,char **argv) {
       if(!renderStates.count(id)){
         auto owner=std::make_unique<SceneRenderState>();
         if(!owner->spotShadows.prepare())return 5;
-        if(pbrVariantsEnabled){
-          for(auto &asset:instance->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
-          owner->pbrVariants.prepare(instance->host.scene);
-        }
+        for(auto &asset:instance->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
+        owner->pbrVariants.prepare(instance->host.scene);
         renderStates.emplace(id,std::move(owner));
       }
       if(!resourcesByInstance.count(id))resourcesByInstance.emplace(id,std::make_unique<SceneResources>(id));
