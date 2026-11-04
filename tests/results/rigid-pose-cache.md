@@ -1,5 +1,9 @@
 # Unchanged rigid primitive update cache
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28: executable `9146af3`, corrected scene
 `c684d3d`. The excluded `rigid-pose-experiment` target toggles cached/full updates
 with `SF_RIGID_POSE_CACHE=1/0`. After the measured comparison, the user accepted

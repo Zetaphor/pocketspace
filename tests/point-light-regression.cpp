@@ -6,7 +6,7 @@ static void sameAlpha(const std::vector<unsigned char> &a,const std::vector<unsi
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  {
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
+  Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
   assert(loadModelFile("assets/samples/Box/Box.glb",asset));asset.lighting.intensity=asset.lighting.ambient=0;uploadModel(asset);
   for(auto &p:asset.primitives){p.factor[0]=p.factor[1]=p.factor[2]=1;p.metallic=0;p.roughness=.5;}
   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.45;r.scene.objects={object};

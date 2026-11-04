@@ -1,5 +1,9 @@
 # Static PBR indexing investigation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on **2026-10-29** with the headset awake and worn.
 At this initial measurement the implementation was test-only. The subsequent
 [production integration](pbr-index-production.md) uses explicitly enabled cache

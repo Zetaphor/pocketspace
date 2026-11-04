@@ -31,7 +31,7 @@
 - Rendering optimizations must preserve stereo projection, draw order,
   transparency, compositor synchronization, and buffer lifetime. Consult the
   handoff and recorded comparisons before changing these contracts.
-- Keep production defaults separate from test-only experiments. Profile before
+- Keep production behavior free of test-only code paths. Profile before
   adopting optimizations, and compare equivalent workloads and quality settings.
 - Preserve upstream asset credits and dependency licenses. Keep calibration
   files, runtime scene saves, generated builds, and profiling output out of Git
@@ -55,14 +55,14 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
 - Regression targets are generally excluded from the default build. Build the
   relevant targets explicitly and follow their documented fixture/environment
   requirements. Preserve enabled assertions in regression targets.
-- Use `python3 tools/run-regressions.py` (no flags) as the full check. Add
-  `--experiments` only when the change affects what those regressions test:
-  rendering, shaders, lighting, materials, model upload/LOD/indexing, skinning,
-  `src/render_host.*`, `src/pbr_*`, `src/model_*`, the experiment macros, or the
-  experiment tests themselves. Each experiment target compiles its own copy of the
-  engine, so the flag adds about ten minutes; do not use it for scripting, input,
-  lifecycle, bus, settings, or control-socket work. During iteration, build and run
-  only the focused targets and run the full check once before committing.
+- Use `python3 tools/run-regressions.py` as the full check. During iteration,
+  build and run only the focused targets and run the full check once before
+  committing.
+- Engine regressions link one shared copy of the engine built with
+  `SF_TEST_HOOKS`. Do not add targets that compile their own copy of the engine
+  or compile-time experiment switches. Put test-only fault injection, counters and
+  reference shaders behind `SF_TEST_HOOKS`, and remove an experiment once its
+  outcome is recorded; Git keeps the code.
 - Run checks appropriate to the change. Exercise meaningful failure cases and
   resource cleanup when changing lifecycle, persistence, input, or ownership.
 - Distinguish automated correctness, measured performance, and user-confirmed

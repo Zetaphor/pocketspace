@@ -1,5 +1,9 @@
 # Static GPU mesh cache/fetch optimization
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 `loadModel(path, eyePixels, {optimizeVertexCache:true})` opts an asset into
 meshoptimizer 1.0 triangle-cache optimization followed by vertex-fetch packing.
 It runs during GPU upload, preserving exact vertex/UV data and complete oriented

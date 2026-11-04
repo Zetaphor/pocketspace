@@ -1,5 +1,4 @@
 // Sheen import, independently integrated BRDF energy and actual GLES pixels.
-#define SF_PBR_VARIANT_EXPERIMENT
 #define SF_OCCLUSION_HELPERS_ONLY
 #include "render-occlusion-regression.cpp"
 #include <GLES2/gl2ext.h>
@@ -25,7 +24,7 @@ int main(int argc,char **argv){
  }
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));GLuint lookup=0;
  {
-  Renderer renderer;renderer.ordinaryRouting=false;renderer.scene.objects.clear();
+  Renderer renderer;renderer.scene.objects.clear();
   for(auto &asset:renderer.scene.assets)deleteModel(asset);renderer.scene.assets.clear();
   for(const char *name:{"SheenFactors","SheenTextures"}){
    renderer.scene.assets.emplace_back();auto &asset=renderer.scene.assets.back();asset.pbr=true;

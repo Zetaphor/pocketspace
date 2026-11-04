@@ -1,5 +1,9 @@
 # Bounded-error model detail investigation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Fixed-detail GPU simplification improves both native moving-model workloads.
 These fixed-detail measurements informed the production
 [automatic LOD implementation](../../docs/javascript-api.md#automatic-model-lod).

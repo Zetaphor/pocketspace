@@ -416,9 +416,6 @@ GroupSplitPlan partitionGroup(const std::vector<const Object*> &members,const Sc
   GroupSplitPlan best;if(members.size()<2||!finiteGroupBounds(members,cache))return best;
   auto layout=[&](const std::vector<const Object*> &items){return tileLayout(items,scene,anchor,head,eyes,cache,maximum);};
   uint64_t bestCost=baseline*4/5; // Require at least 20% fewer allocated texels.
-#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
-  uint64_t bestOccluders=std::numeric_limits<uint64_t>::max();
-#endif
   for(int axis=0;axis<2;axis++){
     auto ordered=members;
     auto coordinate=[&](const Object *object){const auto &a=cache.common(*object,0),&b=cache.common(*object,1);return axis?(double(a.y0)+a.y1+b.y0+b.y1):(double(a.x0)+a.x1+b.x0+b.x1);};
@@ -427,28 +424,12 @@ GroupSplitPlan partitionGroup(const std::vector<const Object*> &members,const Sc
       const size_t cut=ordered.size()*quarter/4;if(!cut||cut==ordered.size())continue;
       GroupSplitPlan candidate;candidate.members[0].assign(ordered.begin(),ordered.begin()+cut);candidate.members[1].assign(ordered.begin()+cut,ordered.end());
       uint64_t cost=0;bool limited=false;
-#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
-      GroupLayout childLayouts[2];
-#endif
       for(int tile=0;tile<2;tile++){
         const auto child=layout(candidate.members[tile]);limited|=child.limited;
-#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
-        childLayouts[tile]=child;
-#endif
         candidate.pixels[tile]=groupBufferPixels(child.pixels,maximum);candidate.widths[tile]=child.width*float(candidate.pixels[tile])/child.pixels;
         cost+=uint64_t(candidate.pixels[tile])*candidate.pixels[tile];
       }
-#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
-      if(limited||cost>bestCost||(cost==bestCost&&(!groupOccluderTieBreak||!best)))continue;
-      uint64_t occluders=0;
-      if(groupOccluderTieBreak){
-        occluders=groupOccluderPredictedTriangles(candidate,childLayouts,scene,cache);
-        if(cost==bestCost&&occluders>=bestOccluders)continue;
-      }
-      bestOccluders=occluders;
-#else
       if(limited||cost>=bestCost)continue;
-#endif
       candidate.parentPixelsSquared=baseline;candidate.childPixelsSquared=cost;bestCost=cost;best=std::move(candidate);
     }
   }

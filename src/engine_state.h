@@ -39,13 +39,6 @@
 #include <iterator>
 #include "model_asset.h"
 #include "model_shaders.h"
-#ifdef SF_GPU_SYNC_EXPERIMENT
-#include "../tests/static-vertex-experiment.h"
-#include "../tests/ordinary-program-experiment.h"
-#endif
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-#include "../tests/draw-uniforms-experiment.h"
-#endif
 #include "controller_input.h"
 #include "frame_input.h"
 #include "panel.h"
@@ -59,9 +52,6 @@
 #include "group_buffer_budget.h"
 #include "script_catalog.h"
 #include "event_bus.h"
-#ifdef SF_GPU_SYNC_EXPERIMENT
-#include "../tests/gpu-sync-experiment.h"
-#endif
 
 constexpr int kDefaultEyePixels=768;
 enum class GrabButton { Trigger, Grip, Both };

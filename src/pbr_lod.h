@@ -8,7 +8,7 @@
 // Cache-enabled assets can compact them; full CPU and full GPU data survive.
 #include "scope_exit.h"
 namespace pbrLod {
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
 // Failure injection for the excluded regression, never a public runtime control.
 inline bool failSurfaceUpload=false,failCpuStaging=false,failIndexUpload=false;
 inline size_t rejectedPairs=0;
@@ -21,7 +21,7 @@ inline bool uploadBuffer(GLuint &buffer,const std::vector<float> &values){
  return bytes>=0&&uint64_t(bytes)==uint64_t(values.size())*sizeof(float);
 }
 inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
  if(const char *enabled=std::getenv("SF_PBR_LOD");enabled&&std::string(enabled)=="0")return;
 #endif
  if(!asset.pbr||!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300||pbrLodBudget.used>=PbrLodBudget::limit)return;
@@ -49,7 +49,7 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
   if(level&&part.lod[0].vbo&&count>size_t(part.lod[0].count)*4/5)continue;
   reduced.resize(count);
   bool compact=asset.optimizeVertexCache;
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
   if(const char *enabled=std::getenv("SF_PBR_LOD_INDEXED");enabled&&std::string(enabled)=="0")compact=false;
 #endif
   std::vector<float> packed;size_t uploaded=count;GLenum indexType=GL_UNSIGNED_INT;
@@ -66,12 +66,12 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
   ModelLodLevel staged;bool published=false;
   ScopeExit rollback{[&]{if(!published){
     if(staged.vbo)glDeleteBuffers(1,&staged.vbo);if(staged.surfaceVbo)glDeleteBuffers(1,&staged.surfaceVbo);if(staged.indexBuffer)glDeleteBuffers(1,&staged.indexBuffer);
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
     if(staged.vbo||staged.surfaceVbo||staged.indexBuffer){++rejectedPairs;rejectedPairsClean&=(!staged.vbo||!glIsBuffer(staged.vbo))&&(!staged.surfaceVbo||!glIsBuffer(staged.surfaceVbo))&&(!staged.indexBuffer||!glIsBuffer(staged.indexBuffer));}
 #endif
     pbrLodBudget.release(bytes);
   }}};
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
   if(failCpuStaging)throw std::bad_alloc();
 #endif
   std::vector<float> vertices,surface;vertices.reserve(uploaded*5);surface.reserve(uploaded*9);
@@ -80,7 +80,7 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
    vertices.insert(vertices.end(),first,first+5);surface.insert(surface.end(),first+5,first+14);
   }
   if(!uploadBuffer(staged.vbo,vertices))continue;
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
   if(failSurfaceUpload)continue;
 #endif
   if(!uploadBuffer(staged.surfaceVbo,surface))continue;
@@ -91,7 +91,7 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
     else glBufferData(GL_ELEMENT_ARRAY_BUFFER,reduced.size()*sizeof(uint32_t),reduced.data(),GL_STATIC_DRAW);
     GLint allocated=0;glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER,GL_BUFFER_SIZE,&allocated);
     if(allocated<0||uint64_t(allocated)!=uint64_t(count)*(indexType==GL_UNSIGNED_SHORT?2:4))continue;
-#ifdef SF_PBR_LOD_EXPERIMENT
+#ifdef SF_TEST_HOOKS
     if(failIndexUpload)continue;
 #endif
   }

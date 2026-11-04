@@ -1,9 +1,8 @@
 // Conservative sphere/cone selection, stereo pixels and a range-only comparison.
-#define SF_LIGHT_WORK_EXPERIMENT
 #define SF_OCCLUSION_HELPERS_ONLY
 #include "render-occlusion-regression.cpp"
 static void populate(Renderer &r,const char *path,int count){
- r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);asset.lighting.intensity=.3;asset.lighting.ambient=.04;
+ r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);asset.lighting.intensity=.3;asset.lighting.ambient=.04;
  for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.6f:.2f;o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2;o.pitch=.1;r.scene.objects.push_back(o);}
 }
 static void setLights(Renderer &r,int count,int kind){

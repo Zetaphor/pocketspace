@@ -1,5 +1,9 @@
 # Opaque color and depth shader specialization
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 The experiment preserves pixels but is **not enabled in production**. Dense
 workloads show small gains, while the lighter model case has higher GPU timings
 without a throughput gain. This does not justify adding multiple production

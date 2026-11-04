@@ -1,5 +1,9 @@
 # Ordered model GPU instancing
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Ordered instancing is enabled by default in `loadModel`;
 `gpuInstancing: false` opts out. The measurements below predate the default
 change and explicitly select each path. It batches consecutive eligible

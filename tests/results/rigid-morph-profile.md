@@ -1,5 +1,9 @@
 # Rigid-node and morph animation profiling
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 at `30497be`, using the excluded
 `animation-profile-experiment` target and the current production backend.
 Both sampled asset types use CPU deformation. No engine defaults changed.
@@ -13,7 +17,7 @@ Both sampled asset types use CPU deformation. No engine defaults changed.
   two morph targets. First clip, staggered independent phases.
 - Eight 20-second stages, 64 and 256 actors of each model, animated/paused.
   Alternating playback order is specified in the
-  [scene](../scenes/rigid-morph-profile.js). One render group, 768 reference eye
+  scene. One render group, 768 reference eye
   pixels, no physics and one HUD. The 64 actors form an 8x8 grid at 0.12 m spacing
   and scale; 256 form a 16x16 grid at 0.065 m spacing and scale. Do not compare
   count changes as identical model pixel workloads.

@@ -1,5 +1,9 @@
 # Minimal PBR depth shader investigation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Closed without adoption on Steam Frame, 2026-10-29. Production retains the
 shipped fast-depth program. The candidate, its regression and
 `tests/profile-minimal-depth.py` have since been removed; the commands below

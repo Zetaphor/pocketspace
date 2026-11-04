@@ -7,7 +7,7 @@ static void nearPixels(const std::vector<unsigned char>& a,const std::vector<uns
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));size_t images=0;
  {
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
+  Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
   assert(loadModelFile("assets/samples/Box/Box.glb",asset));uploadModel(asset);asset.lighting.intensity=asset.lighting.ambient=0;
   for(auto &p:asset.primitives){p.factor[0]=p.factor[1]=p.factor[2]=1;p.metallic=0;p.roughness=.5;}
   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.45;r.scene.objects={object};
@@ -32,7 +32,7 @@ int main(int argc,char **argv){
   r.scene.lights={sun};r.scene.lights[0].objectId=1;r.scene.objects[0].yaw=float(std::acos(-1)/2);resolved=resolvePointLights(r.scene);assert(std::abs(resolved[0].direction[0]+1)<1e-5&&std::abs(resolved[0].direction[2])<1e-5);
  }
  {
-  Renderer r(false,modelVertexShader,1024);r.ordinaryRouting=false;r.scene.objects.clear();
+  Renderer r(1024);r.scene.objects.clear();
   for(const char *name:{"ToyCar","NormalTangentTest","AlphaBlendModeTest","Fox","AnimatedMorphCube"}){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);
    Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.4;o.pitch=.2;o.yaw=.3;r.scene.objects={o};
@@ -88,7 +88,7 @@ int main(int argc,char **argv){
   std::ofstream(script)<<"createDirectionalLight();throw Error('EXPECTED directional reload rejection');";assert(!loadScript(host,script.string())&&host.ctx==active&&host.scene.lights.size()==saved.size()&&host.scene.lights[0].direction==saved[0].direction);closeScript(host);
  }
  if(argc>1&&std::string(argv[1])=="--profile"){
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.lighting.intensity=0;a.lighting.ambient=.04;
+  Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.lighting.intensity=0;a.lighting.ambient=.04;
   std::vector<int> ids;for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.2;o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);GLuint q=0;gen(1,&q);
   for(int kind=0;kind<3;kind++)for(int count:{0,1,4,8}){

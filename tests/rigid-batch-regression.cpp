@@ -29,7 +29,7 @@ int main(){
    for(int alpha:{-1,0,1,2}){
     if(alpha>=0)for(auto &part:asset.primitives){part.alphaMode=alpha;part.factor[3]=alpha==2?.55f:1;}
     for(auto mode:{ModelInstancing::Off,ModelInstancing::Instanced}){
-     renderer.instanceExperiment.mode=mode;
+     renderer.instancing.mode=mode;
      for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       rigidBatchEnabled=false;auto expected=renderer.renderSet({1,3,4,5,6,7,8},head,eye);
       // External writes between renders must not poison the new pass cache.

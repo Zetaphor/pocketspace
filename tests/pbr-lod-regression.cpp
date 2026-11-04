@@ -14,7 +14,7 @@ int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  std::vector<GLuint> owned;size_t exact=0,quality=0;bool reduced=false;
  {
- Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
+ Renderer r;r.scene.objects.clear();
  for(const char *name:{"ToyCar","Avocado","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest"}){
   const std::string path=std::string(name)=="Avocado"?"assets/Avocado.glb":std::string("assets/samples/")+name+"/"+name+".glb";
   r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));
@@ -124,7 +124,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{1,16}){
-   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
+   Renderer r;r.scene.objects.clear();
    setenv("SF_PBR_LOD","1",1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
 
    std::vector<int> members;

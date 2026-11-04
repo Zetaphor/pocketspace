@@ -20,12 +20,10 @@ WRAPPERS = {'morph-regression': 'tests/morph-loader-regression.py',
             'gpu-skinning-regression': 'tests/skinning-loader-regression.py'}
 
 
-def discover(experiments):
+def discover():
     text = (ROOT / 'CMakeLists.txt').read_text()
-    targets = set(re.findall(r'add_executable\(([\w-]+-regression)\b', text)) - EXCLUDED
-    # Experiment macros change shared code, so these compile their own copy of it.
-    if not experiments:
-        targets -= set(re.search(r'set\(SF_UNITY_TARGETS ([^)]*)\)', text).group(1).split())
+    # Targets are declared one per add_executable or in foreach lists.
+    targets = set(re.findall(r'\b([\w-]+-regression)\b', text)) - EXCLUDED
     return sorted(targets)
 
 
@@ -33,10 +31,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('targets', nargs='*', help='regression targets; default is every target')
     parser.add_argument('--build-dir', type=Path, default=ROOT / 'build-test')
-    parser.add_argument('--experiments', action='store_true', help='also run experiment regressions, which are slow to build')
     parser.add_argument('--timeout', type=int, default=240, help='seconds allowed per regression')
     args = parser.parse_args()
-    targets = args.targets or discover(args.experiments)
+    targets = args.targets or discover()
     if not (args.build_dir / 'CMakeCache.txt').exists():
         subprocess.run(['cmake', '-S', str(ROOT), '-B', str(args.build_dir), '-DSF_FAST_TESTS=ON'], check=True)
 

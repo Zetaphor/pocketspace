@@ -11,9 +11,6 @@
 #include "animation_profile.h"
 #include "gpu_skinning.h"
 #include "rigid_batching.h"
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-#include "../tests/vertex-array-experiment.h"
-#endif
 
 struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;uint64_t budgetBytes=0;GLsizei gpuVertexCount=0;GLenum indexType=GL_UNSIGNED_INT;};
 struct MaterialMap {
@@ -59,9 +56,6 @@ struct PrimitiveAsset {
   bool untextured=false;
   ModelLodLevel lod[2];
   GLuint vbo=0,indexBuffer=0,texture=0;
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-  mutable GLuint vertexArrays[3]{};
-#endif
   GLenum indexType=GL_UNSIGNED_INT;
   GLsizei vertexCount=0,gpuVertexCount=0; // expanded draw count; uploaded vertex count
 };
@@ -95,11 +89,7 @@ bool loadModelFile(const std::string &path,ModelAsset &out);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0,const PrimitiveAsset *deformed=nullptr);
-#else
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
-#endif
 
 inline bool rigidPoseCachingEnabled=true; // Comparison tests may force full CPU updates.
 struct PosePartState {
@@ -127,9 +117,6 @@ void prepareSkinPicking(const ModelAsset &asset,ModelPose &pose);
 bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,GLuint program);
 void unbindSkinPrimitive(GLuint program);
 
-#ifdef SF_MODEL_LOD_EXPERIMENT
-#include "../tests/lod-experiment.h"
-#endif
 inline const ModelLodLevel *modelLodLevel(const PrimitiveAsset &part,int level){
   if(level==2&&(part.lod[1].indexBuffer||part.lod[1].vbo))return &part.lod[1];
   return level>=1&&level<=2&&(part.lod[0].indexBuffer||part.lod[0].vbo)?&part.lod[0]:nullptr;
@@ -137,11 +124,7 @@ inline const ModelLodLevel *modelLodLevel(const PrimitiveAsset &part,int level){
 inline GLuint modelIndexBuffer(const PrimitiveAsset &part,int level=0){const auto *lod=modelLodLevel(part,level);return lod?lod->indexBuffer:part.indexBuffer;}
 inline GLsizei modelDrawVertexCount(const PrimitiveAsset &part,int level=0){
   if(const auto *lod=modelLodLevel(part,level))return lod->count;
-#ifdef SF_MODEL_LOD_EXPERIMENT
-  return lodExperiment::count(part);
-#else
   return part.vertexCount;
-#endif
 }
 
 bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primitive);
@@ -165,7 +148,7 @@ public:
   void reset(){if(enabled)glDisable(GL_CULL_FACE);if(clockwise)glFrontFace(GL_CCW);enabled=clockwise=false;}
 };
 
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
 namespace pbrIndexValidation {
 inline int failStage=-1;
 inline bool failCpu=false,rollbackClean=true;

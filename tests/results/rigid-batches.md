@@ -1,5 +1,9 @@
 # Adjacent identical-material rigid batches
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 at `88dffc1`. This initial prototype showed
 a substantial throughput gain on the targeted rigid workload. Its duplicate
 storage/uploads have since been replaced by the production stream described

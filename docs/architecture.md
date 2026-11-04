@@ -492,11 +492,10 @@ Script-facing defaults, opt-ins and tradeoffs are collected in
 | Adjacent rigid draws in one owned stream | Automatic when eligible | [Rigid batches](../tests/results/rigid-batches.md) |
 | Panel submission caching, sorted-ID lookup, physics sleeping/workers/caches | Automatic with explicit physics worker override | [Runtime contracts](agent-handoff.md), [physics API](physics-api.md) |
 
-The excluded profiling executable records actual per-pass submission counts,
-selected scene triangles and LOD distributions. Controlled comparisons also
-check complete member geometry; matching allocation estimates alone does not
-establish equivalent work. A [grouping tie-break comparison](../tests/results/group-occluder-policy.md)
-retains these guards and remains experimental after negligible native gains.
+Controlled comparisons check complete member geometry as well as allocation;
+matching allocation estimates alone does not establish equivalent work. A
+[grouping tie-break comparison](../tests/results/group-occluder-policy.md) found
+negligible native gains and was not adopted.
 
 PBR assets continue to use original draws rather than the ordinary instancing
 path. The [PBR submission profile](../tests/results/pbr-submission.md) distinguishes
@@ -506,15 +505,15 @@ on compatible light/material state, preserved ordering and measured benefit.
 
 Measurements are workload-specific, not FPS guarantees. Tests/results document
 correctness, measured performance, and user headset acceptance separately.
-Normal builds do not enable the rejected uniform-cache, owned-VAO, primitive or
-cluster occluder-culling, specialized opaque shader, shared-scene-depth, or
-alternate GPU synchronization experiments. Their isolated targets and reports
-remain available through the [test index](../tests/index.md). A separate
-[static-only ordinary vertex shader prototype](../tests/results/dense-model-current.md)
-and its [mixed-program integration](../tests/results/ordinary-program-routing.md)
-remain test-only after inconsistent native gains; production retains the general
-skin-capable vertex program. The [minimal PBR depth-only shader investigation](../tests/results/pbr-minimal-depth.md)
-is also closed without adoption: exact pixels and headset acceptance passed, but
+The rejected uniform-cache, owned-VAO, primitive and cluster occluder-culling,
+specialized opaque shader, shared-scene-depth and alternate GPU synchronization
+experiments were removed in commit `REMOVAL_COMMIT`; their reports remain, and the
+[test index](../tests/index.md#removed-experiments) explains how to recover the
+code. So were the [static-only ordinary vertex shader prototype](../tests/results/dense-model-current.md)
+and its [mixed-program integration](../tests/results/ordinary-program-routing.md),
+after inconsistent native gains; production retains the general skin-capable
+vertex program. The [minimal PBR depth-only shader investigation](../tests/results/pbr-minimal-depth.md)
+closed without adoption: exact pixels and headset acceptance passed, but
 controlled engine comparisons did not establish a repeatable benefit. External
 PBR depth retains the shipped early-return program and its original vertex source.
 GPU morph work is

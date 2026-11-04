@@ -1,5 +1,9 @@
 # Budgeted production PBR LOD
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Validated on Steam Frame on **2026-10-29**, using `cdb9646` plus the production
 integration. The [prototype report](pbr-lod.md) records surface/geometry quality
 and the earlier interactive car acceptance. Production uses the same simplified

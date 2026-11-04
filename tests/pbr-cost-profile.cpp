@@ -4,7 +4,7 @@
 int main(){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  {
-  Renderer r(false,modelVertexShader,2048);r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();
+  Renderer r(2048);r.scene.objects.clear();r.scene.assets.emplace_back();
   auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=true;asset.optimizeVertexCache=true;
   assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);
   asset.lighting.intensity=.3;asset.lighting.ambient=.04;

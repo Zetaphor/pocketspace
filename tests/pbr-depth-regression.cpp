@@ -11,7 +11,7 @@ int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  size_t views=0;GLuint fastProgram=0;
  {
- Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();
+ Renderer r;r.scene.objects.clear();
  GLint current=0;glUseProgram(r.program);assert(r.depthPbrProgram.init(true));glGetIntegerv(GL_CURRENT_PROGRAM,&current);assert(GLuint(current)==r.program);
  for(const char *path:{"tests/fixtures/pbr/MissingNormals.glb","tests/fixtures/pbr/MissingNormalsMirrored.glb"}){
   r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
@@ -47,7 +47,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{4,16})for(bool depthWork:{true,false}){
-   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
+   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
 
    assert(r.pbrProgram.init(false)&&r.depthPbrProgram.init(true));
    std::vector<int> members;

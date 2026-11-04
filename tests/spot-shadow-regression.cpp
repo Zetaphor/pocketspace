@@ -1,5 +1,4 @@
 // Native light-space depth, alpha silhouettes, animation and budget/GL lifetimes.
-#define SF_PBR_VARIANT_EXPERIMENT
 #define SF_OCCLUSION_HELPERS_ONLY
 #include "render-occlusion-regression.cpp"
 static size_t darker(const std::vector<unsigned char> &lit,const std::vector<unsigned char> &shadow){size_t count=0;assert(lit.size()==shadow.size());for(size_t i=0;i<lit.size();i+=4){if(lit[i+3]!=shadow[i+3]){fprintf(stderr,"alpha mismatch pixel=%zu lit=%d shadow=%d error=%x status=%s\n",i/4,int(lit[i+3]),int(shadow[i+3]),glGetError(),spotShadowDiagnostics.status);assert(false);}if(lit[i+3]&&int(lit[i])+lit[i+1]+lit[i+2]>int(shadow[i])+shadow[i+1]+shadow[i+2]+12)++count;}return count;}
@@ -22,7 +21,7 @@ int main(int argc,char **argv){
  {ScriptHost host;assert(loadScript(host,"tests/point-shadow-api-smoke.js"));closeScript(host);currentScene=liveScene=nullptr;}
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  {
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();for(auto &a:r.scene.assets)deleteModel(a);r.scene.assets.clear();
+  Renderer r;r.scene.objects.clear();for(auto &a:r.scene.assets)deleteModel(a);r.scene.assets.clear();
   for(int i=0;i<2;i++){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=i==0;
    assert(loadModelFile("tests/fixtures/pbr/MissingNormals.glb",a));uploadModel(a);
@@ -146,7 +145,7 @@ int main(int argc,char **argv){
   closeScript(host);currentScene=liveScene=nullptr;map.update(host.scene);assert(!map.texture);
  }
  if(mode=="--benchmark"||mode=="--directional-benchmark"||mode=="--point-benchmark"){
-  Renderer r;r.ordinaryRouting=false;r.updateShadows=false;r.scene.objects.clear();
+  Renderer r;r.updateShadows=false;r.scene.objects.clear();
   r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.optimizeVertexCache=true;
   assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.lighting.intensity=0;asset.lighting.ambient=.02;
   PointLight light;light.id=1;light.spot=true;light.position={-.4f,.7f,-1.f};light.direction={.4f,-.7f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.5;light.outerConeAngle=1;light.shadow.maxGpuMs=16;light.shadow.maxTriangles=1000000;if(directional){light.spot=false;light.directional=true;light.shadow.size=2;light.shadow.depth=4;}

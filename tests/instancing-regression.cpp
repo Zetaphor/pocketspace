@@ -8,8 +8,8 @@ static void state(Renderer &r){
   }
 }
 static void compare(Renderer &r,const std::vector<int> &ids,physics::Vec3 head,int eye){
-  r.instanceExperiment.mode=ModelInstancing::Original;auto original=r.renderSet(ids,head,eye,0,true,1,true);
-  r.instanceExperiment.mode=ModelInstancing::Instanced;auto instanced=r.renderSet(ids,head,eye,0,true,1,true);
+  r.instancing.mode=ModelInstancing::Original;auto original=r.renderSet(ids,head,eye,0,true,1,true);
+  r.instancing.mode=ModelInstancing::Instanced;auto instanced=r.renderSet(ids,head,eye,0,true,1,true);
   if(original!=instanced){size_t pixels=0;for(size_t n=0;n<original.size();n+=4)if(!std::equal(original.begin()+n,original.begin()+n+4,instanced.begin()+n))++pixels;fprintf(stderr,"instancing differing pixels=%zu\n",pixels);std::exit(1);}
   state(r);
 }
@@ -23,13 +23,13 @@ static void multipartOrder(Renderer &r){
   uploadModel(asset);r.scene.assets.push_back(std::move(asset));const int key=r.scene.assets.size();
   for(int row=0;row<3;row++)for(int column=0;column<3;column++)r.anchor.m[row][column]=float(row==column);
   r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,float(n)*.1f,-.2f,0,.2f,0});
-  auto &parts=r.scene.assets.back().primitives;r.instanceExperiment.mode=ModelInstancing::Original;
+  auto &parts=r.scene.assets.back().primitives;r.instancing.mode=ModelInstancing::Original;
   const auto first=r.renderSet({1},{0,-.2f,-.7f},0,0,true,1,true);std::swap(parts[0],parts[1]);
   const auto reversed=r.renderSet({1},{0,-.2f,-.7f},0,0,true,1,true);std::swap(parts[0],parts[1]);assert(first!=reversed);
-  auto before=r.instanceExperiment.submittedBatches();
+  auto before=r.instancing.submittedBatches();
   for(int eye=0;eye<2;eye++){compare(r,{1},{0,-.2f,-.7f},eye);compare(r,{1,2,3},{0,-.2f,-.7f},eye);}
-  assert(r.instanceExperiment.submittedBatches()>before);before=r.instanceExperiment.submittedBatches();parts[1].alphaMode=2;
-  compare(r,{1,2,3},{0,-.2f,-.7f},0);assert(r.instanceExperiment.submittedBatches()==before);
+  assert(r.instancing.submittedBatches()>before);before=r.instancing.submittedBatches();parts[1].alphaMode=2;
+  compare(r,{1,2,3},{0,-.2f,-.7f},0);assert(r.instancing.submittedBatches()==before);
   puts("PASS multipart ownership: coplanar material order oracle, singleton/repeated batches, mixed blended fallback");
 }
 #endif
@@ -48,14 +48,14 @@ static void extraChecks(Renderer &r){
     r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,(n-1)*.12f,-.2f,0,.2f,float(n)*.3f,.1f,-.1f});
     compare(r,{1,2,3},{0,.1f,-.7f},0);compare(r,{1,2,3},{0,.1f,-.7f},1);
   }
-  auto &asset=r.scene.assets.back();const auto before=r.instanceExperiment.submittedBatches();
+  auto &asset=r.scene.assets.back();const auto before=r.instancing.submittedBatches();
   for(bool *flag:{&asset.hasAnimation,&asset.hasSkin,&asset.hasMorph}){*flag=true;compare(r,{1,2,3},{0,.1f,-.7f},0);*flag=false;}
-  assert(r.instanceExperiment.submittedBatches()==before);
+  assert(r.instancing.submittedBatches()==before);
   for(auto &object:r.scene.objects){
     object.animationPose=std::make_shared<ModelPose>();auto &geometry=object.animationPose->geometry;geometry.primitives.resize(1);auto &part=geometry.primitives[0];part.vertices=asset.primitives[0].vertices;part.vertexCount=asset.primitives[0].vertexCount;
     for(size_t n=0;n<part.vertices.size();n+=5)part.vertices[n]+=.05f;uploadModelPose(*object.animationPose);
   }
-  compare(r,{1,2,3},{0,.1f,-.7f},0);assert(r.instanceExperiment.submittedBatches()==before);
+  compare(r,{1,2,3},{0,.1f,-.7f},0);assert(r.instancing.submittedBatches()==before);
   // Capacity boundary and an asset barrier: no global sorting to manufacture runs.
   r.scene.objects.clear();std::vector<int> ids;
   const int small=r.scene.assets.size()-1;
@@ -69,7 +69,7 @@ int main(){
   {
     Renderer r;
 #ifdef SF_MULTIPART_INSTANCING_EXPERIMENT
-    r.instanceExperiment.enableMultipartExperiment();
+    r.instancing.enableMultipartExperiment();
 #endif
     int views=0;for(auto &asset:r.scene.assets)asset.gpuInstancing=true;
     for(const char *path:{"assets/Avocado.glb","assets/samples/ToyCar/ToyCar.glb"}){ModelAsset asset;assert(loadModelFile(path,asset));asset.optimizeVertexCache=true;asset.gpuInstancing=true;uploadModel(asset);r.scene.assets.push_back(std::move(asset));}
@@ -81,7 +81,7 @@ int main(){
     r.scene.objects[4]=r.scene.objects[3];r.scene.objects[4].id=5;r.scene.objects[4].roll=float(std::acos(-1));
     for(int asset:{3,4,5,6}){
       for(size_t n=2;n<r.scene.objects.size();n++)r.scene.objects[n].asset=asset;
-      const auto beforeAsset=r.instanceExperiment.submittedBatches();
+      const auto beforeAsset=r.instancing.submittedBatches();
       auto &parts=r.scene.assets[asset-1].primitives;std::vector<GLuint> textures;for(auto &p:parts)textures.push_back(p.texture);
       GLuint checker;glGenTextures(1,&checker);glBindTexture(GL_TEXTURE_2D,checker);
       const unsigned char texels[]={255,60,120,0,90,240,160,255,255,180,100,255,40,120,255,0};
@@ -90,7 +90,7 @@ int main(){
         for(size_t n=0;n<parts.size();n++){auto &p=parts[n];p.alphaMode=mode==4?int(n%2):mode==3?1:mode;p.factor[3]=mode==2?.4f:.8f;p.sheen[0]=.15f;p.sheen[2]=.2f;p.texture=(mode==3||(mode==4&&n%2))?checker:textures[n];}
         if(asset==6&&mode==3){
           for(auto &object:r.scene.objects)object.visible=object.id==4||object.id==5;
-          const std::vector<int> ids={4,5};r.instanceExperiment.mode=ModelInstancing::Original;
+          const std::vector<int> ids={4,5};r.instancing.mode=ModelInstancing::Original;
           auto first=r.renderSet(ids,{0,-.2f,-.7f},0,0,true,1,true);std::swap(r.scene.objects[3],r.scene.objects[4]);
           auto reversed=r.renderSet(ids,{0,-.2f,-.7f},0,0,true,1,true);std::swap(r.scene.objects[3],r.scene.objects[4]);assert(first!=reversed);
           compare(r,ids,{0,-.2f,-.7f},0);++views;for(auto &object:r.scene.objects)object.visible=true;
@@ -100,11 +100,11 @@ int main(){
         }
       }
       #ifdef SF_MULTIPART_INSTANCING_EXPERIMENT
-      if(asset==5)assert(r.instanceExperiment.submittedBatches()>beforeAsset);
+      if(asset==5)assert(r.instancing.submittedBatches()>beforeAsset);
 #endif
       for(size_t n=0;n<parts.size();n++)parts[n].texture=textures[n];glDeleteTextures(1,&checker);
     }
-    assert(r.instanceExperiment.submittedBatches()>0);
+    assert(r.instancing.submittedBatches()>0);
     float rotation[9];objectRotationMatrix(.3f,.6f,-.2f,rotation);for(int row=0;row<3;row++)for(int column=0;column<3;column++)r.anchor.m[row][column]=rotation[row*3+column];
     for(size_t n=2;n<r.scene.objects.size();n++)r.scene.objects[n].asset=4;
     for(int eye=0;eye<2;eye++){compare(r,{3,4,5,6,7,8,9,10},{.3f,.3f,-1.5f},eye);++views;}
@@ -112,7 +112,7 @@ int main(){
 #ifdef SF_MULTIPART_INSTANCING_EXPERIMENT
     multipartOrder(r);
 #endif
-    auto buffer=r.instanceExperiment.instanceBuffer();assert(buffer&&glIsBuffer(buffer));r.instanceExperiment.reset();assert(!glIsBuffer(buffer));assert(r.instanceExperiment.allocatedBytes()==0);
+    auto buffer=r.instancing.instanceBuffer();assert(buffer&&glIsBuffer(buffer));r.instancing.reset();assert(!glIsBuffer(buffer));assert(r.instancing.allocatedBytes()==0);
     printf("PASS GPU instancing: %d exact stereo/group/material/near-plane views, ordered overlap, multi-part materials and blended fallback, attribute state and buffer release\n",views);
   }
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);

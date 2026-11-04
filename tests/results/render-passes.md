@@ -1,5 +1,9 @@
 # Dense moving model draw-pass attribution
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Frame completed twelve bounded 16-second native runs: two rounds of fixed and
 adaptive 128 mixed models (64 ToyCars plus 64 Avocados), and fixed 128 Avocados.
 Each case paired whole-render GPU timing with sampled pass timing. Case and pair

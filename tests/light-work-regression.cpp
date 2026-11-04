@@ -1,9 +1,8 @@
-// Compare per-object light range selection; retain a rejected shader-work diagnostic.
-#define SF_LIGHT_WORK_EXPERIMENT
+// Compare per-object light range selection against the full light loop.
 #define SF_OCCLUSION_HELPERS_ONLY
 #include "render-occlusion-regression.cpp"
 static void populate(Renderer &r,const char *path,int count){
- r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);
+ r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);
  asset.lighting.intensity=.3;asset.lighting.ambient=.04;
  for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.6f:.2f;o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2f;o.pitch=.1f;r.scene.objects.push_back(o);}
 }
@@ -21,7 +20,6 @@ static void equalPixels(Renderer &a,Renderer &b,const std::vector<int> &ids,phys
  int delta=0;for(size_t i=0;i<reference.size();i++){if(i%4==3)assert(reference[i]==candidate[i]);delta=std::max(delta,std::abs(int(reference[i])-int(candidate[i])));}assert(delta<=1);
 }
 int main(int argc,char **argv){
- const bool shader=argc>1&&std::string(argv[1])=="--profile-shader";
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));size_t images=0;
  {
   Object o{};o.scale=1;ModelAsset geometry;for(int c=0;c<3;c++){geometry.low[c]=-.5;geometry.high[c]=.5;}
@@ -38,10 +36,10 @@ int main(int argc,char **argv){
 
  {
   for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","tests/fixtures/pbr/GeneratedTangents.glb","tests/fixtures/pbr/SurfaceFrames.glb","assets/samples/AlphaBlendModeTest/AlphaBlendModeTest.glb"}){
-   Renderer reference,candidate;reference.optimizeLightWork=false;candidate.optimizeLightWork=shader;reference.selectLocalLights=false;candidate.selectLocalLights=!shader;reference.selectConeLights=candidate.selectConeLights=false;
+   Renderer reference,candidate;reference.selectLocalLights=false;candidate.selectLocalLights=true;reference.selectConeLights=candidate.selectConeLights=false;
    const bool detailed=std::string(path).find("ToyCar")!=std::string::npos;populate(reference,path,detailed?16:1);populate(candidate,path,detailed?16:1);
    std::vector<int> ids;for(const auto &o:reference.scene.objects)ids.push_back(o.id);
-   for(bool local:{false,true}){if(shader&&local)continue;localRange=local;
+   for(bool local:{false,true}){localRange=local;
    for(int kind:{0,1,2})for(int count:{0,1,4,8}){
     lights(reference,count,kind);lights(candidate,count,kind);
     for(auto head:{physics::Vec3{0,0,-1.2f},physics::Vec3{.3f,.15f,-1.f}})for(int eye=0;eye<2;eye++){equalPixels(reference,candidate,ids,head,eye);images++;}
@@ -57,16 +55,16 @@ int main(int argc,char **argv){
     }
    }
    }
-   if(detailed&&argc>1&&(std::string(argv[1])=="--profile"||shader)){
+   if(detailed&&argc>1&&(std::string(argv[1])=="--profile")){
     auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
-    for(bool local:{false,true}){if(shader&&local)continue;localRange=local;
+    for(bool local:{false,true}){localRange=local;
     for(int kind:{0,1,2})for(int count:{0,1,4,8}){
-     lights(reference,count,kind);lights(candidate,count,kind);candidate.selectLocalLights=!shader;equalPixels(reference,candidate,ids,{0,0,-1.2f},0);
+     lights(reference,count,kind);lights(candidate,count,kind);candidate.selectLocalLights=true;equalPixels(reference,candidate,ids,{0,0,-1.2f},0);
      std::array<double,4> wall{},gpu{};std::array<GLuint,4> queries{};gen(4,queries.data());
      // Interleave ABBA within each measured frame to reduce clock/power drift.
      for(int frame=0;frame<120;frame++)for(int stage=0;stage<4;stage++){
-      const bool optimized=stage==1||stage==2;auto &r=shader?(optimized?candidate:reference):candidate;
-      r.selectLocalLights=!shader&&optimized;
+      const bool optimized=stage==1||stage==2;auto &r=candidate;
+      r.selectLocalLights=optimized;
       auto start=std::chrono::steady_clock::now();begin(GL_TIME_ELAPSED_EXT,queries[stage]);r.renderSet(ids,{0,0,-1.2f},frame%2,0,false);end(GL_TIME_ELAPSED_EXT);glFinish();GLuint64 elapsed=0;result(queries[stage],GL_QUERY_RESULT_EXT,&elapsed);GLint disjoint=0;glGetIntegerv(GL_GPU_DISJOINT_EXT,&disjoint);assert(!disjoint);
       if(frame>=30){wall[stage]+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();gpu[stage]+=double(elapsed)/1e6;}
      }

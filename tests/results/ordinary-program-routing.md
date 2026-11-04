@@ -1,5 +1,9 @@
 # Mixed ordinary/GPU vertex-program integration
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Follow-up to the [static shader prototype](dense-model-current.md), measured on
 Steam Frame on **2026-10-29**. The 16-car prototype had visual acceptance, but
 production integration also needs mixed backend correctness and measured benefit
@@ -100,7 +104,7 @@ Build `ordinary-program-regression` and `gpu-sync-experiment`. Use
 for the integrated comparison. The historical JSON field `productionRouting`
 identifies this integration form, not a shipped/default-on policy.
 `SF_GPU_ORDINARY_VERTEX=1` exists only in the excluded executable.
-The optional [mixed interactive scene](../scenes/ordinary-program-mixed.js)
+The optional mixed interactive scene (`tests/scenes/ordinary-program-mixed.js`)
 exercises grabbing, pause/resume and save/restore when explicitly running that
 experimental mode; it is not needed to enable a feature in the normal engine.
 

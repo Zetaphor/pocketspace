@@ -1,70 +1,38 @@
-#include "draw-uniforms-experiment.h"
 // Actual GLES shaders and render passes, without opening an OpenVR session.
 #include "../src/render_host.h"
 #include <cassert>
 #include <cstdlib>
 #include "../src/mesh_index.h"
-#include "opaque-shader-experiment.h"
-#include "ordinary-program-experiment.h"
-#include "primitive-visibility-experiment.h"
-#include "cluster-visibility-experiment.h"
+#include "directional-light-reference.h"
 
 #undef assert
 #define assert(expression) do{if(!(expression)){fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#expression);std::exit(1);}}while(0)
 
-#ifdef SF_PBR_VARIANT_EXPERIMENT
-#include "pbr-variants-experiment.h"
-#endif
 constexpr int pixels=768;
 struct Renderer {
   int samplePixels=::pixels,backingPixels=::pixels; // Test-only viewport sensitivity; backing storage stays fixed.
   GLuint program=0,fbo=0,color=0,depth=0;
   Scene scene;
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-  bool optimizeLightWork=false;
   bool selectLocalLights=true,selectConeLights=true;
-#endif
   std::vector<ObjectLightSet> objectLightSets;
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
-  bool preparePbrRotation=false;
-  PbrProgram preparedPbrProgram,preparedDepthPbrProgram;
-#endif
-#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
-  bool reusePbrLightInvariants=false;
-  PbrProgram invariantPbrProgram,invariantDepthPbrProgram;
-#endif
-#ifdef SF_PBR_VARIANT_EXPERIMENT
   bool specializePbr=false,prewarmedPbr=false;
   PbrVariantPrograms pbrVariants;
-#endif
   SpotShadows spotShadows;bool updateShadows=true;
   PbrProgram pbrProgram;
-#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
   PbrProgram referenceLightProgram,referenceLightDepthProgram;bool referenceLightLoop=false,preparedDirectional=false;
   PbrVariantPrograms directionalVariants;
-#endif
   PbrProgram depthPbrProgram;bool fastPbrDepth=true;
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
   uint64_t pbrDepthDraws=0,pbrColorDraws=0,pbrDepthTriangles=0,pbrColorTriangles=0;
-#endif
   std::map<const PrimitiveAsset*,GLuint> expandedBuffers;
   vr::HmdMatrix34_t anchor{};
-  bool specialize=false,materialCulling=true;
-  bool ordinaryRouting=true;
-  OrdinaryModelProgram ordinaryProgram,skinProgram;
-  bool primitiveVisibility=false;
-  PrimitiveVisibilityExperiment primitiveBounds;
-  ClusterVisibilityExperiment clusterBounds;
-  ModelInstancing instanceExperiment;
-  std::unique_ptr<OpaqueExperimentProgram> opaqueProgram,depthProgram;
-  Renderer(bool specialization=false,const char *vertexSource=modelVertexShader,int storagePixels=::pixels):samplePixels(storagePixels),backingPixels(storagePixels),specialize(specialization){
+  bool materialCulling=true;
+  ModelInstancing instancing;
+  explicit Renderer(int storagePixels=::pixels):samplePixels(storagePixels),backingPixels(storagePixels){
     assert(backingPixels>0);const int pixels=backingPixels;
-    if(specialization){opaqueProgram=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthProgram=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
     for(int i=0;i<3;i++)anchor.m[i][i]=1;
-    auto v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
+    auto v=compile(GL_VERTEX_SHADER,modelVertexShader),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
     program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);
     GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);assert(linked);glDeleteShader(v);glDeleteShader(f);
-    skinProgram.borrow(program);
     glUseProgram(program);glUniform1i(glGetUniformLocation(program,"material"),0);
     vector("right",1,0,0);vector("up",0,1,0);vector("forward",0,0,-1);
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
@@ -82,23 +50,11 @@ struct Renderer {
   }
   std::vector<unsigned char> renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth=0,bool readback=true,float gridScale=1,bool cull=false,int tileKey=0,int requestedPixels=0){
     assert(samplePixels>0&&samplePixels<=backingPixels);const int pixels=samplePixels;
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
     pbrDepthDraws=pbrColorDraws=pbrDepthTriangles=pbrColorTriangles=0;
-#endif
     if(requestedPixels)gridScale*=surfaceCoverageWidth(1,pixels,requestedPixels,true);
     if(updateShadows)spotShadows.update(scene);
     const auto frameLights=resolvePointLights(scene);
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-    if(selectLocalLights)
-#endif
-    updateObjectLights(scene,frameLights,objectLightSets
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-    ,selectConeLights
-#endif
-    );
-    const GLuint generalProgram=program;
-    if(ordinaryRouting&&!specialize&&!drawUniformCachingEnabled&&ordinaryProgram.select(false))program=ordinaryProgram.id();
-    ScopeExit restorePrimary{[&]{program=generalProgram;glUseProgram(program);}};
+    if(selectLocalLights)updateObjectLights(scene,frameLights,objectLightSets,selectConeLights);
     auto panel=anchor,head=anchor;
     for(int row=0;row<3;row++){
       panel.m[row][3]+=anchor.m[row][1]*-.2f;
@@ -122,80 +78,42 @@ struct Renderer {
       }
     }
     ScissorRegion region{};if(cull)region=projectedScissor(combined,planeCenter,eyePosition,r,u,f,1.2f*gridScale,pixels);
-    if(primitiveVisibility){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);primitiveBounds.update(scene,anchor,head,eyes);}
-    if(clusterBounds.mode!=ClusterVisibilityExperiment::Off){float eyes[2][3];for(auto &eye:eyes)std::copy(eyePosition,eyePosition+3,eye);clusterBounds.update(scene,anchor,head,eyes);}
-    const ModelDrawLocations drawLocations(program);
+    const GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll");
+    const GLint scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
+    const GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff"),sheenLocation=glGetUniformLocation(program,"sheen");
     auto draw=[&](int key,int pass){
-      ModelDrawUniforms uniforms(drawLocations,drawUniformCachingEnabled);
       ModelCulling culling(materialCulling);
       auto selected=[&](const Object &object){
         if(!object.visible||(pass<0?objectSurfaceKey(object)==key:objectSurfaceKey(object)!=key))return false;
         if(cull&&pass<0&&!mayOcclude(projected[size_t(&object-scene.objects.data())],combined))return false;
         return true;
       };
-      bool skinBound=false;
-      ScopeExit restoreSkinProgram{[&]{if(skinBound)glUseProgram(program);}};
       auto drawObject=[&](const Object &object){
         const auto &asset=scene.assets[object.asset-1];
-        if(uniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
-        const bool skin=program!=generalProgram&&object.animationPose&&object.animationPose->gpuSkin;
-        if(skin){
-          if(!skinBound){skinProgram.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);skinBound=true;}
-          skinProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
-        }else {if(skinBound){glUseProgram(program);skinBound=false;}uniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);}
+        glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+        glUniform3f(offsetLocation,object.x,object.y+.2f,object.z);
         for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
           const auto &part=asset.primitives[primitive];
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
-          if(primitiveVisibility&&pass<0&&!primitiveBounds.mayDraw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels))continue;
-          if(skin)skinProgram.material(part);else uniforms.material(part);
+          glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
           culling.material(part,object.animationPose.get());
           glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
-          if(pass<0&&clusterBounds.draw(object,primitive,combined,eyeIndex,false,eyePosition,r,u,f,1.2f*gridScale,pixels,[](unsigned){}))continue;
-          const auto *special=specialize&&part.alphaMode==0?(pass<0?depthProgram.get():opaqueProgram.get()):nullptr;
-          if(special){
-            special->view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
-            special->object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);special->material(part);
-          }
           if(asset.pbr){
-#if defined(SF_PBR_DEPTH_EXPERIMENT) || defined(SF_PBR_INDEX_VALIDATION)
             if(pass<0){++pbrDepthDraws;pbrDepthTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
             else{++pbrColorDraws;pbrColorTriangles+=(object.animationPose?part.vertexCount:modelDrawVertexCount(part,object.lodLevel))/3;}
-#endif
             const bool depthOnly=fastPbrDepth&&pass<0;
-#ifdef SF_PBR_VARIANT_EXPERIMENT
-            auto *variant=specializePbr&&!depthOnly?(prewarmedPbr?pbrVariants.ready(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count,pixels):pbrVariants.get(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count)):nullptr;
-            auto &activePbr=variant?*variant:(depthOnly?depthPbrProgram:pbrProgram);
-#elif defined(SF_PBR_TRANSFORM_EXPERIMENT)
-            auto &activePbr=preparePbrRotation?(depthOnly?preparedDepthPbrProgram:preparedPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
-#elif defined(SF_PBR_LIGHT_INVARIANT_EXPERIMENT)
-            auto &activePbr=reusePbrLightInvariants?(depthOnly?invariantDepthPbrProgram:invariantPbrProgram):(depthOnly?depthPbrProgram:pbrProgram);
-#elif defined(SF_DIRECTIONAL_LIGHT_VALIDATION)
-            if(referenceLightLoop)assert(depthOnly?referenceLightDepthProgram.initLightReference(true):referenceLightProgram.initLightReference());
-            auto *prepared=preparedDirectional&&!depthOnly?directionalVariants.ready(asset,part,objectLightSets[size_t(&object-scene.objects.data())].count,pixels):nullptr;
-            auto &activePbr=referenceLightLoop?(depthOnly?referenceLightDepthProgram:referenceLightProgram):(prepared?*prepared:(depthOnly?depthPbrProgram:pbrProgram));
-#else
-            auto &activePbr=depthOnly?depthPbrProgram:pbrProgram;
-#endif
-            assert(activePbr.init(depthOnly
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-            ,optimizeLightWork
-#endif
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
-            ,preparePbrRotation
-#endif
-#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
-            ,reusePbrLightInvariants
-#endif
-            ));
+            const size_t lightCount=objectLightSets.empty()?0:objectLightSets[size_t(&object-scene.objects.data())].count;
+            PbrProgram *variant=nullptr;
+            if(specializePbr&&!depthOnly)variant=prewarmedPbr?pbrVariants.ready(asset,part,lightCount,pixels):pbrVariants.get(asset,part,lightCount);
+            if(preparedDirectional&&!depthOnly)variant=directionalVariants.ready(asset,part,lightCount,pixels);
+            if(referenceLightLoop)assert(depthOnly?referenceLightDepthProgram.initWithLightLoop(directionalLightReferenceLoop,true):referenceLightProgram.initWithLightLoop(directionalLightReferenceLoop));
+            auto &activePbr=referenceLightLoop?(depthOnly?referenceLightDepthProgram:referenceLightProgram):(variant?*variant:(depthOnly?depthPbrProgram:pbrProgram));
+            assert(activePbr.init(depthOnly));
             activePbr.view(anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale);
             activePbr.object(object.pitch,object.yaw,object.roll,object.scale,object.x,object.y+.2f,object.z);
             if(pass>=0){
-#ifdef SF_LIGHT_WORK_EXPERIMENT
               // Without selection, objectLightSets is never populated.
               const std::span<const ResolvedPointLight> drawLights=selectLocalLights?objectLightSets[size_t(&object-scene.objects.data())].values():std::span<const ResolvedPointLight>(frameLights);
-#else
-              const auto drawLights=objectLightSets[size_t(&object-scene.objects.data())].values();
-#endif
               activePbr.lights(drawLights,0,-.2f,0);
               activePbr.shadows(spotShadows,drawLights,0,-.2f,0);
             }
@@ -203,20 +121,18 @@ struct Renderer {
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;
           }
-          const GLuint activeProgram=skin?generalProgram:program;
-          if(!special&&object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);
+          if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
           }else {
-            if(!special&&object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
-          if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
-          else drawModelPrimitive(part,0,object.lodLevel);
+            if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
+            if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
+            else drawModelPrimitive(part,0,object.lodLevel);
           }
-          if(special)glUseProgram(program);
         }
       };
-      if(instanceExperiment.mode!=ModelInstancing::Off){
+      if(instancing.mode!=ModelInstancing::Off){
         std::vector<const Object*> objects;for(const auto &object:scene.objects)if(selected(object))objects.push_back(&object);
-        instanceExperiment.draw(scene,culling,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){},[&]{skinBound=false;});return;
+        instancing.draw(scene,culling,objects,pass,program,anchor,planeCenter,eyePosition,r,u,f,1.2f*gridScale,origin,drawObject,[](unsigned){});return;
       }
       for(const auto &object:scene.objects)if(selected(object))drawObject(object);
     };

@@ -5,7 +5,7 @@ static size_t covered(const std::vector<unsigned char> &image){size_t n=0;for(si
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  {
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();size_t views=0;
+  Renderer r;r.scene.objects.clear();size_t views=0;
   for(bool pbr:{false,true})for(const char *path:{"tests/fixtures/pbr/MissingNormals.glb","tests/fixtures/pbr/MissingNormalsMirrored.glb"}){
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=pbr;assert(loadModelFile(path,asset));uploadModel(asset);
    Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.6f;r.scene.objects={object};
@@ -26,8 +26,8 @@ int main(int argc,char **argv){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();assert(loadModelFile(path,a));uploadModel(a);
    Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.4f;object.x=-.12f;Object second=object;second.id=2;second.x=.12f;r.scene.objects={object,second};
    for(bool sided:{false,true})for(int eye=0;eye<2;eye++)for(float z:{-1.2f,1.2f}){
-    a.primitives[0].doubleSided=sided;r.instanceExperiment.mode=ModelInstancing::Off;auto expected=r.renderSet({1,2},{0,0,z},eye);
-    r.instanceExperiment.mode=ModelInstancing::Instanced;auto actual=r.renderSet({1,2},{0,0,z},eye);assert(actual==expected);assert(!glIsEnabled(GL_CULL_FACE));++views;
+    a.primitives[0].doubleSided=sided;r.instancing.mode=ModelInstancing::Off;auto expected=r.renderSet({1,2},{0,0,z},eye);
+    r.instancing.mode=ModelInstancing::Instanced;auto actual=r.renderSet({1,2},{0,0,z},eye);assert(actual==expected);assert(!glIsEnabled(GL_CULL_FACE));++views;
    }
   }
   {
@@ -46,7 +46,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(bool cars:{false,true}){
-   Renderer r;r.ordinaryRouting=false;r.instanceExperiment.mode=ModelInstancing::Instanced;r.scene.objects.clear();
+   Renderer r;r.instancing.mode=ModelInstancing::Instanced;r.scene.objects.clear();
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.lod=false;assert(loadModelFile(cars?"assets/samples/ToyCar/ToyCar.glb":"assets/samples/Box/Box.glb",asset));uploadModel(asset);const int id=int(r.scene.assets.size()),count=cars?32:240;std::vector<int> members;
    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale=cars?.16f:.07f;o.x=(i%8-3.5f)*.15f;o.y=(i/8%5-2)*.15f;o.z=(i/40)*.1f;o.pitch=.15f;o.yaw=.35f;r.scene.objects.push_back(o);members.push_back(o.id);}
    size_t triangles=0;for(const auto &p:asset.primitives)triangles+=p.vertexCount/3;

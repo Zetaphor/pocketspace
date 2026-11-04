@@ -17,8 +17,6 @@ performance experiments are separate from correctness and visual acceptance.
 | [animation-blend-regression.cpp](animation-blend-regression.cpp) | TRS/morph blending, live clocks, interruptions, animated picking, pause/endpoints and persistence. |
 | [animation-blend-api-smoke.js](animation-blend-api-smoke.js) | Actual animation transition options and malformed save fixtures for the blend harness. |
 | [animation-profile-regression.cpp](animation-profile-regression.cpp) | Real GLES animation phase counters, upload byte totals, clean-pose skip and stable sampling windows. |
-| [animation-profile-scene.cjs](animation-profile-scene.cjs) | Automated animated/paused stage counts, completion cleanup and abort behavior. |
-| [animation-profile-analysis-test.py](animation-profile-analysis-test.py) | Warmup filtering, weighted summaries and incomplete/mixed run rejection. |
 | [gpu-skinning-regression.cpp](gpu-skinning-regression.cpp) | CesiumMan, Fox (all clips), RiggedFigure, RiggedSimple and generated multi-part GPU vertex/pixel/picking checks; bounds, resource cleanup, transitions, fallback, and 30 mixed-scene reload/save/restore cycles. |
 | [animation-math.cpp](animation-math.cpp) | Animation interpolation, keyframe sampling, and playback math. |
 | [animation-regression.cpp](animation-regression.cpp) | Real model loading, clip playback, skin deformation, animated picking, API bindings, and cleanup. |
@@ -83,12 +81,7 @@ performance experiments are separate from correctness and visual acceptance.
 | File | Purpose |
 | --- | --- |
 | [compare-auto-split.py](compare-auto-split.py) | Bounded comparison of subdivision disabled/enabled on the same two-island scene. |
-| [compare-gpu-sync.py](compare-gpu-sync.py) | Bounded glFinish versus CPU-waited fence comparison using the instrumented engine. |
 | [compare-overlays.py](compare-overlays.py) | Single versus grouped rendering with matched box/model layouts and telemetry. |
-| [compare-opaque-shaders.py](compare-opaque-shaders.py) | Matched general versus specialized opaque/depth shader timing on moving models. |
-| [compare-primitive-visibility.py](compare-primitive-visibility.py) | Matched object-only versus primitive occluder rejection, with skipped-work and preparation-cost counters. |
-| [compare-cluster-visibility.py](compare-cluster-visibility.py) | Compares original, full spatial-cluster, and culled spatial-cluster occluder draws with CPU/GPU and memory counters. |
-| [compare-instancing.py](compare-instancing.py) | Matched draw submission, GPU timing, FPS, and saved-draw comparisons for ordered model instancing. |
 | [scene-container-api-smoke.js](scene-container-api-smoke.js), [scene-container-regression.cpp](scene-container-regression.cpp) | Ownership, strict IDs/getters, transfers, physics/joints, self-disposing callbacks, rollback, shared surfaces and repeated cleanup. |
 | [multi-script-render-regression.cpp](multi-script-render-regression.cpp) | Two offscreen scenes with overlapping local object IDs, distinct pixels, and independent GPU target cleanup across three cycles. |
 | [input-arbitration-regression.cpp](input-arbitration-regression.cpp) | Distance, stable instance-ID ties, order independence, miss and invalid-distance rejection, panel/model selection, panel ray pixels, hover and press capture for shared controller targets. |
@@ -97,29 +90,15 @@ performance experiments are separate from correctness and visual acceptance.
 | [lod-api-smoke.js](lod-api-smoke.js) | Default-on LOD, explicit opt-out, strict booleans, getter failures and cached-path conflicts. |
 | [auto-lod-regression.cpp](auto-lod-regression.cpp) | Production LOD selection/hysteresis, exact reduced-index reference pixels, mixed-level instancing and buffer cleanup. |
 | [compare-auto-lod.py](compare-auto-lod.py) | Production default-on versus opt-out FPS, with grouped storage matched plus accounted LOD buffers. |
-| [lod-pixels.cpp](lod-pixels.cpp), [lod-experiment.h](lod-experiment.h) | Test-only bounded-error GPU simplification, stereo image metrics, unchanged CPU meshes, fallback and cleanup. |
-| [compare-lod.py](compare-lod.py) | Matched original versus simplified-model FPS/GPU timing with identical allocation capacities. |
-| [multipart-instancing-pixels.cpp](multipart-instancing-pixels.cpp), [multipart-instancing-experiment.h](multipart-instancing-experiment.h) | Test-only combined multi-material geometry, exact stereo/order/material comparisons, singleton batching, and cleanup. |
 | [instancing-lifecycle.py](instancing-lifecycle.py) | Production reloads between instanced and empty scenes, requiring zero owned GPU bytes in empty scenes. |
+| [instancing-regression.cpp](instancing-regression.cpp) | Exact instanced pixels, observable coplanar order, rotated anchors, material/deformation fallback, index formats, capacity, and GL cleanup. |
 | [compare-regroup.py](compare-regroup.py) | Split-only versus merge/rebalance while the same objects move between layouts. |
-| [compare-vertex-cache.py](compare-vertex-cache.py) | Alternating mesh cache optimization off/on with matched instrumentation and allocation checks. |
 | [fast-motion.py](fast-motion.py) | Bounded continuously moving box/model workloads with throughput and error checks. |
-| [profile-render-passes.py](profile-render-passes.py) | Pairs whole-render GPU timing with sampled occluder, opaque, and blended draw attribution on moving models, including zero/four/eight-light PBR workloads. |
 | [lifecycle-runtime.py](lifecycle-runtime.py) | Runtime script reload, rollback, callbacks, object removal, overlay inventory, and shutdown. |
 | [regroup-lifecycle.py](regroup-lifecycle.py) | Runtime grouping changes, visibility, removal, and scene reload lifecycle. |
 | [soak-motion.py](soak-motion.py) | Repeated moving-model scene reloads with bounded duration, object counts, errors, and buffer accounting. |
 | [physics-benchmark.cpp](physics-benchmark.cpp) | Physics throughput across body counts, worker settings, and continuous collision modes. |
 | [render-stress-benchmark.cpp](render-stress-benchmark.cpp) | Fixed-view rendering workload for GPU/CPU cost measurement. |
-| [gpu-sync-pixels.cpp](gpu-sync-pixels.cpp) | Exact finished-pixel comparison between glFinish and CPU-waited fences. |
-| [opaque-shader-pixels.cpp](opaque-shader-pixels.cpp) | Exact pixel comparisons for opaque color/depth specialization, including masked and blended fallback. |
-| [opaque-shader-experiment.h](opaque-shader-experiment.h) | Test-only specialized shader programs and uniform setup; excluded from production builds. |
-| [primitive-visibility-pixels.cpp](primitive-visibility-pixels.cpp) | Exact occlusion pixels, actual rejection, near-plane/invalid-data fallback, and deforming-asset fallback checks. |
-| [primitive-visibility-experiment.h](primitive-visibility-experiment.h) | Test-only static primitive bounds cache and conservative nonmember occluder rejection. |
-| [cluster-visibility-pixels.cpp](cluster-visibility-pixels.cpp) | Exact full/culled cluster pixels, within-primitive rejection, near-plane views, material modes, and deforming fallback. |
-| [cluster-visibility-experiment.h](cluster-visibility-experiment.h) | Test-only spatial triangle partitioning, verified occluder index buffers, conservative bounds, and merged draw ranges. |
-| [instancing-pixels.cpp](instancing-pixels.cpp) | Exact instanced pixels, observable coplanar order, rotated anchors, material/deformation fallback, index formats, capacity, and GL cleanup. |
-| [gpu-sync-experiment.h](gpu-sync-experiment.h) | Test-only GPU timing and completion-wait instrumentation used by the excluded gpu-sync-experiment target. |
-| [shared-depth-prototype.cpp](shared-depth-prototype.cpp) | Offscreen feasibility and timing experiment for sharing a scene depth prepass; not an adopted renderer. |
 | [memory-sampler.c](memory-sampler.c) | Test-only glibc heap and process RSS sampler preloaded into a native run. |
 
 ## Headset scenes and runner fixtures
@@ -188,6 +167,15 @@ performance experiments are separate from correctness and visual acceptance.
 The JSON, CSV, and TXT files in [results/](results/) are raw measurements or
 validation output associated with those reports, rather than additional tests.
 
+## Removed experiments
+
+Rendering, shader, culling, synchronization and profiling experiments that did
+not ship were removed in commit `REMOVAL_COMMIT`, together with their comparison
+builds, runners and scenes. Their reports remain in [results/](results/), and each
+names the files it used. Recover any of them from Git history, for example
+`git show REMOVAL_COMMIT^:tests/opaque-shader-pixels.cpp`, or restore the whole
+set with `git checkout REMOVAL_COMMIT^ -- tests src CMakeLists.txt` on a branch.
+
 ## Scene persistence
 
 | File | Purpose |
@@ -199,17 +187,17 @@ validation output associated with those reports, rather than additional tests.
 | [results/animation-persistence.md](results/animation-persistence.md) | V3 skin/rigid playback and independent-pose roundtrips, legacy compatibility, rollback, live resource cleanup and accepted headset check. |
 | [results/panel-persistence.md](results/panel-persistence.md) | V4 lossless pixels/layout/handles, raw/RLE bounds, pointer reconnection, native rollback, legacy compatibility, live mixed-scene cleanup and accepted headset check. |
 
-## Animated-model profiling
+## Animated models
 
-[scenes/animation-profile.js](scenes/animation-profile.js) runs bounded animated/paused character stages with a HUD. The excluded `animation-profile-experiment` target adds phase timers to the real engine. [analyze-animation-profile.py](analyze-animation-profile.py) summarizes steady windows; see [the profiling instructions](README.md#animated-model-performance-profiling).
-
-The [Frame animation profile](results/animation-profile.md) records the completed skeletal workload, steady phase timings, and GPU design constraints.
-
-[scenes/gpu-skinning-profile.js](scenes/gpu-skinning-profile.js) is the bounded, matched 32-actor CPU/GPU skinning workload. The native GPU regression also supports deterministic two-hand candidate-cost profiling with `--profile-picking`. See [GPU skinning prototype instructions](README.md#gpu-skinning-prototype).
+The [Frame animation profile](results/animation-profile.md),
+[GPU skinning](results/gpu-skinning.md), [rigid pose cache](results/rigid-pose-cache.md)
+and [rigid batch](results/rigid-batches.md) reports record the measurements behind
+the shipped animation paths. The GPU regression also supports deterministic
+two-hand candidate-cost profiling with `--profile-picking`.
 
 [scenes/gpu-skinning-interaction.js](scenes/gpu-skinning-interaction.js) checks
-32 animated models with both-hand grip/trigger grabs and pause/resume in the
-GPU experiment. B/Y finishes; actors also clear after five minutes.
+32 animated models with both-hand grip/trigger grabs and pause/resume.
+B/Y finishes; actors also clear after five minutes.
 
 [gpu-skinning-mixed-api.js](gpu-skinning-mixed-api.js) is the mixed backend
 fixture invoked by the GPU regression, including failed reload rollback.
@@ -218,65 +206,11 @@ fixture invoked by the GPU regression, including failed reload rollback.
 normal-engine mixed GPU/CPU acceptance scene: grab, A/X pause/resume, bumper
 save/restore, B/Y finish, five-minute cleanup.
 
-[scenes/rigid-morph-profile.js](scenes/rigid-morph-profile.js) profiles 64/256
-rigid-node and morph actors, paired animated/paused, with the excluded phase
-profiling executable. Eight 20-second stages; B/Y aborts.
-
-[scenes/rigid-pose-profile.js](scenes/rigid-pose-profile.js) compares full versus
-cached rigid primitive updates using 256 Linear Scale actors; 20 seconds each
-animated/paused. `animation-profile-regression` also checks exact cached GPU
-buffer contents and geometry over all rigid clips.
-
-| Additional check | Coverage |
-| --- | --- |
-| [draw-uniform-pixels.cpp](draw-uniform-pixels.cpp) | 288 exact stereo comparisons for pass-local object/material uniform caching, alpha/depth, CPU/GPU animation and instancing switches. |
-
-`draw-submit-experiment` measures full/cached uniforms on
-[scenes/rigid-pose-profile.js](scenes/rigid-pose-profile.js) using the documented
-`SF_DRAW_UNIFORM_CACHE` switch.
-
-[vertex-array-pixels.cpp](vertex-array-pixels.cpp) compares 864 exact stereo views
-for cached vertex/index attribute setup, CPU/GPU animation, LOD and instancing,
-with VAO ownership/deletion checks. `vertex-array-experiment` profiles the same
-[256-actor scene](scenes/rigid-pose-profile.js) using `SF_VERTEX_ARRAY_CACHE=0/1`.
-
-[rigid-batch-pixels.cpp](rigid-batch-pixels.cpp) compares 864 exact stereo views
-for adjacent same-material CPU rigid parts, material barriers, changed stream
-ranges, clip changes and buffer lifetime. `rigid-batch-experiment` profiles the
-[256-actor scene](scenes/rigid-pose-profile.js) with `SF_RIGID_BATCH=0/1`.
-
-[static-vertex-pixels.cpp](static-vertex-pixels.cpp) checks 216 exact stereo views
-for the test-only ordinary-draw vertex specialization across detailed/static
-models, opaque/masked/blended materials, and external occlusion.
-[compare-static-vertex.py](compare-static-vertex.py) pairs ordinary/static-only
-vertex programs with production automatic LOD and ordered instancing enabled;
-it rejects unequal storage and invalid GPU samples. The switch exists only in
-`gpu-sync-experiment`; skinned assets are rejected in that mode.
-
-The [current dense-model report](results/dense-model-current.md) records refreshed
-pass attribution with production LOD/instancing, rejected allocation-mismatched
-rows, and bounded static-vertex candidate comparisons.
-
-[ordinary-program-regression.cpp](ordinary-program-regression.cpp) checks exact
-mixed ordinary/GPU shader routing, CPU skin/rigid/morph fallbacks, LOD/instancing,
-restored scenes, rollback and shader ownership. The
-[integration report](results/ordinary-program-routing.md) records the completed
-comparison without production adoption. The optional
-[ordinary-program-mixed.js](scenes/ordinary-program-mixed.js) scene exercises
-interactive mixed routing only when enabled in the excluded executable.
-
-[group-occluder-regression.cpp](group-occluder-regression.cpp) checks equal-area
-split tie-breaking against conservative stereo occluder work across 256 layouts.
-[compare-group-policy.py](compare-group-policy.py) compares policies using
-allocation, triangle, member-draw and LOD guards.
-[render-work-analysis-test.py](render-work-analysis-test.py) validates rejection
-of malformed, drifting or inequivalent work samples. The
-[group policy report](results/group-occluder-policy.md) records the investigation.
-
-[validate-render-work.py](validate-render-work.py) checks analytic instanced,
-GPU-skinned and merged-rigid submission totals through the native renderer using
-the bounded non-interactive
-[render-work-validation.js](scenes/render-work-validation.js) scene.
+`animation-profile-regression` checks animation phase counters and exact cached
+rigid GPU buffer contents and geometry over all rigid clips.
+[rigid-batch-regression.cpp](rigid-batch-regression.cpp) compares 864 exact
+stereo views for adjacent same-material CPU rigid parts, material barriers,
+changed stream ranges, clip changes and buffer lifetime.
 
 ## Model lighting
 
@@ -294,8 +228,7 @@ the bounded non-interactive
   partial upload rollback, reload/restore preservation, ownership cleanup and
   optional native ABBA timing.
 - [scenes/pbr-lod.js](scenes/pbr-lod.js): interactive PBR car and normal-map
-  fixture for automatic detail transitions and full-detail restoration on grab;
-  runs in the normal engine; `pbr-lod-demo` additionally logs transitions.
+  fixture for automatic detail transitions and full-detail restoration on grab.
 - [scenes/light-filtering.js](scenes/light-filtering.js): interactive combined
   acceptance of range/cone filtering with four active point/spot lights, movable
   car/normal-map targets and grabbable light markers.
@@ -305,8 +238,8 @@ the bounded non-interactive
   See [cone-selection results](results/spotlight-cone-selection.md).
 - [light-work-regression.cpp](light-work-regression.cpp): all-light versus per-object
   range selection, stereo/material pixels and optional matched ABBA GPU timing
-  for broad/local point, spot and mixed lights; retains the rejected shader-work
-  comparison in a diagnostic mode. See [light-work results](results/light-work.md).
+  for broad/local point, spot and mixed lights. See
+  [light-work results](results/light-work.md).
 - [directional-light-regression.cpp](directional-light-regression.cpp): scene-wide
   directional illumination, ray normalization, rotation-only attachment behavior,
   no-distance filtering, legacy point/spot pixel reference, mixed/prepared PBR,
@@ -365,13 +298,6 @@ the bounded non-interactive
 
 ## PBR depth optimization
 
-- [profile-pbr-submission.py](profile-pbr-submission.py): fixed-view PBR
-  submission attribution with probes off/on/on/off, preserving exact work and
-  storage. The excluded engine's `SF_GPU_PROFILE_PBR_SUBMIT=1` samples PBR
-  render-thread CPU once per second; `enqueueThreadCpuMs` distinguishes CPU
-  execution from enqueue wall time. See the
-  [submission cost report](results/pbr-submission.md) for scope and the separate
-  128-Avocado check. This measures existing draws, not an instancing prototype.
 - [pbr-depth-regression.cpp](pbr-depth-regression.cpp): 1,248 exact stereo, alpha,
   overlap, LOD and animated-pose comparisons; GL state/resource cleanup and
   matched depth/color performance workloads.
@@ -388,37 +314,10 @@ and full/reduced geometry. Reduced quality is diagnostic only; see the
 [run instructions](README.md#pbr-geometry-and-pixel-cost-diagnostic) and
 [measured sensitivity](results/pbr-cost.md).
 
-[pbr-transform-experiment.cpp](pbr-transform-experiment.cpp) compares
-GPU rotation reuse against production shader expressions, with strict stereo
-pixels before matched ABBA timings. See the
-[run instructions](README.md#pbr-prepared-rotation-experiment) and
-[rejected-candidate results](results/pbr-transform.md).
-
-[pbr-light-invariant-experiment.cpp](pbr-light-invariant-experiment.cpp) tests
-per-fragment visibility/diffuse-factor reuse with stereo pixels across light counts before
-matched ABBA measurements. See the
-[run instructions](README.md#pbr-invariant-light-arithmetic-experiment) and
-[comparison results](results/pbr-light-invariant.md).
-
-[pbr-variants-experiment.cpp](pbr-variants-experiment.cpp) and
-[pbr-variants-experiment.h](pbr-variants-experiment.h) test a bounded PBR
-material/light-count program cache, strict mixed-state pixels, fallback/cleanup,
-and matched throughput with program/compile accounting. See the
-[run instructions](README.md#bounded-pbr-shader-variant-experiment) and
-[pixel/performance results](results/pbr-variants.md).
-
-[compare-pbr-variants.py](compare-pbr-variants.py) measures the same variant cache
-in the real engine, reversing pair order and rejecting geometry/storage failures.
-
 [scenes/pbr-variants.js](scenes/pbr-variants.js) validates specialized/general PBR
 routing interactively with grabbing, HDR toggles, zero/four/eight lights, LOD,
 normal maps and alpha overlaps. See the
 [headset instructions](README.md#interactive-pbr-variant-validation).
-
-[pbr-variants-lifecycle.py](pbr-variants-lifecycle.py) verifies prepared-program
-restore, removal, unknown-state fallback, failed/successful reload, no draw-time
-compilation and shutdown accounting. See the
-[prepared-policy report](results/pbr-prewarm.md).
 
 The [prepared PBR report](results/pbr-prewarm.md) records bounded startup/reload
 precompilation, guarded ready-only routing, lifecycle validation and matched

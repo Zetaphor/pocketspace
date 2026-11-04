@@ -19,7 +19,7 @@ int main(){
  }
  size_t images=0;std::vector<GLuint> ownedBuffers,ownedTextures;
  {
-  Renderer renderer;renderer.ordinaryRouting=false;renderer.scene.objects.clear();
+  Renderer renderer;renderer.scene.objects.clear();
   // Independent transfer-function and packed-data channel checks on one fixed mesh.
   {
    renderer.scene.assets.emplace_back();auto &a=renderer.scene.assets.back();a.pbr=true;
@@ -46,14 +46,14 @@ int main(){
    for(int alpha=0;alpha<3;alpha++){
     for(int asset:{first,first+1})for(auto &p:renderer.scene.assets[asset-1].primitives){p.alphaMode=alpha;p.factor[3]=alpha==2?.6f:1.f;p.doubleSided=alpha==2;}
     for(auto mode:{ModelInstancing::Off,ModelInstancing::Instanced}){
-     renderer.instanceExperiment.mode=mode;
+     renderer.instancing.mode=mode;
      for(auto members:{std::vector<int>{1},std::vector<int>{2},std::vector<int>{1,2}})for(int eye=0;eye<2;eye++){
       renderer.scene.objects[1].asset=first;auto expected=renderer.renderSet(members,{.15f,.1f,-1.2f},eye);
       renderer.scene.objects[1].asset=first+1;auto actual=renderer.renderSet(members,{.15f,.1f,-1.2f},eye);if(actual!=expected){int delta=0;size_t changed=0;for(size_t p=0;p<actual.size();p++){int d=std::abs(int(actual[p])-int(expected[p]));delta=std::max(delta,d);changed+=d!=0;}std::fprintf(stderr,"PBR mixed alpha=%d mode=%d members=%zu eye=%d delta=%d changed=%zu\n",alpha,int(mode),members.size(),eye,delta,changed);assert(delta==0);}++images;
      }
     }
    }
-   renderer.instanceExperiment.mode=ModelInstancing::Off;
+   renderer.instancing.mode=ModelInstancing::Off;
   }
   for(const char *name:{"Box","ToyCar","Avocado","Fox","RiggedSimple","AnimatedMorphCube","InterpolationTest","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","MetalRoughSpheres","MetalRoughSpheresNoTextures","TextureEncodingTest","UnlitTest","EmissiveStrengthTest"}){
    const std::string path=std::string(name)=="Avocado"?"assets/Avocado.glb":std::string("assets/samples/")+name+"/"+name+".glb";

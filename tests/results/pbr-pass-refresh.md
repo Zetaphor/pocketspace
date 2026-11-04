@@ -1,5 +1,9 @@
 # Dense PBR pass attribution after shader preparation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Steam Frame ARM64, 2026-10-29, production source `e19a896` plus the profiling-tool
 changes in this report. The headset was active for bounded measurements. No
 production rendering/quality policy changes are made by this investigation.

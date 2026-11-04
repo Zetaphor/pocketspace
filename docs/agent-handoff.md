@@ -20,7 +20,7 @@ after changing guide links, navigation or site configuration.
 | File | Responsibility |
 | --- | --- |
 | `src/script_api.cpp`, `src/engine_state.h` | QuickJS bindings, script loading, scene types and shared engine state. Compiled once and linked by regressions; keep shared globals `inline`, never `static`, in the header. |
-| `src/render_host.cpp`, `src/render_host.h` | Interaction, surfaces, layout and render passes. Compiled once and linked by regressions. Targets whose macros change shared code define `SF_RENDER_UNITY` and compile it as one unit. |
+| `src/render_host.cpp`, `src/render_host.h` | Interaction, surfaces, layout and render passes. Compiled once for the engine and once with `SF_TEST_HOOKS` for regressions. |
 | `src/main.cpp` | OpenVR frame loop. |
 | `src/model_shaders.h` | Stereo overlay projection, perspective depth, and material shaders. |
 | `src/mesh_index.h` | Exact position/UV deduplication for shared GPU vertex/index buffers. |
@@ -93,9 +93,7 @@ primitives qualify; unlit meshes also require indexing. Count those buffers in G
 estimates and delete them with the asset. `Object::lodLevel` is selected once
 per frame after mutations and shared by eyes/surfaces/depth passes. Grabbed and
 nearby objects restore full detail; preserve projection and distance hysteresis.
-Instancing runs must match both asset and selected level. The separate
-`SF_MODEL_LOD_EXPERIMENT` fixed-detail harness remains test-only and disables
-production LOD generation when its environment override is present. See the
+Instancing runs must match both asset and selected level. See the
 [API contract](javascript-api.md#automatic-model-lod).
 
 Flat [scene containers](scene-containers.md) own objects/panels and optionally
@@ -239,8 +237,8 @@ current geometry bounds. Retain conservative near-plane fallback and viewport
 padding; projection reuse does not change buffers, sampling density, or shaders.
 
 
-Shared scene-depth reuse is not enabled. The isolated matching-grid prototype in
-`tests/shared-depth-prototype.cpp` uses the real GLES shader/pass harness; see
+Shared scene-depth reuse is not enabled. The matching-grid prototype was removed
+in commit `REMOVAL_COMMIT`; see its
 [measured results and adoption constraints](../tests/results/shared-depth-prototype.md).
 Do not replace per-group occluder passes with an all-scene prepass based on
 unculled comparisons. Current bounds culling can make per-group rendering faster,
@@ -284,9 +282,8 @@ and include every retained generation in resource estimates. Removal/visibility
 changes may eliminate either pending tile; resolve keys again before submission.
 
 
-GPU completion profiling is isolated behind `SF_GPU_SYNC_EXPERIMENT` in the
-excluded `gpu-sync-experiment` target. Normal builds keep `glFinish` and compile
-out its environment options, GPU queries, and alternate fence wait. See the
+Normal builds use `glFinish` for GPU completion. The alternate fence-wait
+experiment and its profiler were removed in commit `REMOVAL_COMMIT`. See the
 [contract review and comparison](../tests/results/gpu-sync.md) before revisiting
 synchronization: a producer-complete fence does not acknowledge compositor
 consumption, and `WaitFrameSync` is pacing rather than ownership. Preserve the
@@ -310,19 +307,16 @@ Default policies keep `merge` and `rebalance` false; examples that enable them d
 so explicitly. The shared projection plane, premultiplied alpha, and GPU producer
 completion rules are unchanged.
 
-Animation phase profiling is isolated behind `SF_ANIMATION_PROFILE` in the
-excluded `animation-profile-experiment` and `animation-profile-regression`
-targets. Normal builds have no phase timers. Keep deformation/bounds fused;
+Animation phase counters are test hooks (`SF_TEST_HOOKS`) used by
+`animation-profile-regression` and `gpu-skinning-regression`. Normal builds have
+no phase timers. Keep deformation/bounds fused;
 separating their loops for timing would change the workload. See the
 [Frame results and next design constraints](../tests/results/animation-profile.md)
 before changing animation backend policy or duplicating CPU picking geometry work.
 
 
 GPU skinning is automatic in normal builds. `gpu-skinning-regression` tests the
-production path; `gpu-skinning-experiment` retains the excluded profiling mode
-switch (`SF_GPU_SKIN_EXPERIMENT`, `SF_GPU_SKINNING=0/1`) and matching conservative
-bounds for its CPU reference. Normal builds ignore that environment switch.
-CPU-reference regression programs explicitly disable skinning internally;
+production path. CPU-reference regression programs explicitly disable skinning internally;
 production defaults and mixed-scene checks must also remain covered.
 
 Eligible assets are entirely skinned, non-morph models with one four-lane
@@ -349,9 +343,7 @@ do not treat their FPS delta as a controlled optimization comparison. Preserve
 production defaults while testing bounded submission improvements.
 
 
-Rigid primitive caching is enabled in production. The excluded
-`rigid-pose-experiment` alone retains the full-update comparison switch.
-Per-pose caches own exact world matrices, bounds/radius and pending upload bits.
+Rigid primitive caching is enabled in production. Per-pose caches own exact world matrices, bounds/radius and pending upload bits.
 Never clear pending dirtiness merely because a later evaluation is unchanged.
 Only rigid non-morph parts may reuse geometry; skin/morph parts still update.
 Refit the whole BVH when any part changes. See the
@@ -361,19 +353,16 @@ extending this optimization.
 
 The [pass-local uniform cache comparison](../tests/results/draw-uniforms.md)
 preserved exact pixels and removed most uniform calls, but did not improve
-end-to-end throughput. Keep it isolated in `SF_DRAW_SUBMIT_EXPERIMENT` and
-`tests/draw-uniforms-experiment.h`; normal draws retain direct uniform calls.
+end-to-end throughput; it was removed in commit `REMOVAL_COMMIT`, and normal
+draws retain direct uniform calls.
 Do not infer GPU duration from completion-wait changes. Future submission work
 must target the actual draw/vertex-state cost and preserve primitive order.
 
 
-The [owned VAO comparison](../tests/results/vertex-arrays.md) is complete and
-not adopted. Keep its fields, setup, destruction and draw switch behind
-`SF_VERTEX_ARRAY_EXPERIMENT`; normal `drawModelPrimitive` retains its original
-three-argument call and vertex setup. Experimental CPU overrides pass their
-own geometry owner so VAOs are destroyed with the pose, not cached by GL name.
-Restore VAO 0 after each cached draw. Both reference/VAO modes allocate identical
-storage; include driver metadata limits when describing allocation estimates.
+The [owned VAO comparison](../tests/results/vertex-arrays.md) was not adopted and
+was removed in commit `REMOVAL_COMMIT`. A future VAO cache must destroy VAOs with
+their geometry owner rather than cache them by GL name, restore VAO 0 after each
+cached draw, and include driver metadata limits in allocation estimates.
 
 
 Adjacent rigid batching is enabled by default with an owned production stream. Eligible CPU poses own
@@ -387,8 +376,8 @@ Keep exact expanded triangle order, material/object barriers and skin/morph/stat
 fallbacks. Partial updates use fixed `PosePartState::streamFirst` offsets, retain
 pending dirtiness across evaluations, and upload each changed range once. Saved
 scenes serialize playback, not GL resources; rebuild independent streams through
-normal restore/upload. The excluded `rigid-batch-experiment` alone exposes a draw
-mode switch and counters. The pixel test uses production code with test counters.
+normal restore/upload. `rigid-batch-regression` reads draw counters through
+`SF_TEST_HOOKS`.
 See [prototype and production measurements](../tests/results/rigid-batches.md).
 The single-stream production comparison and lifecycle checks pass on Frame. The
 normal-engine mixed scene passed user-confirmed visual, grabbing, pause/resume and
@@ -396,31 +385,22 @@ save/restore acceptance on 2026-10-29; the demo was stopped afterward.
 
 
 The [current dense-model investigation](../tests/results/dense-model-current.md)
-refreshes pass attribution with automatic LOD and ordered instancing. The
-`gpu-sync-experiment` alone accepts `SF_GPU_STATIC_VERTEX=1`, replacing ordinary
-vertex skin selection with `p`; its instancing program remains unchanged and it
-rejects skinned assets. Exact static pixels pass, with modest bounded FPS gains;
-the 16-car LOD headset visual check was accepted on 2026-10-29 and the prototype
-was stopped. The subsequent [mixed-program integration](../tests/results/ordinary-program-routing.md)
-passes exact rendering and lifecycle checks but does not establish consistent
-native gains; it is not adopted. `SF_GPU_ORDINARY_VERTEX=1` and its helper remain
-inside the excluded `gpu-sync-experiment`. The experiment uses an ordinary primary
-program and borrows the host-owned general program for GPU poses. Restore complete
-view/object/material state, invalidate cached binding after instanced batches, and
-never delete the borrowed program. Host shaders retain no scene/pose pointers.
-Normal builds retain the original general shader; do not infer production adoption
-from the comparison runner's historical `productionRouting` field.
+refreshes pass attribution with automatic LOD and ordered instancing. Its
+static-only vertex shader and the later
+[mixed-program integration](../tests/results/ordinary-program-routing.md) passed
+exact rendering and lifecycle checks without consistent native gains, and were
+removed in commit `REMOVAL_COMMIT`. Normal builds retain the general skin-capable
+shader. A future mixed-program path must restore complete view/object/material
+state, invalidate cached binding after instanced batches, and never delete a
+borrowed host program.
 
 
 [Geometry-aware grouping profiling](../tests/results/group-occluder-policy.md)
-adds all-frame `RENDER_WORK_SAMPLE` counters only to `gpu-sync-experiment`.
-Count actual selected index/skin ranges, full merged rigid ranges and instanced
-multiplicity. Keep one scene-geometry/LOD snapshot per rendered frame. The native
-counter fixture verifies analytic Box/Fox/InterpolationTest totals; rerun it when
-moving draw hooks. Profile analysis rejects geometry/LOD drift and incomplete
-member work, not just allocation mismatch. `SF_GPU_GROUP_POLICY=occluders` is an
-isolated equal-minimum-area partition tie-break; its matched native result does
-not justify adoption. Production planner and thresholds remain unchanged.
+found that an equal-minimum-area partition tie-break did not justify adoption; it
+and its render-work counters were removed in commit `REMOVAL_COMMIT`. Comparisons
+of grouping policies must count actual selected index/skin ranges, full merged
+rigid ranges and instanced multiplicity, and reject geometry/LOD drift and
+incomplete member work, not just allocation mismatch.
 
 ## Opt-in model lighting
 
@@ -466,8 +446,8 @@ uploaded ownership records into poses or independently owned assets. Live assets
 retain their charges during restore; unavailable optional storage must keep full
 geometry rather than fail publication. Saved `lod` is a policy request, not a
 promise of generated levels. Budget fallback has no eviction or background retry.
-The excluded diagnostic build's failure injection and `SF_PBR_LOD` override must
-remain unavailable in production. See the [recorded validation](../tests/results/pbr-lod-production.md).
+Failure injection and the `SF_PBR_LOD` override are `SF_TEST_HOOKS` test hooks and
+must remain unavailable in production. See the [recorded validation](../tests/results/pbr-lod-production.md).
 
 Lit poses currently use CPU position and surface-frame deformation and disable
 GPU skinning eligibility, ordered instancing, LOD and rigid merging. Preserve
@@ -484,8 +464,8 @@ render pass, including ordinary, CPU/GPU animated, instanced and depth draws.
 Keep direct GL culling mutations out of individual shader wrappers so its cached
 state remains valid. Node reflections change winding without changing object
 Euler rotations. Rigid merging must stop when single-sided animated parts have
-different winding; experimental combined-material instancing must reject
-incompatible sidedness/winding. Do not cull panels or controller laser geometry.
+different winding; any combined-material instancing must reject incompatible
+sidedness/winding. Do not cull panels or controller laser geometry.
 
 ## Baked environment lighting
 
@@ -530,8 +510,7 @@ alpha times factor and strict cutoff discard; blended parts remain excluded.
 Skip lighting/environment setup and disable surface attributes 8–10 for depth.
 Initialize sampler units before the first depth draw (which may precede color),
 preserving the caller's current program. Restore texture/attribute/program state
-through the existing release path. Keep diagnostic `SF_PBR_DEPTH` overrides out
-of production. See [validation](../tests/results/pbr-depth.md).
+through the existing release path. See [validation](../tests/results/pbr-depth.md).
 
 ## Scene directional lights
 

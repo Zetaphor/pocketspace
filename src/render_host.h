@@ -84,9 +84,6 @@ static vr::EVROverlayError submitSurface(Overlays &overlays,Surface &surface,int
 }
 int groupBufferPixels(int required,int maximum);
 GLuint compile(GLenum type,const char *source);
-#ifdef SF_GPU_SYNC_EXPERIMENT
-#include "../tests/opaque-shader-experiment.h"
-#endif
 inline void setVec3(GLint location,float x,float y,float z){glUniform3f(location,x,y,z);}
 void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]);
 vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head);
@@ -146,11 +143,6 @@ struct FrameBoundsCache {
 };
 bool mayOcclude(const ProjectedBounds &occluder,const ProjectedBounds &target);
 struct ScissorRegion {int x=0,y=0,width=0,height=0;};
-#ifdef SF_GPU_SYNC_EXPERIMENT
-#include "../tests/primitive-visibility-experiment.h"
-#include "../tests/cluster-visibility-experiment.h"
-
-#endif
 // Convert the target's conservative angular bounds to its overlay pixels.
 // Invalid/near-plane bounds retain the full viewport. Padding covers raster edges.
 ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float center[3],const float eye[3],const float right[3],const float up[3],const float forward[3],float halfWidth,int pixels);
@@ -175,9 +167,6 @@ struct GroupSplitPlan {
 };
 bool finiteGroupBounds(const std::vector<const Object*> &members,const FrameBoundsCache &cache);
 GroupLayout tileLayout(const std::vector<const Object*> &items,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache &cache,int maximum);
-#if defined(SF_GPU_SYNC_EXPERIMENT) || defined(SF_GROUP_OCCLUDER_EXPERIMENT)
-#include "../tests/group-occluder-experiment.h"
-#endif
 // Bounded quartile cuts, with deterministic tie-breaking and preserved density.
 GroupSplitPlan partitionGroup(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache &cache,int maximum,uint64_t baseline);
 GroupSplitPlan planGroupSplit(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const FrameBoundsCache &cache,int maximum,int allocated,const RenderGroupSplitPolicy &policy);
@@ -205,7 +194,7 @@ struct SceneRenderState {
   struct PendingTileChange {int parent=0,child=0;bool merge=false;};
   SpotShadows spotShadows;
   PbrVariantPrograms pbrVariants;
-  ModelInstancing instanceExperiment{ModelInstancing::Instanced};
+  ModelInstancing instancing{ModelInstancing::Instanced};
   FrameBoundsCache frameBounds;
   std::vector<ObjectLightSet> frameObjectLights;
   std::array<GrabState,2> grabs{};
@@ -218,7 +207,7 @@ struct SceneRenderState {
   std::chrono::steady_clock::time_point nextAdaptationCheck=std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point nextGroupResize=std::chrono::steady_clock::now();
   void resetScene(){
-    spotShadows.reset();pbrVariants.clear();instanceExperiment.reset();
+    spotShadows.reset();pbrVariants.clear();instancing.reset();
     frameBounds={};frameObjectLights.clear();ready.clear();grabs={};
     lastAnimationTick=std::chrono::steady_clock::now();
     pendingTileChange.reset();stableAdjustment.reset();
@@ -258,7 +247,3 @@ inline bool rayTriangle(const float o[3],const float d[3],const float a[3],const
 // The engine laser in scene coordinates; direction is unit length.
 void laserSceneRay(const ControllerSnapshot &hand,int handIndex,float origin[3],float direction[3]);
 float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated=true);
-#ifdef SF_RENDER_UNITY
-// Experiment definitions change these types, so those targets compile one unit.
-#include "render_host.cpp"
-#endif

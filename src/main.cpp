@@ -1,26 +1,6 @@
 // Frame loop for the VR host.
 #include "render_host.h"
 int main(int argc,char **argv) {
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-  rigidBatchEnabled=std::getenv("SF_RIGID_BATCH")&&std::string(std::getenv("SF_RIGID_BATCH"))=="1";
-  std::fprintf(stdout,"RIGID_BATCH enabled=%d\n",rigidBatchEnabled);
-#endif
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-  vertexArrayCachingEnabled=std::getenv("SF_VERTEX_ARRAY_CACHE")&&std::string(std::getenv("SF_VERTEX_ARRAY_CACHE"))=="1";
-  std::fprintf(stdout,"VERTEX_ARRAY_CACHE enabled=%d\n",vertexArrayCachingEnabled);
-#endif
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-  drawUniformCachingEnabled=std::getenv("SF_DRAW_UNIFORM_CACHE")&&std::string(std::getenv("SF_DRAW_UNIFORM_CACHE"))=="1";
-  std::fprintf(stdout,"DRAW_UNIFORM_CACHE enabled=%d\n",drawUniformCachingEnabled);
-#endif
-#ifdef SF_RIGID_POSE_EXPERIMENT
-  rigidPoseCachingEnabled=!(std::getenv("SF_RIGID_POSE_CACHE")&&std::string(std::getenv("SF_RIGID_POSE_CACHE"))=="0");
-  std::fprintf(stdout,"RIGID_POSE_CACHE enabled=%d\n",rigidPoseCachingEnabled);
-#endif
-#ifdef SF_GPU_SKIN_EXPERIMENT
-  gpuSkinningEnabled=std::getenv("SF_GPU_SKINNING")&&std::string(std::getenv("SF_GPU_SKINNING"))=="1";
-  std::fprintf(stdout,"GPU_SKINNING mode=%s (eligible single-set skins; matched conservative bounds)\n",gpuSkinningEnabled?"gpu":"cpu");
-#endif
   // CPU-only workload: no SteamVR session or graphics context required.
   if(argc>2&&std::string(argv[1])=="--benchmark-picking"){
     ModelAsset asset;if(!loadModelFile(argv[2],asset))return 1;
@@ -144,17 +124,7 @@ int main(int argc,char **argv) {
   destroyImage=(PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
   imageRenderbuffer=(PFNGLEGLIMAGETARGETRENDERBUFFERSTORAGEOESPROC)eglGetProcAddress("glEGLImageTargetRenderbufferStorageOES");
   if(!gbm||!createImage||!destroyImage||!imageRenderbuffer)return 3;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  const char *ordinaryMode=std::getenv("SF_GPU_ORDINARY_VERTEX");
-  if(ordinaryMode)ordinaryVertexEnabled=std::strcmp(ordinaryMode,"1")==0;
-#endif
   const char *vertexSource=modelVertexShader;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  const char *staticMode=std::getenv("SF_GPU_STATIC_VERTEX");
-  const bool staticVertexOnly=staticMode&&std::strcmp(staticMode,"1")==0;
-  const auto staticSource=staticVertexOnly?staticVertexExperiment():std::string{};
-  if(staticVertexOnly)vertexSource=staticSource.c_str();
-#endif
   GLuint generalProgram=glCreateProgram(),v=compile(GL_VERTEX_SHADER,vertexSource),f=compile(GL_FRAGMENT_SHADER,modelFragmentShader);
   ScopeExit shaderCleanup{[&]{glDeleteProgram(generalProgram);glDeleteShader(v);glDeleteShader(f);}};
   glAttachShader(generalProgram,v);glAttachShader(generalProgram,f);glLinkProgram(generalProgram);GLint linked=0;glGetProgramiv(generalProgram,GL_LINK_STATUS,&linked);if(!linked)return 5;
@@ -163,41 +133,14 @@ int main(int argc,char **argv) {
   std::array<panelPointer::Pointer,2> panelPointers;
   PbrProgram pbrProgram;if(!pbrProgram.init())return 5;
   PbrProgram depthPbrProgram;if(!depthPbrProgram.init(true))return 5;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  const bool pbrVariantsEnabled=std::getenv("SF_GPU_PBR_VARIANTS")&&std::strcmp(std::getenv("SF_GPU_PBR_VARIANTS"),"1")==0;
-#else
   constexpr bool pbrVariantsEnabled=true;
-#endif
-#ifdef SF_PBR_VARIANT_EXPERIMENT
-  ScopeExit variantReport{[&]{
-    size_t programs=0,fallbackDraws=0;uint64_t binaryBytes=0;double compileMs=0;
-    for(const auto &[id,owner]:renderStates){programs+=owner->pbrVariants.programs.size();binaryBytes+=owner->pbrVariants.binaryBytes();compileMs+=owner->pbrVariants.compileMs;fallbackDraws+=owner->pbrVariants.fallbackDraws;}
-    printf("PBR_VARIANTS_CACHE programs=%zu binary_bytes=%llu compile_ms=%.4f fallback_draws=%zu\n",programs,(unsigned long long)binaryBytes,compileMs,fallbackDraws);
-  }};
-#endif
-#ifdef SF_PBR_DEPTH_EXPERIMENT
-  const bool fastPbrDepth=std::getenv("SF_PBR_DEPTH")&&std::string(std::getenv("SF_PBR_DEPTH"))=="1";
-#else
   constexpr bool fastPbrDepth=true;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  OrdinaryModelProgram ordinaryProgram,skinProgram;
-  const GLuint program=ordinaryProgram.select(false)?ordinaryProgram.id():generalProgram;
-  skinProgram.borrow(generalProgram);
-#else
   const GLuint program=generalProgram;
-#endif
   vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount]{};
   system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
   if(!poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)return 7;
   auto anchor=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
   for(int r=0;r<3;r++)anchor.m[r][3]+=anchor.m[r][1]*-.2f+anchor.m[r][2]*-1.f;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  // Profiling only: a canonical scene basis removes cross-run tracking noise.
-  const bool fixedDepthView=std::getenv("SF_PBR_DEPTH_FIXED_VIEW")&&std::strcmp(std::getenv("SF_PBR_DEPTH_FIXED_VIEW"),"1")==0;
-  if(fixedDepthView){anchor={};for(int axis=0;axis<3;axis++)anchor.m[axis][axis]=1;}
-  printf("PBR_DEPTH_FIXED_VIEW enabled=%d\n",int(fixedDepthView));
-#endif
   trackingAnchor=anchor;trackingAnchorValid=true;
   fprintf(stdout,"anchor world=%f,%f,%f\n",anchor.m[0][3],anchor.m[1][3],anchor.m[2][3]);fflush(stdout);
   vr::VROverlayHandle_t lasers[2]={vr::k_ulOverlayHandleInvalid,vr::k_ulOverlayHandleInvalid};bool laserShown[2]{};
@@ -356,35 +299,12 @@ int main(int argc,char **argv) {
   setVec3(upLocation,anchor.m[0][1],anchor.m[1][1],anchor.m[2][1]);
   setVec3(forwardLocation,-anchor.m[0][2],-anchor.m[1][2],-anchor.m[2][2]);
   GLint yawLocation=glGetUniformLocation(program,"yaw"),pitchLocation=glGetUniformLocation(program,"pitch"),rollLocation=glGetUniformLocation(program,"roll"),scaleLocation=glGetUniformLocation(program,"modelScale"),offsetLocation=glGetUniformLocation(program,"offset");
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-  const ModelDrawLocations drawLocations(program);
-#endif
   GLint factorLocation=glGetUniformLocation(program,"factor"),modeLocation=glGetUniformLocation(program,"alphaMode"),cutoffLocation=glGetUniformLocation(program,"alphaCutoff");
   GLint sheenLocation=glGetUniformLocation(program,"sheen");
   double pickingMs=0,renderMs=0,finishMs=0,physicsMs=0;
 
-#ifdef SF_GPU_SYNC_EXPERIMENT
-  const char *groupPolicy=std::getenv("SF_GPU_GROUP_POLICY");
-  groupOccluderTieBreak=groupPolicy&&std::strcmp(groupPolicy,"occluders")==0;
-  GpuSyncExperiment gpuSync;
-  const char *instanceMode=std::getenv("SF_GPU_INSTANCING");
-  const char *primitiveMode=std::getenv("SF_GPU_PRIMITIVE_VISIBILITY");
-  const bool primitiveVisibility=primitiveMode&&std::strcmp(primitiveMode,"1")==0;
-  PrimitiveVisibilityExperiment primitiveExperiment;
-  const char *clusterMode=std::getenv("SF_GPU_CLUSTER_MODE");
-  ClusterVisibilityExperiment clusterExperiment(clusterMode?(std::strcmp(clusterMode,"cull")==0?ClusterVisibilityExperiment::Cull:std::strcmp(clusterMode,"full")==0?ClusterVisibilityExperiment::Full:ClusterVisibilityExperiment::Original):ClusterVisibilityExperiment::Off);
-  const char *opaqueMode=std::getenv("SF_GPU_OPAQUE_SHADER");
-  const bool specializeOpaque=opaqueMode&&std::strcmp(opaqueMode,"1")==0;
-  std::unique_ptr<OpaqueExperimentProgram> opaqueExperiment,depthExperiment;
-  if(specializeOpaque){opaqueExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueColorExperiment);depthExperiment=std::make_unique<OpaqueExperimentProgram>(opaqueDepthExperiment);}
-#endif
   auto next=std::chrono::steady_clock::now();auto reportStart=next;int frame=0;uint64_t diagnosticFrames=0;engineStats.prime();
   auto reconnectAt=std::chrono::steady_clock::now()+std::chrono::seconds(1);
-#ifdef SF_ANIMATION_PROFILE
-  AnimationProfileFrame animationFrame;AnimationProfileWindow animationWindow;unsigned animationEpoch=0;
-  animationProfileFrame=&animationFrame;ScopeExit clearAnimationProfiler{[]{animationProfileFrame=nullptr;}};
-  std::fprintf(stdout,"ANIMATION_PROFILE_BEGIN gpu=%s version=%s\n",glGetString(GL_RENDERER),glGetString(GL_VERSION));
-#endif
   // File-change and control-socket reloads share the host's cleanup of native state.
   auto reloadInstance=[&](int id)->bool{
     const bool loaded=scriptRegistry.reload(id,[&]{
@@ -396,12 +316,6 @@ int main(int argc,char **argv) {
         meshHoveredObject[hand]=meshCurrentObject[hand]=0;
         meshHitDistance[hand]=2;meshHitPoint[hand]={};meshLastHit[hand]={};grabNeedsRelease[hand]=true;
       }
-#ifdef SF_ANIMATION_PROFILE
-      ++animationEpoch;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      primitiveExperiment.reset();clusterExperiment.reset();
-#endif
       fprintf(stdout,"[lifecycle] instance=%d scene state reset\n",id);
     });
     if(auto *entry=scriptRegistry.find(id);loaded&&entry&&pbrVariantsEnabled&&renderStates.count(id)){
@@ -412,9 +326,6 @@ int main(int argc,char **argv) {
   };
   control::Service controlService(scriptRegistry,scriptsDirectory,engineSettings,{reloadInstance,[&](const settings::Settings &current){scriptRegistry.setAutoRestart(current.autoRestart);}});
   while(running){
-#ifdef SF_ANIMATION_PROFILE
-    animationFrame={};const auto animationFrameStart=AnimationProfileClock::now();
-#endif
     vr::VREvent_t runtimeEvent{};
     while(system->PollNextEvent(&runtimeEvent,sizeof(runtimeEvent)))if(runtimeEvent.eventType==vr::VREvent_Quit){system->AcknowledgeQuit_Exiting();fprintf(stdout,"[lifecycle] SteamVR quit; exiting\n");running=false;}
     if(!running)break;
@@ -562,7 +473,7 @@ int main(int argc,char **argv) {
     auto &ready=sceneRender.ready;
     auto &frameBounds=sceneRender.frameBounds;
     auto &frameObjectLights=sceneRender.frameObjectLights;
-    auto &instanceExperiment=sceneRender.instanceExperiment;
+    auto &instancing=sceneRender.instancing;
     auto &lastAnimationTick=sceneRender.lastAnimationTick;
     ScriptScope sceneScope(script);
     const auto animationTick=std::chrono::steady_clock::now();
@@ -648,10 +559,7 @@ int main(int argc,char **argv) {
     catch(const std::exception &error){return failScene(error.what());}
     physicsMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-physicsStart).count();
     if(script.scene.assetsReleased){
-      instanceExperiment.reset();
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      primitiveExperiment.reset();clusterExperiment.reset();
-#endif
+      instancing.reset();
       script.scene.assetsReleased=false;
     }
     for(auto &asset:script.scene.assets)if(!asset.uploaded)uploadModel(asset);
@@ -659,9 +567,6 @@ int main(int argc,char **argv) {
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     if(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid){
       auto &head=poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      if(fixedDepthView){head=anchor;head.m[1][3]=.2f;head.m[2][3]=1.f;}
-#endif
       const auto renderStart=std::chrono::steady_clock::now();
       float eyes[2][3];
       for(int i=0;i<2;i++){
@@ -675,9 +580,6 @@ int main(int argc,char **argv) {
       for(auto &object:script.scene.objects){
         const auto &asset=script.scene.assets[size_t(object.asset)-1];
         auto selectDetail=[&](int level){
-#ifdef SF_PBR_LOD_EXPERIMENT
-          if(asset.pbr&&object.lodLevel!=level){size_t triangles=0;for(const auto &part:asset.primitives)triangles+=modelDrawVertexCount(part,level)/3;fprintf(stdout,"[pbr-lod] object=%d level=%d triangles=%zu held=%d\n",object.id,level,triangles,grabs[0].objectId==object.id||grabs[1].objectId==object.id);fflush(stdout);}
-#endif
           object.lodLevel=level;
         };
         const bool available=asset.lod&&!object.animationPose&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[](const auto &p){return p.lod[0].indexBuffer||p.lod[1].indexBuffer||p.lod[0].vbo||p.lod[1].vbo;});
@@ -693,16 +595,6 @@ int main(int argc,char **argv) {
       updateObjectLights(script.scene,frameLights,frameObjectLights);
       frameBounds.update(script.scene,anchor,head,eyes);
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
-#ifdef SF_GPU_SYNC_EXPERIMENT
-#ifdef SF_MODEL_LOD_EXPERIMENT
-      if(lodExperiment::ratio()!=1&&(useInstancing||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque||std::getenv("SF_GPU_MULTIPART_INSTANCING"))){fprintf(stderr,"LOD comparison requires original object draws without other geometry/shader experiments\n");return 13;}
-#endif
-      if(program!=generalProgram&&(staticVertexOnly||specializeOpaque||primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off)){fprintf(stderr,"ordinary routing comparison cannot combine with other shader/visibility experiments\n");return 13;}
-      if(staticVertexOnly&&std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const auto &asset){return asset.hasSkin;})){fprintf(stderr,"static vertex experiment cannot render skinned assets\n");return 13;}
-      if(useInstancing&&(primitiveVisibility||clusterExperiment.mode!=ClusterVisibilityExperiment::Off||specializeOpaque)){fprintf(stderr,"instancing cannot combine with other geometry/shader experiments\n");return 13;}
-      if(primitiveVisibility)primitiveExperiment.update(script.scene,anchor,head,eyes);
-      if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.update(script.scene,anchor,head,eyes);
-#endif
       if(!pendingTileChange&&std::chrono::steady_clock::now()>=nextAdaptationCheck){
         const auto now=std::chrono::steady_clock::now();nextAdaptationCheck=now+std::chrono::milliseconds(500);
         const auto candidates=surfaceMembers(script);
@@ -776,16 +668,6 @@ int main(int argc,char **argv) {
       }
       const auto groups=surfaceMembers(script);
       int shrinkBudget=2;std::set<int> culledSurfaces;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      gpuSync.scene(script.scene);gpuSync.begin();
-      if(specializeOpaque)for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives)if(part.alphaMode!=0){fprintf(stderr,"opaque shader experiment requires opaque-only assets\n");return 13;}
-#endif
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-      uint64_t uniformIssued=0,uniformSkipped=0;
-#endif
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-      rigidBatchStats={};
-#endif
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
@@ -869,83 +751,28 @@ int main(int argc,char **argv) {
           auto region=projectedScissor(targetBounds[i],surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels);
           region.x+=i*surface->eyePixels;
           renderObjectLayers(id,[&](int targetId,int pass){
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-            ModelDrawUniforms drawUniforms(drawLocations,drawUniformCachingEnabled);
-            ScopeExit countUniforms{[&]{uniformIssued+=drawUniforms.issued;uniformSkipped+=drawUniforms.skipped;}};
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-            gpuSync.beginPass(pass);ScopeExit finishPass{[&]{gpuSync.endPass();}};
-            auto *special=specializeOpaque?(pass<0?depthExperiment.get():opaqueExperiment.get()):nullptr;
-            ScopeExit restoreProgram{[&]{if(special)glUseProgram(program);}};
-            if(special)special->view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
-#endif
             ModelCulling culling;
             auto selected=[&](const Object &object){
               if(!object.visible||(pass<0?objectSurfaceKey(object)==targetId:objectSurfaceKey(object)!=targetId))return false;
               if(pass<0&&!mayOcclude(id<0?frameBounds.common(object,i):frameBounds.project(object,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]))return false;
               return true;
             };
-#ifdef SF_GPU_SYNC_EXPERIMENT
-            bool skinBound=false;
-            ScopeExit restoreSkinProgram{[&]{if(skinBound)glUseProgram(program);}};
-            auto restoredProgram=[&]{skinBound=false;};
-#else
             auto restoredProgram=[]{};
-#endif
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
-#ifdef SF_GPU_SYNC_EXPERIMENT
-              const bool useSkinProgram=program!=generalProgram&&object.animationPose&&object.animationPose->gpuSkin;
-              if(useSkinProgram){
-                if(!skinBound){skinProgram.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);skinBound=true;}
-                skinProgram.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-              }else if(skinBound){glUseProgram(program);skinBound=false;}
-#endif
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-              if(drawUniforms.enabled&&std::none_of(asset.primitives.begin(),asset.primitives.end(),[&](const auto &p){return pass<0?p.alphaMode!=2:(p.alphaMode==2)==bool(pass);}))return;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-              if(special)special->object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);else
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-              if(!useSkinProgram)
-#endif
               {
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-                drawUniforms.object(object.pitch,object.yaw,object.roll,object.scale,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-#else
                 glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
                 glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
-#endif
               }
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                if(primitiveVisibility&&pass<0&&!primitiveExperiment.mayDraw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels))continue;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                if(special)special->material(part);else
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                if(useSkinProgram)skinProgram.material(part);else
-#endif
                 {
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-                  drawUniforms.material(part);
-#else
                   glUniform4fv(factorLocation,1,part.factor);glUniform1i(modeLocation,part.alphaMode);glUniform1f(cutoffLocation,part.alphaCutoff);glUniform3fv(sheenLocation,1,part.sheen);
-#endif
                 }
                 culling.material(part,object.animationPose.get());
                 glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                if(pass<0&&clusterExperiment.draw(object,primitive,targetBounds[i],i,id<0,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,surface->eyePixels,[&](unsigned count){gpuSync.draw(count);}))continue;
-#endif
                 if(asset.pbr){
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                  gpuSync.beginPbr();ScopeExit finishPbrTiming{[&]{gpuSync.endPbr();}};
-#endif
                   auto *variant=pbrVariantsEnabled&&pass>=0?pbrVariants.ready(asset,part,frameObjectLights[size_t(&object-script.scene.objects.data())].count,surface->eyePixels):nullptr;
                   auto &activePbr=variant?*variant:(fastPbrDepth&&pass<0?depthPbrProgram:pbrProgram);
                   activePbr.view(anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f);
@@ -955,34 +782,16 @@ int main(int argc,char **argv) {
                   activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                  gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
-#endif
                   continue;
                 }
                 GLuint activeProgram=program;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                if(useSkinProgram)activeProgram=generalProgram;
-#endif
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,activeProgram)){
                   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(activeProgram);
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                  gpuSync.draw(unsigned(part.skinIndices.size()));
-#endif
                   continue;
                 }
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                const size_t firstPrimitive=primitive;
-#endif
                 if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive)){
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                  unsigned count=0;for(size_t p=firstPrimitive;p<=primitive;p++)count+=asset.primitives[p].vertexCount;gpuSync.draw(count);
-#endif
                   continue;
                 }
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                gpuSync.draw(modelDrawVertexCount(part,object.animationPose?0:object.lodLevel));
-#endif
                 if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
                 else drawModelPrimitive(part,0,object.lodLevel);
               }
@@ -990,12 +799,8 @@ int main(int argc,char **argv) {
             if(useInstancing){
               std::vector<const Object*> objects;objects.reserve(script.scene.objects.size());for(const auto &object:script.scene.objects)if(selected(object))objects.push_back(&object);
               const float origin[3]={surfaceX,surfaceY,surfaceZ};
-              instanceExperiment.draw(script.scene,culling,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
-#ifdef SF_GPU_SYNC_EXPERIMENT
-                gpuSync.draw(count);
-#else
+              instancing.draw(script.scene,culling,objects,pass,program,anchor,surfaceCenter,eyes[i],panelRight,panelUp,panelForward,surface->width*.5f,origin,drawObject,[&](unsigned count){
                 (void)count;
-#endif
               },restoredProgram);return;
             }
             for(const auto &object:script.scene.objects)if(selected(object))drawObject(object);
@@ -1003,29 +808,10 @@ int main(int argc,char **argv) {
         }
         ready.push_back(surface.get());
       }
-#ifdef SF_DRAW_SUBMIT_EXPERIMENT
-      if(frame%120==0)std::fprintf(stdout,"DRAW_UNIFORMS {\"frame\":%d,\"issued\":%llu,\"skipped\":%llu}\n",frame,(unsigned long long)uniformIssued,(unsigned long long)uniformSkipped);
-#endif
-#ifdef SF_RIGID_BATCH_EXPERIMENT
-      if(frame%120==0)std::fprintf(stdout,"RIGID_BATCH_DRAWS {\"draws\":%llu,\"mergedParts\":%llu}\n",(unsigned long long)rigidBatchStats.draws,(unsigned long long)rigidBatchStats.mergedParts);
-#endif
       const auto finishStart=std::chrono::steady_clock::now();
       const double frameRenderMs=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();renderMs+=frameRenderMs;
-#ifdef SF_ANIMATION_PROFILE
-      animationFrame.renderMs+=frameRenderMs;
-#endif
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      gpuSync.complete();
-      if(useInstancing)instanceExperiment.report();
-      if(primitiveVisibility)primitiveExperiment.report();
-      if(clusterExperiment.mode!=ClusterVisibilityExperiment::Off)clusterExperiment.report();
-#else
       glFinish();
-#endif
       const double frameFinishMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();finishMs+=frameFinishMs;
-#ifdef SF_ANIMATION_PROFILE
-      animationFrame.finishMs+=frameFinishMs;
-#endif
       glBindFramebuffer(GL_FRAMEBUFFER,0);
       std::set<int> changingSubmissions;
       if(pendingTileChange){
@@ -1052,9 +838,6 @@ int main(int argc,char **argv) {
         const auto error=submitSurface(*overlays,*surface,frame,[&](Surface &retired){destroySurface(retired,display);});
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] submit id=%d error=%d\n",surface->objectId,int(error));
       }
-#ifdef SF_GPU_SYNC_EXPERIMENT
-      gpuSync.submitted();
-#endif
       const int completedFrame=frame+1;
       if(completedFrame%900==0&&pbrVariantsEnabled)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
     }
@@ -1067,10 +850,6 @@ int main(int argc,char **argv) {
       if(!renderStates.count(id)){
         auto owner=std::make_unique<SceneRenderState>();
         if(!owner->spotShadows.prepare())return 5;
-#ifdef SF_GPU_SYNC_EXPERIMENT
-        if(std::getenv("SF_GPU_MULTIPART_INSTANCING"))owner->instanceExperiment.enableMultipartExperiment();
-        if(instanceMode){owner->instanceExperiment.mode=std::strcmp(instanceMode,"1")==0?ModelInstancing::Instanced:ModelInstancing::Original;owner->instanceExperiment.prewarm();}
-#endif
         if(pbrVariantsEnabled){
           for(auto &asset:instance->host.scene.assets)if(!asset.uploaded)uploadModel(asset);
           owner->pbrVariants.prepare(instance->host.scene);
@@ -1126,7 +905,7 @@ int main(int argc,char **argv) {
       for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
       for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
       for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
-      if(auto render=renderStates.find(id);render!=renderStates.end())bytes+=render->second->instanceExperiment.allocatedBytes();
+      if(auto render=renderStates.find(id);render!=renderStates.end())bytes+=render->second->instancing.allocatedBytes();
       for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
       for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
       for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
@@ -1141,13 +920,6 @@ int main(int argc,char **argv) {
       bytes+=spotShadowDiagnostics.bytes;
       engineStats.gpuAllocatedEstimateBytes=bytes;
     }
-#ifdef SF_ANIMATION_PROFILE
-    animationFrame.workMs=animationProfileMs(animationFrameStart);
-    size_t profiledObjects=0,playingObjects=0;
-    for(int id:scriptRegistry.runningIds())if(const auto *entry=scriptRegistry.find(id))
-      for(const auto &object:entry->host.scene.objects)if(object.animationPose){profiledObjects++;playingObjects+=object.animation.playing;}
-    animationWindow.record(animationFrame,profiledObjects,playingObjects,animationEpoch);
-#endif
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.
     next=std::max(next+std::chrono::microseconds(11111),std::chrono::steady_clock::now());
     std::this_thread::sleep_until(next);

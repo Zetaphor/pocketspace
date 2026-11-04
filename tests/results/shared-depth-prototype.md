@@ -1,5 +1,9 @@
 # Shared scene-depth feasibility
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 The experiment is isolated in `tests/shared-depth-prototype.cpp`; no engine or
 JavaScript rendering behavior is changed. Its baseline uses the current shaders
 and group depth/color pass sequence. The candidate renders all opaque/masked

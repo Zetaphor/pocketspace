@@ -1,5 +1,9 @@
 # Equal-allocation occluder-aware grouping
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on **2026-10-29**, based on `53b5b71` plus this isolated
 experiment and work instrumentation. **Keep the existing production planner.**
 The candidate can improve predicted work in synthetic plans, but its bounded

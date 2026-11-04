@@ -1,5 +1,9 @@
 # GPU producer-completion investigation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 This test compares two ways to wait for this engine's rendering to finish. It does
 not establish a cross-process asynchronous ownership contract. Production uses
 `glFinish` and retains its current three-color-buffer lifetime behavior.

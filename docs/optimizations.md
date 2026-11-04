@@ -3,7 +3,7 @@
 Pocketspace applies many optimizations automatically. The options below let a
 script choose geometry quality, surface layout and physics concurrency for its
 own workload. They are supported by normal engine builds; no environment flags
-or experimental executable are required.
+or special executable are required.
 
 ## Defaults and controls
 
@@ -83,7 +83,7 @@ Check visuals and interaction separately from speed: move your head, change
 distance, grab/release objects, and inspect overlaps, alpha cutouts and LOD
 transitions. A gain in one scene does not establish a universal best setting.
 
-## Automatic optimizations and experiments
+## Automatic optimizations
 
 Eligible GPU skinning, lazy exact picking, rigid-pose caching, adjacent rigid
 batching, target cropping, bounds/scissor reuse, panel submission caching and
@@ -111,9 +111,3 @@ lights still require the full loop. See the
 [spotlight cone comparison](../tests/results/spotlight-cone-selection.md).
 Scene directional lights remain in every eligible object’s light set; distance
 and cone tests never reject them.
-
-Test-only shader, culling, shared-depth, VAO, uniform-cache and synchronization
-experiments are not supported production options. Their environment switches
-apply only to the corresponding excluded diagnostic targets. Use the
-[test index](../tests/index.md) and linked measurements for those investigations;
-do not copy diagnostic flags into normal application launch instructions.

@@ -4,7 +4,7 @@ struct PbrVariantPrograms {
  static constexpr size_t limit=16;
  std::map<int,std::unique_ptr<PbrProgram>> programs;
  std::set<int> failed;
-#ifdef SF_PBR_VARIANT_EXPERIMENT
+#ifdef SF_TEST_HOOKS
  bool rejectNewPrograms=false;
 #endif
  size_t preparations=0,readyDraws=0;
@@ -30,7 +30,7 @@ struct PbrVariantPrograms {
   }
   report();
  }catch(const std::exception &error){clear();fprintf(stderr,"[pbr] optional variant preparation failed: %s; using general program\n",error.what());}
-#ifdef SF_PBR_VARIANT_EXPERIMENT
+#ifdef SF_TEST_HOOKS
  PbrProgram *get(const ModelAsset &asset,const PrimitiveAsset &part,size_t count){return compile(asset,part,count);}
 #endif
 private:
@@ -39,7 +39,7 @@ private:
   if(auto found=programs.find(key);found!=programs.end())return found->second.get();
   if(failed.count(key)||programs.size()+failed.size()==limit){fallbackDraws++;return nullptr;}
   auto program=std::make_unique<PbrProgram>();auto start=std::chrono::steady_clock::now();bool ok=true;
-#ifdef SF_PBR_VARIANT_EXPERIMENT
+#ifdef SF_TEST_HOOKS
   ok=!rejectNewPrograms;
 #endif
   if(ok)ok=program->initVariant(key);

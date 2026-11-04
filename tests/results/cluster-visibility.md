@@ -1,5 +1,9 @@
 # Spatial occluder clusters
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 The 4,096-triangle cluster candidate preserves checked geometry and pixels but
 does not establish a useful net throughput gain. It is **not enabled in
 production**. Original color geometry/order, engine settings, API behavior, and

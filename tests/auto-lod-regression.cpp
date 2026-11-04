@@ -46,14 +46,14 @@ int main(){
     r.scene.objects.clear();for(int n=0;n<8;n++)r.scene.objects.push_back({n+1,int(r.scene.assets.size()),(n%4-1.5f)*.12f,-.2f+(n/4)*.13f,0,.1f,n*.1f});
     for(int level:{0,1,2})for(int eye=0;eye<2;eye++){
       for(auto &o:r.scene.objects)o.lodLevel=level;
-      r.instanceExperiment.mode=ModelInstancing::Original;auto a=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},eye,0,true,1,true);
-      const auto batchesBefore=r.instanceExperiment.submittedBatches();
-      r.instanceExperiment.mode=ModelInstancing::Instanced;auto b=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},eye,0,true,1,true);assert(a==b);assert(r.instanceExperiment.submittedBatches()>batchesBefore);++compared;
+      r.instancing.mode=ModelInstancing::Original;auto a=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},eye,0,true,1,true);
+      const auto batchesBefore=r.instancing.submittedBatches();
+      r.instancing.mode=ModelInstancing::Instanced;auto b=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},eye,0,true,1,true);assert(a==b);assert(r.instancing.submittedBatches()>batchesBefore);++compared;
     }
-    const auto mixedBefore=r.instanceExperiment.submittedBatches();
+    const auto mixedBefore=r.instancing.submittedBatches();
     for(auto &o:r.scene.objects)o.lodLevel=o.id%3;
-    r.instanceExperiment.mode=ModelInstancing::Original;auto a=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},0,0,true,1,true);
-    r.instanceExperiment.mode=ModelInstancing::Instanced;auto b=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},0,0,true,1,true);assert(a==b);assert(r.instanceExperiment.submittedBatches()==mixedBefore);++compared;
+    r.instancing.mode=ModelInstancing::Original;auto a=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},0,0,true,1,true);
+    r.instancing.mode=ModelInstancing::Instanced;auto b=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},0,0,true,1,true);assert(a==b);assert(r.instancing.submittedBatches()==mixedBefore);++compared;
     }
     deleteModel(r.scene.assets[key-1]);for(auto buffer:buffers)assert(!glIsBuffer(buffer));assert(glGetError()==GL_NO_ERROR);
     printf("PASS automatic LOD: policy/hysteresis/near restoration, %d exact indexed/expanded and instanced views, mixed-level barriers, 16/32-bit LOD indices, opt-out/material/deformation guards, full CPU meshes and buffer release\n",compared);

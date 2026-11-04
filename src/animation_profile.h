@@ -1,7 +1,7 @@
 #pragma once
 // Built only into excluded animation profiling targets; normal builds have no
 // animation phase timers or profiling state.
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
 #include <algorithm>
 #include <array>
 #include <chrono>

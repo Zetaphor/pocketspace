@@ -1,5 +1,9 @@
 # Owned vertex array submission experiment
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 at `5b3dd57`. The investigation is complete
 and does not justify adoption. Production vertex setup remains unchanged.
 

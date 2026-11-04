@@ -1,5 +1,9 @@
 # Multi-part model batching investigation
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 The combined multi-material stream prototype is **not adopted**. It preserves
 exact pixels and reduces draw counts, but materially slows the mixed moving-model
 workload. Production keeps default-on ordered instancing for eligible static

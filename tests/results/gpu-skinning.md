@@ -1,5 +1,9 @@
 # GPU skeletal skinning prototype
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 at commit `b9ec3c7`. This excluded
 experiment improved the measured workload; normal builds retain CPU skinning.
 The user confirmed that the 32-model scene looked visually fine after this comparison.
@@ -77,7 +81,7 @@ checks do not replace headset occlusion/reprojection acceptance.
 ## Reproduction and evidence
 
 See [build/run instructions](../README.md#gpu-skinning-prototype) and
-[the bounded scene](../scenes/gpu-skinning-profile.js). Demos were stopped after
+the bounded scene (`tests/scenes/gpu-skinning-profile.js`). Demos were stopped after
 both completion markers and verified absent.
 
 - [CPU filtered log](gpu-skinning/cpu-frame.txt), [summary](gpu-skinning/cpu-summary.json)

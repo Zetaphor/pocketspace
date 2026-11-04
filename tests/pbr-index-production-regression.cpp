@@ -41,7 +41,7 @@ static uint64_t triangles(const ModelAsset &asset,int level){uint64_t n=0;for(co
 static void benchmarkMaterials(){
  auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
  for(const auto &[name,count]:std::vector<std::pair<std::string,int>>{{"Avocado",16},{"Lantern",16},{"MetalRoughSpheres",1},{"MetalRoughSpheresNoTextures",1}}){
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[2];
+  Renderer r;r.scene.objects.clear();int ids[2];
   for(int mode=0;mode<2;mode++){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.lod=false;a.optimizeVertexCache=mode;
    assert(loadModelFile(name=="Avocado"?"assets/Avocado.glb":"assets/samples/"+name+"/"+name+".glb",a));uploadModel(a);
@@ -71,7 +71,7 @@ int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  size_t views=0,indexed=0;bool reduced=false;uint64_t compactBudget=0;
  for(const char *name:{"ToyCar","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","AlphaBlendModeTest","TextureEncodingTest","Fox","AnimatedMorphCube","Lantern","MetalRoughSpheres","MetalRoughSpheresNoTextures","UnlitTest","EmissiveStrengthTest","Box","RiggedSimple","RiggedFigure","CesiumMan","InterpolationTest","Avocado"}){
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[2];std::vector<GLuint> owned;
+  Renderer r;r.scene.objects.clear();int ids[2];std::vector<GLuint> owned;
   for(int mode=0;mode<2;mode++){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;a.lod=std::string(name).find("MetalRoughSpheres")==std::string::npos;assert(loadModelFile(std::string(name)=="Avocado"?"assets/Avocado.glb":std::string("assets/samples/")+name+"/"+name+".glb",a));
    auto cpu=a.primitives;auto picks=a.pickTriangles;uploadModel(a);ids[mode]=int(r.scene.assets.size());assert(a.pickTriangles.size()==picks.size());
@@ -114,7 +114,7 @@ int main(int argc,char **argv){
  }
  size_t coplanarChanges=0;
  for(int alpha:{0,1}){
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[2];
+  Renderer r;r.scene.objects.clear();int ids[2];
   for(int mode=0;mode<2;mode++){
    ModelAsset a;a.pbr=true;a.lod=false;a.optimizeVertexCache=mode;a.primitives.emplace_back();auto &p=a.primitives[0];
    p.materialUnlit=true;p.doubleSided=true;p.alphaMode=alpha;p.width=2;p.height=1;p.rgba={255,0,0,255,0,0,255,255};p.baseMinFilter=p.baseMagFilter=GL_NEAREST;
@@ -184,7 +184,7 @@ int main(int argc,char **argv){
  std::printf("PASS production PBR indexing: %zu exact stereo/LOD/depth/pose views, %zu indexed primitives, original CPU inputs, blend/animation fallback, allocation rollback, shared snapshots/reload and cleanup\n",views,indexed);
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();int ids[3];
+  Renderer r;r.scene.objects.clear();int ids[3];
   for(int mode=0;mode<3;mode++){setenv("SF_PBR_LOD_INDEXED",mode==2?"0":"1",1);r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=mode;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment&&a.environment->upload());ids[mode]=int(r.scene.assets.size());}
   unsetenv("SF_PBR_LOD_INDEXED");
   assert(r.pbrProgram.init()&&r.depthPbrProgram.init(true));

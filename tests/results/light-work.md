@@ -1,5 +1,9 @@
 # Light range-selection optimization
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Steam Frame ARM64, 2026-10-29. The user confirmed the headset was awake and worn
 for profiling. All comparisons are offscreen EGL/GLES; no OpenVR overlays or
 pointer capture. Shadows were explicitly deferred in the roadmap.

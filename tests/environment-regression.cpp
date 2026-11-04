@@ -26,7 +26,7 @@ int main(int argc,char **argv){
  }
 
  {
-  Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;
+  Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;
   assert(loadModelFile("assets/samples/Box/Box.glb",a));uploadModel(a);a.lighting.intensity=0;a.lighting.ambient=0;
   auto &p=a.primitives[0];p.metallic=1;p.roughness=.045f;p.factor[0]=p.factor[1]=p.factor[2]=.8f;
   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.6f;o.yaw=.3f;o.pitch=.2f;r.scene.objects={o};
@@ -78,7 +78,7 @@ int main(int argc,char **argv){
  if(argc>1&&std::string(argv[1])=="--benchmark"){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{1,16}){
-   Renderer r;r.ordinaryRouting=false;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment(path);asset.lighting.environment=path;assert(asset.environment&&asset.environment->upload());std::vector<int> members;
+   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment(path);asset.lighting.environment=path;assert(asset.environment&&asset.environment->upload());std::vector<int> members;
    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
    for(int stage=0;stage<4;stage++){
     asset.lighting.environmentIntensity=stage==1||stage==2?1:0;double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);

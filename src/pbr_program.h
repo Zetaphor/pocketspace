@@ -4,19 +4,13 @@
 #include <cmath>
 #include <map>
 #include <string>
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-#include "../tests/light-work-reference.h"
-#endif
-#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
-#include "../tests/directional-light-reference.h"
-#endif
 // A separate program keeps legacy shaders, storage and their fast paths intact.
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
  mutable bool sheenTexturesBound=false,shadowBound=false;
-#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
- bool originalLightLoop=false;
+#ifdef SF_TEST_HOOKS
+ const char *testLightLoop=nullptr; // Replaces the point/spot loop for reference pixels.
 #endif
  mutable int pointCount=-1;
  mutable std::array<float,104> pointPayload{};
@@ -29,35 +23,17 @@ class PbrProgram {
  void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
  void integer(const char *name,int v)const{glUniform1i(location(name),v);}
 public:
-#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
- bool initLightReference(bool depth=false){originalLightLoop=true;return init(depth);}
+#ifdef SF_TEST_HOOKS
+ bool initWithLightLoop(const char *loop,bool depth=false){testLightLoop=loop;return init(depth);}
 #endif
  bool initVariant(int key){return init(false
-#ifdef SF_LIGHT_WORK_EXPERIMENT
- ,false
-#endif
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
- ,false
-#endif
-#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
- ,false
-#endif
  ,key);}
  GLuint id()const{return program;}
-#ifdef SF_PBR_VARIANT_EXPERIMENT
+#ifdef SF_TEST_HOOKS
  GLuint experimentId()const{return program;}
 #endif
  ~PbrProgram(){if(program)glDeleteProgram(program);}
  bool init(bool fastDepth=false
-#ifdef SF_LIGHT_WORK_EXPERIMENT
- ,bool optimizeLightWork=false
-#endif
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
- ,bool prepareRotation=false
-#endif
-#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
- ,bool reuseLightInvariants=false
-#endif
  ,int variantKey=-1
  ){
   if(program)return true;
@@ -81,18 +57,6 @@ vec3 rotateSurface(vec3 v){
   litNormal=rotateSurface(surfaceNormal);litTangent=rotateSurface(surfaceTangent.xyz);tangentSign=surfaceTangent.w;mapUV=surfaceUV;
   vec3 v=eye-world;litView=vec3(dot(v,right),dot(v,up),-dot(v,forward));
 )");
-#ifdef SF_PBR_TRANSFORM_EXPERIMENT
-  if(prepareRotation){
-   const std::string signature="vec3 rotateSurface(vec3 v){";
-   vertex.replace(vertex.find(signature),signature.size(),"vec3 rotateSurface(vec3 v,float cr,float sr,float cp,float sp,float cy,float sy){");
-   const std::string trig="float cr=cos(roll),sr=sin(roll),cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);";
-   vertex.erase(vertex.find(trig),trig.size()); // Keep the identical computation in main.
-   for(const char *input:{"surfaceNormal","surfaceTangent.xyz"}){
-    const std::string from=std::string("rotateSurface(")+input+")";
-    vertex.replace(vertex.find(from),from.size(),std::string("rotateSurface(")+input+",cr,sr,cp,sp,cy,sy)");
-   }
-  }
-#endif
   const char *fragment=R"(#version 300 es
 precision highp float;
 in vec2 t;in highp vec2 mapUV;in highp vec3 litNormal,litTangent,litView,litPosition;in highp float tangentSign;
@@ -267,8 +231,8 @@ void main(){
 })";
   auto compileShader=[](GLenum kind,const char *text){GLuint shader=glCreateShader(kind);glShaderSource(shader,1,&text,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(shader,sizeof(log),nullptr,log);std::fprintf(stderr,"[pbr] %s\n",log);glDeleteShader(shader);return GLuint(0);}return shader;};
   std::string fragmentSource=fragment;
-#ifdef SF_DIRECTIONAL_LIGHT_VALIDATION
-  if(originalLightLoop){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,directionalLightReferenceLoop);}
+#ifdef SF_TEST_HOOKS
+  if(testLightLoop){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,testLightLoop);}
 #endif
   if(variantKey>=0){
    const std::string flags="uniform bool hasNormal,hasMetalRough,hasOcclusion,hasEmissive,materialUnlit,doubleSided;";
@@ -280,21 +244,6 @@ void main(){
    specialize("uniform int alphaMode;","const int alphaMode="+std::to_string((variantKey>>7)&3)+";");
    specialize("uniform int pointLightCount;","const int pointLightCount="+std::to_string((variantKey>>9)&15)+";");
   }
-#ifdef SF_PBR_LIGHT_INVARIANT_EXPERIMENT
-  if(reuseLightInvariants){
-   const std::string expression="sqrt(nv*nv*(1.-a2)+a2)";
-   size_t at=0;while((at=fragmentSource.find(expression,at))!=std::string::npos){fragmentSource.replace(at,expression.size(),"viewVisibilityRoot");at+=18;}
-   const std::string marker="  float visibility=";
-   fragmentSource.insert(fragmentSource.find(marker),"  float viewVisibilityRoot="+expression+";\n");
-   const std::string diffuse="vec3 diffuse=(1.-f)*(1.-metal)*base.rgb/PI;";
-   fragmentSource.replace(fragmentSource.find(diffuse),diffuse.size(),"vec3 materialDiffuse=(1.-metal)*base.rgb/PI;vec3 diffuse=(1.-f)*materialDiffuse;");
-   const std::string lightDiffuse="(1.-pf)*(1.-metal)*base.rgb/PI";
-   fragmentSource.replace(fragmentSource.find(lightDiffuse),lightDiffuse.size(),"(1.-pf)*materialDiffuse");
-  }
-#endif
-#ifdef SF_LIGHT_WORK_EXPERIMENT
-  if(optimizeLightWork){const auto first=fragmentSource.find("  for(int i=0;i<8;i++){");const auto last=fragmentSource.find("  if(environmentEnabled){",first);fragmentSource.replace(first,last-first,rejectedLightLoop);}
-#endif
   if(fastDepth){
     const std::string slopeCondition="shadowLightIndex>=0?shadowReceiverSlope():vec2(0)";
     fragmentSource.replace(fragmentSource.find(slopeCondition),slopeCondition.size(),"(!depthOnly&&shadowLightIndex>=0)?shadowReceiverSlope():vec2(0)");

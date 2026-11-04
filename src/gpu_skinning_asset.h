@@ -26,7 +26,7 @@ static void prepareSkinAsset(ModelAsset &asset){
  }
 }
 static void skinPoseBounds(const ModelAsset &asset,ModelPose &pose){
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
  const auto start=AnimationProfileClock::now();
 #endif
  for(int a=0;a<3;a++){pose.geometry.low[a]=std::numeric_limits<float>::max();pose.geometry.high[a]=-std::numeric_limits<float>::max();}
@@ -46,12 +46,12 @@ static void skinPoseBounds(const ModelAsset &asset,ModelPose &pose){
   const float p=std::max(std::abs(pose.geometry.low[a]),std::abs(pose.geometry.high[a]));pose.radius+=p*p;
  }
  pose.radius=std::sqrt(pose.radius);
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
  if(animationProfileFrame)animationProfileFrame->deformBoundsMs+=animationProfileMs(start);
 #endif
 }
 static void uploadSkinPose(ModelPose &pose){
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
  const auto start=AnimationProfileClock::now();if(animationProfileFrame)animationProfileFrame->uploads++;
 #endif
  pose.skinTextures.resize(pose.palettes.size());glActiveTexture(GL_TEXTURE1);
@@ -59,12 +59,12 @@ static void uploadSkinPose(ModelPose &pose){
   const auto &palette=pose.palettes[s];auto &texture=pose.skinTextures[s];
   if(!texture){glGenTextures(1,&texture);glBindTexture(GL_TEXTURE_2D,texture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA32F,4,GLsizei(palette.size()),0,GL_RGBA,GL_FLOAT,palette.data());}
   else{glBindTexture(GL_TEXTURE_2D,texture);glTexSubImage2D(GL_TEXTURE_2D,0,0,0,4,GLsizei(palette.size()),GL_RGBA,GL_FLOAT,palette.data());}
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   if(animationProfileFrame)animationProfileFrame->uploadBytes+=palette.size()*sizeof(animation::Matrix);
 #endif
  }
  glActiveTexture(GL_TEXTURE0);pose.dirty=false;
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
  if(animationProfileFrame)animationProfileFrame->uploadMs+=animationProfileMs(start);
 #endif
 }

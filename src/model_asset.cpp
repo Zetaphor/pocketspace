@@ -205,7 +205,7 @@ static bool sameRigidMaterial(const PrimitiveAsset &a,const PrimitiveAsset &b){
  return a.untextured&&b.untextured&&a.alphaMode!=2&&a.alphaMode==b.alphaMode&&a.alphaCutoff==b.alphaCutoff&&a.doubleSided==b.doubleSided&&std::equal(a.factor,a.factor+4,b.factor)&&std::equal(a.sheen,a.sheen+3,b.sheen);
 }
 bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primitive){
-#if defined(SF_RIGID_BATCH_EXPERIMENT) || defined(SF_RIGID_BATCH_COUNTERS)
+#ifdef SF_TEST_HOOKS
  ++rigidBatchStats.draws;
 #endif
  if(!rigidBatchEnabled||!asset.rigidBatchEligible||pose.gpuSkin||!pose.geometry.batchVbo)return false;
@@ -217,7 +217,7 @@ bool drawRigidBatch(const ModelAsset &asset,const ModelPose &pose,size_t &primit
  glBindBuffer(GL_ARRAY_BUFFER,pose.geometry.batchVbo);
  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
  glDrawArrays(GL_TRIANGLES,first,count);
-#if defined(SF_RIGID_BATCH_EXPERIMENT) || defined(SF_RIGID_BATCH_COUNTERS)
+#ifdef SF_TEST_HOOKS
  rigidBatchStats.mergedParts+=end-primitive;
 #endif
  primitive=end-1;return true;
@@ -271,9 +271,6 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
 }
 static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::Indexed &indexed){
   if(!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300)return;
-#ifdef SF_MODEL_LOD_EXPERIMENT
-  if(std::getenv("SF_GPU_MODEL_LOD"))return;
-#endif
   const float weights[2]={.1f,.1f};const size_t vertices=indexed.vertices.size()/5;
   for(int level=0;level<2;level++){
     std::vector<uint32_t> reduced(indexed.indices.size());float error=0;const size_t target=indexed.indices.size()/(level==0?2:4)/3*3;
@@ -289,26 +286,12 @@ static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::I
     lod.count=GLsizei(count);lod.error=error;
   }
 }
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-static void prepareVertexArrays(const PrimitiveAsset &part){
- if(part.vertexArrays[0]||!part.vbo)return;
- GLint previous=0,arrayBuffer=0;glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&previous);glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&arrayBuffer);
- for(int level=0;level<3;level++){
-  if(level&&!part.lod[level-1].indexBuffer)continue;
-  glGenVertexArrays(1,&part.vertexArrays[level]);glBindVertexArray(part.vertexArrays[level]);
-  glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
-  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer?modelIndexBuffer(part,level):0);
- }
- glBindVertexArray(GLuint(previous));glBindBuffer(GL_ARRAY_BUFFER,GLuint(arrayBuffer));
-}
-#endif
 // Static PBR indexing keeps every shader input in vertex identity and requires
 // cache ordering; plain indexing measured slower.
 static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
   if(!asset.pbr||!asset.optimizeVertexCache||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode==2)return false;
   constexpr bool reorder=true;
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
   if(pbrIndexValidation::failCpu)throw std::bad_alloc();
 #endif
   std::vector<float> combined;combined.reserve(size_t(part.vertexCount)*14);
@@ -331,7 +314,7 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
   }
   GLuint positionBuffer=0,surfaceBuffer=0,indexBuffer=0;bool published=false;
   ScopeExit rollback{[&]{if(!published){for(GLuint buffer:{positionBuffer,surfaceBuffer,indexBuffer})if(buffer){glDeleteBuffers(1,&buffer);
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
     ++pbrIndexValidation::rejectedBuffers;pbrIndexValidation::rollbackClean&=!glIsBuffer(buffer);
 #endif
   }}}};
@@ -340,16 +323,16 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
     GLint allocated=0;glGetBufferParameteriv(target,GL_BUFFER_SIZE,&allocated);return allocated>=0&&uint64_t(allocated)==bytes;
   };
   if(!upload(positionBuffer,GL_ARRAY_BUFFER,positions.data(),positions.size()*sizeof(float)))return false;
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
   if(pbrIndexValidation::failStage==0)return false;
 #endif
   if(!upload(surfaceBuffer,GL_ARRAY_BUFFER,surface.data(),surface.size()*sizeof(float)))return false;
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
   if(pbrIndexValidation::failStage==1)return false;
 #endif
   if(type==GL_UNSIGNED_SHORT){std::vector<uint16_t> packed(indexed.indices.begin(),indexed.indices.end());if(!upload(indexBuffer,GL_ELEMENT_ARRAY_BUFFER,packed.data(),packed.size()*sizeof(uint16_t)))return false;}
   else if(!upload(indexBuffer,GL_ELEMENT_ARRAY_BUFFER,indexed.indices.data(),indexed.indices.size()*sizeof(uint32_t)))return false;
-#ifdef SF_PBR_INDEX_VALIDATION
+#ifdef SF_TEST_HOOKS
   if(pbrIndexValidation::failStage==2)return false;
 #endif
   part.vbo=positionBuffer;part.surfaceVbo=surfaceBuffer;part.indexBuffer=indexBuffer;
@@ -368,19 +351,12 @@ void uploadModel(ModelAsset &asset){
     part.indexType=unique<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
     const size_t indexSize=part.indexType==GL_UNSIGNED_SHORT?sizeof(uint16_t):sizeof(uint32_t);
     if(!asset.pbr&&indexed.vertices.size()*sizeof(float)+size_t(part.vertexCount)*indexSize<part.vertices.size()*sizeof(float)){
-#ifdef SF_MODEL_LOD_EXPERIMENT
-      lodExperiment::simplify(asset,part,indexed);
-#endif
       // Reorder complete oriented triangles only. Blend order and CPU-deformed
       // streams keep their original order; all CPU geometry remains unchanged.
       if(asset.optimizeVertexCache&&!asset.hasAnimation&&!asset.hasSkin&&part.alphaMode!=2&&indexed.indices.size()%3==0){
         meshopt_optimizeVertexCache(indexed.indices.data(),indexed.indices.data(),indexed.indices.size(),unique);
         meshopt_optimizeVertexFetch(indexed.vertices.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,5*sizeof(float));
       }
-#ifdef SF_MODEL_LOD_EXPERIMENT
-      // Retain the original index capacity for matched allocation comparisons.
-      indexed.indices.resize(size_t(part.vertexCount),0);
-#endif
       glBufferData(GL_ARRAY_BUFFER,indexed.vertices.size()*sizeof(float),indexed.vertices.data(),GL_STATIC_DRAW);
       part.gpuVertexCount=GLsizei(unique);
       glGenBuffers(1,&part.indexBuffer);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.indexBuffer);
@@ -416,49 +392,26 @@ void uploadModel(ModelAsset &asset){
     glGenBuffers(1,&part.skinVbo);glBindBuffer(GL_ARRAY_BUFFER,part.skinVbo);glBufferData(GL_ARRAY_BUFFER,part.skinVertices.size()*sizeof(float),part.skinVertices.data(),GL_STATIC_DRAW);
     glGenBuffers(1,&part.skinIbo);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,part.skinIndices.size()*sizeof(uint32_t),part.skinIndices.data(),GL_STATIC_DRAW);
   }
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-  for(const auto &part:asset.primitives)prepareVertexArrays(part);
-#endif
   asset.uploaded=true;
 }
 void deleteModel(ModelAsset &asset){
   if(asset.batchVbo)glDeleteBuffers(1,&asset.batchVbo);asset.batchVbo=0;asset.batchBytes=0;
   for(auto &part:asset.primitives){
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-    glDeleteVertexArrays(3,part.vertexArrays);std::fill_n(part.vertexArrays,3,0);
-#endif
     if(part.surfaceVbo)glDeleteBuffers(1,&part.surfaceVbo);part.surfaceVbo=0;
     for(auto &map:part.maps){if(map.texture)glDeleteTextures(1,&map.texture);map.texture=0;}
     if(part.skinVbo)glDeleteBuffers(1,&part.skinVbo);if(part.skinIbo)glDeleteBuffers(1,&part.skinIbo);part.skinVbo=part.skinIbo=0;
-#ifdef SF_MODEL_LOD_EXPERIMENT
-    lodExperiment::results.erase(&part);
-#endif
     for(auto &lod:part.lod){if(lod.indexBuffer)glDeleteBuffers(1,&lod.indexBuffer);if(lod.vbo)glDeleteBuffers(1,&lod.vbo);if(lod.surfaceVbo)glDeleteBuffers(1,&lod.surfaceVbo);pbrLodBudget.release(lod.budgetBytes);lod={};}
     if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
   asset.uploaded=false;
 }
 
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel,const PrimitiveAsset *deformed){
-#else
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo,int lodLevel){
-#endif
   if(!expandedVbo)if(const auto *lod=modelLodLevel(part,lodLevel);lod&&lod->vbo){
     glBindBuffer(GL_ARRAY_BUFFER,lod->vbo);
     glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
     if(lod->indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,lod->indexBuffer);glDrawElements(GL_TRIANGLES,lod->count,lod->indexType,nullptr);}
     else glDrawArrays(GL_TRIANGLES,0,lod->count);return;
   }
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-  const auto *owner=expandedVbo?deformed:&part;
-  const int level=!expandedVbo&&modelLodLevel(part,lodLevel)?lodLevel:0;
-  if(vertexArrayCachingEnabled&&owner&&owner->vertexArrays[level]&&(!expandedVbo||owner->vbo==expandedVbo)){
-    glBindVertexArray(owner->vertexArrays[level]);
-    if(!expandedVbo&&part.indexBuffer)glDrawElements(GL_TRIANGLES,modelDrawVertexCount(part,lodLevel),part.indexType,nullptr);
-    else glDrawArrays(GL_TRIANGLES,0,part.vertexCount);
-    glBindVertexArray(0);return;
-  }
-#endif
   glBindBuffer(GL_ARRAY_BUFFER,expandedVbo?expandedVbo:part.vbo);
   glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);
   glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
@@ -473,9 +426,6 @@ void drawPosePrimitive(const PrimitiveAsset &source,const ModelPose &pose,size_t
   glDrawArrays(GL_TRIANGLES,pose.parts[primitive].streamFirst,source.vertexCount);return;
  }
  drawModelPrimitive(source,pose.geometry.primitives[primitive].vbo,0
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-   ,&pose.geometry.primitives[primitive]
-#endif
  );
 }
 
@@ -490,7 +440,7 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
     pose.geometry.rigidBatchEligible=asset.rigidBatchEligible;pose.geometry.pbr=asset.pbr;
     pose.geometry.pickTriangles=asset.pickTriangles;pose.geometry.pickNodes=asset.pickNodes;
   }
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   const auto profileDeformStart=AnimationProfileClock::now();
 #endif
   pose.parts.resize(asset.primitives.size());bool changed=false;
@@ -516,25 +466,25 @@ static void deformPose(const ModelAsset &asset,ModelPose &pose){
     }
       if(asset.pbr)deformSurface(source,target,matrix,source.skin>=0?&pose.palettes[source.skin]:nullptr,pose.nodes[source.node].weights);
       cache.world=matrix;cache.valid=true;
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
       if(animationProfileFrame)animationProfileFrame->vertices+=source.localVertices.size()/5;
 #endif
     }
     pose.radius=std::max(pose.radius,cache.radius);
     for(int axis=0;axis<3;axis++){pose.geometry.low[axis]=std::min(pose.geometry.low[axis],cache.low[axis]);pose.geometry.high[axis]=std::max(pose.geometry.high[axis],cache.high[axis]);}
   }
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   if(animationProfileFrame)animationProfileFrame->deformBoundsMs+=animationProfileMs(profileDeformStart);
   const auto profileBvhStart=AnimationProfileClock::now();
 #endif
   if(changed)picking::refit(pose.geometry);
   pose.dirty=std::any_of(pose.parts.begin(),pose.parts.end(),[](const auto &part){return part.uploadDirty;});
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   if(animationProfileFrame)animationProfileFrame->bvhMs+=animationProfileMs(profileBvhStart);
 #endif
 }
 void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose){
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   const auto profilePoseStart=AnimationProfileClock::now();
 #endif
   animation::evaluateNodes(asset.nodes,asset.animations[state.clip],state.time,pose.nodes);
@@ -545,22 +495,19 @@ void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,
   }
   animation::worldMatrices(pose.nodes,asset.nodeOrder,pose.world);
   animation::palettes(asset.skins,pose.world,pose.palettes);
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   if(animationProfileFrame){animationProfileFrame->poseMs+=animationProfileMs(profilePoseStart);animationProfileFrame->evaluations++;}
 
 #endif
   pose.gpuSkin=asset.skinEligible&&gpuSkinningEnabled;pose.pickingValid=false;
   if(pose.gpuSkin){skinPoseBounds(asset,pose);pose.dirty=true;return;}
   deformPose(asset,pose);
-#ifdef SF_GPU_SKIN_EXPERIMENT
-  if(asset.skinEligible)skinPoseBounds(asset,pose); // matched comparison layout
-#endif
 }
 
 void uploadModelPose(ModelPose &pose){
   if(!pose.dirty)return;
   if(pose.gpuSkin){uploadSkinPose(pose);return;}
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   const auto profileUploadStart=AnimationProfileClock::now();
   if(animationProfileFrame)animationProfileFrame->uploads++;
 #endif
@@ -574,7 +521,7 @@ void uploadModelPose(ModelPose &pose){
     auto &part=pose.geometry.primitives[i];auto &cache=pose.parts[i];
     const auto offset=byteOffset;byteOffset+=part.vertices.size()*sizeof(float);cache.streamFirst=GLint(offset/(5*sizeof(float)));
     if(cache.valid&&!cache.uploadDirty&&(pose.geometry.batchVbo||part.vbo))continue;
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
     if(animationProfileFrame)animationProfileFrame->uploadBytes+=part.vertices.size()*sizeof(float);
 #endif
     if(pose.geometry.batchVbo){
@@ -583,15 +530,12 @@ void uploadModelPose(ModelPose &pose){
       part.gpuVertexCount=part.vertexCount;
       if(!part.vbo){glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_DYNAMIC_DRAW);}
       else{glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glBufferSubData(GL_ARRAY_BUFFER,0,part.vertices.size()*sizeof(float),part.vertices.data());}
-#ifdef SF_VERTEX_ARRAY_EXPERIMENT
-      prepareVertexArrays(part);
-#endif
     }
     if(pose.geometry.pbr)uploadSurface(part,GL_DYNAMIC_DRAW);
     cache.uploadDirty=false;
   }
   pose.dirty=false;
-#ifdef SF_ANIMATION_PROFILE
+#ifdef SF_TEST_HOOKS
   if(animationProfileFrame)animationProfileFrame->uploadMs+=animationProfileMs(profileUploadStart);
 #endif
 }

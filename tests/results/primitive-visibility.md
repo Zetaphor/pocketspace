@@ -1,5 +1,9 @@
 # Conservative primitive occluder visibility
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 The test-only candidate preserves the checked pixels and removes some submitted
 occluder triangles, but shows no consistent throughput benefit on the moving
 ToyCar/Avocado workload. It is **not enabled in production**. Production retains

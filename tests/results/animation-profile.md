@@ -1,5 +1,9 @@
 # Animated-model CPU and upload profiling
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 using engine commit `f023134`.
 The excluded `animation-profile-experiment` target uses the normal engine,
 rendering, picking, bounds and upload paths with additional CPU timers. Normal

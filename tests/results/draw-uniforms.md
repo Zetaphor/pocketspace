@@ -1,5 +1,9 @@
 # Pass-local draw uniform caching
 
+> Some targets, tests, runners or scenes used for this report were removed in
+> commit `REMOVAL_COMMIT`. Recover one with `git show REMOVAL_COMMIT^:<path>`; see
+> [removed experiments](../index.md#removed-experiments).
+
 Measured on Steam Frame on 2026-10-28 at `2648ec5`. This experiment is complete
 and does not justify production adoption. Normal rendering keeps its original
 uniform submissions; cache code and counters compile only into the excluded
