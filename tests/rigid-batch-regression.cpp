@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 int main(){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  size_t views=0;

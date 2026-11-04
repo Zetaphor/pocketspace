@@ -1,6 +1,5 @@
 // Native light-space depth, alpha silhouettes, animation and budget/GL lifetimes.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 static size_t darker(const std::vector<unsigned char> &lit,const std::vector<unsigned char> &shadow){size_t count=0;assert(lit.size()==shadow.size());for(size_t i=0;i<lit.size();i+=4){if(lit[i+3]!=shadow[i+3]){fprintf(stderr,"alpha mismatch pixel=%zu lit=%d shadow=%d error=%x status=%s\n",i/4,int(lit[i+3]),int(shadow[i+3]),glGetError(),spotShadowDiagnostics.status);assert(false);}if(lit[i+3]&&int(lit[i])+lit[i+1]+lit[i+2]>int(shadow[i])+shadow[i+1]+shadow[i+2]+12)++count;}return count;}
 int main(int argc,char **argv){
  const std::string mode=argc>1?argv[1]:"";

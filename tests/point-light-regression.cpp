@@ -1,6 +1,5 @@
 // Real GLES point-light pixels, script mutation/cleanup and transactional snapshots.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 static uint64_t brightness(const std::vector<unsigned char> &image){uint64_t sum=0;for(size_t i=0;i<image.size();i+=4)sum+=image[i]+image[i+1]+image[i+2];return sum;}
 static void sameAlpha(const std::vector<unsigned char> &a,const std::vector<unsigned char> &b){assert(a.size()==b.size());for(size_t i=3;i<a.size();i+=4)assert(a[i]==b[i]);}
 int main(int argc,char **argv){

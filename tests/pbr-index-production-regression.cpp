@@ -1,6 +1,5 @@
 // Production static PBR indexing: exact pixels, exact reconstructed streams and rollback.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static uint64_t geometryBytes(const ModelAsset &asset){
  uint64_t bytes=0;

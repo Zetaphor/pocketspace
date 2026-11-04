@@ -1,6 +1,5 @@
 // Scene directional pixels, typed APIs, ownership and staged v10 persistence.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static uint64_t brightness(const std::vector<unsigned char> &image){uint64_t sum=0;for(size_t i=0;i<image.size();i+=4)sum+=image[i]+image[i+1]+image[i+2];return sum;}
 static void nearPixels(const std::vector<unsigned char>& a,const std::vector<unsigned char>& b){assert(a.size()==b.size());for(size_t i=0;i<a.size();i++)assert(std::abs(int(a[i])-int(b[i]))<=(i%4==3?0:1));}

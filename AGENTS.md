@@ -59,10 +59,12 @@ Run `cmake -S . -B <build-directory>` again before building newly added targets.
   build and run only the focused targets and run the full check once before
   committing.
 - Engine regressions link one shared copy of the engine built with
-  `SF_TEST_HOOKS`. Do not add targets that compile their own copy of the engine
-  or compile-time experiment switches. Put test-only fault injection, counters and
-  reference shaders behind `SF_TEST_HOOKS`, and remove an experiment once its
-  outcome is recorded; Git keeps the code.
+  `SF_TEST_HOOKS`; GLES regressions also link the shared
+  `tests/render_harness.cpp` rather than including it. Do not add targets that
+  compile their own copy of the engine or compile-time experiment switches. Put
+  test-only fault injection, counters and reference shaders behind
+  `SF_TEST_HOOKS`, and remove an experiment once its outcome is recorded; Git
+  keeps the code.
 - Run checks appropriate to the change. Exercise meaningful failure cases and
   resource cleanup when changing lifecycle, persistence, input, or ownership.
 - Distinguish automated correctness, measured performance, and user-confirmed

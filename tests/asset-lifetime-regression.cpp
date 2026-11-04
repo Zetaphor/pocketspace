@@ -1,6 +1,5 @@
 // Actual GPU deletion, stable asset IDs and nested ownership/save rollback.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 int main(){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
  const auto dir=std::filesystem::temp_directory_path()/("ps-assets-"+std::to_string(getpid()));std::filesystem::create_directory(dir);scenePersistence::directory=dir.string();ScopeExit cleanup{[&]{std::filesystem::remove_all(dir);}};

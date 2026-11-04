@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include "../src/model_lod.h"
 static std::vector<unsigned char> read(GLenum target,GLuint buffer,size_t bytes){
   glBindBuffer(target,buffer);void *p=glMapBufferRange(target,0,bytes,GL_MAP_READ_BIT);assert(p);std::vector<unsigned char> result(bytes);std::memcpy(result.data(),p,bytes);assert(glUnmapBuffer(target));return result;

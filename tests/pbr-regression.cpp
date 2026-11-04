@@ -1,6 +1,5 @@
 // Import, real GLES rendering, API failures and transactional persistence; no VR session.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include "../src/surface_frame.h"
 int main(){
  using namespace surfaceFrame;

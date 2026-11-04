@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 static void state(Renderer &r){
   GLint value=0;glGetIntegerv(GL_CURRENT_PROGRAM,&value);assert(GLuint(value)==r.program);
   for(GLuint attribute:{2u,3u,4u}){

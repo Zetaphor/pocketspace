@@ -1,6 +1,5 @@
 // Two independent scenes with the same local object ID render offscreen.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 
 int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;

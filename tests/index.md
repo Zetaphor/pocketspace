@@ -43,6 +43,7 @@ performance experiments are separate from correctness and visual acceptance.
 | [projected-bounds-regression.cpp](projected-bounds-regression.cpp) | Cached scene projection bounds compared with the original calculation. |
 | [render-group-split-regression.cpp](render-group-split-regression.cpp) | Subdivision, merging, rebalancing, allocation budgets, planner stability, and API validation. |
 | [render-occlusion-regression.cpp](render-occlusion-regression.cpp) | Actual GLES pixels for occlusion, materials, stereo views, grouping, and optimized mesh upload; no OpenVR session. |
+| [render_harness.h](render_harness.h), [render_harness.cpp](render_harness.cpp) | Offscreen stereo `Renderer` shared by the GLES regressions through production render paths; compiled once and linked by each. |
 | [runtime-stats-regression.cpp](runtime-stats-regression.cpp) | CPU stat parsing, sampling cadence, FPS, CPU usage, and resident memory. |
 | [scene-lookup-regression.cpp](scene-lookup-regression.cpp) | Object lookup with missing IDs, erasures, vector growth, and scene replacement. |
 | [skinning-loader-regression.py](skinning-loader-regression.py) | Generated valid and malformed skin GLBs passed to the real animation/loader regression. |

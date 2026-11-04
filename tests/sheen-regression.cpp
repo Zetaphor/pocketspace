@@ -1,6 +1,5 @@
 // Sheen import, independently integrated BRDF energy and actual GLES pixels.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static double linear(double x){x/=255;return x<=.04045?x/12.92:std::pow((x+.055)/1.055,2.4);}
 static int delta(const std::vector<unsigned char> &a,const std::vector<unsigned char> &b){int d=0;assert(a.size()==b.size());for(size_t i=0;i<a.size();i++)d=std::max(d,std::abs(int(a[i])-int(b[i])));return d;}

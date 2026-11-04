@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static size_t covered(const std::vector<unsigned char> &image){size_t n=0;for(size_t i=3;i<image.size();i+=4)n+=image[i]!=0;return n;}
 int main(int argc,char **argv){

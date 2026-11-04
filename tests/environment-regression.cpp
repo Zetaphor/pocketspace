@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static size_t lightPixels(const std::vector<unsigned char> &image){size_t n=0;for(size_t i=0;i<image.size();i+=4)n+=image[i]+image[i+1]+image[i+2]>30&&image[i+3]>0;return n;}
 int main(int argc,char **argv){

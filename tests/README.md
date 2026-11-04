@@ -27,7 +27,9 @@ shared test engine objects stay optimized, and so does
 multiply-add instructions optimized ARM64 builds use. Pass
 target names to run only those. Engine regressions share one copy of the engine
 compiled with test hooks (`SF_TEST_HOOKS`): fault injection, counters and reference
-shaders that production builds do not contain. Logs go to `build-test/regression-logs`. Measurements and profiling
+shaders that production builds do not contain. The GLES regressions also share one
+compiled offscreen renderer (`tests/render_harness.cpp`), and the fast-tree
+regressions reuse one precompiled `src/render_host.h`. Logs go to `build-test/regression-logs`. Measurements and profiling
 runs belong in the optimized `build` tree.
 
 It uses one compile job and runs one regression at a time, because regressions share

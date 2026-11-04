@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 static void assertSame(Renderer &r,const std::vector<int> &members,physics::Vec3 head,int eye){
  r.fastPbrDepth=true;auto candidate=r.renderSet(members,head,eye,0,true,1,true);

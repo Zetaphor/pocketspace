@@ -4,6 +4,14 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 endif()
+# Reuse compiler output across build trees and clean rebuilds when ccache is on PATH.
+# base_dir makes paths inside the checkout relative so separate build trees share
+# entries; sloppiness lets it cache sources that use the shared precompiled header.
+find_program(SF_CCACHE ccache)
+if(SF_CCACHE AND NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER)
+  set(CMAKE_CXX_COMPILER_LAUNCHER ${SF_CCACHE} base_dir=${CMAKE_SOURCE_DIR}
+    sloppiness=pch_defines,time_macros,include_file_mtime,include_file_ctime)
+endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(native-resource-key-regression EXCLUDE_FROM_ALL tests/native-resource-key-regression.cpp)
@@ -64,23 +72,36 @@ sf_engine_target(pocketspace)
 
 # Regressions keep their assertions even in a Release build. Test hooks change
 # engine types, so every target linking the test objects defines them too.
-foreach(test animation-blend-regression animation-regression asset-lifetime-regression auto-lod-regression
-    control-regression culling-regression directional-light-regression environment-regression event-bus-regression
-    examples-regression gpu-skinning-regression instancing-regression lifecycle-script-regression light-work-regression
-    morph-regression multi-script-lifecycle-regression multi-script-render-regression pbr-depth-regression
-    pbr-index-production-regression pbr-lod-regression pbr-regression physics-api-regression point-light-regression
-    render-occlusion-regression rigid-batch-regression scene-container-regression scene-persistence-regression
-    script-recovery-regression sheen-regression spot-shadow-regression spotlight-cone-regression spotlight-regression
-    pbr-cost-profile render-stress-benchmark)
+function(sf_engine_test target)
+  target_compile_definitions(${target} PRIVATE SF_TEST_HOOKS=1)
+  target_compile_options(${target} PRIVATE -UNDEBUG)
+  sf_engine_target(${target})
+endfunction()
+# The offscreen renderer shared by the GLES regressions, compiled once.
+add_library(render-harness OBJECT EXCLUDE_FROM_ALL tests/render_harness.cpp)
+sf_engine_test(render-harness)
+# Engine headers parsed once; targets with the same flags reuse the result.
+add_library(sf-test-pch OBJECT EXCLUDE_FROM_ALL tests/test_pch.cpp)
+sf_engine_test(sf-test-pch)
+target_precompile_headers(sf-test-pch PRIVATE src/render_host.h)
+set(SF_HARNESS_TESTS directional-light-regression environment-regression instancing-regression light-work-regression
+    multi-script-render-regression pbr-depth-regression pbr-index-production-regression pbr-lod-regression pbr-regression
+    point-light-regression render-occlusion-regression rigid-batch-regression sheen-regression spot-shadow-regression
+    spotlight-cone-regression spotlight-regression asset-lifetime-regression auto-lod-regression culling-regression
+    pbr-cost-profile)
+foreach(test ${SF_HARNESS_TESTS} animation-blend-regression animation-regression control-regression event-bus-regression
+    examples-regression gpu-skinning-regression lifecycle-script-regression morph-regression multi-script-lifecycle-regression
+    physics-api-regression scene-container-regression scene-persistence-regression script-recovery-regression
+    projected-bounds-regression panel-submission-regression render-group-split-regression render-stress-benchmark)
   add_executable(${test} EXCLUDE_FROM_ALL tests/${test}.cpp $<TARGET_OBJECTS:pocketspace-test-objects>)
-  target_compile_definitions(${test} PRIVATE SF_TEST_HOOKS=1)
-  target_compile_options(${test} PRIVATE -UNDEBUG)
-  sf_engine_target(${test})
-endforeach()
-# These check production objects directly.
-foreach(test projected-bounds-regression panel-submission-regression render-group-split-regression)
-  add_executable(${test} EXCLUDE_FROM_ALL tests/${test}.cpp $<TARGET_OBJECTS:pocketspace-objects>)
-  sf_engine_target(${test})
+  if(test IN_LIST SF_HARNESS_TESTS)
+    target_sources(${test} PRIVATE $<TARGET_OBJECTS:render-harness>)
+  endif()
+  sf_engine_test(${test})
+  # Fast-tree regressions share the -O0 header; the others keep their own flags.
+  if(test MATCHES "-regression$" AND NOT test STREQUAL "pbr-index-production-regression")
+    target_precompile_headers(${test} REUSE_FROM sf-test-pch)
+  endif()
 endforeach()
 add_executable(input-arbitration-regression EXCLUDE_FROM_ALL tests/input-arbitration-regression.cpp)
 target_compile_options(input-arbitration-regression PRIVATE -UNDEBUG)
@@ -97,6 +118,7 @@ if(SF_FAST_TESTS)
       target_compile_options(${sf_target} PRIVATE -O0)
     endif()
   endforeach()
+  target_compile_options(sf-test-pch PRIVATE -O0)
   # The shared test engine stays optimized: it is compiled once, and the exact
   # pixel checks in pbr-index-production-regression need its optimized arithmetic.
 endif()

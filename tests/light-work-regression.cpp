@@ -1,6 +1,5 @@
 // Compare per-object light range selection against the full light loop.
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 static void populate(Renderer &r,const char *path,int count){
  r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);
  asset.lighting.intensity=.3;asset.lighting.ambient=.04;

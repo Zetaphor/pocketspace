@@ -1,5 +1,4 @@
-#define SF_OCCLUSION_HELPERS_ONLY
-#include "render-occlusion-regression.cpp"
+#include "render_harness.h"
 #include <GLES2/gl2ext.h>
 #include "../src/pbr_lod.h"
 static std::vector<float> readFloats(GLuint buffer,size_t count){
