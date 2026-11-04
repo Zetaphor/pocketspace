@@ -36,4 +36,4 @@ At the Step 0 audit, the CLI accepted one positional script path and defaulted t
 
 ## Verification boundary
 
-The Step 0 Sigma baseline uses `SF_BUILD_ENGINE=OFF` for `runtime-stats-regression`, `scene-lookup-regression`, `lifecycle-input-regression`, and `physics-regression`, plus documentation lint and site build. This does not link the OpenVR engine or show headset behavior. The one-script on-device FPS/memory baseline remains pending until an active headset is available; collect it before comparing two-script runtime cost in Step 2.
+The Step 0 headless baseline uses `SF_BUILD_ENGINE=OFF` for `runtime-stats-regression`, `scene-lookup-regression`, `lifecycle-input-regression`, and `physics-regression`, plus documentation lint and site build. This does not link the OpenVR engine or show headset behavior. The one-script on-device FPS/memory baseline remains pending until an active headset is available; collect it before comparing two-script runtime cost in Step 2.

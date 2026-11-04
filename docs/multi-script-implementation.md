@@ -8,30 +8,30 @@ Work from Step 0 through Step 12, with Step 7a between Steps 7 and 8. Finish a s
 
 Begin with Step 0. At the end of each step, report the changed files, exact checks and outcomes, and any evidence still needed. Use the next step's checklist as the next work item; do not start several broad steps in one change.
 
-Use `/home/zetaphor/Code/pocketspace` on **Sigma** for source edits, documentation, and headset-free checks. Sync reviewed commits to `/home/steamos/Code/pocketspace` on **Deckard**; build the ARM64 engine and run SteamVR/headset checks there. Before syncing, compare commit IDs and check both worktrees. Do not overwrite uncommitted Deckard work. On-device noninteractive tests must not capture pointer input. Check for an existing demo before launching; stop the test demo and verify exit when finished. See [AGENTS.md](../AGENTS.md) for the full workflow.
+Work in `/home/steamos/Code/pocketspace` on **Deckard**: edit, build the ARM64 engine, and run SteamVR/headset checks there. Do not overwrite uncommitted work. On-device noninteractive tests must not capture pointer input. Check for an existing demo before launching; stop the test demo and verify exit when finished. See [AGENTS.md](../AGENTS.md) for the full workflow.
 
-For the first baseline on Sigma, configure the already verified headless build and run the narrow tests:
+The Step 0 baseline used the headless build and the narrow tests:
 
 ```sh
-cmake -S . -B build-sigma -G Ninja -DSF_BUILD_ENGINE=OFF
-cmake --build build-sigma --target runtime-stats-regression scene-lookup-regression lifecycle-input-regression physics-regression -j4
-./build-sigma/runtime-stats-regression
-./build-sigma/scene-lookup-regression
-./build-sigma/lifecycle-input-regression
-./build-sigma/physics-regression
+cmake -S . -B build-headless -DSF_BUILD_ENGINE=OFF
+cmake --build build-headless --target runtime-stats-regression scene-lookup-regression lifecycle-input-regression physics-regression -j1
+./build-headless/runtime-stats-regression
+./build-headless/scene-lookup-regression
+./build-headless/lifecycle-input-regression
+./build-headless/physics-regression
 python3 tools/lint-docs.py
 npm ci && npm run docs:build
 ```
 
-The headless tree cannot prove the full engine links or renders. For engine changes, sync the reviewed commit and use `cmake -S . -B build` followed by `cmake --build build -j1` on Deckard. Build only the relevant excluded regression targets as needed. Do not run an interactive headset scene until the headset is available for validation.
+The headless tree cannot prove the full engine links or renders. For engine changes, use `cmake -S . -B build` followed by `cmake --build build -j1`. Build only the relevant excluded regression targets as needed. Do not run an interactive headset scene until the headset is available for validation.
 
-At every code step: run focused regressions, `python3 tools/lint-docs.py` when API/docs/examples change, and `git diff --check`. Run `npm run docs:build` on Sigma for site content or navigation changes. Build new CMake targets after reconfiguring the appropriate build tree. Do not add tests that only repeat the implementation; test failure, cleanup, and competing-instance cases.
+At every code step: run focused regressions, `python3 tools/lint-docs.py` when API/docs/examples change, and `git diff --check`. Run `npm run docs:build` for site content or navigation changes. Build new CMake targets after reconfiguring the appropriate build tree. Do not add tests that only repeat the implementation; test failure, cleanup, and competing-instance cases.
 
-Record each completed step in a small table here with commit, Sigma checks, Deckard build/checks where required, and any outstanding headset observation. An unchecked step is not complete. The terminal state is a clean, pushed branch with the whole approved behavior verified.
+Record each completed step in a small table here with commit, headless and documentation checks, Deckard build/checks where required, and any outstanding headset observation. An unchecked step is not complete. The terminal state is a clean, pushed branch with the whole approved behavior verified.
 
 ## Step 0 — Baseline and ownership inventory
 
-- [x] Confirm Sigma and Deckard start at the same clean commit (`c5e5369`). Record the current one-script CLI behavior and baseline headless regressions.
+- [x] Confirm the work starts at a clean commit (`c5e5369`). Record the current one-script CLI behavior and baseline headless regressions.
 - [x] Inventory process-global `Scene` pointers, `JSContext`/callback state, `frame_input::Monitor` queues, controller snapshots, hover/grab/pointer state, surface and panel overlay maps/keys, render caches, shadow state, statistics, and `scenePersistence::directory`. The findings are in the [ownership inventory](multi-script-ownership.md).
 - [x] Classify engine-shared and per-instance state, identify local-ID collisions and the lifecycle paths that must remain isolated in the ownership inventory.
 - [x] Add [left](../tests/scenes/multi-script-left.js) and [right](../tests/scenes/multi-script-right.js) fixtures with object and panel ID `1` and the same top-level names. Both pass JavaScript syntax checks; concurrent runtime loading waits for Step 1.
@@ -77,7 +77,7 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 **Step 3 headset closeout (2026-11-01):** With both scripts running, the user turned one controller off and on; the connected hand kept grabbing and the reconnected hand resumed grabbing. While both boxes were held, touching only the blue fixture triggered its automatic reload. The user confirmed blue reset, orange stayed held and movable, and both boxes could be grabbed again after release. The engine logged instance 1 scene reset, two scenes and surfaces at 90.0 FPS with GL error zero, completed 11,895 frames, and exited with grouped buffer usage zero. No Pocketspace process remained.
 
-**Automated closeout checks:** The multi-script lifecycle regression now verifies that disconnect clears only the affected hand's queued events, reconnect resumes delivery to both scenes, stopping a held owner releases only its native resources and interaction state, and a callback can remove its own object and panel without changing the other scene. The production frame loop clears each script's affected hand queue on controller disconnect. On Deckard, the engine and focused regression targets build; `multi-script-lifecycle-regression`, `input-arbitration-regression`, `lifecycle-input-regression`, `scene-container-regression`, and `panel-submission-regression` pass. Sigma's `lifecycle-input-regression` and grab-button regression pass.
+**Automated closeout checks:** The multi-script lifecycle regression now verifies that disconnect clears only the affected hand's queued events, reconnect resumes delivery to both scenes, stopping a held owner releases only its native resources and interaction state, and a callback can remove its own object and panel without changing the other scene. The production frame loop clears each script's affected hand queue on controller disconnect. On Deckard, the engine and focused regression targets build; `multi-script-lifecycle-regression`, `input-arbitration-regression`, `lifecycle-input-regression`, `scene-container-regression`, and `panel-submission-regression` pass. The headless `lifecycle-input-regression` and grab-button regression pass.
 
 - [x] Sample tracking and raw controller input once per frame. Fan out independent event queues and dispatch callbacks only to their owning instance.
 - [x] Arbitrate model targets across instances by closest hit and stable instance ID for equal distances. Retain a held object's owner; route native panel pointer events to their overlay owner.
@@ -95,7 +95,7 @@ The pure comparator regression covers closest hit, stable ties, order independen
 
 **Controller ray change (2026-11-01):** Step 4's headset run exposed two input defects from Step 3. The model picker treated a miss (`FLT_MAX`) as a valid target, so grabbing with nothing under the ray selected the lowest-ID box. Panels also used a separate SteamVR pointer, so the drawn laser passed through them. The engine laser is now the only panel pointer, with one closest-hit ray per hand; `input-arbitration-regression` covers the miss, panel selection, pixel mapping, hover and press capture. The user confirmed in the headset that the drawn laser clicks panels, the overlap clicks only blue, panel clicks and empty-space presses grab nothing, both boxes grab with trigger and grip, and two boxes move independently. That run reached 90.0 FPS with two scenes and GL error zero, logged no script stops, and exited with grouped buffer usage zero and no process left. Model surfaces remain native SteamVR overlays.
 
-**Final checks:** On Sigma: `native-resource-key`, `native-scene-resources`, `runtime-stats`, `scene-lookup`, `lifecycle-input`, `physics`, `physics-collision`, and `physics-joint` regressions, `grab-buttons-regression.py`, `picking-regression.py`, docs lint, and the site build pass. On Deckard: the ARM64 engine and `input-arbitration`, `scene-persistence`, `examples`, `environment`, `spotlight`, `point-light`, `directional-light`, `pbr`, `animation-blend`, `spot-shadow`, `asset-lifetime`, `multi-script-lifecycle`, `lifecycle-script`, `lifecycle-input`, `scene-container`, `panel-submission`, and `native-resource-key` regressions pass. Noninteractive `scene-persistence.py` in all four modes and `container-lifecycle.py` pass, with no script stops or surviving engine process. The remaining engine-based CMake targets were not rebuilt against this code; Step 11 runs the full set.
+**Final checks:** Headless: `native-resource-key`, `native-scene-resources`, `runtime-stats`, `scene-lookup`, `lifecycle-input`, `physics`, `physics-collision`, and `physics-joint` regressions, `grab-buttons-regression.py`, `picking-regression.py`, docs lint, and the site build pass. On Deckard: the ARM64 engine and `input-arbitration`, `scene-persistence`, `examples`, `environment`, `spotlight`, `point-light`, `directional-light`, `pbr`, `animation-blend`, `spot-shadow`, `asset-lifetime`, `multi-script-lifecycle`, `lifecycle-script`, `lifecycle-input`, `scene-container`, `panel-submission`, and `native-resource-key` regressions pass. Noninteractive `scene-persistence.py` in all four modes and `container-lifecycle.py` pass, with no script stops or surviving engine process. The remaining engine-based CMake targets were not rebuilt against this code; Step 11 runs the full set.
 
 - [x] Scope `saveSceneContainer`/`loadSceneContainer` under a stable key derived from the script's canonical catalog path; use `scratch/` for instance `0`. Retain `--scene-state-dir` as the root and current save-name validation.
 - [x] Add explicit cross-script import from a stable catalog key. Read detached snapshot data and restore through the existing staged path with fresh IDs. Reject traversal, symlink escapes, malformed content, and missing source files.
@@ -185,7 +185,7 @@ Follow-up `32839bf` (build time only, no production code change): the GLES regre
 
 - [ ] Update `docs/architecture.md`, `docs/lifecycle.md`, `docs/javascript-api.md`, `docs/scene-persistence.md`, `docs/getting-started.md`, `docs/agent-handoff.md`, the test index, and the smallest useful examples. Keep these pages descriptive of shipped behavior, and remove completed work from `docs/remaining-work.md`.
 - [ ] Run focused native regressions plus `lifecycle-script-regression`, `lifecycle-input-regression`, `scene-persistence-regression`, `scene-container-regression`, `examples-regression`, physics and render checks affected by ownership changes. Record exact commands and results, not only test names.
-- [ ] Run documentation lint and site build on Sigma. Build production ARM64 engine on Deckard with the documented CMake configuration; run a bounded two-script noninteractive soak, then obtain headset acceptance for dashboard, interaction arbitration, and rendering. Keep automated, measured, and user-observed evidence separate.
+- [ ] Run documentation lint and site build. Build production ARM64 engine on Deckard with the documented CMake configuration; run a bounded two-script noninteractive soak, then obtain headset acceptance for dashboard, interaction arbitration, and rendering. Keep automated, measured, and user-observed evidence separate.
 - [ ] Confirm graceful teardown leaves no demo process, leaked overlays, or stale control socket. Check clean Git status, review the diff, commit focused changes, and push when requested.
 
 **Exit gate:** all approved behavior in the design plan is implemented and verified, with any remaining limitation recorded explicitly.
@@ -194,7 +194,7 @@ Follow-up `32839bf` (build time only, no production code change): the GLES regre
 
 Fill in this table as work progresses. Do not mark a step complete from a passing build alone.
 
-| Step | Commit | Sigma checks | Deckard checks | Remaining evidence |
+| Step | Commit | Headless and docs checks | Deckard checks | Remaining evidence |
 | --- | --- | --- | --- | --- |
 | 0 | Step 0 ownership-audit commit | Four headless regressions, fixture syntax, docs lint/site build pass | Matched one-scene baseline recorded in Step 2 | None |
 | 1 | Step 1 headless-registry commit | Fixture syntax, docs lint/site build pass | ARM64 production/new lifecycle targets build; new, old lifecycle, examples regressions and non-VR model inspect pass | Production frame loop in Step 2; scratch context in Step 8; event routing in Step 3 |
