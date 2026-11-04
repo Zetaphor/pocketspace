@@ -23,7 +23,7 @@ python3 tools/lint-docs.py
 npm ci && npm run docs:build
 ```
 
-The headless tree cannot prove the full engine links or renders. For engine changes, sync the reviewed commit and use `cmake -S . -B build` followed by `cmake --build build -j2` on Deckard. Build only the relevant excluded regression targets as needed. Do not run an interactive headset scene until the headset is available for validation.
+The headless tree cannot prove the full engine links or renders. For engine changes, sync the reviewed commit and use `cmake -S . -B build` followed by `cmake --build build -j1` on Deckard. Build only the relevant excluded regression targets as needed. Do not run an interactive headset scene until the headset is available for validation.
 
 At every code step: run focused regressions, `python3 tools/lint-docs.py` when API/docs/examples change, and `git diff --check`. Run `npm run docs:build` on Sigma for site content or navigation changes. Build new CMake targets after reconfiguring the appropriate build tree. Do not add tests that only repeat the implementation; test failure, cleanup, and competing-instance cases.
 

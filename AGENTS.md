@@ -43,13 +43,14 @@ The default build targets Steam Frame's ARM64 environment:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2
+cmake --build build -j1
 ```
 
-For another host, override `SDK_INCLUDE`, `QJS_INCLUDE`, `QJS_LIB`, and
-`STEAMVR_BIN` as described in the getting-started guide. Reuse an appropriate
-configured build directory; do not assume the local workstation has the headset
-dependencies.
+Use one compile job and run one regression at a time on Steam Frame; parallel
+work alongside SteamVR has crashed the headset. For another host, override
+`SDK_INCLUDE`, `QJS_INCLUDE`, `QJS_LIB`, and `STEAMVR_BIN` as described in the
+getting-started guide. Reuse an appropriate configured build directory; do not
+assume the local workstation has the headset dependencies.
 Run `cmake -S . -B <build-directory>` again before building newly added targets.
 
 - Regression targets are generally excluded from the default build. Build the

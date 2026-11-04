@@ -6,7 +6,7 @@ still produces the same pixels. It repeats the allocation and cleanup cycle
 three times without opening SteamVR or capturing input:
 
 ```sh
-cmake --build build --target multi-script-render-regression -j2
+cmake --build build --target multi-script-render-regression -j1
 EGL_PLATFORM=surfaceless ./build/multi-script-render-regression
 ```
 
@@ -14,16 +14,16 @@ The shared controller target comparator is a headless test of distance,
 stable instance ties, and invalid hit rejection:
 
 ```sh
-cmake --build build --target input-arbitration-regression -j2
+cmake --build build --target input-arbitration-regression -j1
 ./build/input-arbitration-regression
 ```
 
 ## Running regressions
 
 `python3 tools/run-regressions.py` builds and runs every regression declared in
-`CMakeLists.txt` in `build-test`, a separate tree that compiles regression sources
-at `-O0` with assertions on. The physics regressions in `cmake/Physics.cmake` are
-not discovered; build and run them by name. The shared test engine objects stay
+`CMakeLists.txt` and `cmake/*.cmake` in `build-test`, a separate tree that compiles
+regression sources at `-O0` with assertions on. `physics-performance-regression`
+is a measurement and runs by name. The shared test engine objects stay
 optimized, and so does `pbr-index-production-regression`, whose exact-pixel
 comparison depends on the fused multiply-add instructions optimized ARM64 builds
 use. Pass target names to run only those. Logs go to `build-test/regression-logs`.
@@ -226,7 +226,7 @@ ownership, rotated anchors, indexed/nonindexed geometry, deformation fallback,
 and cache behavior without a graphics context.
 
 ```sh
-cmake --build build --target instancing-regression lifecycle-script-regression -j2
+cmake --build build --target instancing-regression lifecycle-script-regression -j1
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
   ./build/instancing-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
@@ -250,7 +250,7 @@ at every level, mixed-level barriers and actual buffer deletion. The lifecycle
 API harness runs `lod-api-smoke.js` for strict boolean parsing and cache rules.
 
 ```sh
-cmake --build build --target auto-lod-regression pocketspace -j2
+cmake --build build --target auto-lod-regression pocketspace -j1
 DISPLAY=:0 EGL_PLATFORM=x11 ./build/auto-lod-regression
 python3 tests/instancing-lifecycle.py --lod --output /tmp/auto-lod-reload
 python3 tests/compare-auto-lod.py --output /tmp/auto-lod-performance
@@ -274,7 +274,7 @@ callback ownership. Individual removals and repeated container/scene lifetimes
 use the same cleanup paths. The fixture is `scene-container-api-smoke.js`.
 
 ```sh
-cmake --build build --target scene-container-regression pocketspace -j2
+cmake --build build --target scene-container-regression pocketspace -j1
 ./build/scene-container-regression
 python3 tests/container-lifecycle.py --output /tmp/scene-container-lifecycle
 ```
@@ -293,7 +293,7 @@ See the [public API](../docs/scene-containers.md) and final
 Build `morph-regression` with the normal engine dependencies, then run:
 
 ```sh
-cmake --build build --target morph-regression -j2
+cmake --build build --target morph-regression -j1
 python3 tests/morph-loader-regression.py ./build/morph-regression
 ```
 
@@ -306,7 +306,7 @@ Run `./run-pocketspace.sh --scripts-dir scripts --launch morph.js` for headset v
 ## Raw controller subscription recovery
 
 ```sh
-cmake --build build --target lifecycle-input-regression -j2
+cmake --build build --target lifecycle-input-regression -j1
 ./build/lifecycle-input-regression
 ```
 
@@ -321,7 +321,7 @@ check because connection recovery cancels existing holds.
 ## Animation transition regression
 
 ```sh
-cmake --build build --target animation-blend-regression -j2
+cmake --build build --target animation-blend-regression -j1
 ./build/animation-blend-regression
 ```
 
@@ -339,7 +339,7 @@ continuous interrupted transition. Grip or trigger grabs each model.
 ## Animation profile regression
 
 ```sh
-cmake --build build --target animation-profile-regression -j2
+cmake --build build --target animation-profile-regression -j1
 EGL_PLATFORM=surfaceless ./build/animation-profile-regression
 ```
 
@@ -355,7 +355,7 @@ regression explicitly:
 
 ```sh
 cmake -S . -B build
-cmake --build build --target gpu-skinning-regression -j2
+cmake --build build --target gpu-skinning-regression -j1
 EGL_PLATFORM=surfaceless python3 tests/skinning-loader-regression.py ./build/gpu-skinning-regression
 ```
 
@@ -485,7 +485,7 @@ GLES context; no OpenVR session or controller interaction is required:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target pbr-regression
+cmake --build build -j1 --target pbr-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-regression
 ```
 
@@ -582,7 +582,7 @@ the repository root with the normal GLES environment:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target pbr-depth-regression
+cmake --build build -j1 --target pbr-depth-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-depth-regression
 ```
 
@@ -611,7 +611,7 @@ rollback. Failure injection is a test hook compiled only into regression targets
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target pbr-index-production-regression
+cmake --build build -j1 --target pbr-index-production-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/pbr-index-production-regression
 ```
 
@@ -678,7 +678,7 @@ Build and run the real GLES and script regression from the repository root:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target point-light-regression
+cmake --build build -j1 --target point-light-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/point-light-regression
 ```
 
@@ -709,7 +709,7 @@ regression. It opens no OpenVR session and captures no pointer input:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target spotlight-regression point-light-regression
+cmake --build build -j1 --target spotlight-regression point-light-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/spotlight-regression
 ```
 
@@ -738,7 +738,7 @@ lights. It opens no overlays and captures no input:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target light-work-regression
+cmake --build build -j1 --target light-work-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/light-work-regression
 ```
 
@@ -763,7 +763,7 @@ real GLES without opening an OpenVR session or capturing input:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target spotlight-cone-regression
+cmake --build build -j1 --target spotlight-cone-regression
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 ./build/spotlight-cone-regression
 ```
 
@@ -805,7 +805,7 @@ Build the excluded `pbr-cost-profile` target after reconfiguring CMake:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2 --target pbr-cost-profile
+cmake --build build -j1 --target pbr-cost-profile
 DISPLAY=:0 EGL_PLATFORM=x11 LD_LIBRARY_PATH=/opt/steamvr/bin/linuxarm64 \
   ./build/pbr-cost-profile
 ```

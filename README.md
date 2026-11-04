@@ -40,7 +40,7 @@ With the dependencies installed and SteamVR running:
 
 ```sh
 cmake -S . -B build
-cmake --build build -j2
+cmake --build build -j1
 ./run-pocketspace.sh --scripts-dir scripts --launch grabbing.js
 ```
 

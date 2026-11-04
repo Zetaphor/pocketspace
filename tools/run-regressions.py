@@ -21,7 +21,7 @@ WRAPPERS = {'morph-regression': 'tests/morph-loader-regression.py',
 
 
 def discover():
-    text = (ROOT / 'CMakeLists.txt').read_text()
+    text = '\n'.join(path.read_text() for path in [ROOT / 'CMakeLists.txt', *sorted((ROOT / 'cmake').glob('*.cmake'))])
     # Targets are declared one per add_executable or in foreach lists.
     targets = set(re.findall(r'\b([\w-]+-regression)\b', text)) - EXCLUDED
     return sorted(targets)
