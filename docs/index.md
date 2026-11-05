@@ -4,6 +4,9 @@ hero:
   name: Pocketspace
   text: Build AR in VR.
   tagline: A JavaScript platform for games, tools, toys and experiences that live alongside the SteamVR apps you already use.
+  image:
+    src: /shortcut_icon_512x512.png
+    alt: Pocketspace
   actions:
     - theme: brand
       text: Get started
@@ -38,6 +41,8 @@ features:
     linkText: Keep your creations
 
 ---
+
+![Pocketspace: a portal and floating tools in a virtual space](/library_header_920x430.png)
 
 ## Your ideas, added to virtual reality.
 

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitepress'
 import { posix } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const repository = 'https://github.com/Zetaphor/pocketspace'
 export default defineConfig({
@@ -7,9 +8,19 @@ export default defineConfig({
   description: 'Build interactive VR tools in JavaScript: workspaces, control panels and hands-on scenes alongside your SteamVR apps.',
   base: '/pocketspace/',
   lang: 'en-US',
+  head: [
+    ['link', { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/pocketspace/shortcut_icon_512x512.png' }],
+    ['link', { rel: 'apple-touch-icon', href: '/pocketspace/shortcut_icon_512x512.png' }],
+    // Link previews when the documentation is shared.
+    ['meta', { property: 'og:image', content: 'https://zetaphor.github.io/pocketspace/library_header_920x430.png' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }]
+  ],
+  // The branding images in assets/branding are the site's static files.
+  vite: { publicDir: fileURLToPath(new URL('../../assets/branding', import.meta.url)) },
   lastUpdated: true,
   themeConfig: {
     siteTitle: 'Pocketspace',
+    logo: '/shortcut_icon_512x512.png',
     nav: [
       { text: 'Get started', link: '/getting-started' },
       { text: 'Examples', link: '/examples' },

@@ -117,7 +117,8 @@ stop scripts, watch for errors, or try JavaScript live in the scratch scene with
 
 In the headset, the **Pocketspace** tab in the SteamVR dashboard starts the engine
 and launches, stops and reloads scripts. `tools/install-user-service.sh` installs
-it with the engine service. See [SteamVR dashboard](dashboard.md).
+it with the engine service, and `tools/install-steam-shortcut.py` adds Pocketspace
+to the Steam library with its art. See [SteamVR dashboard](dashboard.md).
 
 ## Existing installations
 

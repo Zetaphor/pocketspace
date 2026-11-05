@@ -7,7 +7,6 @@
 #include <GLES3/gl3.h>
 #include <openvr.h>
 #include <csignal>
-#include <fstream>
 #include <sys/wait.h>
 #include <thread>
 
@@ -15,7 +14,13 @@ namespace {
 volatile sig_atomic_t stopping=0;
 void onSignal(int){stopping=1;}
 
-constexpr const char *appKey="com.pocketspace.dashboard";
+constexpr const char *tabKey="pocketspace.dashboard";
+
+// The checkout's branding images: the binary runs from <checkout>/build.
+std::filesystem::path branding(const char *file){
+  std::error_code ec;const auto executable=std::filesystem::read_symlink("/proc/self/exe",ec);
+  return ec?std::filesystem::path():executable.parent_path().parent_path()/"assets/branding"/file;
+}
 
 // Asks systemd to start or stop the engine's user service without waiting for it.
 std::string engineService(const char *action){
@@ -62,44 +67,16 @@ struct Gl {
   }
 };
 
-// Registers the dashboard with SteamVR so it is listed as an application, with
-// auto-launch off: the systemd unit is the only thing that starts it.
-void registerApplication(){
-  const char *home=std::getenv("HOME");
-  std::error_code ec;const auto executable=std::filesystem::read_symlink("/proc/self/exe",ec);
-  if(!home||ec){std::fprintf(stderr,"[dashboard] cannot register with SteamVR: no HOME or executable path\n");return;}
-  const auto directory=std::filesystem::path(home)/".local/share/pocketspace";
-  std::filesystem::create_directories(directory,ec);
-  const auto manifest=directory/"pocketspace-dashboard.vrmanifest";
-  {
-    std::ofstream out(manifest,std::ios::trunc);
-    out<<"{\"source\":\"user\",\"applications\":[{\"app_key\":"<<control::quote(appKey)<<",\"launch_type\":\"binary\","
-       <<"\"binary_path_linux\":"<<control::quote(executable.string())<<",\"binary_path_linux_arm\":"<<control::quote(executable.string())<<","
-       <<"\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Pocketspace\",\"description\":\"Start the engine and manage scripts\"}}}]}\n";
-    if(!out){std::fprintf(stderr,"[dashboard] cannot write %s\n",manifest.c_str());return;}
-  }
-  auto *apps=vr::VRApplications();
-  const auto added=apps->AddApplicationManifest(manifest.c_str(),false);
-  const auto launch=apps->SetApplicationAutoLaunch(appKey,false);
-  const auto identified=apps->IdentifyApplication(getpid(),appKey);
-  if(added!=vr::VRApplicationError_None||launch!=vr::VRApplicationError_None||identified!=vr::VRApplicationError_None)
-    std::fprintf(stderr,"[dashboard] SteamVR registration incomplete: manifest=%d autolaunch=%d identify=%d\n",int(added),int(launch),int(identified));
-}
-
-// The tab's icon: the product initials on the accent color.
-void drawThumbnail(Canvas &c){
-  canvasClear(c,86,156,255,255);
-  const int w=canvasTextWidth(c,"PS",120);
-  canvasText(c,(c.width-std::max(0,w))/2,(c.height-150)/2,"PS",22,24,29,255,120);
-}
 }
 
 int main(int argc,char **argv){
   std::filesystem::path socket=control::defaultSocketPath();
+  bool show=false;
   for(int i=1;i<argc;i++){
     const std::string arg=argv[i];
     if(arg=="--control-socket"&&i+1<argc)socket=argv[++i];
-    else if(arg=="-h"||arg=="--help"){std::printf("Usage: pocketspace-dashboard [--control-socket PATH]\n");return 0;}
+    else if(arg=="--show")show=true;
+    else if(arg=="-h"||arg=="--help"){std::printf("Usage: pocketspace-dashboard [--show] [--control-socket PATH]\n  --show  open the tab, in the running dashboard if there is one\n");return 0;}
     else{std::fprintf(stderr,"unknown argument %s\n",arg.c_str());return 2;}
   }
   std::signal(SIGINT,onSignal);std::signal(SIGTERM,onSignal);std::signal(SIGPIPE,SIG_IGN);
@@ -115,10 +92,15 @@ int main(int argc,char **argv){
     std::fprintf(stderr,"[dashboard] SteamVR is not running (%s); exiting\n",vr::VR_GetVRInitErrorAsEnglishDescription(initError));
     return 3;
   }
-  registerApplication();
   auto *overlays=vr::VROverlay();
   vr::VROverlayHandle_t tab=vr::k_ulOverlayHandleInvalid,thumbnail=vr::k_ulOverlayHandleInvalid;
-  const auto created=overlays->CreateDashboardOverlay("pocketspace.dashboard","Pocketspace",&tab,&thumbnail);
+  // A library launch while the dashboard already runs only opens its tab.
+  if(show&&overlays->FindOverlay(tabKey,&tab)==vr::VROverlayError_None){
+    overlays->ShowDashboard(tabKey);
+    std::fprintf(stdout,"[dashboard] already running; opened its tab\n");
+    vr::VR_Shutdown();return 0;
+  }
+  const auto created=overlays->CreateDashboardOverlay(tabKey,"Pocketspace",&tab,&thumbnail);
   if(created!=vr::VROverlayError_None){
     std::fprintf(stderr,"[dashboard] cannot create the dashboard tab (%s); another dashboard may be running\n",overlays->GetOverlayErrorNameFromEnum(created));
     vr::VR_Shutdown();return 4;
@@ -129,8 +111,9 @@ int main(int argc,char **argv){
   overlays->SetOverlayMouseScale(tab,&scale);
   // GL textures start at the bottom row; the canvas starts at the top.
   vr::VRTextureBounds_t bounds{0,1,1,0};overlays->SetOverlayTextureBounds(tab,&bounds);
-  Canvas icon;canvasInit(icon,256,256,"");drawThumbnail(icon);
-  overlays->SetOverlayRaw(thumbnail,icon.rgba.data(),uint32_t(icon.width),uint32_t(icon.height),4);
+  const auto icon=branding("shortcut_icon_512x512.png");
+  if(const auto error=overlays->SetOverlayFromFile(thumbnail,icon.c_str());error!=vr::VROverlayError_None)
+    std::fprintf(stderr,"[dashboard] cannot load the tab icon %s (%s)\n",icon.c_str(),overlays->GetOverlayErrorNameFromEnum(error));
 
   dashboard::Dashboard board(socket,{[]{return engineService("start");},[]{return engineService("stop");}});
   Canvas canvas;canvasInit(canvas,dashboard::width,dashboard::height,"");
@@ -141,6 +124,7 @@ int main(int argc,char **argv){
   gl.upload(canvas);
   {vr::Texture_t texture{reinterpret_cast<void*>(static_cast<uintptr_t>(gl.texture)),vr::TextureType_OpenGL,vr::ColorSpace_Gamma};overlays->SetOverlayTexture(tab,&texture);}
   std::fprintf(stdout,"[dashboard] tab ready\n");std::fflush(stdout);
+  if(show)overlays->ShowDashboard(tabKey);
   bool running=true;
   while(running&&!stopping){
     vr::VREvent_t event{};

@@ -590,8 +590,10 @@ See [fabric API and example](lighting-api.md#fabric-sheen) and the
 
 ## Pocketspace file and overlay identifiers
 
-The engine's SteamVR application key is `com.pocketspace.app` and the dashboard's
-is `com.pocketspace.dashboard`. Native overlay keys start with `pocketspace.`; the
+The engine's SteamVR application key is `com.pocketspace.app`. It registers that
+manifest, named "Pocketspace Engine", only while it runs, for its controller
+actions, so it never stays in the Steam library. The library entry is a Steam
+shortcut that opens the dashboard; the dashboard registers no manifest. Native overlay keys start with `pocketspace.`; the
 dashboard tab is `pocketspace.dashboard`. Scene saves use the `pocketspace` state
 directory and format string.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted

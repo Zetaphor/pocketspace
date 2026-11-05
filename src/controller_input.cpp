@@ -27,11 +27,13 @@ bool Input::init(const std::string &root,const std::string &executable){
   if(!app)return false;
   app<<"{\"source\":\"user\",\"applications\":[{\"app_key\":\"com.pocketspace.app\",\"launch_type\":\"binary\",\"binary_path_linux_arm\":\""
      <<fs::absolute(executable).string()<<"\",\"action_manifest_path\":\""<<actionPath
-     <<"\",\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Pocketspace\"}}}]}\n";
+     <<"\",\"is_dashboard_overlay\":true,\"strings\":{\"en_us\":{\"name\":\"Pocketspace Engine\"}}}]}\n";
   app.close();
   auto *apps=vr::VRApplications();auto *input=vr::VRInput();
   if(!apps||!input)return false;
-  auto ae=apps->AddApplicationManifest(appPath.c_str(),false);
+  // Temporary: the engine needs an application identity for its controller actions,
+  // but the library entry belongs to the dashboard, so nothing is kept after exit.
+  auto ae=apps->AddApplicationManifest(appPath.c_str(),true);
   auto id=apps->IdentifyApplication(getpid(),"com.pocketspace.app");
   auto me=input->SetActionManifestPath(actionPath.c_str());
   if(ae!=vr::VRApplicationError_None||id!=vr::VRApplicationError_None||me!=vr::VRInputError_None){

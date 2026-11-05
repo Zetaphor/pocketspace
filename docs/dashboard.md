@@ -17,11 +17,25 @@ systemctl --user restart pocketspace-dashboard.service   # start it in a running
 journalctl --user -u pocketspace-dashboard.service       # its log
 ```
 
-At start the dashboard registers
-`~/.local/share/pocketspace/pocketspace-dashboard.vrmanifest` with SteamVR as
-`com.pocketspace.dashboard`, then turns SteamVR's auto-launch for it off, so the
-systemd unit is the only thing that starts it. SteamVR then lists it as an
-application.
+The tab's dashboard icon is `assets/branding/shortcut_icon_512x512.png`.
+
+### Steam library entry
+
+`tools/install-steam-shortcut.py` adds **Pocketspace** to the Steam library as a VR
+shortcut, with the capsule, header, hero, logo and icon from `assets/branding`:
+
+```sh
+python3 tools/install-steam-shortcut.py            # add, or update the art and launch settings
+python3 tools/install-steam-shortcut.py --remove   # remove it
+```
+
+It works through Steam's own client API while Steam runs, so the entry appears
+at once without restarting Steam; it needs Steam's CEF debugger on
+`127.0.0.1:8080`, which SteamOS enables. It adds the shortcut to the signed-in
+account. Pressing Play runs `pocketspace-dashboard --show`: if the dashboard is
+already running, that opens its tab and exits; otherwise it starts the dashboard
+and opens the tab. The dashboard registers no SteamVR application manifest, so
+this shortcut is its only library entry.
 
 The dashboard attaches only to a SteamVR session that is already running. It never
 starts SteamVR: the unit uses `Requisite=` rather than `Requires=` or `BindsTo=`, and the

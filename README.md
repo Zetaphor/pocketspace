@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/library_header_920x430.png" alt="Pocketspace: a portal and floating tools in a virtual space" width="920">
+</p>
+
 # Pocketspace
 
 **Build games, tools, toys and experiences. AR in VR, powered by JavaScript.**
