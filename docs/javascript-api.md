@@ -14,7 +14,7 @@ Start with a complete model-loading scene: [avocado.js](../scripts/avocado.js).
 
 ## Engine statistics
 
-`getEngineStats()` returns the latest cached, process-wide sample and current-scene physics timings. Process counters are
+`getEngineStats()` returns the latest cached, process-wide sample and the calling script's scene counts and physics timings. Process counters are
 sampled roughly once per second; querying does not read `/proc` or synchronize
 the GPU. Scene counts are current at the time of the query.
 
@@ -32,7 +32,7 @@ the GPU. Scene counts are current at the time of the query.
 | `physicsActiveBodies` | Active rigid bodies after the latest advance. |
 | `physicsWorkers` | Additional worker threads used by the latest advance; zero when no step ran. |
 | `sampleSeconds` | Elapsed seconds covered by the latest sample; zero before sampling. |
-| `objectCount`, `panelCount` | Current scene counts, including hidden instances. |
+| `objectCount`, `panelCount` | The calling script's scene counts, including hidden instances. |
 
 FPS, CPU, RAM, and memory estimates are `null` until sampled. Unavailable measured
 counters remain `null`. The GPU estimate excludes driver/compositor overhead,
@@ -49,8 +49,8 @@ Run [stress.js](../scripts/stress.js) for colored, grabbable physics boxes and a
 statistics panel including solver time, active bodies, and worker count. Either bumper adds one object; A or X adds five; B or Y clears
 the spawned objects. The scene starts with four boxes and caps at 51 spawned boxes.
 Spawning stops on a creation error and displays the reason on the HUD; clear or
-remove objects to free resources before trying again. The engine's 256-object
-limit and SteamVR's system-wide overlay budget still apply. Each model uses one
+remove objects to free resources before trying again. The 256-object limit per
+scene and SteamVR's system-wide overlay budget still apply. Each model uses one
 overlay, in addition to the HUD and two controller lasers.
 Boxes below scene Y = −1.2 meters or more than 3 meters from the scene origin
 are removed every 100 ms, reclaiming their physics body, overlay buffers, and

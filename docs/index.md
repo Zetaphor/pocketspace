@@ -67,7 +67,9 @@ custom scene.
 ## Choose what to build
 
 Explore the [example scripts](examples.md) for ready-to-run scenes covering
-interaction, UI, physics, animation, lighting and tracking. Use the
+interaction, UI, physics, animation, lighting and tracking. Run several at once,
+and manage them from the [SteamVR dashboard](dashboard.md) or the
+[command line](cli.md). Use the
 [JavaScript API](javascript-api.md) when you’re ready to combine them into your
 own experience, or the [lighting guide](lighting-api.md) to add materials and
 reflections.

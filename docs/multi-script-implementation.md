@@ -1,6 +1,6 @@
 # Multi-script implementation guide
 
-Status: execution checklist for the [approved design](multi-script-plan.md). The plan defines behavior; this guide defines the order of work. None of the steps below are implemented merely because they appear here.
+Status: complete. Every step below was implemented and verified; the [approved design](multi-script-plan.md) defines the behavior.
 
 ## How to use this guide
 
@@ -205,12 +205,20 @@ As Framecorder does, the dashboard registers a `.vrmanifest` at start and turns 
 
 ## Step 11 — Full regression and documentation pass
 
-- [ ] Update `docs/architecture.md`, `docs/lifecycle.md`, `docs/javascript-api.md`, `docs/scene-persistence.md`, `docs/getting-started.md`, `docs/agent-handoff.md`, the test index, and the smallest useful examples. Keep these pages descriptive of shipped behavior, and remove completed work from `docs/remaining-work.md`.
-- [ ] Run focused native regressions plus `lifecycle-script-regression`, `lifecycle-input-regression`, `scene-persistence-regression`, `scene-container-regression`, `examples-regression`, physics and render checks affected by ownership changes. Record exact commands and results, not only test names.
-- [ ] Run documentation lint and site build. Build production ARM64 engine on Deckard with the documented CMake configuration; run a bounded two-script noninteractive soak, then obtain headset acceptance for dashboard, interaction arbitration, and rendering. Keep automated, measured, and user-observed evidence separate.
-- [ ] Confirm graceful teardown leaves no demo process, leaked overlays, or stale control socket. Check clean Git status, review the diff, commit focused changes, and push when requested.
+- [x] Update `docs/architecture.md`, `docs/lifecycle.md`, `docs/javascript-api.md`, `docs/scene-persistence.md`, `docs/getting-started.md`, `docs/agent-handoff.md`, the test index, and the smallest useful examples. Keep these pages descriptive of shipped behavior, and remove completed work from `docs/remaining-work.md`.
+- [x] Run focused native regressions plus `lifecycle-script-regression`, `lifecycle-input-regression`, `scene-persistence-regression`, `scene-container-regression`, `examples-regression`, physics and render checks affected by ownership changes. Record exact commands and results, not only test names.
+- [x] Run documentation lint and site build. Build production ARM64 engine on Deckard with the documented CMake configuration; run a bounded two-script noninteractive soak, then obtain headset acceptance for dashboard, interaction arbitration, and rendering. Keep automated, measured, and user-observed evidence separate.
+- [x] Confirm graceful teardown leaves no demo process, leaked overlays, or stale control socket. Check clean Git status, review the diff, commit focused changes, and push when requested.
 
-**Exit gate:** all approved behavior in the design plan is implemented and verified, with any remaining limitation recorded explicitly.
+**Complete.** Documentation: the handoff gained a multiple-scripts section and source-map entries for the registry, catalog, settings, bus, arbitration, telemetry, control and CLI sources; the architecture guide gained a processes section, dashboard identifiers and source-map rows; lifecycle names the tools that manage scripts and the autostart service; the JavaScript statistics wording says scene counts and the 256-object limit are per calling script's scene; the README and site home page mention running several scripts and the dashboard. `scene-persistence.md` and `getting-started.md` already described shipped behavior. The multi-script track is no longer listed in the roadmap.
+
+**Automated evidence (2026-11-05):** `python3 tools/run-regressions.py` built and ran 47/47 regressions in 318 s, including `lifecycle-script-regression`, `lifecycle-input-regression`, `multi-script-lifecycle-regression`, `multi-script-render-regression`, `scene-persistence-regression`, `scene-container-regression`, `examples-regression`, `input-arbitration-regression`, `panel-submission-regression`, `event-bus-regression`, `script-recovery-regression`, `control-regression`, `cli-regression`, `dashboard-regression` and the four physics regressions. `python3 tools/lint-docs.py` passed (27 documents, 83 globals, 47 examples) and `npm run docs:build` built the site. The production tree built from clean with `cmake -S . -B build` and `cmake --build build --clean-first -j1` in 4 min 20 s, with no warnings.
+
+**Measured evidence:** [two-script soak](../tests/results/multi-script-soak.md), 10 minutes with alternating reloads and no input capture: FPS 89.7 to 90.2, mean CPU 9.3%, RSS level at 73.3 to 73.5 MiB after the first few minutes, unchanged heap across reloads, no script failures, clean exit with the socket removed.
+
+**User-observed evidence:** with `tests/scenes` as the catalog, the user launched `multi-script-interaction-near.js`, `multi-script-interaction-far.js` and `pbr-materials.js` from the dashboard and confirmed in the headset: all three scenes rendering together, closest-hit grabs and panel clicks across the two overlapping scripts, a reload while holding releasing only that script's hold, a crash notification with one counting alert, and Stop Engine reporting that a manually started engine did not stop. The engine and dashboard were then stopped: no Pocketspace process remained, the control socket was removed, and SteamVR reported no Pocketspace overlay keys.
+
+**Exit gate:** all approved behavior in the design plan is implemented and verified, with any remaining limitation recorded explicitly. Passed. Recorded limitations: dashboard alerts appear only while its tab is open (the engine's SteamVR notifications cover a closed tab), and the soak is a bounded light workload rather than a long-session result.
 
 ## Step 12 — Completion record
 
@@ -230,4 +238,4 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 8 | CLI, REPL and scratch `scripts` commit | Docs lint/site build and diff check pass | ARM64 engine and CLI build; `control-regression` and `cli-regression` (four repeated runs) and the full regression set, 46/46, pass | None. The user's REPL session in a real terminal against the live engine passed |
 | 9 | Per-script telemetry commit | Docs lint/site build and diff check pass | ARM64 engine and CLI build; `control-regression`, `multi-script-render-regression`, `cli-regression` and the full regression set, 46/46, pass | None. Watching showed no measurable FPS or CPU cost on the headset |
 | 10 | Dashboard commits | Docs lint/site build and diff check pass | ARM64 engine, CLI and dashboard build; `dashboard-regression` and the full regression set, 47/47, pass; user confirmed the tab's controls, Stop Engine, notifications and alerts, resource display, two simultaneous scenes, a held-object stop and both service restarts | None |
-| 11 | Pending | Pending | Pending | Pending |
+| 11 | Documentation pass and soak commit | Docs lint/site build and diff check pass | Clean production build; full regression set, 47/47; 10-minute two-script soak; user headset acceptance of dashboard, arbitration and rendering; clean teardown | None |

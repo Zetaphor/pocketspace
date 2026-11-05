@@ -30,6 +30,14 @@ after changing guide links, navigation or site configuration.
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
+| `src/script_registry.h` | Script instances: stable IDs and generations, `ScriptScope`, launch/stop/reload, callback-error stops, paced restarts and the scratch scene. |
+| `src/script_catalog.h` | Catalog discovery, stable catalog keys and per-script save namespaces. |
+| `src/engine_settings.h` | The shared settings file: strict parsing, atomic writes and last-good reloading. |
+| `src/event_bus.h` | Inter-script publish/subscribe: topic rules, copied payloads, deferred budgeted delivery and drop accounting. |
+| `src/input_arbitration.h`, `src/native_resource_key.h` | Closest-hit selection across scripts and instance-qualified native keys. |
+| `src/script_telemetry.h` | Per-runtime heap counter and callback-time windows. |
+| `src/control_server.h`, `src/control_service.h` | Control socket and its operations, answered on the host thread. |
+| `src/pocketspace_cli.cpp` | `pocketspace-cli` commands and REPL. |
 | `src/canvas.cpp`, `src/canvas.h` | CPU RGBA canvas and FreeType text, shared by panels and the dashboard. |
 | `src/panel.cpp` | Panel setup, images and GL texture upload over the canvas. |
 | `src/control_client.h` | Control-socket client: JSON reading, connection and request IDs, shared by the CLI and dashboard. |
@@ -61,6 +69,50 @@ devices with temporarily invalid poses. `Monitor::poll` exposes device-change
 refresh as normal connection loss so the host cancels stale holds before its
 bounded reconnect. Retry missing initial hand state after five seconds, but
 do not expire healthy delta subscriptions merely because their values are idle.
+
+## Multiple scripts
+
+Each running script is a `ScriptInstance` in `src/script_registry.h`, with a stable
+instance ID for the engine session and a generation that increases on every
+successful reload or restart. Instance `0` is scratch: always running, never
+reloaded or auto-restarted, and recreated empty after a callback error or
+`scratch.reset`. Enter a `ScriptScope` before calling an instance's JavaScript or
+reading its scene; bindings resolve the current scene, interaction state, input
+queue and save namespace through it. A scope restores the previous selection when it
+ends and refuses to open while another script's callback is running.
+
+JavaScript object, panel and group IDs stay local to their scene. Every native key
+(overlay names, surface and panel maps, render caches keyed by IDs) must include the
+instance ID, as `src/native_resource_key.h` does. Picking runs once per hand across
+all scenes in `src/input_arbitration.h`: the closest hit wins, a panel wins an exact
+tie with a model, and the lower instance ID breaks remaining ties. A hold stays with
+its owner until release, stop or reload. Stopping or reloading one instance must
+release only its holds, hover, queued events, overlays and resources.
+
+Launch, stop and reload from the control socket or scratch's `scripts` object are
+queued and applied between frames, never from inside a callback. A failed launch
+leaves an instance in `failed`; a failed reload keeps the previous scene, callbacks,
+bus subscriptions and queued deliveries. An uncaught callback error stops only its
+instance; the engine sends the SteamVR notification and `engine.scriptStopped`, and
+with `autoRestart` retries on the 1/2/4/8/16 s schedule. A manual stop cancels
+restarts for the session.
+
+The bus copies payloads as validated JSON text, so no QuickJS value crosses
+runtimes. Delivery happens after scene updates with a per-frame budget, and the
+recipients of a message are fixed when its delivery begins. Keep bus limits and
+per-publisher accounting in `src/event_bus.h`.
+
+Control requests run on the host thread between frames. Mutating operations take
+the target's generation and are remembered by request ID, so a retry returns the
+first response instead of running twice. Settings writes go through
+`settings::write` (temporary file, flush, rename); the engine rereads the file
+about once a second and keeps the last valid version on a bad edit.
+
+`pocketspace-cli` and `pocketspace-dashboard` are separate processes that share
+`src/control_client.h` and never link the engine. The dashboard draws with the
+CPU canvas and submits a GLES texture; it connects only while its tab is visible,
+must never start SteamVR (its unit uses `Requisite=`, its process connects as a
+background application), and leaves SteamVR notifications to the engine.
 
 ## Physics and performance entry points
 

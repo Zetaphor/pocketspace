@@ -28,6 +28,9 @@ click and worlds that respond to you.
   and HDR environment reflections, and arrange objects all around you.
 - **Creations you can return to.** Save and restore groups of objects and panels,
   including their layout, animation, physics and panel contents.
+- **Several creations at once.** Run scripts side by side, let them send each
+  other messages, and start, stop or reload them from a SteamVR dashboard tab or
+  the command line.
 
 Write scripts against the included API—no game-engine project is required.
 Edits reload automatically, and a failed reload keeps your current scene running.

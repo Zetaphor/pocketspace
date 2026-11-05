@@ -1,8 +1,8 @@
 # Multiple scripts and dashboard control: implementation plan
 
-Status: in progress. This document defines the approved behavior; the
-[implementation guide](multi-script-implementation.md) records what has shipped
-and what remains.
+Status: implemented. This document defines the approved behavior; the
+[implementation guide](multi-script-implementation.md) records how each step was
+verified.
 
 Follow the [step-by-step implementation guide](multi-script-implementation.md)
 for code areas, test gates, and a completion record. This plan remains the

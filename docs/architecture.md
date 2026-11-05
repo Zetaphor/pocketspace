@@ -41,6 +41,17 @@ The diagram shows data flow. The exact host-loop order, including when queued
 input is delivered, is described below. Panels use a separate retained-canvas
 and overlay submission path rather than the model passes.
 
+## Processes
+
+The engine is one process holding every running script, the single OpenVR
+connection, the EGL context and the compositor submission loop. Two separate
+clients manage it over the private [control socket](control-protocol.md):
+[`pocketspace-cli`](cli.md) for terminals and programs, and
+[`pocketspace-dashboard`](dashboard.md) for the SteamVR dashboard tab. Neither links
+the engine, so either can exit or restart without affecting scripts. Systemd user
+units run the engine, start it with SteamVR when `engineAutostart` is set, and run
+the dashboard while SteamVR runs; none of them starts SteamVR.
+
 ## Process startup and execution model
 
 The executable initializes OpenVR overlay services, EGL/GLES, and the GBM/DRM
@@ -539,7 +550,10 @@ deferred until a workload establishes sufficient CPU cost.
 | Panels | `src/panel.cpp`, `src/panel_submission.h` |
 | Snapshots and ownership lookup | `src/scene_persistence.h`, `src/scene_*_snapshot.h`, `src/scene_lookup.h` |
 | Statistics and buffer admission | `src/runtime_stats.h`, `src/group_buffer_budget.h`, `src/pbr_lod_budget.h` |
-| Control socket, operations and CLI | `src/control_server.h`, `src/control_service.h`, `src/pocketspace_cli.cpp` |
+| Script instances, catalog, settings and recovery | `src/script_registry.h`, `src/script_catalog.h`, `src/engine_settings.h` |
+| Inter-script bus and cross-script picking | `src/event_bus.h`, `src/input_arbitration.h`, `src/native_resource_key.h` |
+| Control socket, operations and CLI | `src/control_server.h`, `src/control_service.h`, `src/control_client.h`, `src/pocketspace_cli.cpp` |
+| Dashboard tab | `src/dashboard.cpp`, `src/dashboard.h`, `src/dashboard_main.cpp`, `src/canvas.cpp` |
 | Per-script heap and callback time | `src/script_telemetry.h` |
 
 Keep this guide aligned with shipped behavior when changing a pipeline stage or
@@ -576,9 +590,10 @@ See [fabric API and example](lighting-api.md#fabric-sheen) and the
 
 ## Pocketspace file and overlay identifiers
 
-The SteamVR application key is `com.pocketspace.app`, native overlay keys start
-with `pocketspace.`, and scene saves use the `pocketspace` state directory and
-format string.
+The engine's SteamVR application key is `com.pocketspace.app` and the dashboard's
+is `com.pocketspace.dashboard`. Native overlay keys start with `pocketspace.`; the
+dashboard tab is `pocketspace.dashboard`. Scene saves use the `pocketspace` state
+directory and format string.
 Lighting-environment writers emit `PSENV001` (`.psenv`), the sole accepted
 lighting-environment header. Readers validate dimensions, payload size and values
 before publishing shared environment resources.

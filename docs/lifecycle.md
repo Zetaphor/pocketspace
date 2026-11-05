@@ -2,7 +2,10 @@
 
 The engine starts with no user scripts unless catalog `--launch` entries or
 [autostart settings](#startup-and-recovery) provide them. It always runs the
-[scratch scene](control-protocol.md#scratch), instance `0`, which has no file. Each running script has its own QuickJS context and scene. The engine
+[scratch scene](control-protocol.md#scratch), instance `0`, which has no file.
+Scripts are started, stopped and reloaded while the engine runs from
+[`pocketspace-cli`](cli.md), the [SteamVR dashboard](dashboard.md) or scratch's
+`scripts` object, all through the [control protocol](control-protocol.md). Each running script has its own QuickJS context and scene. The engine
 periodically checks each running script's modification time and builds a new
 context and candidate scene before replacing that script's scene. A failed
 reload preserves its active scene, hover and grab state, event callback, and queues.
@@ -51,6 +54,8 @@ keeps the current subscription.
 Ctrl-C, SIGTERM, and native shutdown unwind overlay, GPU/EGL, input, and OpenVR
 resources. A SteamVR quit event is acknowledged and exits the process. Relaunch
 the engine after SteamVR restarts; there is no in-process session recreation.
+With `engineAutostart`, the [user service](control-protocol.md#running-the-engine-as-a-service)
+starts it again when SteamVR starts.
 Forced termination such as SIGKILL cannot run scoped cleanup.
 
 ## Startup and recovery
