@@ -172,11 +172,17 @@ Follow-up `32839bf` (build time only, no production code change): the GLES regre
 
 ## Step 9 — Resource telemetry
 
-- [ ] Report engine-wide FPS, CPU, RSS, and DRM GPU memory once. For each script, expose QuickJS heap, object/panel/asset/body counts, measured callback time, and owned allocation estimates where attribution is valid. Expose scratch and event-queue/drop metrics.
-- [ ] Do not divide process totals among scripts or add shared RAM and GPU totals. Mark unavailable values and sample intervals. Bound telemetry work and cadence so monitoring does not disturb the 90 Hz loop.
-- [ ] Test metrics for two scripts with different workloads, stop/reload cleanup, unavailable DRM data, and a monitoring client disconnect. Compare telemetry overhead before enabling frequent polling.
+- [x] Report engine-wide FPS, CPU, RSS, and DRM GPU memory once. For each script, expose QuickJS heap, object/panel/asset/body counts, measured callback time, and owned allocation estimates where attribution is valid. Expose scratch and event-queue/drop metrics.
+- [x] Do not divide process totals among scripts or add shared RAM and GPU totals. Mark unavailable values and sample intervals. Bound telemetry work and cadence so monitoring does not disturb the 90 Hz loop.
+- [ ] Test metrics for two scripts with different workloads, stop/reload cleanup, unavailable DRM data, and a monitoring client disconnect. Compare telemetry overhead before enabling frequent polling. The automated checks pass; the device comparison with and without a watching client is still open.
 
-**Exit gate:** CLI JSON and dashboard protocol show consistent totals and per-instance values, with estimates clearly labeled.
+**Implemented.** `stats` and a once-a-second `resources` watch event report process totals once, then each instance's values; the [resources reference](control-protocol.md#resources) defines them. Decisions made for this step: delivery through `stats` plus watch events built only while a client watches; callback time as milliseconds per second plus the worst frame over the one-second sample; GPU estimates only, split by owner, with lighting environments and the sheen table reported once as shared; nothing new in JavaScript.
+
+QuickJS heap comes from a counting allocator installed on each script's runtime (`src/script_telemetry.h`). It costs one counter update per allocation and nothing to read. `JS_ComputeMemoryUsage` was measured first and rejected for sampling: on Deckard it took 0.009 ms at 1,000 objects, 1.1 ms at 100,000 and 14 ms at 1,000,000, which at the 128 MiB runtime limit would drop a frame every second. The counter also covers runtime-internal allocations, so it reads up to about 80 KiB above QuickJS's own total. Callback time covers update, input and bus callbacks on the owning instance. The engine's GPU estimate is now the sum of `ownedGpuEstimate` per script plus `sharedGpuEstimate`. Each script's own spot-shadow map is counted; before, only the global diagnostic record's map was counted, whichever scene had written it last. The bus also counts queued and dropped publications per publisher.
+
+**Automated evidence:** `control-regression` checks the heap counter against QuickJS's full walk and through an 8 MB allocation and its release; a busy bus callback against idle scratch; null values before the first sample and for stopped scripts; a fresh window after restart; per-publisher bus counters; DRM memory reported as unavailable; and resources events to a watcher that then disconnects. `multi-script-render-regression` checks owned estimates for two workloads, surface depth and retained generations, and a shared environment and sheen table counted once. `cli-regression` reads the per-instance view, the human table and resources events through the CLI. Full check 46/46.
+
+**Exit gate:** CLI JSON and dashboard protocol show consistent totals and per-instance values, with estimates clearly labeled. The device overhead comparison remains.
 
 ## Step 10 — Native SteamVR dashboard
 
@@ -212,6 +218,6 @@ Fill in this table as work progresses. Do not mark a step complete from a passin
 | 7 | Control socket, scratch and user service commits | Docs lint/site build and diff check pass | ARM64 engine builds; `control-regression` and the full regression set pass; `tests/control-live-check.py` managed two scripts in the live engine, a second engine was refused, and `--service` started, restarted and stopped the unit; the autostart unit started the engine only with `engineAutostart` true | None |
 | 7a | `92f4137` experiment removal; hash recorded in docs | Docs lint/site build and diff check pass | ARM64 engine builds; clean full check 742 s (was 1377 s with `--experiments`), 42/42 pass | None; no headset behavior changed |
 | 8 | CLI, REPL and scratch `scripts` commit | Docs lint/site build and diff check pass | ARM64 engine and CLI build; `control-regression` and `cli-regression` (four repeated runs) and the full regression set, 46/46, pass | None. The user's REPL session in a real terminal against the live engine passed |
-| 9 | Pending | Pending | Pending | Pending |
+| 9 | Per-script telemetry commit | Docs lint/site build and diff check pass | ARM64 engine and CLI build; `control-regression`, `multi-script-render-regression`, `cli-regression` and the full regression set, 46/46, pass | Device telemetry overhead with and without a watching client |
 | 10 | Pending | Pending | Pending | Pending |
 | 11 | Pending | Pending | Pending | Pending |

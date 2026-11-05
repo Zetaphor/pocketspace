@@ -168,26 +168,46 @@ def noninteractive():
     assert error('autostart', 'remove', 'a.js', code=5)['code'] == 'not_found'
     assert json.loads(SETTINGS.read_text())['autostart'] == ['tools/c.js']
 
+    # Resources: engine totals once, live values per running script, none for stopped ones.
     stats = result('stats')
-    assert stats['instances']['running'] >= 2 and 'dropped' in stats['bus']
+    running = [i for i in stats['instances'] if i['state'] == 'running']
+    assert len(running) >= 2 and all(i['heapBytes'] > 0 and i['objects'] is not None for i in running), stats
+    assert all(i['heapBytes'] is None for i in stats['instances'] if i['state'] != 'running')
+    assert stats['vramBytes'] is None and 'dropped' in stats['bus']
+    table = subprocess.run([str(CLI), '--socket', str(SOCKET), 'stats'], capture_output=True, text=True, timeout=10)
+    assert table.returncode == 0 and 'JS HEAP' in table.stdout and 'unavailable' in table.stdout, table.stdout
+    # Watchers get a resources event after each one-second sample.
+    stream = subprocess.run([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--duration', '2.5'],
+                            capture_output=True, text=True, timeout=10)
+    samples = [e for e in map(json.loads, stream.stdout.splitlines()) if e['event'] == 'resources']
+    assert samples and samples[-1]['sampleId'] > 0 and samples[-1]['instances'][0]['instanceId'] == 0, stream.stdout
+    assert all(i['callbackMsPerSecond'] is not None for i in samples[-1]['instances'] if i['state'] == 'running'), samples[-1]
     scratch('globalThis.keep = 1')
     assert result('scratch', 'reset')['instanceId'] == 0
     assert scratch('typeof keep') == '"undefined"'
 
     # A bounded watch: one JSON object per line with sequence numbers.
     b = instance('b.js')
-    watcher = subprocess.Popen([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--limit', '2'],
+    # Resources samples interleave with status events, so read for a fixed time.
+    watcher = subprocess.Popen([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--duration', '2'],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     time.sleep(.5)
     result('reload', str(b['instanceId']))
     result('stop', str(b['instanceId']))
     out, _ = watcher.communicate(timeout=10)
     events = [json.loads(line) for line in out.splitlines()]
-    assert watcher.returncode == 0 and len(events) == 2, out
-    assert [e['instance']['state'] for e in events] == ['running', 'stopped'] and events[0]['seq'] < events[1]['seq']
+    status = [e for e in events if e['event'] == 'status']
+    assert watcher.returncode == 0 and len(status) == 2, out
+    assert [e['instance']['state'] for e in status] == ['running', 'stopped'] and status[0]['seq'] < status[1]['seq']
+    assert all(earlier['seq'] < later['seq'] for earlier, later in zip(events, events[1:]))
+    # --limit ends the stream after that many events.
+    limited = subprocess.run([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--limit', '1'], capture_output=True, text=True, timeout=10)
+    assert limited.returncode == 0 and len(limited.stdout.splitlines()) == 1, limited.stdout
     begin = time.time()
     quiet = subprocess.run([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--duration', '0.5'], capture_output=True, text=True, timeout=10)
-    assert quiet.returncode == 0 and quiet.stdout == '' and time.time() - begin < 3
+    # With nothing changing, only the periodic resources samples arrive.
+    assert quiet.returncode == 0 and time.time() - begin < 3
+    assert all(json.loads(line)['event'] == 'resources' for line in quiet.stdout.splitlines()), quiet.stdout
 
     # A restarted engine: the stream marks the loss and the reconnect.
     watcher = subprocess.Popen([str(CLI), '--socket', str(SOCKET), '--json', 'watch', '--duration', '4'],
@@ -296,7 +316,7 @@ def main():
         subprocess.run(['rm', '-rf', str(ROOT)])
     print('PASS cli: offline and usage errors, catalog/list/status/start/stop/reload with generations, eval results/output/'
           'exceptions/timeouts in scratch and a script, scratch scripts object, publish, unknown outcome lookup without '
-          'resending, autostart edits, stats, scratch reset, bounded watch with reconnect markers, noninteractive REPL '
+          'resending, autostart edits, per-script stats and resources events, scratch reset, bounded watch with reconnect markers, noninteractive REPL '
           'enter/leave, interactive REPL with Ctrl-R history search on a pseudo-terminal')
 
 

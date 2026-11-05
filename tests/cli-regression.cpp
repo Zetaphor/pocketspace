@@ -18,7 +18,10 @@ int main(int argc,char **argv){
   control::Server server;std::string error;
   if(!server.start(argv[2],error)){std::fprintf(stderr,"[control] %s\n",error.c_str());return 14;}
   std::printf("[control] listening on %s\n",argv[2]);std::fflush(stdout);
-  // A frame: requests and queued scratch calls between frames, then updates and bus delivery.
+  // A frame: requests and queued scratch calls between frames, then updates and bus
+  // delivery, then the engine's once-a-second sample. There is no GPU here: per-script
+  // GPU estimates stay null, the engine estimate is 0 and DRM memory is unavailable.
+  uint64_t frames=0;engineStats.prime();
   while(!stopping){
     server.poll([&](control::Client &client,const std::string &line){return service.handle(client,line);});
     service.applyScratchQueue();
@@ -26,6 +29,8 @@ int main(int argc,char **argv){
     registry.tickRestarts();
     for(int id:registry.runningIds())registry.update(id,1/90.);
     registry.dispatchBus();
+    registry.endFrame();
+    if(engineStats.update(++frames)){registry.sampleCallbacks();if(server.watcherCount())service.publishResources();}
     usleep(5000);
   }
   scratchControl={};server.stop();

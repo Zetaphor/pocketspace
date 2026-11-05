@@ -66,6 +66,14 @@ native capabilities to JavaScript. Joint settings can be changed in place;
 type, anchors, and axis remain creation-only. The
 [statistics reference](javascript-api.md#engine-statistics) defines measured CPU,
 RAM, and FPS, optional GPU driver totals, and the separate GPU allocation estimate.
+Per-script telemetry keeps process totals undivided. Each QuickJS runtime is created
+with the counting allocator in `src/script_telemetry.h`; its `HeapCounter` must
+outlive the runtime, so `closeScript` frees the runtime before resetting the host.
+Time every script callback (update, input, bus) with `telemetry::Timed` on the
+owning instance, and call `endFrame` once per frame. Sampling runs once a second;
+`resources` events are built only while a client watches. `ownedGpuEstimate`
+counts what one script owns, and `sharedGpuEstimate` counts shared items once.
+Keep new allocations in exactly one of them.
 The [stress scene](../scripts/stress.js) includes controller spawning, a HUD,
 and automatic removal of fallen/distant objects. Its shared model assets remain
 cached until scene replacement or explicit unused-model release, while instance resources are released on removal.

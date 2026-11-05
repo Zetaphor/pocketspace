@@ -78,7 +78,7 @@ a request meant for an older scene fails instead of touching its replacement.
 | `reload` | `instanceId`, `generation` | The instance after reloading from its file. |
 | `settings.get` | | `{path, settings, fileError}`. |
 | `settings.set` | `settings` | Validates and atomically writes the whole [settings file](lifecycle.md#startup-and-recovery), then applies it. |
-| `stats` | | `{fps, cpuPercent, ramBytes, vramBytes, instances, bus}`; unknown values are `null`. |
+| `stats` | | Engine totals and each instance's [resources](#resources). |
 | `watch` | | `{watching, seq}`, then events on this connection. |
 | `publish` | `topic`, `payload` | `{sequence}`, or `null` when the bus is full. Publishes as scratch, source `0`. |
 | `eval` | `code`, optional `instanceId` (default `0`), `generation` (required unless `0`), `timeoutMs` (1 to 10000, default 1000) | `{result, exception, output, instanceId, generation}`. |
@@ -123,11 +123,44 @@ increases across the session:
 {"v": 1, "event": "status", "seq": 12, "instance": {"instanceId": 3, "state": "failed"}}
 {"v": 1, "event": "error", "seq": 13, "instanceId": 3, "message": "Error: boom"}
 {"v": 1, "event": "busDrop", "seq": 14, "dropped": 3, "total": 3}
+{"v": 1, "event": "resources", "seq": 15, "fps": 90.0, "instances": [...]}
 ```
 
 `status` follows every state or generation change, `error` follows a failure, and
-`busDrop` reports messages dropped by a full bus. A client that stops reading for
-more than 4 MiB of output is disconnected; reconnect and `list` to resynchronize.
+`busDrop` reports messages dropped by a full bus. `resources` follows each
+once-a-second sample while at least one client is watching. Its fields are those
+of the `stats` result. A client that stops reading for more than 4 MiB of output
+is disconnected; reconnect and `list` to resynchronize.
+
+### Resources
+
+`stats` and the `resources` event report the engine's process totals once, then
+each instance's own values. Process totals are never divided among scripts, and
+no value adds shared memory into a script. A value that cannot be measured is
+`null`.
+
+| Field | Meaning |
+| --- | --- |
+| `fps`, `cpuPercent`, `ramBytes`, `vramBytes` | Process measurements from the latest sample, as [`getEngineStats`](javascript-api.md#engine-statistics) defines them. `vramBytes` is `null` when the GPU driver does not report it. |
+| `gpuEstimateBytes` | Estimated GPU allocations of the whole engine: every running script's own estimate plus `sharedGpuEstimateBytes`. |
+| `sharedGpuEstimateBytes` | Estimated allocations scripts can share: lighting environments and the sheen table, each counted once. |
+| `sampleSeconds`, `sampleId` | The latest sample's interval, and its number (0 before the first sample, when sampled values are `null`). |
+| `bus` | `{queued, queuedBytes, dropped}` for the whole event bus. |
+| `instances` | One entry per instance, below. |
+
+| Instance field | Meaning |
+| --- | --- |
+| `instanceId`, `name`, `state`, `generation` | As in [status results](#instances). |
+| `heapBytes` | Memory the script's QuickJS runtime has allocated, read when asked. |
+| `objects`, `panels`, `assets`, `bodies` | Current counts in the script's scene; `bodies` counts physics bodies. |
+| `gpuEstimateBytes` | Estimated GPU allocations the script owns, from the latest sample: its surfaces, model buffers and textures, deformed buffers, panels, instancing buffer and shadow map. An estimate from sizes, not a driver measurement. |
+| `callbackMsPerSecond` | Time its update, input and bus callbacks took over the latest sample, in milliseconds per second of wall time. These add up across scripts; 1000 would be one core fully busy. |
+| `worstCallbackMs` | The longest single frame of its callbacks in that sample. |
+| `busQueued`, `busDropped` | Its undelivered publications, and its publications dropped this session. |
+
+For a stopped or failed instance, every field from `heapBytes` to `worstCallbackMs`
+is `null`; the bus counters remain. Callback values are `null` until the first
+sample after a script starts or restarts.
 
 ## Running the engine as a service
 

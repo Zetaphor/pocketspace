@@ -115,12 +115,15 @@ Each iteration follows this order in `src/main.cpp`:
    cleanup, compute engine-laser mesh hits, and attempt bounded reconnection.
 6. Dispatch each scene's queued input callbacks, update its native grabs, then call its `update(dt)`.
 7. Advance each scene's physics and synchronize resulting object poses/events.
-   After every scene, deliver one budgeted turn of inter-script bus messages.
+   After every scene, deliver one budgeted turn of inter-script bus messages, then
+   close each script's frame of measured callback time.
 8. Upload newly loaded assets and dirty animation data.
 9. Refresh head/eye poses, choose frame-level LOD, rebuild current bounds and
    surface membership/layout, then render visible model surfaces.
 10. Complete GPU rendering and submit coherent overlay frames. Update statistics
-    and pace the next iteration.
+    and pace the next iteration. Once a second, the statistics sample also
+    estimates each script's GPU allocations, closes its callback-time window and,
+    while a client watches, queues a `resources` event.
 
 Physics events produced after callback dispatch enter the queues for subsequent
 delivery. Scripts can also poll events. Rendering uses the state after callbacks,
@@ -537,6 +540,7 @@ deferred until a workload establishes sufficient CPU cost.
 | Snapshots and ownership lookup | `src/scene_persistence.h`, `src/scene_*_snapshot.h`, `src/scene_lookup.h` |
 | Statistics and buffer admission | `src/runtime_stats.h`, `src/group_buffer_budget.h`, `src/pbr_lod_budget.h` |
 | Control socket, operations and CLI | `src/control_server.h`, `src/control_service.h`, `src/pocketspace_cli.cpp` |
+| Per-script heap and callback time | `src/script_telemetry.h` |
 
 Keep this guide aligned with shipped behavior when changing a pipeline stage or
 production default. Keep exact implementation invariants in the

@@ -1017,7 +1017,7 @@ static JSValue jsPublish(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv
   if(currentScene!=liveScene){
     // A loading candidate publishes only if it commits.
     auto &staged=currentScene->stagedPublications;size_t bytes=message.bytes();for(const auto &m:staged)bytes+=m.bytes();
-    if(!eventBus.hasRoom(message.source,bytes,staged.size())){eventBus.countDrop();return JS_NULL;}
+    if(!eventBus.hasRoom(message.source,bytes,staged.size())){eventBus.countDrop(message.source);return JS_NULL;}
     message.sequence=eventBus.reserveSequence();const double sequence=double(message.sequence);staged.push_back(std::move(message));return JS_NewFloat64(ctx,sequence);
   }
   const auto sequence=eventBus.publish(message.source,std::move(message.topic),std::move(message.payload));
@@ -1118,7 +1118,8 @@ bool loadScript(ScriptHost &active,const std::string &path,const std::function<v
   return loadScriptSource(active,path,stream.str(),beforeCommit);
 }
 bool loadScriptSource(ScriptHost &active,const std::string &path,const std::string &source,const std::function<void()> &beforeCommit){
-  ScriptHost candidate;candidate.rt=JS_NewRuntime();if(!candidate.rt)return false;
+  ScriptHost candidate;candidate.heap=std::make_unique<telemetry::HeapCounter>();
+  candidate.rt=telemetry::newCountedRuntime(*candidate.heap);if(!candidate.rt)return false;
   JS_SetMemoryLimit(candidate.rt,128*1024*1024);
   JS_SetInterruptHandler(candidate.rt,interruptEvaluation,nullptr);
   candidate.ctx=JS_NewContext(candidate.rt);if(!candidate.ctx){closeScript(candidate);return false;}

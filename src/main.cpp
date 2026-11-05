@@ -538,12 +538,13 @@ int main(int argc,char **argv) {
       scriptRegistry.failActive(instance.id,error);
       return 0;
     };
-    if(const auto error=dispatchInputCallbacks();!error.empty())return failScene(error);
+    std::string inputError;{telemetry::Timed timed(instance.callbacks);inputError=dispatchInputCallbacks();}
+    if(!inputError.empty())return failScene(inputError);
     updateManipulation(script.scene,grabs,1.f/90.f,instance.id,rayOwners,grabOwners);
     for(int hand=0;hand<2;hand++)if(grabs[hand].objectId)meshHitDistance[hand]=grabs[hand].laserDistance;
     if(script.ctx&&JS_IsFunction(script.ctx,script.update)){
       JSValue dt=JS_NewFloat64(script.ctx,1.0/90.0);
-      JSValue result=JS_Call(script.ctx,script.update,JS_UNDEFINED,1,&dt);JS_FreeValue(script.ctx,dt);
+      JSValue result;{telemetry::Timed timed(instance.callbacks);result=JS_Call(script.ctx,script.update,JS_UNDEFINED,1,&dt);}JS_FreeValue(script.ctx,dt);
       if(JS_IsException(result)){
         JSValue exception=JS_GetException(script.ctx);
         const char *message=JS_ToCString(script.ctx,exception);
@@ -854,6 +855,7 @@ int main(int argc,char **argv) {
     if(sceneResult<0)break;
     // Bus delivery runs after every scene's callbacks and update for this frame.
     scriptRegistry.dispatchBus();
+    scriptRegistry.endFrame();
     // Lasers are shared overlays: apply visibility and the selected hit once after all scenes update.
     system->GetDeviceToAbsoluteTrackingPose(vr::TrackingUniverseStanding,0,poses,vr::k_unMaxTrackedDeviceCount);
     const bool headValid=poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid;
@@ -879,36 +881,20 @@ int main(int argc,char **argv) {
       pickingMs=renderMs=finishMs=physicsMs=0;
     }
     if(engineStats.update(++diagnosticFrames)){
-      uint64_t bytes=0;std::set<GLuint> countedDepth;
-      for(const auto &[ownerId,owner]:resourcesByInstance)for(const auto &[id,surface]:owner->surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
-        const uint64_t height=generation->eyePixels,width=2*height;
-        if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
-        if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
+      // Owned estimates per running script; shared items once. Watchers get the sample.
+      uint64_t bytes=0;std::vector<const Scene*> scenes;
+      for(int id:scriptRegistry.allIds()){
+        auto *entry=scriptRegistry.find(id);
+        if(!entry||entry->state!=ScriptState::Running){if(entry)entry->gpuEstimateBytes.reset();continue;}
+        const auto resources=resourcesByInstance.find(id);const auto render=renderStates.find(id);
+        static const std::map<int,std::unique_ptr<Surface>> noSurfaces;
+        entry->gpuEstimateBytes=ownedGpuEstimate(entry->host.scene,resources==resourcesByInstance.end()?noSurfaces:resources->second->surfaces,render==renderStates.end()?nullptr:render->second.get());
+        bytes+=*entry->gpuEstimateBytes;scenes.push_back(&entry->host.scene);
       }
-      std::set<const LightingEnvironment*> countedEnvironments;
-      std::set<const SheenLookup*> countedSheen;
-      for(int id:scriptRegistry.runningIds()){
-        const auto *entry=scriptRegistry.find(id);
-        if(!entry)continue;
-        const auto &script=entry->host;
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);for(const auto &lod:part.lod){if(lod.budgetBytes)bytes+=lod.budgetBytes;else if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);}if(part.texture)bytes+=uint64_t(part.width)*part.height*4;}
-      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
-      for(const auto &panel:script.scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
-      for(const auto &panel:script.scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
-      if(auto render=renderStates.find(id);render!=renderStates.end())bytes+=render->second->instancing.allocatedBytes();
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);}
-      for(const auto &object:script.scene.objects)if(object.animationPose)for(size_t s=0;s<object.animationPose->skinTextures.size();s++)if(object.animationPose->skinTextures[s])bytes+=object.animationPose->palettes[s].size()*sizeof(animation::Matrix);
-      for(const auto &object:script.scene.objects)if(object.animationPose&&object.animationPose->geometry.batchVbo)bytes+=object.animationPose->geometry.batchBytes;
-      for(const auto &asset:script.scene.assets)for(const auto &part:asset.primitives){
-        if(part.surfaceVbo)bytes+=uint64_t(part.gpuVertexCount)*9*sizeof(float);
-        for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
-      }
-      for(const auto &object:script.scene.objects)if(object.animationPose)for(const auto &part:object.animationPose->geometry.primitives)if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);
-      for(const auto &asset:script.scene.assets)if(asset.environment&&countedEnvironments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
-      for(const auto &asset:script.scene.assets)if(asset.sheenLookup&&asset.sheenLookup->texture&&countedSheen.insert(asset.sheenLookup.get()).second)bytes+=SheenLookup::size*SheenLookup::size*4;
-      }
-      bytes+=spotShadowDiagnostics.bytes;
-      engineStats.gpuAllocatedEstimateBytes=bytes;
+      engineStats.sharedGpuEstimateBytes=sharedGpuEstimate(scenes);
+      engineStats.gpuAllocatedEstimateBytes=bytes+engineStats.sharedGpuEstimateBytes;
+      scriptRegistry.sampleCallbacks();
+      if(controlServer.watcherCount())controlService.publishResources();
     }
     // Drop missed deadlines rather than rendering bursts to repay old frame debt.
     next=std::max(next+std::chrono::microseconds(11111),std::chrono::steady_clock::now());

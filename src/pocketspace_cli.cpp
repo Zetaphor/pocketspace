@@ -201,6 +201,16 @@ std::string uptime(double seconds){
   else std::snprintf(buffer,sizeof(buffer),"%lds",s);
   return buffer;
 }
+std::string bytes(const Json &value){
+  if(value.isNull())return "-";
+  char text[32];const double b=value.number();
+  if(b>=1048576)std::snprintf(text,sizeof(text),"%.1f MiB",b/1048576);else if(b>=1024)std::snprintf(text,sizeof(text),"%.1f KiB",b/1024);else std::snprintf(text,sizeof(text),"%.0f B",b);
+  return text;
+}
+std::string decimal(const Json &value,const char *format){
+  if(value.isNull())return "-";
+  char text[32];std::snprintf(text,sizeof(text),format,value.number());return text;
+}
 void printInstance(const Json &instance){
   std::printf("instance    %lld\nname        %s\npath        %s\nstate       %s\ngeneration  %lld\nuptime      %s\n",
     (long long)instance["instanceId"].number(),instance["name"].str().c_str(),instance["path"].str().c_str(),instance["state"].str().c_str(),
@@ -236,9 +246,9 @@ Commands:
   start <name>                 Start a catalog script
   stop <id> [--generation N]   Stop a script (generation looked up if omitted)
   reload <id> [--generation N] Reload a script from its file
-  stats                        Engine totals and bus counters
+  stats                        Engine totals and each script's resources
   watch [--limit N] [--duration S]
-                               Stream status, error and bus-drop events
+                               Stream status, error, bus-drop and resource events
   publish <topic> [json]       Publish a space.* event as scratch
   scratch reset                Clear and recreate the scratch scene
   autostart list|add <name>|remove <name>
@@ -357,6 +367,13 @@ int watch(const std::vector<std::string> &args){
       const auto type=(*event)["event"].str();const auto seq=(long long)(*event)["seq"].number();
       if(type=="status"){const auto i=(*event)["instance"];std::printf("#%lld status %lld %s %s generation %lld\n",seq,(long long)i["instanceId"].number(),i["name"].str().c_str(),i["state"].str().c_str(),(long long)i["generation"].number());}
       else if(type=="error")std::printf("#%lld error %lld %s\n",seq,(long long)(*event)["instanceId"].number(),(*event)["message"].str().c_str());
+      else if(type=="resources"){
+        std::printf("#%lld resources %s fps, %s CPU, %s RAM\n",seq,decimal((*event)["fps"],"%.1f").c_str(),decimal((*event)["cpuPercent"],"%.1f%%").c_str(),bytes((*event)["ramBytes"]).c_str());
+        const auto list=(*event)["instances"];
+        for(uint32_t i=0;i<list.length();i++){const auto x=list[i];if(x["state"].str()!="running")continue;
+          std::printf("    %lld %s heap %s, %s ms/s callbacks (worst %s ms), GPU est. %s\n",(long long)x["instanceId"].number(),x["name"].str().c_str(),bytes(x["heapBytes"]).c_str(),
+            decimal(x["callbackMsPerSecond"],"%.2f").c_str(),decimal(x["worstCallbackMs"],"%.2f").c_str(),bytes(x["gpuEstimateBytes"]).c_str());}
+      }
       else if(type=="busDrop")std::printf("#%lld busDrop dropped %lld total %lld\n",seq,(long long)(*event)["dropped"].number(),(long long)(*event)["total"].number());
       else std::printf("#%lld %s\n",seq,line->c_str());
     }
@@ -397,6 +414,23 @@ int autostart(const std::vector<std::string> &args){
     +",\"engineAutostart\":"+(settings["engineAutostart"].truthy()?"true":"false")+"}";
   const auto reply=call(link,"settings.set",",\"settings\":"+body,options.timeout(),options.requestId);
   return finish(reply,[&](const Json&){std::printf("%s %s\n",action=="add"?"added":"removed",name.c_str());});
+}
+
+// Engine totals, then one row per instance. Estimates are labelled as such.
+void printResources(const Json &r){
+  std::printf("engine     %s fps, %s CPU, %s RAM, %s GPU memory (driver)\n",decimal(r["fps"],"%.1f").c_str(),decimal(r["cpuPercent"],"%.1f%%").c_str(),
+    bytes(r["ramBytes"]).c_str(),r["vramBytes"].isNull()?"unavailable":bytes(r["vramBytes"]).c_str());
+  std::printf("estimates  %s GPU allocated, of which %s shared between scripts\n",bytes(r["gpuEstimateBytes"]).c_str(),bytes(r["sharedGpuEstimateBytes"]).c_str());
+  std::printf("bus        %lld queued (%s), %lld dropped\n",(long long)r["bus"]["queued"].number(),bytes(r["bus"]["queuedBytes"]).c_str(),(long long)r["bus"]["dropped"].number());
+  std::printf("%-4s %-24s %-8s %10s %7s %6s %6s %6s %12s %8s %8s\n","ID","NAME","STATE","JS HEAP","OBJECTS","PANELS","ASSETS","BODIES","GPU (EST.)","CB MS/S","WORST MS");
+  const auto list=r["instances"];
+  for(uint32_t i=0;i<list.length();i++){
+    const auto x=list[i];
+    auto count=[](const Json &v){return v.isNull()?std::string("-"):std::to_string((long long)v.number());};
+    std::printf("%-4lld %-24s %-8s %10s %7s %6s %6s %6s %12s %8s %8s\n",(long long)x["instanceId"].number(),x["name"].str().c_str(),x["state"].str().c_str(),
+      bytes(x["heapBytes"]).c_str(),count(x["objects"]).c_str(),count(x["panels"]).c_str(),count(x["assets"]).c_str(),count(x["bodies"]).c_str(),
+      bytes(x["gpuEstimateBytes"]).c_str(),decimal(x["callbackMsPerSecond"],"%.2f").c_str(),decimal(x["worstCallbackMs"],"%.2f").c_str());
+  }
 }
 
 // Prints an eval reply's output and result for people. Returns true if it threw.
@@ -577,13 +611,7 @@ int run(const std::string &command,const std::vector<std::string> &args){
   if(command=="stop"||command=="reload")return targeted(command,args);
   if(command=="stats"){
     if(!none("stats"))return Usage;
-    return finish(call(link,"stats","",options.timeout()),[](const Json &r){
-      auto value=[](const Json &v,const char *format,double scale){if(v.isNull())return std::string("unavailable");char b[64];std::snprintf(b,sizeof(b),format,v.number()/scale);return std::string(b);};
-      std::printf("fps        %s\ncpu        %s\nram        %s\ngpu memory %s\n",value(r["fps"],"%.1f",1).c_str(),value(r["cpuPercent"],"%.1f%%",1).c_str(),
-        value(r["ramBytes"],"%.1f MiB",1048576).c_str(),value(r["vramBytes"],"%.1f MiB",1048576).c_str());
-      std::printf("instances  %lld running of %lld\nbus        %lld queued (%lld bytes), %lld dropped\n",(long long)r["instances"]["running"].number(),(long long)r["instances"]["total"].number(),
-        (long long)r["bus"]["queued"].number(),(long long)r["bus"]["queuedBytes"].number(),(long long)r["bus"]["dropped"].number());
-    });
+    return finish(call(link,"stats","",options.timeout()),printResources);
   }
   if(command=="watch")return watch(args);
   if(command=="publish"){

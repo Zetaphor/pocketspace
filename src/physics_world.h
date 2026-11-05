@@ -69,6 +69,7 @@ public:
   void releaseGeometry(int key); // Caller guarantees no object still uses this asset.
   void remove(int id);
   bool contains(int id) const;
+  size_t bodyCount() const;
   State get(int id) const;
   bool needsTarget(int id) const;
   std::vector<PoseUpdate> takePoseUpdates(); // sorted by object ID; includes final pose on sleep

@@ -48,6 +48,7 @@
 #include "scope_exit.h"
 #include "scene_lookup.h"
 #include "physics_world.h"
+#include "script_telemetry.h"
 #include "runtime_stats.h"
 #include "group_buffer_budget.h"
 #include "script_catalog.h"
@@ -135,7 +136,8 @@ inline std::string catalogRoot;
 // Selected with the active scene; the pointed-to string belongs to its ScriptHost.
 inline const std::string *activeNamespace=&scratchNamespace;
 }
-struct ScriptHost {int instanceId=0;std::string saveNamespace=scenePersistence::scratchNamespace;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
+// heap counts the runtime's allocations and outlives it; closeScript frees both.
+struct ScriptHost {int instanceId=0;std::string saveNamespace=scenePersistence::scratchNamespace;std::unique_ptr<telemetry::HeapCounter> heap;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};
 bool loadScript(ScriptHost &active,const std::string &path,const std::function<void()> &beforeCommit={});
 // Same transaction for source that is not a file, such as the scratch scene's empty start.
 bool loadScriptSource(ScriptHost &active,const std::string &name,const std::string &source,const std::function<void()> &beforeCommit={});

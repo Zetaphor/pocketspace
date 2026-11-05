@@ -27,8 +27,8 @@ build/pocketspace-cli repl
 | `start <name>` | Starts a catalog script. The reply arrives after the script has loaded or failed. |
 | `stop <id> [--generation N]` | Stops a script. |
 | `reload <id> [--generation N]` | Reloads a script from its file. A failed reload keeps the running scene. |
-| `stats` | Frame rate, CPU, memory, instance counts and bus counters. |
-| `watch [--limit N] [--duration S]` | Streams status, error and bus-drop events until the limit, the duration or Ctrl-C. |
+| `stats` | Engine totals, then each script's [resources](control-protocol.md#resources): JavaScript heap, scene counts, estimated GPU allocations and callback time. |
+| `watch [--limit N] [--duration S]` | Streams status, error, bus-drop and once-a-second resources events until the limit, the duration or Ctrl-C. |
 | `publish <topic> [json]` | Publishes a `space.*` event from scratch, source `0`. |
 | `scratch reset` | Clears and recreates only the scratch scene. |
 | `autostart list` | Scripts started with the engine. |

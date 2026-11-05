@@ -31,17 +31,58 @@ private:
 
   static std::string quote(const std::string &s){return settings::jsonString(s);}
   static const char *stateName(ScriptState state){return state==ScriptState::Running?"running":state==ScriptState::Failed?"failed":"stopped";}
+  std::string displayName(const ScriptInstance &instance)const{
+    std::string name=instance.id?catalogKey(catalog_,instance.path):"scratch";
+    return name.empty()||name.rfind("..",0)==0?instance.path:name;
+  }
   std::string instanceView(const ScriptInstance &instance)const{
     const auto now=std::chrono::steady_clock::now();
     const double uptime=instance.state==ScriptState::Running?std::chrono::duration<double>(now-instance.startedAt).count():0;
-    std::string name=instance.id?catalogKey(catalog_,instance.path):"scratch";
-    if(name.empty()||name.rfind("..",0)==0)name=instance.path;
+    const std::string name=displayName(instance);
     std::string out="{\"instanceId\":"+std::to_string(instance.id)+",\"name\":"+quote(name)+",\"path\":"+quote(instance.path)
       +",\"state\":\""+stateName(instance.state)+"\",\"generation\":"+std::to_string(instance.generation)
       +",\"uptimeSeconds\":"+std::to_string(uptime)+",\"lastError\":"+(instance.lastError.empty()?"null":quote(instance.lastError))
       +",\"restartPending\":"+(instance.restartAt?"true":"false")
       +",\"lastReload\":"+(instance.lastReloadOk?(*instance.lastReloadOk?"\"ok\"":"\"failedKeptScene\""):"null")+"}";
     return out;
+  }
+  static std::string jsonNumber(double value){
+    if(!std::isfinite(value))return "null";
+    char text[32];std::snprintf(text,sizeof(text),"%.9g",value);return text;
+  }
+  template<class T>static std::string number(const std::optional<T> &value){
+    if(!value)return "null";
+    if constexpr(std::is_integral_v<T>)return std::to_string(*value);else return jsonNumber(double(*value));
+  }
+  // Engine totals once, then each instance's own values. Counts and heap are read
+  // now; FPS, CPU, memory, GPU estimates and callback time come from the latest
+  // sample. Values a stopped script cannot have are null.
+  std::string resourcesView()const{
+    const bool sampled=engineStats.sampleId>0;
+    std::string out="{\"fps\":"+number(engineStats.fps)+",\"cpuPercent\":"+number(engineStats.cpuPercent)+",\"ramBytes\":"+number(engineStats.ramBytes)
+      +",\"vramBytes\":"+number(engineStats.vramBytes)
+      +",\"gpuEstimateBytes\":"+(sampled?std::to_string(engineStats.gpuAllocatedEstimateBytes):"null")
+      +",\"sharedGpuEstimateBytes\":"+(sampled?std::to_string(engineStats.sharedGpuEstimateBytes):"null")
+      +",\"sampleSeconds\":"+jsonNumber(engineStats.sampleSeconds)+",\"sampleId\":"+std::to_string(engineStats.sampleId)
+      +",\"bus\":{\"queued\":"+std::to_string(eventBus.queued())+",\"queuedBytes\":"+std::to_string(eventBus.queuedBytes())+",\"dropped\":"+std::to_string(eventBus.dropped())+"}"
+      +",\"instances\":[";
+    bool first=true;
+    for(int instanceId:registry_.allIds())if(const auto *instance=registry_.find(instanceId)){
+      const bool running=instance->state==ScriptState::Running;
+      const auto &scene=instance->host.scene;
+      auto count=[&](size_t n){return running?std::to_string(n):std::string("null");};
+      out+=std::string(first?"":",")+"{\"instanceId\":"+std::to_string(instanceId)+",\"name\":"+quote(displayName(*instance))
+        +",\"state\":\""+stateName(instance->state)+"\",\"generation\":"+std::to_string(instance->generation)
+        +",\"heapBytes\":"+(running&&instance->host.heap?std::to_string(instance->host.heap->bytes):"null")
+        +",\"objects\":"+count(scene.objects.size())+",\"panels\":"+count(scene.panels.size())+",\"assets\":"+count(scene.assets.size())
+        +",\"bodies\":"+count(scene.physics?scene.physics->bodyCount():0)
+        +",\"gpuEstimateBytes\":"+(running?number(instance->gpuEstimateBytes):"null")
+        +",\"callbackMsPerSecond\":"+(running?number(instance->callbacks.msPerSecond):"null")
+        +",\"worstCallbackMs\":"+(running?number(instance->callbacks.worstFrameMs):"null")
+        +",\"busQueued\":"+std::to_string(eventBus.queuedFrom(instanceId))+",\"busDropped\":"+std::to_string(eventBus.droppedFrom(instanceId))+"}";
+      first=false;
+    }
+    return out+"]}";
   }
   static std::string ok(const std::string &id,const std::string &result){return "{\"v\":1,\"id\":"+id+",\"ok\":true,\"result\":"+result+"}";}
   static std::string fail(const std::string &id,const char *code,const std::string &message,const std::string &extra=""){
@@ -84,13 +125,7 @@ private:
       for(int instanceId:registry_.allIds())if(const auto *instance=registry_.find(instanceId)){list+=(first?"":",")+instanceView(*instance);first=false;}
       return ok(id,"{\"instances\":"+list+"]}");
     }
-    if(op=="stats"){
-      auto number=[](const auto &value){return value?std::to_string(*value):std::string("null");};
-      size_t running=0;for(int instanceId:registry_.allIds())running+=registry_.find(instanceId)->state==ScriptState::Running;
-      return ok(id,"{\"fps\":"+number(engineStats.fps)+",\"cpuPercent\":"+number(engineStats.cpuPercent)+",\"ramBytes\":"+number(engineStats.ramBytes)
-        +",\"vramBytes\":"+number(engineStats.vramBytes)+",\"instances\":{\"running\":"+std::to_string(running)+",\"total\":"+std::to_string(registry_.allIds().size())
-        +"},\"bus\":{\"queued\":"+std::to_string(eventBus.queued())+",\"queuedBytes\":"+std::to_string(eventBus.queuedBytes())+",\"dropped\":"+std::to_string(eventBus.dropped())+"}}");
-    }
+    if(op=="stats")return ok(id,resourcesView());
     if(op=="watch"){client.watching=true;return ok(id,"{\"watching\":true,\"seq\":"+std::to_string(eventSequence_)+"}");}
     if(op=="settings.get"){
       const auto &current=settings_.current();
@@ -254,6 +289,9 @@ public:
       if(response.find("\"ok\":true")==std::string::npos)std::fprintf(stderr,"[scratch] scripts.%s did not apply: %s\n",op.c_str(),response.c_str());
     }
   }
+  // Queues a resources event with the latest sample. Call after each sample while
+  // a client is watching.
+  void publishResources(){const auto view=resourcesView();event("resources",","+view.substr(1,view.size()-2));}
   // Records status changes, failures and bus drops for watchers. Call once per frame.
   std::vector<std::string> takeEvents(){
     for(int instanceId:registry_.allIds()){

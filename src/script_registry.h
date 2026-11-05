@@ -52,6 +52,9 @@ struct ScriptInstance {
   std::chrono::steady_clock::time_point startedAt{};
   // The last reload's result in this session; unset before any reload.
   std::optional<bool> lastReloadOk;
+  // Callback time, and the owned GPU allocation estimate from the latest sample.
+  telemetry::CallbackTimer callbacks;
+  std::optional<uint64_t> gpuEstimateBytes;
 };
 namespace restart {
 constexpr int maxAttempts=5;
@@ -70,6 +73,7 @@ class ScriptRegistry {
     {ScriptScope scope(scratch.host);loaded=loadScriptSource(scratch.host,"scratch","");}
     scratch.state=loaded?ScriptState::Running:ScriptState::Failed;
     if(loaded){++scratch.generation;scratch.startedAt=clock_();}
+    scratch.callbacks.clear();scratch.gpuEstimateBytes.reset();
     return loaded;
   }
   // Called after a callback error stops a script. Scratch is recreated empty instead.
@@ -175,10 +179,17 @@ public:
       {ScriptScope scope(instance->host);loaded=loadScript(instance->host,instance->path);}
       if(loaded){
         instance->state=ScriptState::Running;++instance->generation;instance->startedAt=now;instance->lastError.clear();
+        instance->callbacks.clear();instance->gpuEstimateBytes.reset();
         publishLifecycle("engine.scriptStarted",*instance);restarted.push_back(id);
       }else{instance->lastError="script restart failed";failed(*instance);}
     }
     return restarted;
+  }
+  // Closes each running script's frame of callback time. Call once per frame.
+  void endFrame(){for(auto &[id,instance]:instances_)if(instance->state==ScriptState::Running)instance->callbacks.endFrame();}
+  // Closes the callback-time window of every running script.
+  void sampleCallbacks(telemetry::CallbackTimer::Clock::time_point now=telemetry::CallbackTimer::Clock::now()){
+    for(auto &[id,instance]:instances_)if(instance->state==ScriptState::Running)instance->callbacks.sample(now);
   }
   const ScriptInstance *find(int id)const{auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
   ScriptInstance *find(int id){auto it=instances_.find(id);return it==instances_.end()?nullptr:it->second.get();}
@@ -248,7 +259,7 @@ public:
     ScriptScope scope(instance->host);
     if(!JS_IsFunction(instance->host.ctx,instance->host.update))return true;
     JSValue arg=JS_NewFloat64(instance->host.ctx,dt);
-    JSValue result=JS_Call(instance->host.ctx,instance->host.update,JS_UNDEFINED,1,&arg);
+    JSValue result;{telemetry::Timed timed(instance->callbacks);result=JS_Call(instance->host.ctx,instance->host.update,JS_UNDEFINED,1,&arg);}
     JS_FreeValue(instance->host.ctx,arg);
     if(!JS_IsException(result)){JS_FreeValue(instance->host.ctx,result);return true;}
     JS_FreeValue(instance->host.ctx,result);
@@ -260,7 +271,7 @@ public:
     if(!inputCallbackCtx)return true;
     JSValue value=inputEventValue(instance->host.ctx,event);
     JSValue callback=JS_DupValue(instance->host.ctx,inputCallback);
-    JSValue result=JS_Call(instance->host.ctx,callback,JS_UNDEFINED,1,&value);
+    JSValue result;{telemetry::Timed timed(instance->callbacks);result=JS_Call(instance->host.ctx,callback,JS_UNDEFINED,1,&value);}
     JS_FreeValue(instance->host.ctx,callback);JS_FreeValue(instance->host.ctx,value);
     if(!JS_IsException(result)){JS_FreeValue(instance->host.ctx,result);return true;}
     JS_FreeValue(instance->host.ctx,result);
@@ -291,7 +302,7 @@ public:
       JS_SetPropertyStr(ctx,envelope,"sequence",JS_NewFloat64(ctx,double(message.sequence)));
       // The subscription may be removed by its own callback.
       JSValue callback=JS_DupValue(ctx,found->callback);
-      JSValue result=JS_Call(ctx,callback,JS_UNDEFINED,1,&envelope);
+      JSValue result;{telemetry::Timed timed(instance->callbacks);result=JS_Call(ctx,callback,JS_UNDEFINED,1,&envelope);}
       JS_FreeValue(ctx,callback);JS_FreeValue(ctx,envelope);
       if(!JS_IsException(result)){JS_FreeValue(ctx,result);return;}
       JS_FreeValue(ctx,result);

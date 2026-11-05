@@ -43,6 +43,7 @@ public:
   ~Server(){stop();}
   const std::filesystem::path &path()const{return path_;}
   size_t clientCount()const{return clients_.size();}
+  size_t watcherCount()const{size_t n=0;for(const auto &client:clients_)n+=client.watching&&!client.closing;return n;}
   // Creates the private directory and socket. Fails if another engine answers on it;
   // a stale socket from a crashed engine is replaced.
   bool start(const std::filesystem::path &path,std::string &error){

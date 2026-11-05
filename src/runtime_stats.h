@@ -46,7 +46,7 @@ struct Sampler {
   using Clock=std::chrono::steady_clock;
   Clock::time_point previous=Clock::now();uint64_t previousFrames=0;std::optional<uint64_t> previousCpu;
   std::optional<double> fps,cpuPercent;std::optional<uint64_t> ramBytes,vramBytes;
-  uint64_t gpuAllocatedEstimateBytes=0,sampleId=0;double sampleSeconds=0;
+  uint64_t gpuAllocatedEstimateBytes=0,sharedGpuEstimateBytes=0,sampleId=0;double sampleSeconds=0;
   bool update(uint64_t frames,Clock::time_point now=Clock::now()){
     const double seconds=std::chrono::duration<double>(now-previous).count();if(seconds<1)return false;
     std::ifstream stat("/proc/self/stat");std::string line;std::getline(stat,line);const auto ticks=cpuTicks(line);const long rate=sysconf(_SC_CLK_TCK);

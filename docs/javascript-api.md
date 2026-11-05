@@ -24,7 +24,7 @@ the GPU. Scene counts are current at the time of the query.
 | `cpuPercent` | Process user+system CPU time divided by elapsed time. 100% means one fully occupied core; multithreaded usage can exceed 100%. |
 | `ramBytes` | Process resident RAM (`VmRSS`), in bytes. |
 | `vramBytes` | Driver-reported process GPU memory total from DRM fdinfo, in bytes, or `null` when unavailable. Duplicate DRM clients are counted once. |
-| `gpuAllocatedEstimateBytes` | Estimated engine GPU allocation size in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers (including retained LOD indices), deformed VBOs, the reusable instancing buffer when allocated, and panel textures. |
+| `gpuAllocatedEstimateBytes` | Estimated GPU allocation size of the whole engine, in bytes: allocated stereo color/depth buffers, model textures and vertex/index buffers (including retained LOD indices), deformed and skinned buffers, instancing buffers, panel textures, shadow maps, lighting environments and the sheen table. [`stats`](control-protocol.md#resources) breaks it down by script. |
 | `sampleId` | Increasing sample number; zero before the first sample. |
 | `physicsAdvanceMs` | Wall time of the latest physics-world advance in milliseconds, including solver, contact handling, and joint breaking; excludes host pose synchronization. |
 | `physicsSolverMs` | Solver wall time summed over the latest advance's fixed steps, including worker waits. |

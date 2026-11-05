@@ -98,6 +98,7 @@ inline std::string jsonText(const std::string &value){
 class Bus {
   std::deque<Message> queue_;
   std::map<int,size_t> queuedBySource_;
+  std::map<int,uint64_t> droppedBySource_;
   size_t queuedBytes_=0;
   uint64_t nextSequence_=1,nextSubscription_=1,dropped_=0;
   // Recipients of the front message, fixed when its delivery begins.
@@ -111,23 +112,26 @@ public:
     return (found==queuedBySource_.end()?0:found->second)+staged<maxQueuedPerSource;
   }
   uint64_t reserveSequence(){return nextSequence_++;}
-  void countDrop(){++dropped_;}
+  void countDrop(std::optional<int> source){++dropped_;if(source)++droppedBySource_[*source];}
   // Queues a message that already has a sequence number; false and a drop when full.
   bool enqueue(Message message){
-    if(!hasRoom(message.source,message.bytes())){++dropped_;return false;}
+    if(!hasRoom(message.source,message.bytes())){countDrop(message.source);return false;}
     queuedBytes_+=message.bytes();
     if(message.source)++queuedBySource_[*message.source];
     queue_.push_back(std::move(message));return true;
   }
   std::optional<uint64_t> publish(std::optional<int> source,std::string topic,std::string payload){
     Message message{0,std::move(topic),std::move(payload),source};
-    if(!hasRoom(source,message.bytes())){++dropped_;return std::nullopt;}
+    if(!hasRoom(source,message.bytes())){countDrop(source);return std::nullopt;}
     message.sequence=reserveSequence();const auto sequence=message.sequence;enqueue(std::move(message));return sequence;
   }
   size_t queued()const{return queue_.size();}
   size_t queuedBytes()const{return queuedBytes_;}
   uint64_t dropped()const{return dropped_;}
-  void clear(){queue_.clear();queuedBySource_.clear();queuedBytes_=0;recipients_.clear();nextRecipient_=0;frontStarted_=false;}
+  // Undelivered messages from one publisher, and its publications dropped this session.
+  size_t queuedFrom(int source)const{const auto f=queuedBySource_.find(source);return f==queuedBySource_.end()?0:f->second;}
+  uint64_t droppedFrom(int source)const{const auto f=droppedBySource_.find(source);return f==droppedBySource_.end()?0:f->second;}
+  void clear(){queue_.clear();queuedBySource_.clear();droppedBySource_.clear();queuedBytes_=0;recipients_.clear();nextRecipient_=0;frontStarted_=false;}
 
   // Delivers up to the per-frame budget, oldest message first. Messages published by
   // these callbacks wait for the next call. `collect` lists a message's recipients in

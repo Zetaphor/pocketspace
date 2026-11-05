@@ -79,7 +79,10 @@ int main(){
   assert(has(one.call(R"({"v":1,"id":"cat","op":"catalog"})"),R"("scripts":["a.js","b.js"])"));
   const auto list=one.call(R"({"v":1,"id":"list","op":"list"})");
   assert(has(list,R"("instanceId":0,"name":"scratch")")&&has(list,R"("state":"running")"));
-  assert(has(one.call(R"({"v":1,"id":"stats","op":"stats"})"),R"("instances":{"running":1)"));
+  // Before the first sample, sampled values are null; scratch's heap and counts are live.
+  const auto unsampled=one.call(R"({"v":1,"id":"stats","op":"stats"})");
+  assert(has(unsampled,R"("fps":null)")&&has(unsampled,R"("gpuEstimateBytes":null)")&&has(unsampled,R"("sampleId":0)"));
+  assert(has(unsampled,R"("instances":[{"instanceId":0,"name":"scratch","state":"running","generation":1,"heapBytes":)")&&has(unsampled,R"("objects":0,"panels":0,"assets":0,"bodies":0,"gpuEstimateBytes":null,"callbackMsPerSecond":null)"));
 
   // Watch from the second client, then manage two scripts from the first.
   assert(has(two.call(R"({"v":1,"id":"w","op":"watch"})"),R"("watching":true)"));
@@ -206,6 +209,66 @@ int main(){
   // Only scratch has the scripts object.
   assert(has(one.call(R"({"v":1,"id":"noscripts","op":"eval","instanceId":1,"generation":2,"code":"typeof scripts"})"),R"("result":"\"undefined\"")"));
   scratchControl={};
+
+  // Telemetry. The heap counter brackets QuickJS's full walk and follows allocation.
+  {
+    auto &a=*registry.find(1);JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(a.host.rt,&usage);
+    // The counter sees every allocation of the runtime, including internal ones that
+    // QuickJS's own total leaves out, so it is never lower and only a little higher.
+    const uint64_t counted=a.host.heap->bytes;
+    assert(counted>=uint64_t(usage.malloc_size)&&counted<=uint64_t(usage.malloc_size)+256*1024);
+    assert(has(one.call(R"({"v":1,"id":"big","op":"eval","instanceId":1,"generation":2,"code":"globalThis.big=new Float64Array(1000000);0"})"),R"("result":"0")"));
+    assert(a.host.heap->bytes>=counted+8000000);
+    one.call(R"({"v":1,"id":"free","op":"eval","instanceId":1,"generation":2,"code":"big=null;0"})");JS_RunGC(a.host.rt);
+    assert(a.host.heap->bytes<counted+1000000);
+  }
+  // Callback time: a busy bus callback against an idle scratch, over a few frames.
+  one.call(R"j({"v":1,"id":"busy","op":"eval","instanceId":1,"generation":2,"code":"subscribe('space.busy',()=>{const t=Date.now();while(Date.now()-t<3){}})"})j");
+  registry.sampleCallbacks();
+  for(int frame=0;frame<4;frame++){
+    one.call(R"({"v":1,"id":"busy)"+std::to_string(frame)+R"(","op":"publish","topic":"space.busy"})");
+    while(eventBus.queued())registry.dispatchBus();
+    for(int id:registry.runningIds())registry.update(id,1/90.);
+    registry.endFrame();
+  }
+  registry.sampleCallbacks();
+  const auto &busy=registry.find(1)->callbacks,&idle=registry.find(0)->callbacks;
+  // Date.now() has millisecond steps, so each busy callback runs for more than 2 ms;
+  // the idle script does almost nothing.
+  assert(busy.worstFrameMs&&*busy.worstFrameMs>2&&busy.msPerSecond&&idle.msPerSecond&&idle.worstFrameMs);
+  assert(*busy.msPerSecond>*idle.msPerSecond*10&&*busy.worstFrameMs>*idle.worstFrameMs*2);
+  // A sample: engine totals once, per-script values, no DRM memory in this process.
+  engineStats.prime();
+  assert(engineStats.update(90,std::chrono::steady_clock::now()+std::chrono::seconds(1))&&!engineStats.vramBytes);
+  const auto sampled=one.call(R"({"v":1,"id":"stats2","op":"stats"})");
+  assert(has(sampled,R"("vramBytes":null)")&&has(sampled,R"("sampleId":1)")&&has(sampled,R"("gpuEstimateBytes":0,"sharedGpuEstimateBytes":0)"));
+  assert(has(sampled,R"("instanceId":1,"name":"a.js","state":"running","generation":2,"heapBytes":)")&&has(sampled,R"("callbackMsPerSecond":)"));
+  assert(sampled.find(R"("instanceId":1,"name":"a.js","state":"running","generation":2,"heapBytes":null)")==std::string::npos);
+  // A stopped script reports no live values; a new instance starts with none sampled.
+  assert(has(one.call(R"({"v":1,"id":"stopa","op":"stop","instanceId":1,"generation":2})"),R"("state":"stopped")"));
+  assert(has(one.call(R"({"v":1,"id":"stats3","op":"stats"})"),R"("instanceId":1,"name":"a.js","state":"stopped","generation":2,"heapBytes":null,"objects":null,"panels":null,"assets":null,"bodies":null,"gpuEstimateBytes":null,"callbackMsPerSecond":null,"worstCallbackMs":null)"));
+  const auto restarted=one.call(R"({"v":1,"id":"starta","op":"start","name":"a.js"})");
+  const auto fresh=registry.runningIds().back();
+  assert(has(restarted,R"("ok":true)")&&!registry.find(fresh)->callbacks.msPerSecond);
+  // Per-publisher bus counters: scratch fills its 256-message share and drops the rest.
+  assert(has(one.call(R"({"v":1,"id":"flood","op":"eval","code":"for(let i=0;i<300;i++)publish('space.flood',i);0"})"),R"("result":"0")"));
+  assert(eventBus.queuedFrom(0)==bus::maxQueuedPerSource&&eventBus.droppedFrom(0)>=300-bus::maxQueuedPerSource);
+  assert(has(one.call(R"({"v":1,"id":"stats4","op":"stats"})"),R"("busQueued":256,"busDropped":)"));
+  while(eventBus.queued())registry.dispatchBus();
+  assert(eventBus.queuedFrom(0)==0);
+  // Resources events reach watchers; a watcher that disconnects stops counting.
+  {
+    const size_t before=listener.watcherCount();
+    Peer monitor(socketPath);
+    assert(has(monitor.call(R"({"v":1,"id":"wm","op":"watch"})"),R"("watching":true)")&&listener.watcherCount()==before+1);
+    operations.publishResources();
+    std::string line;while((line=monitor.line()).find(R"("event":"resources")")==std::string::npos)assert(!line.empty());
+    assert(has(line,R"("instances":[{"instanceId":0)")&&has(line,R"("seq":)"));
+    ::shutdown(monitor.fd,SHUT_RDWR);
+    for(int i=0;i<20&&listener.watcherCount()!=before;i++){pump();usleep(1000);}
+    assert(listener.watcherCount()==before);
+  }
   assert(has(codeOf("scripts.list()"),R"(\"unavailable\")"));
 
   // Watchers saw the failure and the bus remains bounded; oversized requests close the link.
@@ -224,5 +287,5 @@ int main(){
   listener.stop();
   assert(!std::filesystem::exists(socketPath));
   char byte;assert(::recv(one.fd,&byte,1,0)==0);
-  std::puts("PASS control: scratch scripts object (queries, checked and queued start/stop/reload, bus outcomes, calls from callbacks, stale queued requests, scratch only), private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown");
+  std::puts("PASS control: telemetry (heap counter against a full walk, callback time, sampled and unsampled values, stopped and restarted instances, per-publisher bus counters, unavailable DRM memory, resources events and watcher disconnect), scratch scripts object (queries, checked and queued start/stop/reload, bus outcomes, calls from callbacks, stale queued requests, scratch only), private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown");
 }

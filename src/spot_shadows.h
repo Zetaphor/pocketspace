@@ -64,6 +64,8 @@ void main(){if(alphaMode==1&&texture(material,t).a*alpha<alphaCutoff)discard;}
 public:
  SpotShadows()=default;SpotShadows(const SpotShadows&)=delete;
  bool prepare(){return init();}
+ // The current shadow map's storage; zero when none is allocated.
+ uint64_t allocatedBytes()const{return texture?uint64_t(resolution)*resolution*4*(allocatedPoint?6:1):0;}
  ~SpotShadows(){reset();if(vao)glDeleteVertexArrays(1,&vao);if(program)glDeleteProgram(program);}
  void reset(){releaseMap();lightId=0;blocked=false;warmFrames=0;gpuBudget.reset();spotShadowDiagnostics={};}
  template<class SceneType>void update(const SceneType &scene){

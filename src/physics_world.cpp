@@ -182,6 +182,7 @@ struct World::Impl : JPH::ContactListener {
 World::World(){initialize();impl=std::make_unique<Impl>();}
 World::~World(){while(!impl->bodies.empty())remove(impl->bodies.begin()->first);}
 bool World::contains(int id)const{return impl->bodies.contains(id);}
+size_t World::bodyCount()const{return impl->bodies.size();}
 bool World::hasConvexHull(int key)const{return impl->hulls.contains(key);}
 void World::releaseGeometry(int key){impl->hulls.erase(key);impl->meshes.erase(key);}
 bool World::hasMesh(int key)const{return impl->meshes.contains(key);}

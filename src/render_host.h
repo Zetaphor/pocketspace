@@ -247,3 +247,45 @@ inline bool rayTriangle(const float o[3],const float d[3],const float a[3],const
 // The engine laser in scene coordinates; direction is unit length.
 void laserSceneRay(const ControllerSnapshot &hand,int handIndex,float origin[3],float direction[3]);
 float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnapshot &hand,int handIndex,bool accelerated=true);
+
+// Estimated GPU allocations owned by one running script: its surfaces (including a
+// retained previous generation), model buffers and textures, deformed and skinned
+// buffers, panels, instancing buffer and shadow map. Shared items are left to
+// sharedGpuEstimate. Estimates from sizes, not driver measurements.
+inline uint64_t ownedGpuEstimate(const Scene &scene,const std::map<int,std::unique_ptr<Surface>> &surfaces,const SceneRenderState *render){
+  uint64_t bytes=0;std::set<GLuint> countedDepth;
+  for(const auto &[id,surface]:surfaces)for(const Surface *generation=surface.get();generation;generation=generation->previous.get())for(const auto &buffer:generation->buffers){
+    const uint64_t height=generation->eyePixels,width=2*height;
+    if(buffer.bo)bytes+=uint64_t(gbm_bo_get_stride(buffer.bo))*height;
+    if(buffer.depth&&countedDepth.insert(buffer.depth).second)bytes+=width*height*4; // Depth24 storage commonly occupies 32 bits.
+  }
+  for(const auto &asset:scene.assets)for(const auto &part:asset.primitives){
+    if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);
+    if(part.indexBuffer)bytes+=uint64_t(part.vertexCount)*(part.indexType==GL_UNSIGNED_SHORT?2:4);
+    for(const auto &lod:part.lod){if(lod.budgetBytes)bytes+=lod.budgetBytes;else if(lod.indexBuffer)bytes+=uint64_t(lod.count)*(part.indexType==GL_UNSIGNED_SHORT?2:4);}
+    if(part.texture)bytes+=uint64_t(part.width)*part.height*4;
+    if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);
+    if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);
+    if(part.surfaceVbo)bytes+=uint64_t(part.gpuVertexCount)*9*sizeof(float);
+    for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
+  }
+  for(const auto &object:scene.objects)if(const auto &pose=object.animationPose){
+    for(const auto &part:pose->geometry.primitives){if(part.vbo)bytes+=uint64_t(part.gpuVertexCount)*5*sizeof(float);if(part.surfaceVbo)bytes+=part.surface.size()*sizeof(float);}
+    for(size_t s=0;s<pose->skinTextures.size();s++)if(pose->skinTextures[s])bytes+=pose->palettes[s].size()*sizeof(animation::Matrix);
+    if(pose->geometry.batchVbo)bytes+=pose->geometry.batchBytes;
+  }
+  for(const auto &panel:scene.panels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
+  for(const auto &panel:scene.retiredPanels)if(panel.texture)bytes+=uint64_t(panel.width)*panel.height*4;
+  if(render)bytes+=render->instancing.allocatedBytes()+render->spotShadows.allocatedBytes();
+  return bytes;
+}
+// Lighting environments and the sheen table, which scripts loading the same file
+// or using sheen share. Each is counted once, however many scripts use it.
+inline uint64_t sharedGpuEstimate(const std::vector<const Scene*> &scenes){
+  uint64_t bytes=0;std::set<const LightingEnvironment*> environments;std::set<const SheenLookup*> sheen;
+  for(const auto *scene:scenes)for(const auto &asset:scene->assets){
+    if(asset.environment&&environments.insert(asset.environment.get()).second)bytes+=asset.environment->gpuBytes();
+    if(asset.sheenLookup&&asset.sheenLookup->texture&&sheen.insert(asset.sheenLookup.get()).second)bytes+=SheenLookup::size*SheenLookup::size*4;
+  }
+  return bytes;
+}
