@@ -1,0 +1,176 @@
+# Demo scripts and API additions: plan
+
+Status: approved; implementation not started.
+
+## Goal
+
+Add eight demos that are fun or useful on their own, while each one shows several
+engine features working together. Today's `scripts/` examples show one feature
+each; the demos are complete scenes someone would keep running beside their other
+VR apps.
+
+## Layout and conventions
+
+- Demos live in a new `demos/` folder, one `.js` file each. They are installed by
+  default: `tools/install-user-service.sh` copies them into the user catalog as
+  `~/.local/share/pocketspace/scripts/demos/`, so they appear in the dashboard and
+  CLI as `demos/clock.js` and so on. They are copied, not linked, because the
+  catalog does not follow links that lead outside it; rerunning the install script
+  updates them. Model paths stay relative to the checkout, where the engine runs.
+  `--remove` deletes the installed copies along with the units.
+- Each file starts with a header comment: what it is, the controls, and the
+  features it shows.
+- Props the samples do not provide (ball, hoop, desk, cradle frame) are generated
+  by a new `tools/generate-demo-models.py` into `assets/demos/`, as
+  `tools/generate-physics-shapes.py` does for `assets/physics/`. Every demo
+  otherwise uses bundled assets.
+- Demos capture pointer input only through the panels and objects they make
+  interactive, and show lasers only while they need them.
+- State that should survive a restart (layouts, drawings, high scores, timer
+  settings) is saved in the demo's own namespace and restored on start.
+- A new guide, `docs/demos.md`, lists the demos with controls and the features each
+  shows. `docs/examples.md` links to it. The site navigation gains a Demos entry.
+
+## Demos
+
+### Useful
+
+**Desk clock and timer (`clock.js`).** A clock panel showing the time and date,
+with a countdown timer below it. Buttons on the panel set 1, 5, 15 and 25 minutes
+(a pomodoro), start or pause, and reset. At zero the panel flashes and both
+controllers buzz. A small grab handle moves the clock; its position and the last
+duration are restored next time.
+*Shows:* retained-canvas drawing, panel buttons, haptics, a panel following a
+grabbed object, saved state.
+
+**Performance monitor (`monitor.js`).** A compact panel with FPS, CPU, RAM, driver
+GPU memory and the GPU allocation estimate, each with a 60-second sparkline. It
+redraws once a second. A grab handle places it; the placement is restored next time.
+*Shows:* `getEngineStats`, efficient retained redraws, a panel following an object.
+
+**Sketch board (`sketch.js`).** A whiteboard panel drawn on with the trigger along
+the engine laser. Swatches pick a colour and brush size; buttons undo the last
+stroke, clear and save. The drawing is restored on the next start.
+*Shows:* panel hover and pointer events with pixel coordinates, canvas lines and
+circles, panel pixel persistence.
+
+**Sticky notes (`notes.js`).** A small dispenser offers coloured notes with preset
+labels (To do, Done, Idea, Call, a numbered card). Clicking it spawns a note at the
+dispenser; grab notes and leave them anywhere around you. Clicking a note cycles
+its label; a bin removes notes dropped on it. The layout is restored next time.
+*Shows:* scene containers, spawning and removal, grabbing, panels following
+objects, scene saves.
+
+### Fun and showcases
+
+**Basketball toss (`basketball.js`).** A hoop with a backboard on a post, a rack of
+balls and a scoreboard. Throw the balls; a basket counts when a ball passes down
+through the rim. Scoring buzzes the throwing hand and updates the score, the
+streak and the best score, which is saved. A/X returns all balls to the rack.
+*Shows:* dynamic bodies and throwing, a static mesh collider for the rim,
+restitution and friction, collision events for backboard and rim hits, haptics,
+saved high score.
+
+**Desk toys (`desk-toys.js`).** A desk surface holding a Newton's cradle (five
+balls hung on distance joints) and a spinner on a vertical hinge. Pull back an end
+ball and let go; flick the spinner by grabbing it, or press A/X to drive it with
+the hinge motor. The bumper resets both toys.
+*Shows:* distance and hinge joints, hinge motors, restitution, grabbing jointed
+bodies. The cradle is a real rigid-body simulation, so it approximates the toy
+rather than conserving momentum perfectly.
+
+**Pet fox (`pet-fox.js`).** The animated Fox wanders a small area in front of you.
+Look at the floor and it trots to the point you are looking at, blending from walk
+to run with distance and back to its idle survey when it arrives. Grab it to pick
+it up; it plays its survey animation while held and resumes wandering when put
+down. Without eye tracking it wanders on its own.
+*Shows:* skeletal animation with blended transitions, gaze tracking, grabbing,
+scripted movement and facing.
+
+**Lighting studio (`lighting-studio.js`).** PBR models (car, lantern, material
+spheres, fabric) on a slowly turning turntable under the baked studio environment.
+A grabbable lamp carries a shadow-casting point light; a sun handle aims a
+directional light. Panel buttons switch the environment, shadows and turntable on
+and off.
+*Shows:* PBR materials, environment lighting, point and directional lights, point
+shadows, light attachment, sheen.
+
+## API additions
+
+These close gaps the demos meet. Each is small, follows existing conventions, and
+gets a reference entry, a regression and coverage in the smallest relevant example.
+
+1. **`getObjectTransform(id)`** returns `{x, y, z, pitch, yaw, roll, scale, visible}`
+   for any live object, in scene coordinates and radians, reflecting grabs and
+   physics. Today a script cannot read where a grabbed object ended up unless it
+   has a physics body. Used by the notes, clock, monitor, basketball and fox.
+2. **Panels that follow objects.** A new placement mode,
+   `panelSetTransform(panel, 'object', x, y, z, {objectId})`, keeps a panel at an
+   offset from an object, updated after interaction and physics each frame, with
+   `viewerFacing: true` to keep the panel facing the headset. Removing the object
+   hides the panel; snapshots remap the attachment, as lights already do. Used by the
+   notes, clock and monitor handles.
+3. **Small saved data.** `saveScriptData(name, value)` and `loadScriptData(name)`
+   store JSON-compatible values (bus payload rules, at most 64 KiB) in the calling
+   script's save namespace, written atomically; loading a missing name returns
+   `null`. Used for high scores, timer settings and options that are not scene
+   content.
+4. **Text measurement.** `canvas.measureText(text, pixels = 32)` returns the width in
+   pixels of a line drawn with the panel's font, so text can be centered, aligned
+   and wrapped. Used by the clock, notes and scoreboard.
+
+Each demo uses only these additions plus today's API. Anything else that comes up
+during implementation is added to this list before it is built.
+
+## Resetting saved state
+
+A demo's saved state (its scene saves and saved data) can be cleared from the
+dashboard. This works for every catalog script, not only demos, because it acts
+on the script's save namespace.
+
+- A new control operation, `data.reset` with a catalog `name`, deletes everything
+  in that script's save namespace. If the script is running it is then reloaded,
+  so it starts from defaults; a stopped script simply starts fresh next time. The
+  reply reports how many files were removed. It is a changing request, remembered
+  by request ID like the others.
+- The dashboard catalog row gains **Reset**, which needs a second press within
+  three seconds, as Stop Engine does.
+- `pocketspace-cli data reset <name>` does the same from a terminal.
+- Paths are resolved through the same catalog key and namespace encoding as saves,
+  and the operation removes only regular files inside that namespace directory.
+
+## Tests and documentation
+
+Every addition ships with tests and documentation in the same change.
+
+| Addition | Tests | Documentation |
+| --- | --- | --- |
+| `getObjectTransform` | Values after set calls, after a simulated grab and after physics; scale and visibility; invalid and removed IDs | JavaScript API reference |
+| Object-following panels | Offset and facing each frame; hiding when the object is removed; container disposal; snapshot remapping; invalid IDs and options | Panels guide |
+| `saveScriptData` / `loadScriptData` | Round trip; missing name; payload rules and size limit; namespace isolation between scripts; atomic replacement; reload | JavaScript API reference and scene-persistence namespaces |
+| `canvas.measureText` | Widths for known strings and sizes; empty text; missing font | Panels guide |
+| `data.reset` | Files removed only inside the namespace; running script reloaded; stopped script; unknown name; duplicate request ID; links and escapes rejected | Control protocol reference |
+| CLI `data reset` | JSON and human output, exit codes, offline engine | CLI guide |
+| Dashboard Reset | Second-press confirmation and expiry; request sent with the catalog name; failure notice | Dashboard guide |
+| Demo install | Copies, updates and removal by the install script | Getting started and the dashboard guide |
+| Demo model generator | Generated models load, with the expected bounds | Asset README |
+| Each demo | `examples-regression` loads it through the real bindings and drives its controls, buttons and saved-state paths | `docs/demos.md`: controls, features and saved state |
+
+`tools/lint-docs.py` checks the demos inventory, header comments and asset
+references the way it checks `scripts/`, and the test index lists every new test.
+
+## Verification
+
+- Focused regressions while building each piece; the full regression set, docs
+  lint and site build before each commit.
+- Headset acceptance by the user for each demo: it works as described, is fun or
+  useful, and holds frame rate. The engine is stopped and checked afterwards.
+
+## Order
+
+1. API additions with their regressions and reference docs.
+2. Saved-state reset: `data.reset`, the CLI command and the dashboard button.
+3. Demo model generator and assets.
+4. Demos, one commit each: clock, monitor, sketch board, notes, basketball, desk
+   toys, pet fox, lighting studio, with `docs/demos.md` growing alongside.
+5. Default install, navigation, and the final full check.
