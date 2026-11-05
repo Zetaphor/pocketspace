@@ -155,6 +155,7 @@ and visual acceptance.
 | [results/auto-split.md](results/auto-split.md) | Subdivision measurements and validation limits. |
 | [results/fast-motion.md](results/fast-motion.md) | Continuous-motion validation, buffer limits, and headset findings. |
 | [results/gpu-sync.md](results/gpu-sync.md) | Completion synchronization contract review and measured comparisons. |
+| [results/telemetry-overhead.md](results/telemetry-overhead.md) | Watching for per-script resources events: no measurable FPS or CPU cost on a steady two-script workload. |
 | [results/memory-reload.md](results/memory-reload.md) | Reload RSS growth attributed mainly to reusable free allocator space. |
 | [results/motion-soak.md](results/motion-soak.md) | Five-minute motion/reload stability check. |
 | [results/overlay-comparison.md](results/overlay-comparison.md) | Single/grouped rendering measurements and resolution caveats. |
