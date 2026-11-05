@@ -166,7 +166,7 @@ Follow-up `32839bf` (build time only, no production code change): the GLES regre
 
 **Automated evidence:** `control-regression` covers the `scripts` object: queries, checked and queued lifecycle calls (including one from a bus callback), outcomes on the bus, stale queued requests, and that only scratch has the object. `cli-regression` drives the real CLI against the control service without VR, through the checks listed in the [test index](../tests/index.md). It covers the harness path, a bounded watch across an engine restart, and an interactive REPL on a pseudo-terminal. It passed four consecutive runs on Deckard.
 
-**Live evidence (2026-11-04):** In a real terminal against the live engine, the user created a box in scratch, started `grabbing.js` through `scripts.start`, entered it, saw the REPL return to scratch after editing the file, and used history recall and Ctrl-R. They confirmed it all worked.
+**Live evidence (2026-11-04):** The user ran the REPL in a real terminal against the live engine, with a suggested check: create a box in scratch, start and enter `grabbing.js`, return to scratch after editing its file, and use history recall and Ctrl-R. They reported that everything worked.
 
 **Exit gate:** a harness can launch, monitor, publish, evaluate, and stop scripts without parsing human text; an interactive user can create an object in scratch and then enter a script safely. Passed.
 
