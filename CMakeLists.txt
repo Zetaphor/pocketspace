@@ -70,6 +70,13 @@ endfunction()
 add_executable(pocketspace src/main.cpp $<TARGET_OBJECTS:pocketspace-objects>)
 sf_engine_target(pocketspace)
 
+# The control-socket client and REPL. It links QuickJS only for JSON and libedit for
+# interactive line editing, not the engine.
+find_library(SF_EDIT_LIB edit REQUIRED)
+add_executable(pocketspace-cli src/pocketspace_cli.cpp)
+target_include_directories(pocketspace-cli PRIVATE ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(pocketspace-cli PRIVATE ${QJS_LIB} ${SF_EDIT_LIB} m pthread)
+
 # Regressions keep their assertions even in a Release build. Test hooks change
 # engine types, so every target linking the test objects defines them too.
 function(sf_engine_test target)
@@ -89,7 +96,7 @@ set(SF_HARNESS_TESTS directional-light-regression environment-regression instanc
     point-light-regression render-occlusion-regression rigid-batch-regression sheen-regression spot-shadow-regression
     spotlight-cone-regression spotlight-regression asset-lifetime-regression auto-lod-regression culling-regression
     pbr-cost-profile)
-foreach(test ${SF_HARNESS_TESTS} animation-blend-regression animation-regression control-regression event-bus-regression
+foreach(test ${SF_HARNESS_TESTS} animation-blend-regression animation-regression cli-regression control-regression event-bus-regression
     examples-regression gpu-skinning-regression lifecycle-script-regression morph-regression multi-script-lifecycle-regression
     physics-api-regression scene-container-regression scene-persistence-regression script-recovery-regression
     projected-bounds-regression panel-submission-regression render-group-split-regression render-stress-benchmark)
@@ -103,6 +110,8 @@ foreach(test ${SF_HARNESS_TESTS} animation-blend-regression animation-regression
     target_precompile_headers(${test} REUSE_FROM sf-test-pch)
   endif()
 endforeach()
+# tests/cli-regression.py drives the real CLI against this control host.
+add_dependencies(cli-regression pocketspace-cli)
 add_executable(input-arbitration-regression EXCLUDE_FROM_ALL tests/input-arbitration-regression.cpp)
 target_compile_options(input-arbitration-regression PRIVATE -UNDEBUG)
 

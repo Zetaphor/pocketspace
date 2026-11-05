@@ -6,7 +6,7 @@ Steam Frame on Linux and runs alongside your existing SteamVR application.
 ## Build the engine
 
 Requires CMake 3.20 or newer, a C++20 compiler, OpenVR headers and runtime, QuickJS-ng's static
-library, FreeType, EGL, GLESv2, GBM, and libdrm development files. The default
+library, FreeType, EGL, GLESv2, GBM, libdrm, and libedit development files. The default
 library paths target Steam Frame's ARM64 Linux environment. Override `SDK_INCLUDE`,
 `QJS_INCLUDE`, `QJS_LIB`, and `STEAMVR_BIN` through CMake for another installation.
 
@@ -111,9 +111,14 @@ Inspect a model without opening VR:
 ./run-pocketspace.sh --inspect assets/samples/Box/Box.glb
 ```
 
+Manage a running engine from a terminal with `build/pocketspace-cli`: start and
+stop scripts, watch for errors, or try JavaScript live in the scratch scene with
+`build/pocketspace-cli repl`. See [command line and REPL](cli.md).
+
 ## Existing installations
 
-The executable is `build/pocketspace` and the launcher is `run-pocketspace.sh`.
+The executable is `build/pocketspace`, the launcher is `run-pocketspace.sh`, and
+the command-line client is `build/pocketspace-cli`.
 Named scene saves use a
 [separate namespace per script](scene-persistence.md#storage-namespaces).
 

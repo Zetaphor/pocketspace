@@ -36,6 +36,7 @@ export default defineConfig({
         { text: 'Eye calibration', link: '/eye-calibration' },
         { text: 'Input architecture', link: '/input-architecture' },
         { text: 'Lifecycle', link: '/lifecycle' },
+        { text: 'Command line and REPL', link: '/cli' },
         { text: 'Control protocol', link: '/control-protocol' }
       ] },
       { text: 'Project', items: [

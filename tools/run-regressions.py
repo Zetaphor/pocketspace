@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # Measurements or fixtures with their own run instructions in tests/README.md.
 EXCLUDED = {'physics-performance-regression'}
 # These generate their fixtures in a wrapper script, which receives the binary.
-WRAPPERS = {'morph-regression': 'tests/morph-loader-regression.py',
+WRAPPERS = {'cli-regression': 'tests/cli-regression.py',
+            'morph-regression': 'tests/morph-loader-regression.py',
             'gpu-skinning-regression': 'tests/skinning-loader-regression.py'}
 
 

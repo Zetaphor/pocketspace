@@ -26,6 +26,8 @@ private:
   struct Seen {ScriptState state;uint64_t generation;std::string lastError;};
   std::map<int,Seen> seen_;
   std::vector<std::string> pendingEvents_;
+  // Lifecycle requests made by scratch's scripts object, applied between frames.
+  std::deque<std::string> scratchQueue_;
 
   static std::string quote(const std::string &s){return settings::jsonString(s);}
   static const char *stateName(ScriptState state){return state==ScriptState::Running?"running":state==ScriptState::Failed?"failed":"stopped";}
@@ -109,7 +111,8 @@ private:
     return fail(id,"unknown_op","unknown operation: "+op);
   }
   // Operations that change engine state. Their responses are remembered by request ID.
-  std::string mutate(const std::string &op,const std::string &id,JSValueConst request){
+  // With apply false, start/stop/reload only check the request and return a null result.
+  std::string mutate(const std::string &op,const std::string &id,JSValueConst request,bool apply=true){
     int64_t instanceId=0,generation=0;
     auto target=[&](bool requireGeneration,ScriptInstance *&instance)->std::string{
       if(!field(request,"instanceId",instanceId)||instanceId>INT_MAX)return fail(id,"bad_request",op+" requires instanceId");
@@ -124,6 +127,11 @@ private:
       std::string name;if(!field(request,"name",name))return fail(id,"bad_request","start requires a catalog name");
       std::filesystem::path resolved;std::string error;
       if(!resolveCatalogScript(catalog_,name,resolved,error))return fail(id,"not_found",error);
+      if(!apply){
+        std::error_code ec;const auto canonical=std::filesystem::canonical(resolved,ec).string();
+        for(int other:registry_.runningIds())if(other&&registry_.find(other)->path==canonical)return fail(id,"conflict","script is already running");
+        return ok(id,"null");
+      }
       int launched=0;
       if(!registry_.launch(resolved.string(),launched,error)){
         if(!launched)return fail(id,"conflict",error);
@@ -134,12 +142,14 @@ private:
     if(op=="stop"){
       ScriptInstance *instance=nullptr;if(auto error=target(true,instance);!error.empty())return error;
       if(!instanceId)return fail(id,"invalid","scratch cannot be stopped; use scratch.reset");
+      if(!apply)return instance->state==ScriptState::Running||(instance->state==ScriptState::Failed&&instance->restartAt)?ok(id,"null"):fail(id,"invalid","instance is not running");
       if(!registry_.stop(int(instanceId)))return fail(id,"invalid","instance is not running");
       return ok(id,instanceView(*instance));
     }
     if(op=="reload"){
       ScriptInstance *instance=nullptr;if(auto error=target(true,instance);!error.empty())return error;
       if(!instanceId||instance->state!=ScriptState::Running)return fail(id,"invalid","only a running user script can be reloaded");
+      if(!apply)return ok(id,"null");
       const bool reloaded=hooks_.reload?hooks_.reload(int(instanceId)):registry_.reload(int(instanceId));
       if(!reloaded)return fail(id,"reload_failed",instance->lastError.empty()?"reload failed; the previous scene is kept":instance->lastError,",\"instance\":"+instanceView(*instance));
       return ok(id,instanceView(*instance));
@@ -218,6 +228,31 @@ public:
     }
     JS_FreeValue(ctx_,request);
     return response;
+  }
+  // Requests from scratch's scripts object, as protocol request lines. Queries answer
+  // now. start, stop and reload are checked now and queued, because scratch code can
+  // run inside a frame; applyScratchQueue runs them between frames and their outcome
+  // reaches scratch through engine.* bus topics.
+  std::string handleScratch(const std::string &line){
+    if(!ctx_)return fail("null","unavailable","control parser unavailable");
+    JSValue request=JS_ParseJSON(ctx_,line.c_str(),line.size(),"scratch");
+    std::string op,response;Client none;
+    if(JS_IsException(request)||!field(request,"op",op))response=fail("null","bad_request","scripts request is malformed");
+    else if(op=="catalog"||op=="list"||op=="status")response=run(op,"null",request,none);
+    else if(op=="start"||op=="stop"||op=="reload"){
+      response=mutate(op,"null",request,false);
+      if(response.find("\"ok\":true")!=std::string::npos)scratchQueue_.push_back(line);
+    }else response=fail("null","unknown_op","unknown scripts operation: "+op);
+    JS_FreeValue(ctx_,request);return response;
+  }
+  // Call between frames, outside every scene scope.
+  void applyScratchQueue(){
+    for(auto queue=std::exchange(scratchQueue_,{});!queue.empty();queue.pop_front()){
+      JSValue request=JS_ParseJSON(ctx_,queue.front().c_str(),queue.front().size(),"scratch");
+      std::string op;field(request,"op",op);
+      const auto response=mutate(op,"null",request);JS_FreeValue(ctx_,request);
+      if(response.find("\"ok\":true")==std::string::npos)std::fprintf(stderr,"[scratch] scripts.%s did not apply: %s\n",op.c_str(),response.c_str());
+    }
   }
   // Records status changes, failures and bus drops for watchers. Call once per frame.
   std::vector<std::string> takeEvents(){

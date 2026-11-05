@@ -107,7 +107,8 @@ Each iteration follows this order in `src/main.cpp`:
 1. Process SteamVR quit events and refresh tracked controller roles and poses.
 2. Reread changed engine settings, retry due automatic restarts, periodically
    check each running script's timestamp and attempt scoped transactional reload,
-   then answer queued [control socket](control-protocol.md) requests and send watch events.
+   then answer queued [control socket](control-protocol.md) requests, apply lifecycle
+   requests queued by scratch's `scripts` object, and send watch events.
 3. Advance native animation from elapsed time and evaluate changed poses.
 4. Synchronize model surfaces and panels.
 5. Poll requested tracking actions and the raw controller stream. Apply connection
@@ -535,6 +536,7 @@ deferred until a workload establishes sufficient CPU cost.
 | Panels | `src/panel.cpp`, `src/panel_submission.h` |
 | Snapshots and ownership lookup | `src/scene_persistence.h`, `src/scene_*_snapshot.h`, `src/scene_lookup.h` |
 | Statistics and buffer admission | `src/runtime_stats.h`, `src/group_buffer_budget.h`, `src/pbr_lod_budget.h` |
+| Control socket, operations and CLI | `src/control_server.h`, `src/control_service.h`, `src/pocketspace_cli.cpp` |
 
 Keep this guide aligned with shipped behavior when changing a pipeline stage or
 production default. Keep exact implementation invariants in the

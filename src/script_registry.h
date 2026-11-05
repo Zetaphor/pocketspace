@@ -207,7 +207,11 @@ public:
   bool reload(int id,const std::function<void()> &beforeCommit={}){
     auto *instance=find(id);if(!instance||!id||instance->state!=ScriptState::Running)return false;
     ScriptScope scope(instance->host);
-    if(!loadScript(instance->host,instance->path,beforeCommit)){instance->lastError="script reload failed";instance->lastReloadOk=false;return false;}
+    if(!loadScript(instance->host,instance->path,beforeCommit)){
+      instance->lastError="script reload failed";instance->lastReloadOk=false;
+      eventBus.publish(std::nullopt,"engine.scriptReloadFailed","{\"instanceId\":"+std::to_string(id)+",\"path\":"+bus::jsonText(instance->path)+",\"error\":"+bus::jsonText(instance->lastError)+"}");
+      return false;
+    }
     instance->lastReloadOk=true;
     resetActiveInteraction();
     ++instance->generation;instance->lastError.clear();

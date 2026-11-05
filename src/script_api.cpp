@@ -1038,6 +1038,59 @@ static JSValue jsUnsubscribe(JSContext *ctx,JSValueConst,int argc,JSValueConst *
   if(found==subscriptions.end())return JS_FALSE;
   JS_FreeValue(ctx,found->callback);subscriptions.erase(found);return JS_TRUE;
 }
+// Scratch's scripts object. Queries return the control protocol's results; start,
+// stop and reload are checked now, applied between frames, and return undefined.
+enum ScratchOp {ScriptsCatalog,ScriptsList,ScriptsStatus,ScriptsStart,ScriptsStop,ScriptsReload};
+// An Error carrying the control protocol's error code.
+static JSValue throwCoded(JSContext *ctx,JSValue code,const char *message){
+  JSValue error=JS_NewError(ctx);
+  JS_SetPropertyStr(ctx,error,"message",JS_NewString(ctx,message));JS_SetPropertyStr(ctx,error,"code",code);
+  return JS_Throw(ctx,error);
+}
+static JSValue jsScripts(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv,int op){
+  static const char *names[]={"catalog","list","status","start","stop","reload"};
+  static const char *usage[]={"scripts.catalog()","scripts.list()","scripts.status(instanceId)","scripts.start(name)","scripts.stop(instanceId, generation)","scripts.reload(instanceId, generation)"};
+  std::string request=std::string("{\"v\":1,\"op\":\"")+names[op]+"\"";
+  auto integer=[&](int index,const char *name)->bool{
+    double value=0;
+    if(argc<=index||!JS_IsNumber(argv[index])||JS_ToFloat64(ctx,&value,argv[index])<0||!std::isfinite(value)||value<0||value!=std::floor(value)||value>9007199254740991.)return false;
+    request+=std::string(",\"")+name+"\":"+std::to_string(uint64_t(value));return true;
+  };
+  bool valid=true;
+  if(op==ScriptsStatus)valid=integer(0,"instanceId");
+  else if(op==ScriptsStop||op==ScriptsReload)valid=integer(0,"instanceId")&&integer(1,"generation");
+  else if(op==ScriptsStart){
+    const char *name=argc&&JS_IsString(argv[0])?JS_ToCString(ctx,argv[0]):nullptr;
+    if(name){request+=",\"name\":"+bus::jsonText(name);JS_FreeCString(ctx,name);}else valid=false;
+  }
+  if(!valid)return JS_ThrowTypeError(ctx,"%s",usage[op]);
+  if(!scratchControl)return throwCoded(ctx,JS_NewString(ctx,"unavailable"),"scripts management is unavailable");
+  const std::string reply=scratchControl(request+"}");
+  JSValue response=JS_ParseJSON(ctx,reply.c_str(),reply.size(),"scripts");
+  if(JS_IsException(response))return response;
+  JSValue okValue=JS_GetPropertyStr(ctx,response,"ok");const bool ok=JS_ToBool(ctx,okValue)>0;JS_FreeValue(ctx,okValue);
+  if(!ok){
+    JSValue failure=JS_GetPropertyStr(ctx,response,"error");JS_FreeValue(ctx,response);
+    JSValue message=JS_GetPropertyStr(ctx,failure,"message");const char *text=JS_ToCString(ctx,message);
+    JSValue thrown=throwCoded(ctx,JS_GetPropertyStr(ctx,failure,"code"),text?text:"scripts request failed");
+    if(text)JS_FreeCString(ctx,text);JS_FreeValue(ctx,message);JS_FreeValue(ctx,failure);
+    return thrown;
+  }
+  JSValue result=JS_GetPropertyStr(ctx,response,"result");JS_FreeValue(ctx,response);
+  if(op>=ScriptsStart){JS_FreeValue(ctx,result);return JS_UNDEFINED;}
+  if(op==ScriptsStatus)return result;
+  JSValue list=JS_GetPropertyStr(ctx,result,op==ScriptsCatalog?"scripts":"instances");JS_FreeValue(ctx,result);return list;
+}
+static void bindScripts(JSContext *ctx){
+  static const JSCFunctionListEntry functions[]={
+    JS_CFUNC_MAGIC_DEF("catalog",0,jsScripts,ScriptsCatalog),JS_CFUNC_MAGIC_DEF("list",0,jsScripts,ScriptsList),
+    JS_CFUNC_MAGIC_DEF("status",1,jsScripts,ScriptsStatus),JS_CFUNC_MAGIC_DEF("start",1,jsScripts,ScriptsStart),
+    JS_CFUNC_MAGIC_DEF("stop",2,jsScripts,ScriptsStop),JS_CFUNC_MAGIC_DEF("reload",2,jsScripts,ScriptsReload),
+  };
+  JSValue global=JS_GetGlobalObject(ctx),scripts=JS_NewObject(ctx);
+  JS_SetPropertyFunctionList(ctx,scripts,functions,int(std::size(functions)));
+  JS_SetPropertyStr(ctx,global,"scripts",scripts);JS_FreeValue(ctx,global);
+}
 static void bind(JSContext *ctx,const char *name,JSCFunction *function,int argc){
   JSValue global=JS_GetGlobalObject(ctx);JS_SetPropertyStr(ctx,global,name,JS_NewCFunction(ctx,function,name,argc));JS_FreeValue(ctx,global);
 }
@@ -1154,6 +1207,8 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"publish",jsPublish,2);
   bind(candidate.ctx,"subscribe",jsSubscribe,2);
   bind(candidate.ctx,"unsubscribe",jsUnsubscribe,1);
+  // Only the scratch scene manages other scripts.
+  if(active.instanceId==0)bindScripts(candidate.ctx);
   JSValue result=JS_Eval(candidate.ctx,source.c_str(),source.size(),path.c_str(),JS_EVAL_TYPE_GLOBAL);
   if(JS_IsException(result)){
     JSValue exception=JS_GetException(candidate.ctx);const char *message=JS_ToCString(candidate.ctx,exception);

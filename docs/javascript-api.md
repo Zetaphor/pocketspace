@@ -732,6 +732,7 @@ The engine publishes script lifecycle events:
 | `engine.scriptStarted` | `{instanceId, path}` |
 | `engine.scriptReloaded` | `{instanceId, path}` |
 | `engine.scriptStopped` | `{instanceId, path, reason, error}`; `reason` is `'stopped'` or `'failed'`. A script that fails to launch also reports `'failed'`. |
+| `engine.scriptReloadFailed` | `{instanceId, path, error}`; the script keeps its previous scene. |
 
 Share a counter between running scripts: [event-bus.js](../scripts/event-bus.js).
 

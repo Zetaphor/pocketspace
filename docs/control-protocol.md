@@ -1,6 +1,6 @@
 # Control protocol
 
-The engine accepts management requests on a local Unix-domain socket. Tools such as
+[`pocketspace-cli`](cli.md) is the command-line client for this protocol. The engine accepts management requests on a local Unix-domain socket. Tools such as
 the CLI and dashboard use it to list, start, stop and reload scripts, change
 settings, evaluate JavaScript, publish bus messages and watch for changes.
 
@@ -110,7 +110,9 @@ work.
 Instance `0` is the engine's scratch scene: an always-running context with the normal
 scene API and no file. It lasts for the engine session. `scratch.reset`, or an
 uncaught error in one of its callbacks, recreates it empty. It is never stopped or
-restarted by the automatic restart policy.
+restarted by the automatic restart policy. Its `scripts` object
+[manages other scripts](cli.md#managing-scripts-from-scratch) through the same
+operations.
 
 ### Events
 

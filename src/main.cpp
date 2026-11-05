@@ -321,6 +321,8 @@ int main(int argc,char **argv) {
     return loaded;
   };
   control::Service controlService(scriptRegistry,scriptsDirectory,engineSettings,{reloadInstance,[&](const settings::Settings &current){scriptRegistry.setAutoRestart(current.autoRestart);}});
+  scratchControl=[&](const std::string &request){return controlService.handleScratch(request);};
+  ScopeExit clearScratchControl{[&]{scratchControl={};}};
   while(running){
     vr::VREvent_t runtimeEvent{};
     while(system->PollNextEvent(&runtimeEvent,sizeof(runtimeEvent)))if(runtimeEvent.eventType==vr::VREvent_Quit){system->AcknowledgeQuit_Exiting();fprintf(stdout,"[lifecycle] SteamVR quit; exiting\n");running=false;}
@@ -375,6 +377,8 @@ int main(int argc,char **argv) {
     }
     // Control requests run here, between frames, outside every scene scope.
     controlServer.poll([&](control::Client &client,const std::string &line){return controlService.handle(client,line);});
+    // scripts.start/stop/reload from scratch, including calls made inside the last frame.
+    controlService.applyScratchQueue();
     for(const auto &line:controlService.takeEvents())controlServer.broadcast(line);
     std::array<std::optional<inputArbitration::Target>,2> rayTargets{};
     std::array<int,2> rayOwners{};

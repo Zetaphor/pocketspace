@@ -155,6 +155,59 @@ int main(){
   assert(applied==1&&registry.autoRestart()&&std::filesystem::exists(root/"settings.json"));
   assert(has(one.call(R"({"v":1,"id":"get","op":"settings.get"})"),R"("autostart":["a.js"])"));
 
+  // Scratch's scripts object: queries answer at once; start, stop and reload are checked
+  // at once, applied between frames, and report through engine.* topics.
+  scratchControl=[&](const std::string &request){return operations.handleScratch(request);};
+  int evals=0;
+  auto inScratch=[&](const std::string &code){
+    const auto reply=one.call(R"({"v":1,"id":"scr)"+std::to_string(++evals)+R"(","op":"eval","code":)"+settings::jsonString(code)+"}");
+    assert(has(reply,R"("ok":true)"));return reply;
+  };
+  assert(has(inScratch("scripts.catalog().join()"),R"("result":"\"a.js,b.js\"")"));
+  assert(has(inScratch("scripts.list().map(i=>i.instanceId+':'+i.state).join()"),R"(0:running,1:running)"));
+  assert(has(inScratch("scripts.status(1).name"),R"("result":"\"a.js\"")"));
+  inScratch("globalThis.seen=[];for(const t of ['engine.scriptStarted','engine.scriptStopped','engine.scriptReloaded','engine.scriptReloadFailed'])subscribe(t,e=>seen.push(t.slice(13)+':'+e.payload.instanceId))");
+  const auto runningBefore=registry.runningIds().size();
+  assert(has(inScratch("scripts.start('b.js')"),R"("result":"undefined")"));
+  assert(registry.runningIds().size()==runningBefore);
+  operations.applyScratchQueue();
+  const int started=registry.runningIds().back();
+  assert(registry.runningIds().size()==runningBefore+1&&registry.find(started)->path.ends_with("b.js"));
+  const auto codeOf=[&](const std::string &call){return inScratch("try{"+call+";'none'}catch(e){e.code??e.name}");};
+  assert(has(codeOf("scripts.start('b.js')"),R"(\"conflict\")"));
+  assert(has(codeOf("scripts.start('../x.js')"),R"(\"not_found\")"));
+  assert(has(codeOf("scripts.stop(0,scripts.status(0).generation)"),R"(\"invalid\")"));
+  assert(has(codeOf("scripts.stop(1,99)"),R"(\"stale_generation\")"));
+  assert(has(codeOf("scripts.reload(99,1)"),R"(\"not_found\")"));
+  assert(has(codeOf("scripts.stop('1')"),R"(\"TypeError\")"));
+  assert(has(codeOf("scripts.status(-1)"),R"(\"TypeError\")"));
+  // A failed reload keeps the scene and is reported on the bus.
+  std::ofstream(catalog/"b.js")<<"throw Error('EXPECTED_SCRATCH_RELOAD')";
+  inScratch("scripts.reload("+std::to_string(started)+",1)");operations.applyScratchQueue();
+  assert(registry.find(started)->state==ScriptState::Running&&registry.find(started)->lastReloadOk==false);
+  std::ofstream(catalog/"b.js")<<"globalThis.value=1;function update(){}";
+  inScratch("scripts.reload("+std::to_string(started)+",1)");operations.applyScratchQueue();
+  assert(registry.find(started)->generation==2);
+  // A call from a bus callback, inside the frame, waits for the next boundary.
+  inScratch("subscribe('space.stopB',()=>scripts.stop("+std::to_string(started)+",2))");
+  assert(has(one.call(R"({"v":1,"id":"pb","op":"publish","topic":"space.stopB"})"),R"("sequence":)"));
+  while(eventBus.queued())registry.dispatchBus();
+  assert(registry.find(started)->state==ScriptState::Running);
+  operations.applyScratchQueue();
+  assert(registry.find(started)->state==ScriptState::Stopped);
+  while(eventBus.queued())registry.dispatchBus();
+  const auto id=std::to_string(started);
+  assert(has(inScratch("seen.join()"),"Started:"+id+",ReloadFailed:"+id+",Reloaded:"+id+",Stopped:"+id));
+  // A queued request that is stale by the boundary does nothing.
+  inScratch("scripts.reload(1,1)");
+  assert(has(one.call(R"({"v":1,"id":"r-a","op":"reload","instanceId":1,"generation":1})"),R"("generation":2)"));
+  operations.applyScratchQueue();
+  assert(registry.find(1)->generation==2);
+  // Only scratch has the scripts object.
+  assert(has(one.call(R"({"v":1,"id":"noscripts","op":"eval","instanceId":1,"generation":2,"code":"typeof scripts"})"),R"("result":"\"undefined\"")"));
+  scratchControl={};
+  assert(has(codeOf("scripts.list()"),R"(\"unavailable\")"));
+
   // Watchers saw the failure and the bus remains bounded; oversized requests close the link.
   std::string events;for(std::string line;!(line=two.line()).empty()&&events.find("\"event\":\"error\"")==std::string::npos;)events+=line;
   assert(has(events,R"("event":"error")")&&has(events,"timed out"));
@@ -171,5 +224,5 @@ int main(){
   listener.stop();
   assert(!std::filesystem::exists(socketPath));
   char byte;assert(::recv(one.fd,&byte,1,0)==0);
-  std::puts("PASS control: private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown");
+  std::puts("PASS control: scratch scripts object (queries, checked and queued start/stop/reload, bus outcomes, calls from callbacks, stale queued requests, scratch only), private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown");
 }

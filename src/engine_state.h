@@ -147,6 +147,9 @@ constexpr size_t maxSourceBytes=256*1024,maxOutputBytes=64*1024;
 inline std::optional<std::chrono::steady_clock::time_point> deadline;
 inline bool interrupted=false;
 }
+// Installed by the host for scratch's scripts object: takes a control request line
+// and returns its response line. Unset outside the VR host and its regressions.
+inline std::function<std::string(const std::string&)> scratchControl;
 void closeScript(ScriptHost &s);
 // Called by the host loop and regressions.
 JSValue capturePanelSnapshot(JSContext *ctx,const Panel &panel,size_t &budgetUsed);
