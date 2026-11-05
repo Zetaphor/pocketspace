@@ -1,7 +1,7 @@
 # SteamVR dashboard
 
 `pocketspace-dashboard` adds a **Pocketspace** tab to the SteamVR dashboard. From the
-tab you can start the engine and manage scripts without a terminal. It is a separate
+tab you can start and stop the engine and manage scripts without a terminal. It is a separate
 process from the engine. It talks to the engine over the
 [control socket](control-protocol.md), so the engine and its scripts keep running
 when the dashboard stops or restarts.
@@ -16,6 +16,12 @@ tools/install-user-service.sh
 systemctl --user restart pocketspace-dashboard.service   # start it in a running SteamVR session
 journalctl --user -u pocketspace-dashboard.service       # its log
 ```
+
+At start the dashboard registers
+`~/.local/share/pocketspace/pocketspace-dashboard.vrmanifest` with SteamVR as
+`com.pocketspace.dashboard`, then turns SteamVR's auto-launch for it off, so the
+systemd unit is the only thing that starts it. SteamVR then lists it as an
+application.
 
 The dashboard attaches only to a SteamVR session that is already running. It never
 starts SteamVR: the unit uses `Requisite=` rather than `Requires=` or `BindsTo=`, and the
@@ -35,6 +41,13 @@ While the engine is offline, the tab offers **Start Engine**. This runs
 `systemctl --user start pocketspace.service`, just as
 [`pocketspace-cli start-engine`](cli.md) does. The tab shows an error if
 `systemctl` fails, or if the engine has not answered within 30 seconds.
+
+While the engine runs, **Stop Engine** in the header runs
+`systemctl --user stop pocketspace.service`, which stops every script. The first
+press only arms it: it turns red and reads **Press again to stop** for three
+seconds. If the engine still answers 10 seconds after the second press, the tab
+reports that it did not stop. This happens when the engine was started outside the
+service, for example with `run-pocketspace.sh`.
 
 With the engine running, the tab has three areas:
 
@@ -61,7 +74,10 @@ The dashboard connects to the engine only while its tab is visible. It follows
 the engine's watch events, so changes appear as they happen and resource values
 update once a second. It reads the catalog and settings again every 10 seconds, to
 pick up files changed on disk. The tab is redrawn only when something on it
-changes, at most ten times a second. While the tab is hidden, the dashboard
+changes, at most ten times a second. It is drawn on the CPU and uploaded to a GLES
+texture, which SteamVR copies when it is submitted; the dashboard opens a
+windowless EGL context with the same `DISPLAY` and `EGL_PLATFORM` defaults as
+`run-pocketspace.sh`. While the tab is hidden, the dashboard
 closes its connection and checks SteamVR five times a second. When the tab is
 shown again, it reloads everything. If the engine stops or restarts while the
 tab is open, the tab shows the engine as offline and reconnects every second.

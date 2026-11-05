@@ -77,14 +77,15 @@ add_executable(pocketspace-cli src/pocketspace_cli.cpp)
 target_include_directories(pocketspace-cli PRIVATE ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(pocketspace-cli PRIVATE ${QJS_LIB} ${SF_EDIT_LIB} m pthread)
 
-# The SteamVR dashboard tab. It draws on the CPU and links neither GLES nor the engine.
+# The SteamVR dashboard tab. It draws on the CPU, uploads a GLES texture, and does not
+# link the engine.
 add_library(sf-dashboard OBJECT src/dashboard.cpp src/canvas.cpp)
 target_include_directories(sf-dashboard PRIVATE ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(sf-dashboard PRIVATE Freetype::Freetype)
 add_executable(pocketspace-dashboard src/dashboard_main.cpp $<TARGET_OBJECTS:sf-dashboard>)
 target_include_directories(pocketspace-dashboard PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_directories(pocketspace-dashboard PRIVATE ${STEAMVR_BIN})
-target_link_libraries(pocketspace-dashboard PRIVATE openvr_api ${QJS_LIB} Freetype::Freetype m pthread)
+target_link_libraries(pocketspace-dashboard PRIVATE openvr_api ${QJS_LIB} Freetype::Freetype EGL GLESv2 m pthread)
 # The service runs the binary directly, so it finds the OpenVR client library itself.
 set_target_properties(pocketspace-dashboard PROPERTIES BUILD_RPATH ${STEAMVR_BIN})
 add_executable(dashboard-regression EXCLUDE_FROM_ALL tests/dashboard-regression.cpp $<TARGET_OBJECTS:sf-dashboard>)

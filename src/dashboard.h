@@ -22,8 +22,8 @@ struct Alert {long long instanceId=0;std::string name,message;int count=1;};
 struct Button {int x=0,y=0,w=0,h=0;std::string key,label;bool enabled=true,active=false;std::function<void()> action;};
 
 struct Hooks {
-  // Asks the service manager to start the engine; returns an error message, or empty.
-  std::function<std::string()> startEngine;
+  // Ask the service manager to start or stop the engine; return an error message, or empty.
+  std::function<std::string()> startEngine,stopEngine;
 };
 
 class Dashboard {
@@ -46,6 +46,7 @@ public:
   // State, read by the regression.
   bool online()const{return online_;}
   bool starting()const{return starting_;}
+  bool stopping()const{return stopping_;}
   const std::vector<Instance> &instances()const{return instances_;}
   const std::vector<std::string> &catalog()const{return catalog_;}
   const std::vector<Alert> &alerts()const{return alerts_;}
@@ -57,8 +58,9 @@ public:
 private:
   struct Pending {std::string op,key,label;};
   std::filesystem::path socket_;Hooks hooks_;control::Link link_;
-  bool visible_=false,online_=false,starting_=false,dirty_=true,settingsKnown_=false;
-  Clock::time_point nextConnect_{},nextRefresh_{},startDeadline_{},noticeUntil_{};
+  bool visible_=false,online_=false,starting_=false,stopping_=false,dirty_=true,settingsKnown_=false;
+  // Stop Engine acts on a second press while armed.
+  Clock::time_point nextConnect_{},nextRefresh_{},startDeadline_{},stopDeadline_{},stopArmedUntil_{},noticeUntil_{};
   std::map<std::string,Pending> pending_;
   std::vector<Instance> instances_;std::vector<std::string> catalog_,autostart_;std::vector<Alert> alerts_;
   bool autoRestart_=true,engineAutostart_=false;std::string settingsError_,startError_,notice_;
@@ -77,6 +79,7 @@ private:
   void setNotice(const std::string &text,Clock::time_point now);
   void writeSettings(std::vector<std::string> autostart,bool autoRestart,bool engineAutostart);
   void startEngine(Clock::time_point now);
+  void stopEngine(Clock::time_point now);
   const Button *hit(int x,int y)const;
   bool busy(const std::string &key)const;
   Clock::time_point now_{};

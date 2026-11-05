@@ -1,7 +1,7 @@
 // The dashboard tab's model against a fake engine on a real Unix socket, without VR:
 // offline Start Engine, two scripts, stop/reload/start/reset requests with generations,
 // stale replies, alerts from a restart loop, resources, settings, engine restart,
-// a dropped connection and hiding the tab.
+// a dropped connection, hiding the tab and a confirmed Stop Engine.
 #include "../src/dashboard.h"
 #include <cassert>
 #include <cstdio>
@@ -107,8 +107,8 @@ int main(){
   FakeEngine engine;engine.path=std::filesystem::path(directory)/"control.sock";
 
   // Offline: Start Engine asks the service manager and connects once the engine answers.
-  int startCalls=0;std::string startResult;
-  Dashboard board(engine.path,{[&]{startCalls++;return startResult;}});
+  int startCalls=0,stopCalls=0;std::string startResult;
+  Dashboard board(engine.path,{[&]{startCalls++;return startResult;},[&]{stopCalls++;return std::string();}});
   board.setVisible(true,now);pump(nullptr,board);
   CHECK(!board.online()&&button(board,"start-engine")&&!button(board,"stop:1"));
   startResult="systemctl failed";click(board,"start-engine");
@@ -208,7 +208,21 @@ int main(){
   board.setVisible(true,now);pump(&engine,board);
   CHECK(board.online()&&countOp(engine,"watch")==watches+2);
 
-  engine.server.stop();
+  // Stop Engine needs a second press within three seconds.
+  click(board,"stop-engine");pump(&engine,board);
+  CHECK(stopCalls==0&&button(board,"stop-engine")->active&&button(board,"stop-engine")->label=="Press again to stop");
+  now+=std::chrono::seconds(4);pump(&engine,board);
+  CHECK(!button(board,"stop-engine")->active);
+  click(board,"stop-engine");pump(&engine,board);click(board,"stop-engine");pump(&engine,board);
+  CHECK(stopCalls==1&&board.stopping()&&!button(board,"stop-engine")->enabled);
+  // An engine the service manager does not run keeps answering; the attempt ends with a notice.
+  now+=std::chrono::seconds(11);pump(&engine,board);
+  CHECK(!board.stopping()&&board.notice().find("did not stop")!=std::string::npos&&board.online());
+  click(board,"stop-engine");pump(&engine,board);click(board,"stop-engine");
+  CHECK(stopCalls==2&&board.stopping());
+  engine.server.stop();pump(nullptr,board);
+  CHECK(!board.online()&&!board.stopping()&&button(board,"start-engine")&&!button(board,"stop-engine"));
+
   std::filesystem::remove_all(directory);
   control::stopJson();
   std::printf("dashboard-regression passed\n");

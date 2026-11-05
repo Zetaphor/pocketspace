@@ -6,7 +6,8 @@
 namespace dashboard {
 using control::Json;using control::quote;
 namespace {
-constexpr std::chrono::milliseconds reconnectInterval{1000},startingReconnect{500},refreshInterval{10000},startTimeout{30000},noticeTime{10000};
+constexpr std::chrono::milliseconds reconnectInterval{1000},startingReconnect{500},refreshInterval{10000},startTimeout{30000},noticeTime{10000},
+  stopConfirmTime{3000},stopTimeout{10000};
 constexpr size_t maxAlerts=8;
 
 struct Color {unsigned char r,g,b;};
@@ -91,6 +92,11 @@ void Dashboard::poll(Clock::time_point now){
   if(!notice_.empty()&&now>=noticeUntil_){notice_.clear();dirty_=true;}
   if(starting_&&!online_&&now>=startDeadline_){
     starting_=false;startError_="The engine did not answer within 30 s. Check journalctl --user -u pocketspace.service";dirty_=true;
+  }
+  if(stopArmedUntil_!=Clock::time_point{}&&now>=stopArmedUntil_){stopArmedUntil_={};dirty_=true;}
+  if(stopping_&&!online_)stopping_=false;
+  if(stopping_&&now>=stopDeadline_){
+    stopping_=false;setNotice("The engine did not stop. Is it running outside pocketspace.service?",now);
   }
   if(!visible_)return;
   if(!link_.open()&&now>=nextConnect_){
@@ -224,6 +230,13 @@ void Dashboard::startEngine(Clock::time_point now){
   starting_=true;startDeadline_=now+startTimeout;nextConnect_=now;dirty_=true;
 }
 
+void Dashboard::stopEngine(Clock::time_point now){
+  stopArmedUntil_={};dirty_=true;
+  const std::string error=hooks_.stopEngine?hooks_.stopEngine():std::string("no way to stop the engine");
+  if(!error.empty()){setNotice(error,now);return;}
+  stopping_=true;stopDeadline_=now+stopTimeout;
+}
+
 const Button *Dashboard::hit(int x,int y)const{
   for(const auto &button:buttons_)if(button.enabled&&x>=button.x&&y>=button.y&&x<button.x+button.w&&y<button.y+button.h)return &button;
   return nullptr;
@@ -245,9 +258,9 @@ void Dashboard::pointerLeave(){if(!hovered_.empty()){hovered_.clear();dirty_=tru
 void Dashboard::draw(Canvas &c,Clock::time_point now){
   now_=now;buttons_.clear();dirty_=false;
   canvasClear(c,background.r,background.g,background.b,255);
-  auto button=[&](int x,int y,int w,int h,const std::string &key,const std::string &label,bool enabled,std::function<void()> action,bool active=false){
+  auto button=[&](int x,int y,int w,int h,const std::string &key,const std::string &label,bool enabled,std::function<void()> action,bool active=false,Color activeColor=accent){
     const bool working=busy(key);enabled=enabled&&!working;
-    const Color base=!enabled?surface:active?accent:key==hovered_?hover:raised;
+    const Color base=!enabled?surface:active?activeColor:key==hovered_?hover:raised;
     fill(c,x,y,w,h,base);
     const std::string shown=fit(c,working?"...":label,w-12,20);
     const int tw=int(shown.size())*glyphWidth(c,20);
@@ -265,6 +278,11 @@ void Dashboard::draw(Canvas &c,Clock::time_point now){
     std::string totals=decimal(fps_,"%.0f")+" fps   "+decimal(cpuPercent_,"%.1f%%")+" CPU   "+bytes(ramBytes_)+" RAM   GPU "+(vramBytes_?bytes(vramBytes_):"n/a")
       +"   GPU est. "+bytes(gpuEstimateBytes_)+" ("+bytes(sharedGpuEstimateBytes_)+" shared)";
     write(c,24,60,fit(c,totals,width-48,20),dim,20);
+    // Stopping ends every script, so it takes a second press within a few seconds.
+    const bool armed=stopArmedUntil_!=Clock::time_point{};
+    button(width-24-260,12,260,40,"stop-engine",stopping_?"Stopping...":armed?"Press again to stop":"Stop Engine",!stopping_,[this,armed]{
+      if(armed)stopEngine(now_);else{stopArmedUntil_=now_+stopConfirmTime;dirty_=true;}
+    },armed,bad);
   }
 
   int y=108;
