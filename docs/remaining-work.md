@@ -18,6 +18,14 @@ planned development track.
 - Add transmission or other advanced glTF material extensions when needed. Define
   rendering/compositing and performance limits before implementation.
 
+## Rendering quality
+
+- Explore antialiasing for model surfaces. Surfaces have no MSAA or
+  supersampling, so model edges alias, most visibly on independent surfaces
+  viewed up close at their fixed reference resolution. Compare quality, GPU time
+  and buffer memory against raising `eyePixels`; preserve stereo projection,
+  depth cutouts, transparency and compositor buffer ownership.
+
 ## Scripted experiences
 
 - Define collider behavior for skeletal/morph deformation when experiences need
