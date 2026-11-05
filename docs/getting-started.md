@@ -115,10 +115,15 @@ Manage a running engine from a terminal with `build/pocketspace-cli`: start and
 stop scripts, watch for errors, or try JavaScript live in the scratch scene with
 `build/pocketspace-cli repl`. See [command line and REPL](cli.md).
 
+In the headset, the **Pocketspace** tab in the SteamVR dashboard starts the engine
+and launches, stops and reloads scripts. `tools/install-user-service.sh` installs
+it with the engine service. See [SteamVR dashboard](dashboard.md).
+
 ## Existing installations
 
-The executable is `build/pocketspace`, the launcher is `run-pocketspace.sh`, and
-the command-line client is `build/pocketspace-cli`.
+The executable is `build/pocketspace`, the launcher is `run-pocketspace.sh`, the
+command-line client is `build/pocketspace-cli`, and the dashboard tab is
+`build/pocketspace-dashboard`.
 Named scene saves use a
 [separate namespace per script](scene-persistence.md#storage-namespaces).
 

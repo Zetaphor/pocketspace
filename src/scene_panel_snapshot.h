@@ -45,5 +45,5 @@ static Panel panelRead(JSContext *ctx,JSValueConst value,int id,int owner,size_t
   const auto mode=textField(ctx,value,"mode");require(panelMode(mode),"invalid panel mode");auto position=field(ctx,value,"position"),rotation=field(ctx,value,"rotation"),pixels=field(ctx,value,"pixels");auto pos=vectorRead(ctx,position);require(length(ctx,rotation,9)==9,"panel rotation requires 9 numbers");
   Panel p;p.id=id;p.width=w;p.height=h;p.widthMeters=float(width);p.heightMeters=float(height);p.container=owner;p.mode=mode;p.x=pos.x;p.y=pos.y;p.z=pos.z;
   for(uint32_t i=0;i<9;i++){Value n(ctx,JS_GetPropertyUint32(ctx,rotation,i));double d=0;require(JS_IsNumber(n)&&JS_ToFloat64(ctx,&d,n)==0&&std::isfinite(d)&&std::abs(d)<=floatLimit,"invalid panel rotation");p.rotation[i]=float(d);}
-  p.visible=boolean(ctx,value,"visible");p.interactive=boolean(ctx,value,"interactive");p.fontPath=textField(ctx,value,"fontPath");p.rgba=pixelsRead(ctx,pixels,bytes);require(panelInitLibrary(),"panel font library initialization failed");return p;
+  p.visible=boolean(ctx,value,"visible");p.interactive=boolean(ctx,value,"interactive");p.fontPath=textField(ctx,value,"fontPath");p.rgba=pixelsRead(ctx,pixels,bytes);require(canvasInitLibrary(),"panel font library initialization failed");return p;
 }

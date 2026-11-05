@@ -1,8 +1,7 @@
 // pocketspace-cli: manage a running engine over its control socket, and a live REPL.
 // One-shot commands are noninteractive; --json prints one versioned JSON object.
 // See docs/cli.md for commands, output and exit codes.
-#include "control_server.h"
-#include <quickjs.h>
+#include "control_client.h"
 #include <editline/readline.h>
 #include <chrono>
 #include <cmath>
@@ -18,7 +17,7 @@
 #include <sys/wait.h>
 
 namespace {
-using Clock=std::chrono::steady_clock;
+using control::Clock;
 // The protocol's request ID limit, from control_service.h, which needs the engine.
 constexpr size_t maxRequestIdBytes=128;
 
@@ -36,50 +35,7 @@ int exitFor(const std::string &code){
   const auto found=codes.find(code);return found==codes.end()?Failure:found->second;
 }
 
-std::string quote(const std::string &text){
-  std::string out="\"";
-  for(unsigned char c:text){
-    if(c=='"'||c=='\\')out+={'\\',char(c)};
-    else if(c=='\n')out+="\\n";else if(c=='\r')out+="\\r";else if(c=='\t')out+="\\t";
-    else if(c<0x20){char buffer[8];std::snprintf(buffer,sizeof(buffer),"\\u%04x",c);out+=buffer;}
-    else out+=char(c);
-  }
-  return out+"\"";
-}
-
-// Parsed JSON, read through one QuickJS context.
-JSRuntime *runtime=nullptr;JSContext *context=nullptr;
-class Json {
-  JSValue value_=JS_UNDEFINED;
-public:
-  Json()=default;
-  explicit Json(JSValue value):value_(value){}
-  static std::optional<Json> parse(const std::string &text){
-    JSValue value=JS_ParseJSON(context,text.c_str(),text.size(),"json");
-    if(JS_IsException(value)){JS_FreeValue(context,JS_GetException(context));return std::nullopt;}
-    return Json(value);
-  }
-  Json(const Json &other):value_(JS_DupValue(context,other.value_)){}
-  Json &operator=(const Json &other){if(this!=&other){JS_FreeValue(context,value_);value_=JS_DupValue(context,other.value_);}return *this;}
-  ~Json(){if(context)JS_FreeValue(context,value_);}
-  Json operator[](const char *key)const{return Json(JS_IsObject(value_)?JS_GetPropertyStr(context,value_,key):JS_UNDEFINED);}
-  Json operator[](uint32_t index)const{return Json(JS_IsArray(value_)?JS_GetPropertyUint32(context,value_,index):JS_UNDEFINED);}
-  bool isNull()const{return JS_IsNull(value_)||JS_IsUndefined(value_);}
-  bool isString()const{return JS_IsString(value_);}
-  bool isArray()const{return JS_IsArray(value_);}
-  bool truthy()const{return JS_ToBool(context,value_)>0;}
-  uint32_t length()const{int64_t n=0;if(isArray())JS_GetLength(context,value_,&n);return uint32_t(n);}
-  double number(double fallback=0)const{double d=fallback;if(JS_IsNumber(value_))JS_ToFloat64(context,&d,value_);return d;}
-  std::string str()const{
-    if(isNull())return {};
-    const char *s=JS_ToCString(context,value_);std::string out=s?s:"";if(s)JS_FreeCString(context,s);return out;
-  }
-  // Compact JSON text on one line.
-  std::string text()const{
-    JSValue json=JS_JSONStringify(context,value_,JS_UNDEFINED,JS_UNDEFINED);
-    std::string out=JS_IsString(json)?Json(JS_DupValue(context,json)).str():"null";JS_FreeValue(context,json);return out;
-  }
-};
+using control::quote;using control::Json;using control::Link;
 
 struct Options {
   bool json=false;
@@ -90,58 +46,7 @@ struct Options {
 };
 Options options;
 
-std::string newRequestId(){
-  static unsigned counter=0;
-  const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-  return "cli-"+std::to_string(getpid())+"-"+std::to_string(ms)+"-"+std::to_string(++counter);
-}
-
-// One connection to the engine. Event lines from watch are kept apart from replies.
-class Link {
-  int fd_=-1;std::string input_;
-public:
-  Link()=default;
-  Link(const Link&)=delete;Link &operator=(const Link&)=delete;
-  ~Link(){close();}
-  void close(){if(fd_>=0)::close(fd_);fd_=-1;input_.clear();}
-  bool open()const{return fd_>=0;}
-  int fd()const{return fd_;}
-  bool connect(const std::filesystem::path &path){
-    close();
-    fd_=::socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0);if(fd_<0)return false;
-    sockaddr_un address{};address.sun_family=AF_UNIX;
-    if(path.string().size()>=sizeof(address.sun_path)){close();return false;}
-    std::strncpy(address.sun_path,path.c_str(),sizeof(address.sun_path)-1);
-    if(::connect(fd_,reinterpret_cast<sockaddr*>(&address),sizeof(address))!=0){close();return false;}
-    return true;
-  }
-  bool send(const std::string &line){
-    const std::string text=line+"\n";
-    for(size_t sent=0;sent<text.size();){
-      const auto n=::send(fd_,text.data()+sent,text.size()-sent,MSG_NOSIGNAL);
-      if(n<=0){if(n<0&&errno==EINTR)continue;return false;}
-      sent+=size_t(n);
-    }
-    return true;
-  }
-  // One full line, or nothing on timeout (lost=false) or a closed connection (lost=true).
-  std::optional<std::string> line(Clock::time_point deadline,bool &lost){
-    lost=false;
-    for(;;){
-      if(const auto end=input_.find('\n');end!=std::string::npos){auto out=input_.substr(0,end);input_.erase(0,end+1);return out;}
-      if(fd_<0){lost=true;return std::nullopt;}
-      // A deadline already passed still reads what has arrived.
-      const auto left=std::max<long long>(0,std::chrono::duration_cast<std::chrono::milliseconds>(deadline-Clock::now()).count());
-      pollfd p{fd_,POLLIN,0};
-      const int ready=::poll(&p,1,int(std::min<long long>(left,1000)));
-      if(ready<0&&errno!=EINTR){close();lost=true;return std::nullopt;}
-      if(ready<=0){if(Clock::now()>=deadline)return std::nullopt;continue;}
-      char buffer[65536];const auto n=::recv(fd_,buffer,sizeof(buffer),0);
-      if(n>0){input_.append(buffer,size_t(n));if(input_.size()>control::maxLineBytes*2){close();lost=true;return std::nullopt;}}
-      else if(n==0||errno!=EINTR){close();lost=true;return std::nullopt;}
-    }
-  }
-};
+std::string newRequestId(){return control::newRequestId("cli");}
 
 // A request's outcome as the CLI sees it: the engine's reply, or a client-side failure.
 struct Reply {
@@ -637,8 +542,7 @@ int run(const std::string &command,const std::vector<std::string> &args){
 }
 
 int main(int argc,char **argv){
-  runtime=JS_NewRuntime();context=runtime?JS_NewContext(runtime):nullptr;
-  if(!context){std::fprintf(stderr,"error: cannot create the JSON parser\n");return Failure;}
+  if(!control::startJson()){std::fprintf(stderr,"error: cannot create the JSON parser\n");return Failure;}
   std::vector<std::string> args(argv+1,argv+argc);
   size_t i=0;
   for(;i<args.size()&&args[i].rfind("-",0)==0;i++){
@@ -676,6 +580,6 @@ int main(int argc,char **argv){
     return usage("--request-id applies only to changing commands");
   const int code=run(command,commandArgs);
   std::fflush(stdout);
-  JS_FreeContext(context);context=nullptr;JS_FreeRuntime(runtime);
+  control::stopJson();
   return code;
 }

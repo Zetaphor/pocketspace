@@ -51,7 +51,7 @@ target_link_libraries(animation-profile-regression PRIVATE meshoptimizer mikktsp
 
 # Engine code compiled once for the production executable and once, with test
 # hooks and assertions, for every engine regression.
-set(SF_ENGINE_SOURCES src/script_api.cpp src/render_host.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp)
+set(SF_ENGINE_SOURCES src/script_api.cpp src/render_host.cpp src/model_asset.cpp src/controller_input.cpp src/frame_input.cpp src/panel.cpp src/canvas.cpp)
 add_library(pocketspace-objects OBJECT ${SF_ENGINE_SOURCES})
 add_library(pocketspace-test-objects OBJECT EXCLUDE_FROM_ALL ${SF_ENGINE_SOURCES})
 target_compile_options(pocketspace-test-objects PRIVATE -UNDEBUG)
@@ -76,6 +76,21 @@ find_library(SF_EDIT_LIB edit REQUIRED)
 add_executable(pocketspace-cli src/pocketspace_cli.cpp)
 target_include_directories(pocketspace-cli PRIVATE ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(pocketspace-cli PRIVATE ${QJS_LIB} ${SF_EDIT_LIB} m pthread)
+
+# The SteamVR dashboard tab. It draws on the CPU and links neither GLES nor the engine.
+add_library(sf-dashboard OBJECT src/dashboard.cpp src/canvas.cpp)
+target_include_directories(sf-dashboard PRIVATE ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(sf-dashboard PRIVATE Freetype::Freetype)
+add_executable(pocketspace-dashboard src/dashboard_main.cpp $<TARGET_OBJECTS:sf-dashboard>)
+target_include_directories(pocketspace-dashboard PRIVATE ${SDK_INCLUDE} ${QJS_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_directories(pocketspace-dashboard PRIVATE ${STEAMVR_BIN})
+target_link_libraries(pocketspace-dashboard PRIVATE openvr_api ${QJS_LIB} Freetype::Freetype m pthread)
+# The service runs the binary directly, so it finds the OpenVR client library itself.
+set_target_properties(pocketspace-dashboard PROPERTIES BUILD_RPATH ${STEAMVR_BIN})
+add_executable(dashboard-regression EXCLUDE_FROM_ALL tests/dashboard-regression.cpp $<TARGET_OBJECTS:sf-dashboard>)
+target_include_directories(dashboard-regression PRIVATE ${QJS_INCLUDE})
+target_link_libraries(dashboard-regression PRIVATE ${QJS_LIB} Freetype::Freetype m pthread)
+target_compile_options(dashboard-regression PRIVATE -UNDEBUG)
 
 # Regressions keep their assertions even in a Release build. Test hooks change
 # engine types, so every target linking the test objects defines them too.

@@ -30,7 +30,10 @@ after changing guide links, navigation or site configuration.
 | `src/frame_input.cpp` | Raw vrserver input, state normalization, and event queues. |
 | `src/physics_world.cpp` | Scene-owned Jolt bodies, colliders, joints, motors, springs, breaking, runtime settings, stepping, contacts, and grab release. |
 | `src/runtime_stats.h` | Process CPU/RAM, optional DRM memory totals, and elapsed-time FPS sampling. |
-| `src/panel.cpp` | Retained panel rasterization, fonts, and images. |
+| `src/canvas.cpp`, `src/canvas.h` | CPU RGBA canvas and FreeType text, shared by panels and the dashboard. |
+| `src/panel.cpp` | Panel setup, images and GL texture upload over the canvas. |
+| `src/control_client.h` | Control-socket client: JSON reading, connection and request IDs, shared by the CLI and dashboard. |
+| `src/dashboard.cpp`, `src/dashboard.h`, `src/dashboard_main.cpp` | SteamVR dashboard tab: engine connection, state, drawing and clicks without VR; the OpenVR overlay loop in `dashboard_main.cpp`. |
 | `src/scene_persistence.h`, `src/scene_physics_snapshot.h`, `src/scene_panel_snapshot.h`, `src/scene_animation_snapshot.h` | Versioned model/panel/animation/physics snapshots, staged restore, named bounded JSON files and atomic replacement. |
 | `src/scene_lookup.h` | Object/panel ID lookup over sorted scene storage. |
 | `src/panel_submission.h` | Cached panel texture, transform, and visibility submissions. |

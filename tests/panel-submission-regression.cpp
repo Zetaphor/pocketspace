@@ -166,10 +166,10 @@ static void regroupPresentation(){
 }
 static void pixels(){
   EGLDisplay display;EGLContext context;EGLSurface surface;CHECK(initEgl(display,context,surface));
-  Panel panel;CHECK(panelInit(panel,1,8,8,.1f,.1f,""));panelClear(panel,25,50,75,255);panelUpload(panel);CHECK(panel.textureRevision==1&&!panel.dirty);auto texture=panel.texture;
+  Panel panel;CHECK(panelInit(panel,1,8,8,.1f,.1f,""));canvasClear(panel,25,50,75,255);panelUpload(panel);CHECK(panel.textureRevision==1&&!panel.dirty);auto texture=panel.texture;
   GLuint fbo;glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,panel.texture,0);CHECK(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);
   unsigned char rgba[4];glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,rgba);CHECK(rgba[0]==25&&rgba[1]==50&&rgba[2]==75&&rgba[3]==255);
-  panelClear(panel,90,70,50,255);panelUpload(panel);CHECK(panel.texture==texture&&panel.textureRevision==2&&!panel.dirty);
+  canvasClear(panel,90,70,50,255);panelUpload(panel);CHECK(panel.texture==texture&&panel.textureRevision==2&&!panel.dirty);
   glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,rgba);CHECK(rgba[0]==90&&rgba[1]==70&&rgba[2]==50&&rgba[3]==255);CHECK(glGetError()==GL_NO_ERROR);
   glBindFramebuffer(GL_FRAMEBUFFER,0);glDeleteFramebuffers(1,&fbo);panelDestroy(panel);
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);

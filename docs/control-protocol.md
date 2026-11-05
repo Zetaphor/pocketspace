@@ -1,6 +1,7 @@
 # Control protocol
 
-[`pocketspace-cli`](cli.md) is the command-line client for this protocol. The engine accepts management requests on a local Unix-domain socket. Tools such as
+[`pocketspace-cli`](cli.md) is the command-line client for this protocol, and the
+[SteamVR dashboard](dashboard.md) is another client. The engine accepts management requests on a local Unix-domain socket. Tools such as
 the CLI and dashboard use it to list, start, stop and reload scripts, change
 settings, evaluate JavaScript, publish bus messages and watch for changes.
 
@@ -164,10 +165,12 @@ sample after a script starts or restarts.
 
 ## Running the engine as a service
 
-`tools/install-user-service.sh` installs two systemd user units for the current
+`tools/install-user-service.sh` installs three systemd user units for the current
 checkout: `pocketspace.service` runs the engine, and `pocketspace-autostart.service`
 starts it when SteamVR starts, but only while the settings file has
-`"engineAutostart": true`. Without that setting it does nothing.
+`"engineAutostart": true`. Without that setting it does nothing. The third,
+`pocketspace-dashboard.service`, runs the [SteamVR dashboard tab](dashboard.md)
+while SteamVR runs.
 
 ```sh
 tools/install-user-service.sh

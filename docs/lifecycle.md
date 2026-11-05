@@ -70,7 +70,7 @@ Settings live in `$HOME/.config/pocketspace/settings.json`, or in the file given
 | `version` | Required | Must be `1`. |
 | `autostart` | `[]` | Catalog names launched in order at engine start, at most 256, without duplicates. |
 | `autoRestart` | `false` | Restart scripts stopped by a callback error. |
-| `engineAutostart` | `false` | Start the engine with SteamVR. Stored now; used by the dashboard service. |
+| `engineAutostart` | `false` | Start the engine with SteamVR, through [`pocketspace-autostart.service`](control-protocol.md#running-the-engine-as-a-service). |
 
 Unknown keys, other types and malformed names make the whole file invalid. The
 engine checks the file about once a second while running. A valid edit to

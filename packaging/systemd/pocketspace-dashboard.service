@@ -1,0 +1,19 @@
+[Unit]
+Description=Pocketspace SteamVR dashboard tab
+# Runs only beside a SteamVR session that is already up, and stops with it.
+# Requisite never starts SteamVR; the dashboard also refuses to start it.
+Requisite=steamvr.service
+PartOf=steamvr.service
+After=steamvr.service
+
+[Service]
+ExecStart=@ROOT@/build/pocketspace-dashboard
+Restart=on-failure
+RestartSec=5
+# 3: SteamVR is not running; 4: another dashboard already owns the tab.
+RestartPreventExitStatus=3 4
+Slice=session.slice
+Nice=5
+
+[Install]
+WantedBy=steamvr.service

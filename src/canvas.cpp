@@ -1,0 +1,19 @@
+#include "canvas.h"
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <algorithm>
+#include <cmath>
+#include <cstdlib>
+#include <filesystem>
+namespace { FT_Library library=nullptr;
+void pixel(Canvas&p,int x,int y,unsigned char r,unsigned char g,unsigned char b,unsigned char a){if(x<0||y<0||x>=p.width||y>=p.height)return;auto*q=&p.rgba[(size_t)(y*p.width+x)*4];float alpha=a/255.f;float old=1-alpha;q[0]=(unsigned char)(r*alpha+q[0]*old);q[1]=(unsigned char)(g*alpha+q[1]*old);q[2]=(unsigned char)(b*alpha+q[2]*old);q[3]=(unsigned char)std::min(255.f,a+q[3]*old);}}
+std::string canvasDefaultFont(){const char *env=std::getenv("SF_FONT");if(env&&*env)return env;for(const char *p:{"/usr/share/fonts/TTF/Hack-Regular.ttf","/usr/share/fonts/noto/NotoSansMono-Regular.ttf","/usr/share/fonts/gnu-free/FreeMono.otf","/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf","/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf","/usr/share/fonts/truetype/freefont/FreeMono.ttf"})if(std::filesystem::exists(p))return p;return {};}
+bool canvasInitLibrary(){return library||FT_Init_FreeType(&library)==0;}
+void canvasInit(Canvas&p,int w,int h,const std::string&font){p.width=w;p.height=h;p.fontPath=font.empty()?canvasDefaultFont():font;p.rgba.assign((size_t)w*h*4,0);p.dirty=true;}
+void canvasClear(Canvas&p,unsigned char r,unsigned char g,unsigned char b,unsigned char a){for(size_t i=0;i<p.rgba.size();i+=4){p.rgba[i]=r;p.rgba[i+1]=g;p.rgba[i+2]=b;p.rgba[i+3]=a;}p.dirty=true;}
+void canvasRect(Canvas&p,int x,int y,int w,int h,unsigned char r,unsigned char g,unsigned char b,unsigned char a,bool fill){for(int yy=std::max(0,y);yy<std::min(p.height,y+h);yy++)for(int xx=std::max(0,x);xx<std::min(p.width,x+w);xx++)if(fill||xx==x||yy==y||xx==x+w-1||yy==y+h-1)pixel(p,xx,yy,r,g,b,a);p.dirty=true;}
+void canvasLine(Canvas&p,int x1,int y1,int x2,int y2,unsigned char r,unsigned char g,unsigned char b,unsigned char a){int dx=std::abs(x2-x1),sx=x1<x2?1:-1,dy=-std::abs(y2-y1),sy=y1<y2?1:-1,err=dx+dy;for(;;){pixel(p,x1,y1,r,g,b,a);if(x1==x2&&y1==y2)break;int e=2*err;if(e>=dy){err+=dy;x1+=sx;}if(e<=dx){err+=dx;y1+=sy;}}p.dirty=true;}
+bool canvasText(Canvas&p,int x,int y,const std::string&text,unsigned char r,unsigned char g,unsigned char b,unsigned char a,int pixels){FT_Face face=nullptr;if(p.fontPath.empty()||FT_New_Face(library,p.fontPath.c_str(),0,&face)!=0)return false;FT_Set_Pixel_Sizes(face,0,pixels);int pen=x,baseline=y+(face->size->metrics.ascender>>6);for(unsigned char ch:text){if(ch=='\n'){pen=x;baseline+=pixels+4;continue;}if(FT_Load_Char(face,ch,FT_LOAD_RENDER))continue;auto*bm=&face->glyph->bitmap;for(unsigned row=0;row<bm->rows;row++)for(unsigned col=0;col<bm->width;col++){unsigned char v=bm->buffer[row*bm->pitch+col];pixel(p,pen+face->glyph->bitmap_left+col,baseline-face->glyph->bitmap_top+row,r,g,b,(unsigned char)(v*a/255));}pen+=face->glyph->advance.x>>6;}FT_Done_Face(face);p.dirty=true;return true;}
+void canvasCircle(Canvas&p,int cx,int cy,int radius,unsigned char r,unsigned char g,unsigned char b,unsigned char a,bool fill){for(int y=-radius;y<=radius;y++)for(int x=-radius;x<=radius;x++){int d=x*x+y*y;if((fill&&d<=radius*radius)||(!fill&&d<=radius*radius&&d>=(radius-1)*(radius-1)))pixel(p,cx+x,cy+y,r,g,b,a);}p.dirty=true;}
+int canvasTextWidth(const Canvas&p,const std::string&text,int pixels){FT_Face face=nullptr;if(p.fontPath.empty()||FT_New_Face(library,p.fontPath.c_str(),0,&face)!=0)return -1;FT_Set_Pixel_Sizes(face,0,pixels);int width=0;for(unsigned char ch:text){if(ch=='\n')break;if(FT_Load_Char(face,ch,FT_LOAD_DEFAULT))continue;width+=face->glyph->advance.x>>6;}FT_Done_Face(face);return width;}
+void canvasBlit(Canvas&p,int x,int y,int w,int h,const unsigned char*rgba){for(int yy=0;yy<h;yy++)for(int xx=0;xx<w;xx++){auto*src=&rgba[(size_t)(yy*w+xx)*4];pixel(p,x+xx,y+yy,src[0],src[1],src[2],src[3]);}p.dirty=true;}
