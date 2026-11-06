@@ -1,6 +1,19 @@
 # Demo scripts and API additions: plan
 
-Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo models) complete; step 4 in progress, clock, monitor, sketch board and notes done; step 5's demo install done.
+Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo
+models) complete. Step 4 is in progress: the clock, monitor, sketch board and
+sticky notes are built, pass `examples-regression` and are installed, but await
+headset acceptance. Basketball is next, then desk toys, pet fox and lighting
+studio; the models for basketball and desk toys already exist. From step 5, the
+demo install is done; the site navigation entry and the final full check remain.
+
+Decisions made while building, beyond the text below: notes hang from grabbable
+pins, because an interactive panel stops the laser before the object behind it;
+desk toys hang each cradle ball on a hinge with its strings modelled; the hoop
+has a decorative cord net; the clock has a saved 12h/24h switch; the sketch board
+saves strokes as data after every change, with an undoable Clear; each demo shows
+a hand's laser only while that hand aims at something it can use. A scene line
+drawing API is on the [remaining work](remaining-work.md) list.
 
 ## Goal
 
