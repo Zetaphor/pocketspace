@@ -271,6 +271,7 @@ int main() {
   const DemoModel demoModels[]={
     {"Basketball",2,{.1806f,.1806f,.1806f},{0,0,0}},
     {"HoopRim",1,{.328f,.014f,.378f},{0,1.6f,.461f}},
+    {"HoopNet",1,{.319f,.265f,.319f},{0,1.47f,.486f}},
     {"HoopBackboard",2,{.6f,.4f,.022f},{0,1.76f,.261f}},
     {"HoopPost",1,{.4f,1.76f,.45f},{0,.88f,.025f}},
     {"Desk",1,{.9f,.03f,.5f},{0,0,0}},

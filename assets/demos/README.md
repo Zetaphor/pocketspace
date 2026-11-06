@@ -20,6 +20,7 @@ aligned.
 | `HoopPost.glb` | 1.76 | 0.4 × 1.76 × 0.45 | 0, 0.88, 0.025 | Base plate, pole, arm to the board |
 | `HoopBackboard.glb` | 0.6 | 0.6 × 0.4 × 0.022 | 0, 1.76, 0.261 | White board, border and target square on the +Z face |
 | `HoopRim.glb` | 0.378 | 0.328 × 0.014 × 0.378 | 0, 1.6, 0.461 | Ring and bracket |
+| `HoopNet.glb` | 0.319 | 0.319 × 0.265 × 0.319 | 0, 1.47, 0.486 | White cord lattice |
 | `Desk.glb` | 0.9 | 0.9 × 0.03 × 0.5 | 0, 0, 0 | Wooden top with rounded corners and edges |
 | `CradleFrame.glb` | 0.32 | 0.32 × 0.224 × 0.18 | 0, 0.112, 0 | Black base, chrome uprights and rails |
 | `CradleBall.glb` | 0.1417 | 0.04 × 0.1405 × 0.1417 | 0, −0.0698, 0 | Steel ball and two strings |
@@ -29,7 +30,10 @@ aligned.
 The hoop's frame has the floor at y 0 under the pole and +Z toward the player.
 The board's front face is at z 0.272. The rim's inside diameter is 0.30 m, its
 tube is 0.014 m thick, and its ring is centered at (0, 1.6, 0.486), level with
-the bottom of the target square. The basketball is 0.18 m across. For a smaller
+the bottom of the target square. The net hangs from the ring's centerline,
+where the rim hides its top, to an open 0.2 m ring 0.26 m below. It is solid
+cord geometry, not a transparent texture, and is decorative: give it no collider
+so balls fall through it. The basketball is 0.18 m across. For a smaller
 or larger hoop, multiply every part's scale and center, and the ball's scale,
 by the same factor.
 

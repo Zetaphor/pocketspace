@@ -213,6 +213,24 @@ rim.torus('rim', (0, 1.6, .486), .157, .007)
 rim.box('rim', (-.04, 1.593, front), (.04, 1.607, .332))
 rim.save('HoopRim', {'rim': ((.92, .32, .06), .3, .4)})
 
+# Net: a diamond lattice of cords hung from the rim's centerline, narrowing to
+# an open ring 0.26 m below it.
+net, cord, ties, rows = Model(), .0025, 12, 5
+nodes = []
+for row in range(rows + 1):
+    radius = .157 - .057 * (row / rows) ** .8
+    nodes.append([(radius * math.cos(TAU * (i + row / 2) / ties), 1.6 - .26 * row / rows,
+                   .486 + radius * math.sin(TAU * (i + row / 2) / ties)) for i in range(ties)])
+for row in range(rows):
+    for i in range(ties):
+        for j in (i, (i - 1) % ties):
+            net.cylinder('cord', nodes[row][i], nodes[row + 1][j], cord, 6)
+for row in nodes:
+    for node in row:
+        net.sphere('cord', node, cord, 4, 8)
+net.torus('cord', (0, 1.34, .486), .1, cord, 48, 6)
+net.save('HoopNet', {'cord': ((.92, .92, .9), 0, .9)})
+
 # Desk: a 0.9 x 0.5 m wooden top, 0.03 m thick, with rounded corners and edges.
 desk = Model()
 half_x, half_z, corner, edge = .45, .25, .05, .015
