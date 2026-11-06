@@ -9,13 +9,20 @@ when the dashboard stops or restarts.
 The build produces `build/pocketspace-dashboard`.
 `tools/install-user-service.sh` installs and enables `pocketspace-dashboard.service`
 with the [engine service](control-protocol.md#running-the-engine-as-a-service). The
-dashboard then starts whenever SteamVR starts:
+dashboard then starts whenever SteamVR starts. The script also copies the
+[demos](demos.md) into the catalog's `demos` folder, so the Library lists them as
+`demos/clock.js` and so on:
 
 ```sh
 tools/install-user-service.sh
 systemctl --user restart pocketspace-dashboard.service   # start it in a running SteamVR session
 journalctl --user -u pocketspace-dashboard.service       # its log
 ```
+
+Run the script again after pulling changes to update the demos. It replaces the
+catalog's `demos` folder each time, so keep your own scripts elsewhere in the
+catalog; demo saves are kept. `--remove` deletes the installed demos along with
+the units.
 
 The tab's dashboard icon is `assets/branding/shortcut_icon_512x512.png`.
 

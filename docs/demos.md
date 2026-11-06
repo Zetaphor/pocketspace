@@ -4,11 +4,18 @@ The demos are complete scenes to keep running beside your other VR apps. Each
 combines several engine features; the [example scripts](examples.md) show one
 feature at a time.
 
-Run a demo from the repository root:
+`tools/install-user-service.sh` copies the demos into the script catalog as
+`demos/`, so the dashboard's Library lists them as `demos/clock.js` and so on;
+rerun it after pulling changes. See [SteamVR dashboard](dashboard.md). The
+installed demos load their models and fonts from the checkout, where the engine
+service runs. To run one directly from the repository root instead:
 
 ```sh
 ./run-pocketspace.sh --scripts-dir demos --launch clock.js
 ```
+
+Saves follow the script's catalog path, so a demo run from `demos/` this way
+keeps its saves apart from the installed `demos/clock.js`.
 
 Demos show a controller's laser only while it points at something you can press
 or grab. What a demo saves stays in its own save namespace; clear it with the
