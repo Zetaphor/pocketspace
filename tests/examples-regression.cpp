@@ -266,4 +266,30 @@ int main() {
     closeScript(host);
     currentScene = liveScene = nullptr;
   }
+  // Generated demo props: authored size and center in meters (see assets/demos/README.md).
+  struct DemoModel {const char *name;size_t primitives;float size[3],center[3];};
+  const DemoModel demoModels[]={
+    {"Basketball",2,{.1806f,.1806f,.1806f},{0,0,0}},
+    {"HoopRim",1,{.328f,.014f,.378f},{0,1.6f,.461f}},
+    {"HoopBackboard",2,{.6f,.4f,.022f},{0,1.76f,.261f}},
+    {"HoopPost",1,{.4f,1.76f,.45f},{0,.88f,.025f}},
+    {"Desk",1,{.9f,.03f,.5f},{0,0,0}},
+    {"CradleFrame",2,{.32f,.224f,.18f},{0,.112f,0}},
+    {"CradleBall",2,{.04f,.1405f,.1417f},{0,-.0698f,0}},
+  };
+  size_t demoFiles=0;
+  for(const auto &entry:std::filesystem::directory_iterator("assets/demos"))demoFiles+=entry.path().extension()==".glb";
+  assert(demoFiles==std::size(demoModels));
+  for(const auto &expected:demoModels){
+    ModelAsset asset;
+    assert(loadModelFile(std::string("assets/demos/")+expected.name+".glb",asset));
+    assert(asset.primitives.size()==expected.primitives&&!asset.hasAnimation&&!asset.hasSkin);
+    const float extent=std::max({expected.size[0],expected.size[1],expected.size[2]});
+    assert(std::abs(1/asset.normalization-extent)<5e-4f);
+    for(int axis=0;axis<3;axis++){
+      assert(std::abs(asset.center[axis]-expected.center[axis])<5e-4f);
+      assert(std::abs(asset.high[axis]-expected.size[axis]/extent*.5f)<2e-3f&&std::abs(asset.low[axis]+asset.high[axis])<1e-5f);
+    }
+    printf("PASS demo model %s\n",expected.name);
+  }
 }
