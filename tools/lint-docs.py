@@ -77,9 +77,26 @@ for script in sorted((ROOT / 'scripts').glob('*')):
         for asset in re.findall(r'[\"\'](assets/[^\"\']+)[\"\']', script.read_text()):
             if not (ROOT / asset).is_file():
                 errors.append(f'{script.relative_to(ROOT)}: missing asset {asset}')
+# Demos: each listed in docs/demos.md, with a header comment and bundled assets.
+demo_inventory = (ROOT / 'docs/demos.md').read_text()
+for demo in sorted((ROOT / 'demos').glob('*')):
+    if demo.suffix != '.js':
+        errors.append(f'non-demo file in demos/: {demo.name}')
+        continue
+    if f'(../demos/{demo.name})' not in demo_inventory:
+        errors.append(f'demo missing from docs/demos.md: {demo.name}')
+    if not demo.read_text().lstrip().startswith(('//', '/*')):
+        errors.append(f'{demo.relative_to(ROOT)}: missing explanatory header comment')
+    for asset in re.findall(r'[\"\'](assets/[^\"\']+)[\"\']', demo.read_text()):
+        if not (ROOT / asset).is_file():
+            errors.append(f'{demo.relative_to(ROOT)}: missing asset {asset}')
+for name in re.findall(r'\(\.\./demos/([\w.-]+)\)', demo_inventory):
+    if not (ROOT / 'demos' / name).is_file():
+        errors.append(f'docs/demos.md: missing demo {name}')
 for error in errors:
     print(error, file=sys.stderr)
 if errors:
     sys.exit(1)
 print(f'PASS: {len(docs)} documents, {len(bindings)} globals, '
-      f'{len(list((ROOT / "scripts").glob("*.js")))} examples')
+      f'{len(list((ROOT / "scripts").glob("*.js")))} examples, '
+      f'{len(list((ROOT / "demos").glob("*.js")))} demos')

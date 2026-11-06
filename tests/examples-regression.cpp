@@ -21,6 +21,12 @@ int main() {
   scenes.emplace_back("tests/scenes/fast-motion.js");
   scenes.emplace_back("tests/scenes/light-filtering.js");
   scenes.emplace_back("tests/scenes/pbr-variants.js");
+  // Demos run twice: the second run checks the state the first one saved.
+  std::vector<std::filesystem::directory_entry> demos;
+  for(const auto &entry:std::filesystem::directory_iterator("demos"))demos.push_back(entry);
+  std::sort(demos.begin(),demos.end());
+  for(int pass=0;pass<2;pass++)scenes.insert(scenes.end(),demos.begin(),demos.end());
+  std::map<std::string,int> runs;
   for (const auto &entry : scenes) {
     if (entry.path().extension() != ".js") continue;
     ScriptHost host;
@@ -43,6 +49,7 @@ int main() {
     // Exercise lifecycle controls before the general button smoke check disposes owners.
     std::string controls;
     const auto name = entry.path().filename();
+    const int run = runs[entry.path().string()]++;
     if(name=="shadows.js") controls=R"(
       inputEventForExample('/input/b/click');const oldTool=tool,oldLight=light;
       inputEventForExample('/input/b/click');
@@ -140,6 +147,38 @@ int main() {
     if(name=="scene-save.js") controls=R"(
       const before=saves;inputEventForExample('/input/bumper/click');
       if(saves!==before+1||loadScriptData('stats').saves!==saves)throw Error('saved data count');
+    )";
+    if(entry.path()=="demos/clock.js"&&run==0) controls=R"(
+      const press=(label,hand='right')=>{const b=buttons.find(b=>(typeof b.label==='function'?b.label():b.label)===label);
+        exampleCallback({type:'panel.pointerDown',objectId:panel.id,control:'left',hand,x:b.x+b.w/2,y:b.y+b.h/2});};
+      if(duration!==300||hour12||remaining!==300)throw Error('clock defaults');
+      exampleCallback({type:'panel.hoverStart',objectId:panel.id,hand:'left',x:30,y:300});
+      if(!getLaserVisible('left')||hovered!==0)throw Error('clock hover laser');
+      exampleCallback({type:'panel.hoverEnd',objectId:panel.id,hand:'left',x:0,y:0});
+      if(getLaserVisible('left')||hovered!==-1)throw Error('clock laser hidden');
+      press('25');if(duration!==1500||remaining!==1500||loadScriptData('clock').duration!==1500)throw Error('clock duration');
+      press('Start');if(!running)throw Error('clock start');
+      endsAt=Date.now()+61500;press('Pause');
+      if(running||Math.abs(remaining-61.5)>1||timerText(remaining)!=='01:02')throw Error('clock pause');
+      press('Reset');if(running||remaining!==1500)throw Error('clock reset');
+      press('Start');endsAt=Date.now()-1;update();
+      if(running||remaining!==0||alarmUntil<=Date.now()||timerText(left(Date.now()))!=='00:00')throw Error('clock alarm');
+      press('1');if(alarmUntil!==0||duration!==1500)throw Error('clock press silences alarm only');
+      press('Start');if(!running||Math.abs(left(Date.now())-1500)>1)throw Error('clock restart after alarm');
+      press('24h');if(!hour12||!loadScriptData('clock').hour12)throw Error('clock format');
+      const at=(h,m)=>new Date(2026,0,1,h,m);
+      if(clockText(at(13,5))!=='1:05 PM'||clockText(at(0,0))!=='12:00 AM'||clockText(at(12,30))!=='12:30 PM')throw Error('clock 12h');
+      hour12=false;if(clockText(at(9,7))!=='09:07')throw Error('clock 24h');hour12=true;
+      exampleCallback({type:'overlay.grabStart',objectId:handle,hand:'right'});
+      if(!getLaserVisible('right'))throw Error('clock grab laser');
+      setObjectPosition(handle,.1,.2,-.5);
+      exampleCallback({type:'overlay.grabEnd',objectId:handle,hand:'right'});
+      const kept=loadScriptData('clock');
+      if(getLaserVisible('right')||Math.abs(kept.x-.1)>1e-6||Math.abs(kept.y-.2)>1e-6||Math.abs(kept.z+.5)>1e-6)throw Error('clock grab save');
+    )";
+    if(entry.path()=="demos/clock.js"&&run==1) controls=R"(
+      const at=getObjectTransform(handle);
+      if(Math.abs(at.x-.1)>1e-6||Math.abs(at.y-.2)>1e-6||Math.abs(at.z+.5)>1e-6||duration!==1500||remaining!==1500||!hour12||running)throw Error('clock restore');
     )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);

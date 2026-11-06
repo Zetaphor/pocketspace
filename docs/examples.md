@@ -3,6 +3,7 @@
 Start with [build and run](getting-started.md) if you have not set up the engine.
 Each script is a complete scene you can run, read and adapt. Try grabbing for
 interaction, panels for UI, physics for simulation, or PBR for lit models.
+For complete scenes that combine several features, see the [demos](demos.md).
 
 Run any example with `./run-pocketspace.sh --scripts-dir scripts --launch <name>.js`.
 The engine starts with no user scripts when no `--launch` entries are supplied.
