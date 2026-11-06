@@ -228,5 +228,16 @@ int main(){
   eval("disposeSceneContainer(panelCopy.containerId)");assert(host.scene.panels.size()==4);
   closeScript(host);std::ofstream(script)<<"const c=loadSceneContainer('panels');if(c.panels.length!==4)throw Error('fresh panel restore');c.panels[0].canvas.text(1,1,'New text');c.panels[0].present();function update(){}";
   assert(loadScript(host,script.string()));assert(host.scene.panels.size()==4&&host.scene.panels[0].interactive&&!host.scene.panels[2].visible);
-  puts("PASS scene persistence: per-script namespaces, restart, explicit import, JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback");
+  closeScript(host);assert(loadScript(host,"tests/panel-follow-api-smoke.js"));ctx=host.ctx;liveScene=currentScene=&host.scene;
+  {
+    // The fixture publishes the panel IDs it leaves for these checks on globalThis.
+    auto panelById=[&](const char *name){int id=0;
+      JSValue global=JS_GetGlobalObject(ctx);JSValue value=JS_GetPropertyStr(ctx,global,name);JS_ToInt32(ctx,&id,value);JS_FreeValue(ctx,value);JS_FreeValue(ctx,global);return findSceneItem(host.scene.panels,id);};
+    const auto *outside=panelById("outsideId"),*tag=panelById("tagId");
+    assert(outside&&outside->mode=="object"&&outside->objectId==0&&!panelShown(*outside,host.scene));
+    assert(tag&&tag->objectId>0&&panelShown(*tag,host.scene));
+    eval("setObjectVisible(handle,false)");assert(!panelShown(*panelById("tagId"),host.scene));
+    eval("setObjectVisible(handle,true)");assert(panelShown(*panelById("tagId"),host.scene));
+  }
+  puts("PASS scene persistence: per-script namespaces, restart, explicit import, JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback, object-following panels");
 }

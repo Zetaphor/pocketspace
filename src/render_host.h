@@ -86,7 +86,15 @@ int groupBufferPixels(int required,int maximum);
 GLuint compile(GLenum type,const char *source);
 inline void setVec3(GLint location,float x,float y,float z){glUniform3f(location,x,y,z);}
 void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]);
-vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head);
+// object is the followed object for object placement; without it such a panel is not shown.
+vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const Object *object=nullptr);
+inline const Object *panelObject(const Panel &panel,const Scene &scene){return panel.mode=="object"&&panel.objectId?findSceneItem(scene.objects,panel.objectId):nullptr;}
+// A panel following an object shows only while that object exists and is visible.
+inline bool panelShown(const Panel &panel,const Scene &scene){
+  if(!panel.visible)return false;
+  if(panel.mode!="object")return true;
+  const auto *object=panelObject(panel,scene);return object&&object->visible;
+}
 bool createLaser(vr::VROverlayHandle_t &handle,int hand);
 // Frame controller /pose/tip and /pose/openxr_aim: 40 degrees about local X.
 void laserRay(const vr::HmdMatrix34_t &pose,int hand,float origin[3],float direction[3]);

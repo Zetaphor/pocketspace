@@ -64,7 +64,7 @@ and their documented controls.
 | [scene-snapshot.js](../scripts/scene-snapshot.js) | In-memory capture/restore with fresh IDs; bumper captures, A/X restores |
 | [container-transfer.js](../scripts/container-transfer.js) | Transfer object/panel ownership; B/Y transfers, A/X disposes left, bumper disposes right |
 | [physics-controls.js](../scripts/physics-controls.js) | Impulses, gravity, body removal/reattachment and a moving kinematic platform |
-| [panel-placement.js](../scripts/panel-placement.js) | World/head/arbitrary placement, rotation, visibility and panel removal/recreation |
+| [panel-placement.js](../scripts/panel-placement.js) | World/head/arbitrary/object placement, rotation, visibility, panel removal/recreation and a label that follows a grabbed box |
 | [mesh-pointer.js](../scripts/mesh-pointer.js) | Custom model presses on the engine laser with a 3D hit point, plus haptics |
 
 ## Functionality coverage

@@ -341,7 +341,29 @@ static JSValue jsCreatePanel(JSContext *ctx,JSValueConst,int argc,JSValueConst *
 static JSValue jsPanelClear(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<1)return JS_ThrowTypeError(ctx,"panel.clear(id,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");int r=argc>1?colorPart(ctx,argv[1],0):0,g=argc>2?colorPart(ctx,argv[2],0):0,b=argc>3?colorPart(ctx,argv[3],0):0,a=argc>4?colorPart(ctx,argv[4],255):255;canvasClear(*p,r,g,b,a);return JS_UNDEFINED;}
 static JSValue jsPanelSetFont(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelLoadFont(panel,path)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*path=JS_ToCString(ctx,argv[1]);if(!path)return JS_EXCEPTION;p->fontPath=path;JS_FreeCString(ctx,path);return JS_UNDEFINED;}
 static JSValue jsPanelText(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED),x=0,y=0;if(argc<4||JS_ToInt32(ctx,&x,argv[1])<0||JS_ToInt32(ctx,&y,argv[2])<0)return JS_ThrowTypeError(ctx,"panel.text(id,x,y,text,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*t=JS_ToCString(ctx,argv[3]);if(!t)return JS_EXCEPTION;int r=argc>4?colorPart(ctx,argv[4],255):255,g=argc>5?colorPart(ctx,argv[5],255):255,b=argc>6?colorPart(ctx,argv[6],255):255,a=argc>7?colorPart(ctx,argv[7],255):255;bool ok=canvasText(*p,x,y,t,r,g,b,a,argc>8?colorPart(ctx,argv[8],32):32);JS_FreeCString(ctx,t);return JS_NewBool(ctx,ok);}
-static JSValue jsPanelSetTransform(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<5)return JS_ThrowTypeError(ctx,"panel.setTransform(id,mode,x,y,z)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");const char*mode=JS_ToCString(ctx,argv[1]);if(mode){p->mode=mode;JS_FreeCString(ctx,mode);}double x=0,y=0,z=0;if(JS_ToFloat64(ctx,&x,argv[2])<0||JS_ToFloat64(ctx,&y,argv[3])<0||JS_ToFloat64(ctx,&z,argv[4])<0)return JS_EXCEPTION;p->x=(float)x;p->y=(float)y;p->z=(float)z;return JS_UNDEFINED;}
+static JSValue jsPanelSetTransform(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  const char *usage="panelSetTransform(panel, mode, x, y, z, options)";
+  int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<5)return JS_ThrowTypeError(ctx,"%s",usage);
+  auto *p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");
+  const char *text=JS_ToCString(ctx,argv[1]);if(!text)return JS_EXCEPTION;const std::string mode=text;JS_FreeCString(ctx,text);
+  if(!panelPlacementMode(mode))return JS_ThrowRangeError(ctx,"unknown panel placement mode");
+  double position[3]{};
+  for(int i=0;i<3;i++){if(JS_ToFloat64(ctx,&position[i],argv[i+2])<0)return JS_EXCEPTION;if(!std::isfinite(position[i]))return JS_ThrowRangeError(ctx,"panel position must be finite");}
+  int objectId=0;bool facesViewer=false;
+  const JSValueConst options=argc>5?argv[5]:JS_UNDEFINED;
+  if(mode=="object"){
+    if(!JS_IsObject(options))return JS_ThrowTypeError(ctx,"object placement requires options {objectId}");
+    JSValue value=JS_GetPropertyStr(ctx,options,"objectId");if(JS_IsException(value))return value;
+    double number=0;const bool integer=JS_IsNumber(value)&&JS_ToFloat64(ctx,&number,value)==0&&number==std::floor(number)&&number>=1&&number<=INT_MAX;JS_FreeValue(ctx,value);
+    if(!integer)return JS_ThrowTypeError(ctx,"objectId must be an object id");
+    objectId=int(number);if(!findObject(objectId))return JS_ThrowRangeError(ctx,"unknown object id");
+    value=JS_GetPropertyStr(ctx,options,"viewerFacing");if(JS_IsException(value))return value;
+    if(!JS_IsUndefined(value)&&!JS_IsBool(value)){JS_FreeValue(ctx,value);return JS_ThrowTypeError(ctx,"viewerFacing must be a boolean");}
+    facesViewer=JS_ToBool(ctx,value)>0;JS_FreeValue(ctx,value);
+  }else if(!JS_IsUndefined(options))return JS_ThrowTypeError(ctx,"panel options apply only to object placement");
+  p->mode=mode;p->x=float(position[0]);p->y=float(position[1]);p->z=float(position[2]);p->objectId=objectId;p->facesViewer=facesViewer;
+  return JS_UNDEFINED;
+}
 static JSValue jsPanelSetRotation(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=panelArgumentId(ctx,argc?argv[0]:JS_UNDEFINED);if(argc<10)return JS_ThrowTypeError(ctx,"panel.setRotation(panel,pitch,yaw,roll,...)");auto*p=findPanel(id);if(!p)return JS_ThrowRangeError(ctx,"unknown panel");for(int i=0;i<9;i++){double value=0;if(JS_ToFloat64(ctx,&value,argv[i+1])<0)return JS_EXCEPTION;p->rotation[i]=(float)value;}return JS_UNDEFINED;}
 static JSValue jsPanelRemove(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){if(argc<1)return JS_ThrowTypeError(ctx,"removePanel(panel)");int id=panelArgumentId(ctx,argv[0]);auto &panels=currentScene->panels;auto it=std::find_if(panels.begin(),panels.end(),[id](const Panel &p){return p.id==id;});if(it==panels.end())return JS_ThrowRangeError(ctx,"unknown panel");currentScene->retiredPanels.push_back(std::move(*it));panels.erase(it);return JS_UNDEFINED;}
 static JSValue jsPanelVisible(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){int id=0;if(argc<2)return JS_ThrowTypeError(ctx,"panelSetVisible(panel,visible)");id=panelArgumentId(ctx,argv[0]);auto*p=findPanel(id);if(p)p->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;}
@@ -943,6 +965,8 @@ void forgetObjectInteraction(int id){
 static void removeSceneObject(int id){
   auto *object=findObject(id);if(!object)return;
   std::erase_if(currentScene->lights,[&](const PointLight &light){return light.objectId==id;});
+  // Panels that follow the object stay placed but are no longer shown.
+  for(auto &panel:currentScene->panels)if(panel.objectId==id)panel.objectId=0;
   if(currentScene->physics)currentScene->physics->remove(id);
   if(currentScene==liveScene){
     forgetObjectInteraction(id);const int key=objectSurfaceKey(*object);
@@ -1177,7 +1201,7 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"getAnimationState",jsGetAnimationState,1);
   bind(candidate.ctx,"createPanel",jsCreatePanel,1);
   bind(candidate.ctx,"panelLoadFont",jsPanelSetFont,2);
-  bind(candidate.ctx,"panelSetTransform",jsPanelSetTransform,5);
+  bind(candidate.ctx,"panelSetTransform",jsPanelSetTransform,6);
   bind(candidate.ctx,"panelSetRotation",jsPanelSetRotation,10);
   bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);

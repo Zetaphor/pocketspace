@@ -84,7 +84,11 @@ static JSValue capture(JSContext *ctx,int owner){
     require(ownA==ownB,"joint crosses scene container boundary; save both endpoints in one container");
     if(ownA)putIndex(ctx,joints,jointIndex++,jointValue(ctx,j));
   }
-  uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels)if(owners.count(p.container)){require(panelIndex<maxPanels,"snapshot panel limit is 32");Value item(ctx,panelValue(ctx,p,panelBytes));put(ctx,item,"container",JS_NewInt32(ctx,p.container));putIndex(ctx,panels,panelIndex++,JS_DupValue(ctx,item));}
+  uint32_t panelIndex=0;size_t panelBytes=0;for(const auto &p:currentScene->panels){
+    const auto *followed=p.objectId?findObject(p.objectId):nullptr;
+    require(!followed||(bool(owners.count(followed->container))==bool(owners.count(p.container))),"panel attachment crosses scene container boundary");
+  }
+  for(const auto &p:currentScene->panels)if(owners.count(p.container)){require(panelIndex<maxPanels,"snapshot panel limit is 32");Value item(ctx,panelValue(ctx,p,panelBytes));put(ctx,item,"container",JS_NewInt32(ctx,p.container));putIndex(ctx,panels,panelIndex++,JS_DupValue(ctx,item));}
   Value lights(ctx,JS_NewArray(ctx));uint32_t lightIndex=0;
   for(const auto &light:currentScene->lights){
     const auto *object=light.objectId?findObject(light.objectId):nullptr;
@@ -168,7 +172,8 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   const int firstJoint=scene.physics?scene.physics->nextJointId():1;require(nj<=uint32_t(INT_MAX-firstJoint),"joint ID limit reached");
   auto panelArray=field(ctx,root,"panels");const uint32_t np=length(ctx,panelArray,maxPanels);
   require(scene.nextPanelId<=INT_MAX-int(np),"panel ID limit reached");std::vector<Panel> restoredPanels;std::vector<int> panelSources;std::set<int> uniquePanels;size_t pixelBytes=0;
-  for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),restoredOwner(item),pixelBytes));}
+  for(uint32_t i=0;i<np;i++){Value item(ctx,JS_GetPropertyUint32(ctx,panelArray,i));const int source=int(number(ctx,item,"id",1,INT_MAX-1,true));require(uniquePanels.insert(source).second,"duplicate source panel ID");panelSources.push_back(source);restoredPanels.push_back(panelRead(ctx,item,scene.nextPanelId+int(i),restoredOwner(item),pixelBytes));
+    auto &followed=restoredPanels.back().objectId;if(followed){require(objectIds.count(followed),"panel attachment must be inside snapshot");followed=objectIds.at(followed);}}
   auto lightArray=field(ctx,root,"lights");const uint32_t nl=length(ctx,lightArray,maxPointLights);
   require(scene.lights.size()+nl<=maxPointLights&&scene.nextLightId<=INT_MAX-int(nl),"point light limit reached");
   std::vector<PointLight> restoredLights;std::vector<int> lightSources;std::set<int> uniqueLights;

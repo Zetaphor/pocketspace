@@ -295,7 +295,9 @@ Each panel entry contains:
 | `widthMeters` | Finite physical width greater than 0 and at most 10 |
 | `heightMeters` | Finite positive physical height matching the pixel aspect ratio within float precision |
 | `position` | Finite float-range `{x,y,z}` |
-| `mode` | `world`, `viewerFacing`, `headLocked`, or `arbitrary` |
+| `mode` | `world`, `viewerFacing`, `headLocked`, `arbitrary`, or `object` |
+| `objectId` | Source ID of the followed object, which must be in the snapshot; `null` for other modes or a detached panel |
+| `viewerFacing` | Boolean; `true` only for object placement that faces the headset |
 | `rotation` | Nine finite float-range numbers, row-major 3×3 |
 | `visible`, `interactive` | Booleans |
 | `fontPath` | Stored font path string, possibly empty |
@@ -306,6 +308,9 @@ all RGBA bytes preserved. Text, shapes, images and transparent pixels do not
 need to be redrawn to restore their appearance. Image/font source files are not
 needed to display the saved pixels. Future text draws use the saved font path
 and therefore still need that font installed or a new `panelLoadFont` choice.
+A panel following an object restores following the restored copy of that object.
+A capture rejects a panel and its followed object on opposite sides of the
+container boundary, as it does for light attachments.
 Callbacks and application variables remain script-owned; reconnect them using
 the returned handles or `panelMap`. For example:
 

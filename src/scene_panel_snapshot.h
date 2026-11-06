@@ -29,21 +29,24 @@ static std::vector<unsigned char> pixelsRead(JSContext *ctx,JSValueConst value,s
   for(size_t i=0;i<bytes.size();i+=8){uint32_t count=0;for(int b=0;b<4;b++)count|=uint32_t(bytes[i+b])<<(b*8);require(count>0&&count<=(expected-pixels.size())/4,"panel pixel run exceeds dimensions");for(uint32_t n=0;n<count;n++)pixels.insert(pixels.end(),bytes.begin()+i+4,bytes.begin()+i+8);}
   require(pixels.size()==expected,"panel pixel length mismatch");return pixels;
 }
-static bool panelMode(const std::string &mode){return mode=="world"||mode=="viewerFacing"||mode=="headLocked"||mode=="arbitrary";}
 static JSValue panelValue(JSContext *ctx,const Panel &p,size_t &total){
   require(p.width>=1&&p.width<=4096&&p.height>=1&&p.height<=4096,"invalid saved panel dimensions");const size_t bytes=size_t(p.width)*p.height*4;
   require(bytes<=maxPanelBytes-total&&p.rgba.size()==bytes,"saved panel pixels exceed 64 MiB or mismatch dimensions");total+=bytes;
-  require(std::isfinite(p.widthMeters)&&p.widthMeters>0&&p.widthMeters<=10&&panelMode(p.mode)&&std::isfinite(p.heightMeters)&&p.heightMeters>0&&std::abs(double(p.heightMeters)-double(p.widthMeters)*p.height/p.width)<=1e-5*std::max(1.,double(p.heightMeters)),"invalid saved panel placement/font settings");
+  require(std::isfinite(p.widthMeters)&&p.widthMeters>0&&p.widthMeters<=10&&panelPlacementMode(p.mode)&&std::isfinite(p.heightMeters)&&p.heightMeters>0&&std::abs(double(p.heightMeters)-double(p.widthMeters)*p.height/p.width)<=1e-5*std::max(1.,double(p.heightMeters)),"invalid saved panel placement/font settings");
   Value value(ctx,JS_NewObject(ctx)),rotation(ctx,JS_NewArray(ctx));put(ctx,value,"id",JS_NewInt32(ctx,p.id));put(ctx,value,"widthPixels",JS_NewInt32(ctx,p.width));put(ctx,value,"heightPixels",JS_NewInt32(ctx,p.height));put(ctx,value,"widthMeters",JS_NewFloat64(ctx,p.widthMeters));put(ctx,value,"heightMeters",JS_NewFloat64(ctx,p.heightMeters));
   put(ctx,value,"position",vectorValue(ctx,{p.x,p.y,p.z}));put(ctx,value,"mode",JS_NewString(ctx,p.mode.c_str()));
   for(int i=0;i<9;i++){require(std::isfinite(p.rotation[i]),"non-finite panel rotation");putIndex(ctx,rotation,i,JS_NewFloat64(ctx,p.rotation[i]));}put(ctx,value,"rotation",JS_DupValue(ctx,rotation));
+  put(ctx,value,"objectId",p.objectId?JS_NewInt32(ctx,p.objectId):JS_NULL);put(ctx,value,"viewerFacing",JS_NewBool(ctx,p.facesViewer));
   put(ctx,value,"visible",JS_NewBool(ctx,p.visible));put(ctx,value,"interactive",JS_NewBool(ctx,p.interactive));put(ctx,value,"fontPath",JS_NewString(ctx,p.fontPath.c_str()));put(ctx,value,"pixels",pixelsValue(ctx,p));return JS_DupValue(ctx,value);
 }
 static Panel panelRead(JSContext *ctx,JSValueConst value,int id,int owner,size_t &total){
   const int w=int(number(ctx,value,"widthPixels",1,4096,true)),h=int(number(ctx,value,"heightPixels",1,4096,true));const double width=number(ctx,value,"widthMeters",0,10);require(width>0&&float(width)>0,"panel widthMeters must be positive");const double height=number(ctx,value,"heightMeters",0,40960);require(height>0&&float(height)>0&&std::abs(height-width*h/w)<=1e-5*std::max(1.,height),"panel physical aspect ratio mismatch");
   const size_t bytes=size_t(w)*h*4;require(bytes<=maxPanelBytes-total,"saved panel pixels exceed 64 MiB");total+=bytes;
-  const auto mode=textField(ctx,value,"mode");require(panelMode(mode),"invalid panel mode");auto position=field(ctx,value,"position"),rotation=field(ctx,value,"rotation"),pixels=field(ctx,value,"pixels");auto pos=vectorRead(ctx,position);require(length(ctx,rotation,9)==9,"panel rotation requires 9 numbers");
+  const auto mode=textField(ctx,value,"mode");require(panelPlacementMode(mode),"invalid panel mode");auto position=field(ctx,value,"position"),rotation=field(ctx,value,"rotation"),pixels=field(ctx,value,"pixels");auto pos=vectorRead(ctx,position);require(length(ctx,rotation,9)==9,"panel rotation requires 9 numbers");
   Panel p;p.id=id;p.width=w;p.height=h;p.widthMeters=float(width);p.heightMeters=float(height);p.container=owner;p.mode=mode;p.x=pos.x;p.y=pos.y;p.z=pos.z;
   for(uint32_t i=0;i<9;i++){Value n(ctx,JS_GetPropertyUint32(ctx,rotation,i));double d=0;require(JS_IsNumber(n)&&JS_ToFloat64(ctx,&d,n)==0&&std::isfinite(d)&&std::abs(d)<=floatLimit,"invalid panel rotation");p.rotation[i]=float(d);}
+  // The followed object's source ID; the caller remaps it to the restored object.
+  auto attachment=field(ctx,value,"objectId");if(!JS_IsNull(attachment)){require(mode=="object","only object placement follows an object");p.objectId=int(number(ctx,value,"objectId",1,INT_MAX-1,true));}
+  p.facesViewer=boolean(ctx,value,"viewerFacing");require(!p.facesViewer||mode=="object","viewerFacing applies only to object placement");
   p.visible=boolean(ctx,value,"visible");p.interactive=boolean(ctx,value,"interactive");p.fontPath=textField(ctx,value,"fontPath");p.rgba=pixelsRead(ctx,pixels,bytes);require(canvasInitLibrary(),"panel font library initialization failed");return p;
 }

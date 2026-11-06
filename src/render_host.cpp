@@ -157,7 +157,21 @@ void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const v
   up[2]=right[0]*forward[1]-right[1]*forward[0];
   for(int i=0;i<3;i++){panel.m[i][0]=right[i];panel.m[i][1]=up[i];panel.m[i][2]=-forward[i];}
 }
-vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head){
+vr::HmdMatrix34_t panelTransform(const Panel &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const Object *object){
+  if(panel.mode=="object"){
+    auto transform=anchor;if(!object)return transform;
+    // Scene +Z is forward; the anchor's and the object's rotation matrices use OpenVR's -Z forward.
+    float rotation[9];objectRotationMatrix(object->pitch,object->yaw,object->roll,rotation);
+    const float offset[3]={panel.x,panel.y,-panel.z};
+    float local[3]={object->x,object->y,-object->z};
+    for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)local[row]+=rotation[row*3+axis]*offset[axis];
+    for(int row=0;row<3;row++){
+      for(int axis=0;axis<3;axis++)transform.m[row][3]+=anchor.m[row][axis]*local[axis];
+      for(int col=0;col<3;col++){float value=0;for(int axis=0;axis<3;axis++)value+=anchor.m[row][axis]*rotation[axis*3+col];transform.m[row][col]=value;}
+    }
+    if(panel.facesViewer){float right[3],up[3],forward[3];faceViewer(transform,anchor,head,right,up,forward);}
+    return transform;
+  }
   auto transform=panel.mode=="headLocked"?head:anchor;
   for(int row=0;row<3;row++)transform.m[row][3]+=transform.m[row][0]*panel.x+transform.m[row][1]*panel.y-transform.m[row][2]*panel.z;
   if(panel.mode=="arbitrary")for(int row=0;row<3;row++)for(int col=0;col<3;col++){

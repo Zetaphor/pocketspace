@@ -130,6 +130,8 @@ int main() {
       if(!getObjectPhysics(ball))throw Error('body recreation');
     )";
     if(name=="panel-placement.js") controls=R"(
+      // The label survives its box and can follow a new one.
+      removeObject(box);panelSetTransform(label,'object',0,.15,0,{objectId:createObject(loadModel('assets/samples/Box/Box.glb'),0,0,0,.1),viewerFacing:true});
       inputEventForExample('/input/b/click');
       if(head!==null)throw Error('panel removal');
       inputEventForExample('/input/b/click');

@@ -22,6 +22,33 @@ static void placement(){
   panel.mode="viewerFacing";auto facing=panelTransform(panel,anchor,head),turned=panelTransform(panel,anchor,moved);CHECK(facing.m[0][3]==world.m[0][3]&&facing.m[2][3]==world.m[2][3]);CHECK(std::memcmp(facing.m,turned.m,sizeof(facing.m)));
   panel.mode="arbitrary";const float rotation[9]={0,0,1,0,1,0,-1,0,0};std::copy_n(rotation,9,panel.rotation);auto arbitrary=panelTransform(panel,anchor,head);for(int row=0;row<3;row++)for(int col=0;col<3;col++)CHECK(arbitrary.m[row][col]==rotation[row*3+col]);
 }
+static bool near(float a,float b){return std::fabs(a-b)<1e-5f;}
+// Object placement: the offset and orientation turn with the object; offsets stay in meters.
+static void following(){
+  auto anchor=identity(),head=identity();for(int row=0;row<3;row++){anchor.m[row][3]=float(row+1);head.m[row][3]=float(row+4);}
+  Scene scene;Object object{};object.id=7;object.x=.5f;object.y=0;object.z=1;object.scale=.3f;object.yaw=float(M_PI/2);scene.objects.push_back(object);
+  Panel panel;panel.mode="object";panel.objectId=7;panel.z=.5f;
+  CHECK(panelObject(panel,scene)==&scene.objects[0]&&panelShown(panel,scene));
+  auto placed=panelTransform(panel,anchor,head,panelObject(panel,scene));
+  // A quarter yaw carries the half-meter forward offset to the object's left: scene (0, 0, 1), world (1, 2, 2).
+  CHECK(near(placed.m[0][3],1)&&near(placed.m[1][3],2)&&near(placed.m[2][3],2));
+  const float turned[9]={0,0,1,0,1,0,-1,0,0};
+  for(int row=0;row<3;row++)for(int col=0;col<3;col++)CHECK(near(placed.m[row][col],turned[row*3+col]));
+  scene.objects[0].scale=1.5f;auto scaled=panelTransform(panel,anchor,head,panelObject(panel,scene));CHECK(!std::memcmp(placed.m,scaled.m,sizeof(placed.m)));
+  // Following a moved object needs no new placement call.
+  scene.objects[0].y=.25f;CHECK(near(panelTransform(panel,anchor,head,panelObject(panel,scene)).m[1][3],2.25f));
+  scene.objects[0].y=0;
+  panel.facesViewer=true;auto moved=head;moved.m[0][3]+=.4f;
+  auto facing=panelTransform(panel,anchor,head,panelObject(panel,scene)),refaced=panelTransform(panel,anchor,moved,panelObject(panel,scene));
+  CHECK(near(facing.m[0][3],1)&&near(facing.m[2][3],2)&&near(refaced.m[0][3],1));CHECK(std::memcmp(facing.m,refaced.m,sizeof(facing.m)));
+  // Shown only while the panel and its object are visible and the object exists.
+  scene.objects[0].visible=false;CHECK(!panelShown(panel,scene));scene.objects[0].visible=true;
+  panel.visible=false;CHECK(!panelShown(panel,scene));panel.visible=true;
+  panel.objectId=0;CHECK(!panelObject(panel,scene)&&!panelShown(panel,scene));
+  panel.objectId=8;CHECK(!panelShown(panel,scene));
+  // Other modes ignore a stale objectId.
+  panel.mode="world";CHECK(!panelObject(panel,scene)&&panelShown(panel,scene));
+}
 static void caching(){
   Backend backend;Panel panel;panel.texture=42;panel.textureRevision=1;PanelSubmission cache;auto transform=identity();
   for(int frame=0;frame<900;frame++)CHECK(submitPanel(backend,1,panel,transform,cache)==vr::VROverlayError_None);
@@ -174,4 +201,4 @@ static void pixels(){
   glBindFramebuffer(GL_FRAMEBUFFER,0);glDeleteFramebuffers(1,&fbo);panelDestroy(panel);
   eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);eglDestroySurface(display,surface);eglDestroyContext(display,context);eglTerminate(display);
 }
-int main(){regroupPresentation();splitPresentation();stagedPresentation();surfaceReplacement();placement();caching();retries();pixels();puts("PASS panel submissions: placement modes, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}
+int main(){regroupPresentation();splitPresentation();stagedPresentation();surfaceReplacement();placement();following();caching();retries();pixels();puts("PASS panel submissions: placement modes, object following, changed content, visibility, handle/texture reuse, error retries and uploaded pixels");}

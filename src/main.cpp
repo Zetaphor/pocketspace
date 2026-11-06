@@ -416,15 +416,15 @@ int main(int argc,char **argv) {
         std::vector<panelPointer::Event> pointerEvents;
         const auto *owner=scriptRegistry.find(pointer.current().instanceId);
         const auto *ownerPanel=owner&&pointer.current().panelId&&owner->state==ScriptState::Running?findSceneItem(owner->host.scene.panels,pointer.current().panelId):nullptr;
-        if(pointer.current().panelId&&(!ownerPanel||!ownerPanel->visible||!ownerPanel->interactive))pointer.drop(pointerEvents);
+        if(pointer.current().panelId&&(!ownerPanel||!panelShown(*ownerPanel,owner->host.scene)||!ownerPanel->interactive))pointer.drop(pointerEvents);
         std::optional<panelPointer::Target> target;float targetDistance=-1.f;
         const auto device=system->GetTrackedDeviceIndexForControllerRole(hand==0?vr::TrackedControllerRole_LeftHand:vr::TrackedControllerRole_RightHand);
         const bool tracked=controllers[hand].valid&&controllers[hand].connected&&device!=vr::k_unTrackedDeviceIndexInvalid&&rayPoses[device].bPoseIsValid&&rayHead.bPoseIsValid;
         if(tracked&&!grabOwners[hand]){
           float origin[3],direction[3];laserRay(rayPoses[device].mDeviceToAbsoluteTracking,hand,origin,direction);
           for(int id:runningSceneIds)if(const auto *entry=scriptRegistry.find(id))for(const auto &panel:entry->host.scene.panels){
-            if(!panel.visible||!panel.interactive)continue;
-            const auto transform=panelTransform(panel,anchor,rayHead.mDeviceToAbsoluteTracking);
+            if(!panel.interactive||!panelShown(panel,entry->host.scene))continue;
+            const auto transform=panelTransform(panel,anchor,rayHead.mDeviceToAbsoluteTracking,panelObject(panel,entry->host.scene));
             const auto hit=panelPointer::intersect(origin,direction,transform.m,panel.widthMeters,panel.heightMeters,panel.width,panel.height);
             if(hit&&(targetDistance<0||hit->distance<targetDistance||(hit->distance==targetDistance&&(id<target->instanceId||(id==target->instanceId&&panel.id<target->panelId))))){
               target=panelPointer::Target{id,panel.id,hit->x,hit->y};targetDistance=hit->distance;
@@ -663,8 +663,9 @@ int main(int argc,char **argv) {
       ready.reserve(surfaces.size());
       for(const auto &panelData:script.scene.panels){
         auto overlay=panelOverlays.find(panelData.id);if(overlay==panelOverlays.end())continue;
-        const auto transform=panelData.visible&&panelData.texture?panelTransform(panelData,anchor,head):vr::HmdMatrix34_t{};
-        const auto error=submitPanel(*overlays,overlay->second,panelData,transform,panelSubmissions[panelData.id]);
+        const bool shown=panelShown(panelData,script.scene);
+        const auto transform=shown&&panelData.texture?panelTransform(panelData,anchor,head,panelObject(panelData,script.scene)):vr::HmdMatrix34_t{};
+        const auto error=shown?submitPanel(*overlays,overlay->second,panelData,transform,panelSubmissions[panelData.id]):hidePanel(*overlays,overlay->second,panelSubmissions[panelData.id]);
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
       }
       const auto groups=surfaceMembers(script);

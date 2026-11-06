@@ -30,7 +30,7 @@ Draw and present a retained canvas with a clickable button: [panels.js](../scrip
 
 ## Placement
 
-`panelSetTransform(panel, mode, x, y, z)` supports:
+`panelSetTransform(panel, mode, x, y, z, options)` supports:
 
 | Mode | Position and orientation |
 | --- | --- |
@@ -38,6 +38,20 @@ Draw and present a retained canvas with a clickable button: [panels.js](../scrip
 | `'viewerFacing'` | Fixed position relative to the anchor, facing the HMD. |
 | `'headLocked'` | HMD-relative position; positive Z places it forward. |
 | `'arbitrary'` | Anchor-relative position and the explicit rotation below. |
+| `'object'` | Follows the object `options.objectId`, at an offset in that object's frame. |
+
+Object placement keeps the panel at `(x, y, z)` meters from the object, measured
+along the object's own axes, and turns the panel with the object, as if attached
+to it. The offset does not change with the object's scale. With
+`viewerFacing: true` in the options, the panel keeps that position but turns to
+face the headset. The panel follows every change to the object, including grabs
+and physics, after they are applied each frame. It is shown only while both the
+panel and the object are visible. Removing the object, directly or by disposing
+its container, detaches the panel: it stays hidden until it is placed again.
+Object placement requires `objectId` to name a live object of the same script.
+`viewerFacing` must be a boolean and defaults to `false`. Other modes take no
+options. Unknown modes, non-finite positions and invalid options throw and leave
+the placement unchanged.
 
 `panelSetRotation(panel, m00, m01, m02, m10, m11, m12, m20, m21, m22)`
 sets the row-major 3×3 rotation used by arbitrary placement.
@@ -51,7 +65,7 @@ and visibility is submitted on transitions. Head-locked and viewer-facing panels
 continue following the headset. Content changed while hidden appears when the
 panel is shown again. Failed submissions are retried automatically.
 
-Compare placement modes, rotation, visibility and removal: [panel-placement.js](../scripts/panel-placement.js).
+Compare placement modes, rotation, visibility, removal and a label on a grabbable box: [panel-placement.js](../scripts/panel-placement.js).
 
 ## Pointer events
 
