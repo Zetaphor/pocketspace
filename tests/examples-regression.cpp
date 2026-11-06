@@ -231,6 +231,42 @@ int main() {
     if(entry.path()=="demos/sketch.js"&&run==1) controls=R"(
       if(history.length!==1||JSON.stringify(visible())!=='[{"c":4,"s":0,"p":[300,300,320,330]}]'||full)throw Error('sketch restore');
     )";
+    if(entry.path()=="demos/notes.js"&&run==0) controls=R"(
+      const take=color=>exampleCallback({type:'panel.pointerDown',objectId:dispenser.id,control:'left',hand:'right',x:16+color*124+50,y:60});
+      const click=note=>exampleCallback({type:'panel.pointerDown',objectId:note.panel.id,control:'left',hand:'right',x:128,y:128});
+      const drop=(note,x,y,z)=>{setObjectPosition(note.pin,x,y,z);exampleCallback({type:'overlay.grabEnd',objectId:note.pin,hand:'right'});};
+      if(notes.length||getSceneContainerState(container).objectIds.length)throw Error('notes defaults');
+      take(2);take(0);exampleCallback({type:'panel.pointerDown',objectId:dispenser.id,control:'left',hand:'right',x:130,y:140});
+      if(notes.length!==2||notes[0].color!==2||notes[1].color!==0||notes[1].number!==2)throw Error('notes spawn');
+      if(getSceneContainerState(container).panelIds.length!==2||loadScriptData('notes').notes.length!==2)throw Error('notes container save');
+      for(let i=0;i<4;i++)click(notes[1]);if(labelText(notes[1])!=='#2')throw Error('notes number label');
+      click(notes[1]);if(labelText(notes[1])!=='To do'||loadScriptData('notes').notes[1].label!==0)throw Error('notes label cycle');
+      exampleCallback({type:'panel.hoverStart',objectId:notes[0].panel.id,hand:'left',x:5,y:5});
+      if(!getLaserVisible('left'))throw Error('notes laser');
+      const b=getObjectTransform(bin);drop(notes[0],b.x+.02,b.y,b.z-.03);
+      if(notes.length!==1||getLaserVisible('left')||getSceneContainerState(container).panelIds.length!==1)throw Error('notes bin');
+      for(let i=0;i<40;i++)take(i%4);
+      if(notes.length!==32||getSceneContainerState(container).panelIds.length!==32)throw Error('notes cap');
+      while(notes.length>3)drop(notes[notes.length-1],b.x,b.y,b.z);
+      notes.forEach((note,i)=>{drop(note,i*.1,.2,-.4);for(let n=0;n<i;n++)click(note);});
+      setObjectPosition(handle,-.3,-.2,-.5);exampleCallback({type:'overlay.grabEnd',objectId:handle,hand:'left'});
+      setObjectPosition(bin,.3,-.2,-.5);exampleCallback({type:'overlay.grabEnd',objectId:bin,hand:'left'});
+      if(notes.length!==3||loadScriptData('notes').notes.length!==3||Math.abs(loadScriptData('notes').bin.x-.3)>1e-6)throw Error('notes layout save');
+    )";
+    if(entry.path()=="demos/notes.js"&&run==1) controls=R"(
+      const near=(id,x,y,z)=>{const a=getObjectTransform(id);return Math.abs(a.x-x)<1e-6&&Math.abs(a.y-y)<1e-6&&Math.abs(a.z-z)<1e-6;};
+      if(notes.length!==3||getSceneContainerState(container).panelIds.length!==3)throw Error('notes restore count');
+      notes.forEach((note,i)=>{
+        if(!near(note.pin,i*.1,.2,-.4)||note.label!==i||!note.panel||!getSceneContainerState(container).objectIds.includes(note.pin))throw Error('notes restore '+i);
+      });
+      if(notes.map(n=>n.color).join()!=='0,0,1'||notes.map(n=>n.number).join()!=='2,3,4'||next!==34)throw Error('notes restore state');
+      if(!near(handle,-.3,-.2,-.5)||!near(bin,.3,-.2,-.5))throw Error('notes restore layout');
+      // Restored notes keep working: cycle a label and bin one.
+      exampleCallback({type:'panel.pointerDown',objectId:notes[0].panel.id,control:'left',hand:'right',x:1,y:1});
+      if(notes[0].label!==1)throw Error('notes restored click');
+      setObjectPosition(notes[2].pin,.3,-.2,-.5);exampleCallback({type:'overlay.grabEnd',objectId:notes[2].pin,hand:'right'});
+      if(notes.length!==2||loadScriptData('notes').notes.length!==2)throw Error('notes restored bin');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});

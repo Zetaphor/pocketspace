@@ -85,3 +85,30 @@ makes room. Undo can bring back what a Clear removed only until the demo stops.
 **Shows:** panel hover and pointer events with pixel coordinates, two hands on one
 panel, canvas circles and rectangles on a retained canvas, partial redraws of the
 toolbar, and [saved data](scene-persistence.md#saved-data).
+
+## Sticky notes
+
+[notes.js](../demos/notes.js) hands out coloured notes to leave around you. Each
+note hangs from a small yellow pin, and the dispenser stands on a blue handle.
+
+| Control | Action |
+| --- | --- |
+| Trigger on a colour on the dispenser | Take a note of that colour; it appears above the dispenser. |
+| Trigger or grip on a note's pin | Move the note. Notes turn to face you. |
+| Trigger on a note | Cycle its label: To do, Done, Idea, Call, then the note's own number. |
+| Drop a note's pin on the red bin | Remove the note. |
+| Trigger or grip on the blue handle or the bin | Move the dispenser or the bin. |
+
+Up to 32 notes can be out at once, the most one scene save holds; the dispenser
+then asks you to bin some. Notes are numbered in the order they are taken, and
+numbers are not reused.
+
+**Saved:** the notes, with their positions, colours and labels, after every
+change; the dispenser and bin positions; and the next note number. The notes are
+a [scene save](scene-persistence.md) of their own container, restored with fresh
+IDs; their labels, colours and numbers are [saved data](scene-persistence.md#saved-data)
+that the demo maps onto the restored notes.
+
+**Shows:** [scene containers](scene-containers.md), spawning and removing objects
+and panels, grabbing, panels following objects, scene saves with ID remapping,
+shared render groups for the pins, and saved data.

@@ -1,6 +1,6 @@
 # Demo scripts and API additions: plan
 
-Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo models) complete; step 4 in progress, clock, monitor and sketch board done.
+Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo models) complete; step 4 in progress, clock, monitor, sketch board and notes done.
 
 ## Goal
 
