@@ -1,6 +1,6 @@
 # Demo scripts and API additions: plan
 
-Status: approved; implementation not started.
+Status: approved; step 1 (API additions) complete; step 2 next.
 
 ## Goal
 
