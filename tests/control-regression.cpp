@@ -39,9 +39,10 @@ std::string generationOf(const std::string &view){
 
 int main(){
   root=std::filesystem::temp_directory_path()/("pocketspace-control-"+std::to_string(getpid()));
-  ScopeExit cleanup{[&]{std::filesystem::remove_all(root);}};
+  ScopeExit cleanup{[&]{scenePersistence::directory.clear();scenePersistence::catalogRoot.clear();std::filesystem::remove_all(root);}};
   const auto catalog=root/"catalog",socketPath=root/"run/pocketspace/control.sock";
   std::filesystem::create_directories(catalog);
+  scenePersistence::directory=(root/"state").string();scenePersistence::catalogRoot=catalog.string();
   std::ofstream(catalog/"a.js")<<"globalThis.seen=[];subscribe('*',e=>seen.push(`${e.topic}|${e.sourceInstanceId}`));function update(){}";
   std::ofstream(catalog/"b.js")<<"globalThis.value=1;function update(){}";
   settings::File file(root/"settings.json");file.refresh();
@@ -150,6 +151,60 @@ int main(){
   assert(has(one.call(R"({"v":1,"id":"reset","op":"scratch.reset"})"),R"("instanceId":0)"));
   assert(has(one.call(R"({"v":1,"id":"g2","op":"eval","code":"typeof keep"})"),R"("result":"\"undefined\"")"));
   assert(registry.find(1)->state==ScriptState::Running);
+
+  // data.reset removes a script's saves and restarts it from its defaults.
+  {
+    const auto saves=root/"state"/"saver.js";
+    const char *saver="const n=loadScriptData('n')??0;saveScriptData('n',n+1);globalThis.count=n+1;function update(){}";
+    std::ofstream(catalog/"saver.js")<<saver;
+    const auto started=one.call(R"({"v":1,"id":"start-saver","op":"start","name":"saver.js"})");
+    assert(has(started,R"("ok":true)"));
+    const auto at=started.find("\"instanceId\":")+13;const std::string saverId=started.substr(at,started.find(',',at)-at);
+    auto count=[&](const std::string &request){
+      const auto status=one.call(R"({"v":1,"id":"saver-status-)"+request+R"(","op":"status","instanceId":)"+saverId+"}");
+      return one.call(R"({"v":1,"id":"saver-count-)"+request+R"(","op":"eval","instanceId":)"+saverId+R"(,"generation":)"+generationOf(status)+R"(,"code":"count"})");
+    };
+    assert(has(count("1"),R"("result":"1")"));
+    assert(has(one.call(R"({"v":1,"id":"saver-r","op":"reload","instanceId":)"+saverId+R"(,"generation":1})"),R"("generation":2)"));
+    assert(has(count("2"),R"("result":"2")"));
+    // Only regular files go: a scene save, a stray temporary file and the data, not links or directories.
+    std::ofstream(saves/"layout.json")<<"{}";std::ofstream(saves/"layout.json.tmp-abc")<<"";
+    std::ofstream(root/"outside.json")<<"keep";std::filesystem::create_symlink(root/"outside.json",saves/"link.json");
+    std::filesystem::create_directories(saves/"nested");std::ofstream(saves/"nested"/"inner.json")<<"keep";
+    const auto reset=one.call(R"({"v":1,"id":"data-reset","op":"data.reset","name":"saver.js"})");
+    assert(has(reset,R"("ok":true)")&&has(reset,R"("removed":3)")&&has(reset,R"("generation":3)")&&has(reset,R"("state":"running")"));
+    assert(has(count("3"),R"("result":"1")"));
+    assert(std::filesystem::is_symlink(saves/"link.json")&&std::filesystem::exists(root/"outside.json")&&std::filesystem::exists(saves/"nested"/"inner.json"));
+    assert(!std::filesystem::exists(saves/"layout.json")&&!std::filesystem::exists(saves/"layout.json.tmp-abc"));
+    // A repeated request ID reports the first outcome and removes nothing more.
+    const auto again=one.call(R"({"v":1,"id":"data-reset","op":"data.reset","name":"saver.js"})");
+    assert(has(again,R"("removed":3)")&&has(again,R"("duplicate":true)")&&std::filesystem::exists(saves/"n.data.json"));
+    assert(has(count("4"),R"("result":"1")"));
+    // Other scripts' saves are untouched.
+    std::filesystem::create_directories(root/"state"/"a.js");std::ofstream(root/"state"/"a.js"/"kept.json")<<"{}";
+    // A failed reload still reports the removal and keeps the running scene.
+    std::ofstream(catalog/"saver.js")<<"throw Error('EXPECTED_DATA_RESET_RELOAD')";
+    const auto broken=one.call(R"({"v":1,"id":"data-reset-broken","op":"data.reset","name":"saver.js"})");
+    assert(has(broken,R"("code":"reload_failed")")&&has(broken,R"("removed":1)")&&has(broken,R"("lastReload":"failedKeptScene")"));
+    std::ofstream(catalog/"saver.js")<<saver;
+    // A stopped script just starts fresh next time.
+    const auto status=one.call(R"({"v":1,"id":"saver-st","op":"status","instanceId":)"+saverId+"}");
+    assert(has(one.call(R"({"v":1,"id":"saver-stop","op":"stop","instanceId":)"+saverId+R"(,"generation":)"+generationOf(status)+"}"),R"("state":"stopped")"));
+    std::ofstream(saves/"n.data.json")<<"41";
+    const auto stopped=one.call(R"({"v":1,"id":"data-reset-stopped","op":"data.reset","name":"saver.js"})");
+    assert(has(stopped,R"("removed":1)")&&has(stopped,R"("instance":null)")&&!std::filesystem::exists(saves/"n.data.json"));
+    assert(has(one.call(R"({"v":1,"id":"data-reset-empty","op":"data.reset","name":"saver.js"})"),R"("removed":0)"));
+    assert(std::filesystem::exists(root/"state"/"a.js"/"kept.json"));
+    // Unknown names, escapes and a linked namespace are refused.
+    assert(has(one.call(R"({"v":1,"id":"data-reset-missing","op":"data.reset","name":"missing.js"})"),R"("code":"not_found")"));
+    assert(has(one.call(R"({"v":1,"id":"data-reset-escape","op":"data.reset","name":"../outside.json"})"),R"("code":"not_found")"));
+    assert(has(one.call(R"({"v":1,"id":"data-reset-none","op":"data.reset"})"),R"("code":"bad_request")"));
+    std::filesystem::remove_all(saves);std::filesystem::create_directories(root/"elsewhere");std::ofstream(root/"elsewhere"/"x.json")<<"keep";
+    std::filesystem::create_directory_symlink(root/"elsewhere",saves);
+    assert(has(one.call(R"({"v":1,"id":"data-reset-link","op":"data.reset","name":"saver.js"})"),R"("code":"invalid")"));
+    assert(std::filesystem::exists(root/"elsewhere"/"x.json"));
+    std::filesystem::remove(catalog/"saver.js");
+  }
 
   // Settings: validated, written atomically and applied.
   assert(has(one.call(R"({"v":1,"id":"set0","op":"settings.set","settings":{"version":1,"autoRestart":"yes"}})"),R"("code":"invalid")"));
@@ -287,5 +342,5 @@ int main(){
   listener.stop();
   assert(!std::filesystem::exists(socketPath));
   char byte;assert(::recv(one.fd,&byte,1,0)==0);
-  std::puts("PASS control: telemetry (heap counter against a full walk, callback time, sampled and unsampled values, stopped and restarted instances, per-publisher bus counters, unavailable DRM memory, resources events and watcher disconnect), scratch scripts object (queries, checked and queued start/stop/reload, bus outcomes, calls from callbacks, stale queued requests, scratch only), private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, settings, oversized requests and shutdown");
+  std::puts("PASS control: telemetry (heap counter against a full walk, callback time, sampled and unsampled values, stopped and restarted instances, per-publisher bus counters, unavailable DRM memory, resources events and watcher disconnect), scratch scripts object (queries, checked and queued start/stop/reload, bus outcomes, calls from callbacks, stale queued requests, scratch only), private socket and single instance, stale socket replacement, malformed requests, catalog/list/stats with no user script, start/stop/reload with generations, concurrent clients, watch events, eval results/output/exceptions/timeouts, duplicate IDs, outcome lookup after disconnect, publish as scratch, scratch reset, data reset, settings, oversized requests and shutdown");
 }

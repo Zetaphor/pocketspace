@@ -135,6 +135,21 @@ inline const std::string scratchNamespace="scratch";
 inline std::string catalogRoot;
 // Selected with the active scene; the pointed-to string belongs to its ScriptHost.
 inline const std::string *activeNamespace=&scratchNamespace;
+// The directory holding one script's saves; it need not exist yet. Throws for a
+// key that is too long or a namespace that is not a plain directory.
+inline std::filesystem::path namespaceDirectory(const std::string &storageKey){
+  std::filesystem::path base=directory;
+  if(base.empty()){
+    const char *state=getenv("XDG_STATE_HOME");
+    if(state&&std::filesystem::path(state).is_absolute())base=state;
+    else{const char *home=getenv("HOME");if(!home||!*home)throw std::runtime_error("HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}
+    base/="pocketspace/scenes";
+  }
+  if(storageKey.size()>255)throw std::runtime_error("script path is too long for a scene namespace");
+  const auto owner=base/storageKey;std::error_code ec;const auto type=std::filesystem::symlink_status(owner,ec).type();
+  if(type!=std::filesystem::file_type::not_found&&(ec||type!=std::filesystem::file_type::directory))throw std::runtime_error("scene namespace must be a directory, not a symlink");
+  return owner;
+}
 }
 // heap counts the runtime's allocations and outlives it; closeScript frees both.
 struct ScriptHost {int instanceId=0;std::string saveNamespace=scenePersistence::scratchNamespace;std::unique_ptr<telemetry::HeapCounter> heap;JSRuntime *rt=nullptr;JSContext *ctx=nullptr;JSValue update=JS_UNDEFINED,callback=JS_UNDEFINED;int callbackContainer=0;std::filesystem::file_time_type mtime{};Scene scene;InteractionState interaction;std::unique_ptr<frame_input::Monitor> inputQueue=std::make_unique<frame_input::Monitor>(0);};

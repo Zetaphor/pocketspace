@@ -189,6 +189,36 @@ private:
       if(!reloaded)return fail(id,"reload_failed",instance->lastError.empty()?"reload failed; the previous scene is kept":instance->lastError,",\"instance\":"+instanceView(*instance));
       return ok(id,instanceView(*instance));
     }
+    if(op=="data.reset"){
+      std::string name;if(!field(request,"name",name))return fail(id,"bad_request","data.reset requires a catalog name");
+      std::filesystem::path resolved;std::string error;
+      if(!resolveCatalogScript(catalog_,name,resolved,error))return fail(id,"not_found",error);
+      std::error_code ec;const auto canonical=std::filesystem::canonical(resolved,ec);
+      if(ec)return fail(id,"not_found","script cannot be resolved");
+      // The same key a launch of this script uses for its saves.
+      std::filesystem::path directory;
+      try{directory=scenePersistence::namespaceDirectory(scriptStorageKey(scenePersistence::catalogRoot,canonical));}
+      catch(const std::exception &e){return fail(id,"invalid",e.what());}
+      // Only regular files directly inside the namespace; links and directories stay.
+      int removed=0;
+      if(std::filesystem::exists(directory,ec))for(const auto &entry:std::filesystem::directory_iterator(directory,ec)){
+        std::error_code status;
+        if(entry.symlink_status(status).type()!=std::filesystem::file_type::regular||status)continue;
+        if(std::filesystem::remove(entry.path(),status))removed++;
+        else if(status)return fail(id,"io_error","could not remove "+entry.path().filename().string()+": "+status.message(),",\"removed\":"+std::to_string(removed));
+      }
+      if(ec)return fail(id,"io_error","could not read the save directory: "+ec.message(),",\"removed\":"+std::to_string(removed));
+      const std::string removedField="\"removed\":"+std::to_string(removed);
+      // A running script reloads so it starts from its defaults.
+      for(int other:registry_.runningIds()){
+        auto *instance=registry_.find(other);
+        if(!other||instance->path!=canonical.string()||instance->state!=ScriptState::Running)continue;
+        const bool reloaded=hooks_.reload?hooks_.reload(other):registry_.reload(other);
+        if(!reloaded)return fail(id,"reload_failed",instance->lastError.empty()?"reload failed; the previous scene is kept":instance->lastError,","+removedField+",\"instance\":"+instanceView(*instance));
+        return ok(id,"{"+removedField+",\"instance\":"+instanceView(*instance)+"}");
+      }
+      return ok(id,"{"+removedField+",\"instance\":null}");
+    }
     if(op=="scratch.reset"){
       if(!registry_.resetScratch())return fail(id,"unavailable","scratch scene is unavailable");
       return ok(id,instanceView(*registry_.find(0)));
@@ -254,7 +284,7 @@ public:
     else if(!field(request,"op",op))response=fail(quote(requestId),"bad_request","op must be a string");
     else{
       const std::string id=quote(requestId);
-      static const std::set<std::string> mutating{"start","stop","reload","scratch.reset","settings.set","publish","eval"};
+      static const std::set<std::string> mutating{"start","stop","reload","scratch.reset","data.reset","settings.set","publish","eval"};
       if(mutating.count(op)){
         // A repeated mutating request returns its first outcome instead of running again.
         if(const auto found=recent_.find(requestId);found!=recent_.end())response=found->second.substr(0,found->second.size()-1)+",\"duplicate\":true}";

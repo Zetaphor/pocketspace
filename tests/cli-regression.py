@@ -13,7 +13,7 @@ from pathlib import Path
 HOST = Path(sys.argv[1]).resolve()
 CLI = HOST.parent / 'pocketspace-cli'
 ROOT = Path(tempfile.mkdtemp(prefix='pocketspace-cli-'))
-CATALOG, SOCKET, SETTINGS = ROOT / 'catalog', ROOT / 'run/control.sock', ROOT / 'settings.json'
+CATALOG, SOCKET, SETTINGS, STATE = ROOT / 'catalog', ROOT / 'run/control.sock', ROOT / 'settings.json', ROOT / 'state'
 host = None
 
 
@@ -27,7 +27,7 @@ def write(name, text):
 
 def start_host():
     global host
-    host = subprocess.Popen([str(HOST), str(CATALOG), str(SOCKET), str(SETTINGS)], stdout=subprocess.PIPE, text=True)
+    host = subprocess.Popen([str(HOST), str(CATALOG), str(SOCKET), str(SETTINGS), str(STATE)], stdout=subprocess.PIPE, text=True)
     for line in host.stdout:
         if 'listening' in line:
             return
@@ -90,6 +90,7 @@ def until(check, seconds=5):
 def noninteractive():
     # Offline: a clear code before the engine runs.
     assert error('list', code=3)['code'] == 'offline'
+    assert error('data', 'reset', 'a.js', code=3)['code'] == 'offline'
     start_host()
     assert result('catalog')['scripts'] == ['a.js', 'b.js', 'tools/c.js']
     assert [i['name'] for i in result('list')['instances']] == ['scratch']
@@ -185,6 +186,30 @@ def noninteractive():
     scratch('globalThis.keep = 1')
     assert result('scratch', 'reset')['instanceId'] == 0
     assert scratch('typeof keep') == '"undefined"'
+
+    # data reset deletes a script's saves; a running script reloads from its defaults.
+    write('saver.js', "const n = loadScriptData('n') ?? 0; saveScriptData('n', n + 1); globalThis.count = n + 1; function update() {}")
+    saver = str(result('start', 'saver.js')['instanceId'])
+    result('reload', saver)
+    assert result('eval', '--script', saver, '--code', 'count')['result'] == '2'
+    assert (STATE / 'saver.js' / 'n.data.json').is_file()
+    reset = result('data', 'reset', 'saver.js')
+    assert reset['removed'] == 1 and reset['instance']['generation'] == 3, reset
+    assert result('eval', '--script', saver, '--code', 'count')['result'] == '1'
+    human = subprocess.run([str(CLI), '--socket', str(SOCKET), 'data', 'reset', 'saver.js'], capture_output=True, text=True, timeout=10)
+    assert human.returncode == 0 and human.stdout == 'removed 1 saved file for saver.js; reloaded (generation 4)\n', human.stdout
+    first = cli('--request-id', 'harness-reset', 'data', 'reset', 'saver.js')
+    again = cli('--request-id', 'harness-reset', 'data', 'reset', 'saver.js')
+    assert again['duplicate'] is True and again['result']['instance']['generation'] == first['result']['instance']['generation']
+    result('stop', saver)
+    stopped = result('data', 'reset', 'saver.js')
+    assert stopped['removed'] == 1 and stopped['instance'] is None and not (STATE / 'saver.js' / 'n.data.json').exists()
+    human = subprocess.run([str(CLI), '--socket', str(SOCKET), 'data', 'reset', 'saver.js'], capture_output=True, text=True, timeout=10)
+    assert human.returncode == 0 and human.stdout == 'removed 0 saved files for saver.js\n', human.stdout
+    assert error('data', 'reset', 'missing.js', code=5)['code'] == 'not_found'
+    assert error('data', 'reset', code=2)['code'] == 'usage'
+    assert error('data', 'clear', 'saver.js', code=2)['code'] == 'usage'
+    (CATALOG / 'saver.js').unlink()
 
     # A bounded watch: one JSON object per line with sequence numbers.
     b = instance('b.js')
@@ -316,7 +341,7 @@ def main():
         subprocess.run(['rm', '-rf', str(ROOT)])
     print('PASS cli: offline and usage errors, catalog/list/status/start/stop/reload with generations, eval results/output/'
           'exceptions/timeouts in scratch and a script, scratch scripts object, publish, unknown outcome lookup without '
-          'resending, autostart edits, per-script stats and resources events, scratch reset, bounded watch with reconnect markers, noninteractive REPL '
+          'resending, autostart edits, per-script stats and resources events, scratch reset, data reset, bounded watch with reconnect markers, noninteractive REPL '
           'enter/leave, interactive REPL with Ctrl-R history search on a pseudo-terminal')
 
 

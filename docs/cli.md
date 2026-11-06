@@ -31,6 +31,7 @@ build/pocketspace-cli repl
 | `watch [--limit N] [--duration S]` | Streams status, error, bus-drop and once-a-second resources events until the limit, the duration or Ctrl-C. |
 | `publish <topic> [json]` | Publishes a `space.*` event from scratch, source `0`. |
 | `scratch reset` | Clears and recreates only the scratch scene. |
+| `data reset <name>` | Deletes a catalog script's [saves](scene-persistence.md#storage-namespaces) and saved data. A running script reloads from its defaults. Prints how many files were removed. |
 | `autostart list` | Scripts started with the engine. |
 | `autostart add <name>` / `autostart remove <name>` | Edits that list through the engine's validated settings write. `add` accepts only catalog names. |
 | `eval --code TEXT` or `eval --file PATH` | Runs JavaScript in scratch. Add `--script ID [--generation N]` to run it in a live script, and `--eval-timeout MS` (1 to 10000, default 1000) to change its time limit. |
@@ -50,7 +51,7 @@ Options go before or after the command:
 | `--json` | Print one JSON object on stdout (`watch`: one per line). Messages for people still go to stderr. |
 | `--socket PATH` | The control socket. Default `$XDG_RUNTIME_DIR/pocketspace/control.sock`. |
 | `--timeout SECONDS` | How long to wait for a reply. Default 5, or 30 for `start-engine`. `eval` waits this long plus its evaluation limit. |
-| `--request-id ID` | The request ID of a changing command (`start`, `stop`, `reload`, `publish`, `scratch reset`, `autostart add/remove`, `eval`), 1 to 128 bytes. Default: a new unique ID. |
+| `--request-id ID` | The request ID of a changing command (`start`, `stop`, `reload`, `publish`, `scratch reset`, `data reset`, `autostart add/remove`, `eval`), 1 to 128 bytes. Default: a new unique ID. |
 
 ## JSON output
 

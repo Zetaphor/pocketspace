@@ -47,6 +47,7 @@ A failure carries `error`, with a stable `code`, a `message`, and sometimes more
 | `invalid` | The request is well formed but not allowed, such as stopping scratch or invalid settings. |
 | `load_failed`, `reload_failed` | The script did not load; `instance` describes it. A failed reload keeps the previous scene. |
 | `timeout` | An evaluation ran past its limit. |
+| `io_error` | `data.reset` could not read the save directory or remove a file; `removed` counts the files already deleted. |
 | `too_large`, `busy`, `unavailable` | A request over the size limit, more than 16 clients, or a resource the engine cannot reach. |
 
 ### Instances
@@ -84,14 +85,26 @@ a request meant for an older scene fails instead of touching its replacement.
 | `publish` | `topic`, `payload` | `{sequence}`, or `null` when the bus is full. Publishes as scratch, source `0`. |
 | `eval` | `code`, optional `instanceId` (default `0`), `generation` (required unless `0`), `timeoutMs` (1 to 10000, default 1000) | `{result, exception, output, instanceId, generation}`. |
 | `scratch.reset` | | The new scratch instance. |
+| `data.reset` | `name` | `{removed, instance}`: deletes the catalog script's [saves](scene-persistence.md#storage-namespaces). `removed` counts the deleted files. A running script is then reloaded, so it starts from its defaults, and `instance` is it after the reload; otherwise `instance` is `null`. |
 | `outcome` | `requestId` | `{response}`: the remembered response of a recent changing request. |
 
-`start`, `stop`, `reload`, `settings.set`, `publish`, `eval` and `scratch.reset`
-change engine state. The engine remembers the responses of the last 256 of these by
+`start`, `stop`, `reload`, `settings.set`, `publish`, `eval`, `scratch.reset` and
+`data.reset` change engine state. The engine remembers the responses of the last 256 of these by
 request ID. Sending one again with the same `id` returns the first response with
 `"duplicate": true` instead of running it again. After a lost connection or a client
 timeout, ask `outcome` before retrying, and never resend an `eval` whose outcome is
 unknown.
+
+### Resetting saved data
+
+`data.reset` resolves `name` through the catalog, as `start` does, and finds the
+same save directory the script uses. It removes only the regular files directly in
+that directory: scene saves, [saved data](scene-persistence.md#saved-data) and stray
+temporary files. Links and subdirectories stay, a missing directory removes nothing,
+and a namespace that is itself a link is refused with `invalid`. If the reload of a
+running script fails, the reply is `reload_failed` with `removed` and `instance`; the
+files are already gone and the previous scene keeps running. A stopped or failed
+script starts without its saves next time.
 
 ### Evaluation
 

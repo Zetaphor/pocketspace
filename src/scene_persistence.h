@@ -273,15 +273,6 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
-// The directory holding one script's saves; it need not exist yet.
-static std::filesystem::path namespaceDirectory(const std::string &storageKey){
-  std::filesystem::path base=directory;
-  if(base.empty()){const char *state=getenv("XDG_STATE_HOME");if(state&&std::filesystem::path(state).is_absolute())base=state;else {const char *home=getenv("HOME");require(home&&*home,"HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}base/="pocketspace/scenes";}
-  require(storageKey.size()<=255,"script path is too long for a scene namespace");
-  const auto owner=base/storageKey;std::error_code ec;const auto type=std::filesystem::symlink_status(owner,ec).type();
-  require(type==std::filesystem::file_type::not_found||(!ec&&type==std::filesystem::file_type::directory),"scene namespace must be a directory, not a symlink");
-  return owner;
-}
 static std::string slotName(JSContext *ctx,JSValueConst name,const char *kind){
   auto n=string(ctx,name);
   const bool valid=!n.empty()&&n.size()<=64&&std::all_of(n.begin(),n.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-';});

@@ -75,6 +75,8 @@ private:
   bool visible_=false,online_=false,starting_=false,stopping_=false,dirty_=true,settingsKnown_=false;
   // Stop Engine acts on a second press while armed.
   Clock::time_point nextConnect_{},nextRefresh_{},startDeadline_{},stopDeadline_{},stopArmedUntil_{},noticeUntil_{};
+  // The library script whose Reset was pressed once, until the confirmation expires.
+  std::string resetArmed_;Clock::time_point resetArmedUntil_{};
   std::map<std::string,Pending> pending_;
   std::vector<Instance> instances_;std::vector<std::string> catalog_,autostart_;std::vector<Alert> alerts_;
   bool autoRestart_=true,engineAutostart_=false;std::string settingsError_,startError_,notice_;

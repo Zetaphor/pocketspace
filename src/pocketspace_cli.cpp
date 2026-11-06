@@ -61,7 +61,7 @@ Reply clientFailure(const std::string &id,const std::string &code,const std::str
 }
 Reply success(const std::string &result){Reply reply;reply.line="{\"v\":1,\"id\":null,\"ok\":true,\"result\":"+result+"}";reply.json=*Json::parse(reply.line);return reply;}
 
-const std::set<std::string> changing{"start","stop","reload","scratch.reset","settings.set","publish","eval"};
+const std::set<std::string> changing{"start","stop","reload","scratch.reset","data.reset","settings.set","publish","eval"};
 
 // Sends one request and waits for its reply. A changing request whose reply never
 // arrives has an unknown outcome; it is never sent again automatically.
@@ -156,6 +156,7 @@ Commands:
                                Stream status, error, bus-drop and resource events
   publish <topic> [json]       Publish a space.* event as scratch
   scratch reset                Clear and recreate the scratch scene
+  data reset <name>            Delete a catalog script's saves; a running script reloads
   autostart list|add <name>|remove <name>
                                Edit the scripts started with the engine
   eval (--code TEXT | --file PATH) [--script ID [--generation N]] [--eval-timeout MS]
@@ -530,6 +531,15 @@ int run(const std::string &command,const std::vector<std::string> &args){
     if(args.size()!=1||args[0]!="reset")return usage("scratch needs reset");
     return finish(call(link,"scratch.reset","",options.timeout(),options.requestId),[](const Json &r){std::printf("scratch reset (generation %lld)\n",(long long)r["generation"].number());});
   }
+  if(command=="data"){
+    if(args.size()!=2||args[0]!="reset")return usage("data needs reset <name>");
+    const std::string name=args[1];
+    return finish(call(link,"data.reset",",\"name\":"+quote(name),options.timeout(),options.requestId),[&](const Json &r){
+      const long long removed=(long long)r["removed"].number();
+      std::printf("removed %lld saved file%s for %s",removed,removed==1?"":"s",name.c_str());
+      if(r["instance"].isNull())std::printf("\n");else std::printf("; reloaded (generation %lld)\n",(long long)r["instance"]["generation"].number());
+    });
+  }
   if(command=="autostart")return autostart(args);
   if(command=="eval")return evalCommand(args);
   if(command=="outcome"){
@@ -576,7 +586,7 @@ int main(int argc,char **argv){
     }
     commandArgs.push_back(rest[j]);
   }
-  if(!options.requestId.empty()&&command!="start"&&command!="stop"&&command!="reload"&&command!="publish"&&command!="scratch"&&command!="eval"&&command!="autostart")
+  if(!options.requestId.empty()&&command!="start"&&command!="stop"&&command!="reload"&&command!="publish"&&command!="scratch"&&command!="data"&&command!="eval"&&command!="autostart")
     return usage("--request-id applies only to changing commands");
   const int code=run(command,commandArgs);
   std::fflush(stdout);

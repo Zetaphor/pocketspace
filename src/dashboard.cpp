@@ -113,6 +113,7 @@ void Dashboard::poll(Clock::time_point now){
     starting_=false;startError_="The engine did not answer within 30 s. Check journalctl --user -u pocketspace.service";dirty_=true;
   }
   if(stopArmedUntil_!=Clock::time_point{}&&now>=stopArmedUntil_){stopArmedUntil_={};dirty_=true;}
+  if(!resetArmed_.empty()&&now>=resetArmedUntil_){resetArmed_.clear();dirty_=true;}
   if(stopping_&&!online_)stopping_=false;
   if(stopping_&&now>=stopDeadline_){
     stopping_=false;setNotice("The engine did not stop. Is it running outside pocketspace.service?",now);
@@ -183,6 +184,12 @@ void Dashboard::reply(const Pending &pending,const Json &json,Clock::time_point 
     autostart_=std::move(names);autoRestart_=restart;engineAutostart_=engine;settingsError_=fileError;settingsKnown_=true;
   }else if(op=="stats")resources(result);
   else if(op=="start"||op=="stop"||op=="reload"||op=="scratch.reset")upsert(result,now);
+  else if(op=="data.reset"){
+    if(!result["instance"].isNull())upsert(result["instance"],now);
+    const long long removed=(long long)result["removed"].number();
+    // The key is data:<script>.
+    setNotice("Cleared "+std::to_string(removed)+(removed==1?" saved file for ":" saved files for ")+pending.key.substr(5),now);
+  }
 }
 
 void Dashboard::event(const Json &json,Clock::time_point now){
@@ -526,7 +533,13 @@ void Dashboard::drawLibrary(Canvas &c){
     bool live=false;for(const auto &inst:instances_)live|=inst.id!=0&&inst.name==script&&inst.state!="stopped";
     const bool automatic=std::find(autostart_.begin(),autostart_.end(),script)!=autostart_.end();
     panel(c,x,y,tileWidth,tileHeight,22,card);
-    name.draw(c,x+24,y+22,name.fit(script,tileWidth-48),text);
+    name.draw(c,x+24,y+22,name.fit(script,tileWidth-48-140),text);
+    // Reset clears the script's saves; the first press only arms it.
+    const bool armed=resetArmed_==script;
+    button(c,x+tileWidth-24-128,y+18,128,36,"data:"+script,armed?"Press again":"Reset",armed?Style::Danger:Style::Ghost,true,[this,script,armed]{
+      if(!armed){resetArmed_=script;resetArmedUntil_=now_+stopConfirmTime;dirty_=true;return;}
+      resetArmed_.clear();request("data.reset",",\"name\":"+quote(script),"data:"+script,"Resetting saved data for "+script);
+    });
     if(live){canvasFillCircleSmooth(c,x+30,y+67,5,cyan.r,cyan.g,cyan.b,255);meta.draw(c,x+42,y+58,"Running",cyan);}
     else meta.draw(c,x+24,y+58,automatic?"Starts with the engine":"Not running",muted);
     button(c,x+24,y+tileHeight-64,132,44,"start:"+script,live?"Running":"Launch",Style::Primary,!live,[this,script]{request("start",",\"name\":"+quote(script),"start:"+script,"Starting "+script);});

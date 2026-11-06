@@ -1,6 +1,6 @@
 // Control host for tests/cli-regression.py: the real control service, registry and
 // scratch scene served on a socket without VR, until SIGTERM or SIGINT.
-// Usage: cli-regression <catalog> <socket> <settings>
+// Usage: cli-regression <catalog> <socket> <settings> <scene-state-dir>
 #include "../src/render_host.h"
 #include <cassert>
 #include <csignal>
@@ -8,7 +8,9 @@
 namespace {volatile sig_atomic_t stopping=0;void onSignal(int){stopping=1;}}
 
 int main(int argc,char **argv){
-  if(argc!=4){std::fprintf(stderr,"usage: cli-regression <catalog> <socket> <settings>\n");return 2;}
+  if(argc!=5){std::fprintf(stderr,"usage: cli-regression <catalog> <socket> <settings> <scene-state-dir>\n");return 2;}
+  // Saves stay in the test's own directory; keys match the engine's for this catalog.
+  scenePersistence::directory=argv[4];scenePersistence::catalogRoot=std::filesystem::absolute(argv[1]).string();
   std::signal(SIGTERM,onSignal);std::signal(SIGINT,onSignal);
   settings::File file(argv[3]);file.refresh();
   ScriptRegistry registry;assert(registry.enableScratch());

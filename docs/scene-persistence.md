@@ -104,6 +104,10 @@ durability across sudden power loss.
 build/pocketspace --scene-state-dir /tmp/pocketspace-saves --launch my-scene.js
 ```
 
+To start a script over, delete its namespace's files with **Reset** in the
+dashboard's Library or `pocketspace-cli data reset <name>`; a running script
+reloads from its defaults. See [resetting saved data](control-protocol.md#resetting-saved-data).
+
 ## Saves from other scripts
 
 `sourceScript` is the source's catalog-relative name, such as `tools/bench.js`. It

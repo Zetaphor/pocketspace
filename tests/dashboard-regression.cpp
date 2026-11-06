@@ -19,7 +19,7 @@ struct FakeEngine {
   control::Server server;std::filesystem::path path;
   std::vector<FakeInstance> instances{{0,1,"scratch","running"},{1,1,"alpha.js","running"},{2,1,"beta.js","running"}};
   std::vector<std::string> catalog{"alpha.js","beta.js","gamma.js"},autostart{"alpha.js"};
-  bool autoRestart=true,engineAutostart=false;long long nextId=3;
+  bool autoRestart=true,engineAutostart=false,resetFails=false;long long nextId=3;
   std::vector<std::string> ops;std::vector<std::string> requests;
   std::set<std::string> silent; // ops that get no reply
   bool start(){std::string error;return server.start(path,error);}
@@ -57,6 +57,14 @@ struct FakeEngine {
       instances.push_back({nextId++,1,name,"running"});
       server.broadcast("{\"v\":1,\"event\":\"status\",\"seq\":1,\"instance\":"+view(instances.back())+"}");
       return ok(view(instances.back()));
+    }
+    if(op=="data.reset"){
+      if(resetFails)return fail("io_error","could not remove n.data.json");
+      for(auto &x:instances)if(x.id&&x.name==request["name"].str()&&x.state=="running"){
+        x.generation++;server.broadcast("{\"v\":1,\"event\":\"status\",\"seq\":4,\"instance\":"+view(x)+"}");
+        return ok("{\"removed\":1,\"instance\":"+view(x)+"}");
+      }
+      return ok("{\"removed\":2,\"instance\":null}");
     }
     const long long target=(long long)request["instanceId"].number(),generation=(long long)request["generation"].number();
     auto *x=find(target);
@@ -224,6 +232,30 @@ int main(){
   now+=std::chrono::seconds(2);pump(&engine,board);
   CHECK(board.online()&&countOp(engine,"watch")==watches+1);
   CHECK(button(board,"stop:3")->enabled);
+
+  // Library Reset clears a script's saves after a second press within three seconds.
+  go(board,Page::Library);
+  CHECK(button(board,"data:gamma.js")->label=="Reset"&&button(board,"data:gamma.js")->enabled);
+  click(board,"data:gamma.js");pump(&engine,board);
+  CHECK(countOp(engine,"data.reset")==0&&button(board,"data:gamma.js")->label=="Press again");
+  now+=std::chrono::seconds(4);pump(&engine,board);
+  CHECK(button(board,"data:gamma.js")->label=="Reset");
+  // Arming another tile disarms the first.
+  click(board,"data:alpha.js");board.draw(canvas,now);click(board,"data:gamma.js");board.draw(canvas,now);
+  CHECK(button(board,"data:alpha.js")->label=="Reset"&&button(board,"data:gamma.js")->label=="Press again");
+  click(board,"data:gamma.js");pump(&engine,board);
+  CHECK(countOp(engine,"data.reset")==1&&engine.requests.back().find("\"name\":\"gamma.js\"")!=std::string::npos);
+  CHECK(board.notice()=="Cleared 2 saved files for gamma.js"&&button(board,"data:gamma.js")->label=="Reset");
+  // A running script is reloaded by the engine; its new generation shows.
+  long long alphaGeneration=0;for(const auto &x:board.instances())if(x.name=="alpha.js"&&x.state=="running")alphaGeneration=x.generation;
+  click(board,"data:alpha.js");board.draw(canvas,now);click(board,"data:alpha.js");pump(&engine,board);
+  CHECK(board.notice()=="Cleared 1 saved file for alpha.js");
+  bool reloaded=false;for(const auto &x:board.instances())reloaded|=x.name=="alpha.js"&&x.state=="running"&&x.generation==alphaGeneration+1;
+  CHECK(alphaGeneration>0&&reloaded);
+  engine.resetFails=true;
+  click(board,"data:beta.js");board.draw(canvas,now);click(board,"data:beta.js");pump(&engine,board);
+  CHECK(board.notice()=="Resetting saved data for beta.js failed: could not remove n.data.json");
+  engine.resetFails=false;go(board,Page::Space);
 
   // Hidden: the connection closes and nothing is requested until the tab shows again.
   board.setVisible(false,now);CHECK(board.fd()<0);

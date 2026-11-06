@@ -1,6 +1,6 @@
 # Demo scripts and API additions: plan
 
-Status: approved; step 1 (API additions) complete; step 2 next.
+Status: approved; steps 1 (API additions) and 2 (saved-state reset) complete; step 3 next.
 
 ## Goal
 
