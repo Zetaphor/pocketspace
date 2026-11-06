@@ -59,3 +59,29 @@ this demo.
 
 **Shows:** engine statistics, a retained canvas redrawn once per sample, a panel
 following a grabbed object, and [saved data](scene-persistence.md#saved-data).
+
+## Sketch board
+
+[sketch.js](../demos/sketch.js) is a 0.8-meter whiteboard in front of you with a
+toolbar along its top.
+
+| Control | Action |
+| --- | --- |
+| Hold the trigger on the board | Draw. Each hand draws its own stroke, so both can draw at once. |
+| Trigger on a colour swatch | Pick one of six colours. |
+| Trigger on a brush dot | Pick a small, medium or large brush. |
+| Trigger on **Undo** | Remove the last stroke, or bring back what the last Clear removed. |
+| Trigger on **Clear** | Empty the board. |
+
+The drawing is saved after every stroke and when Undo or Clear changes it, so it
+is back on the next start, and Undo still works on it. Strokes are stored as
+points in the demo's [saved data](scene-persistence.md#saved-data), whose 64 KiB
+limit holds several thousand points. A stroke that reaches the limit ends there,
+Undo and Clear turn red, and the board accepts no new strokes until one of them
+makes room. Undo can bring back what a Clear removed only until the demo stops.
+
+**Saved:** the strokes on the board. The chosen colour and brush are not saved.
+
+**Shows:** panel hover and pointer events with pixel coordinates, two hands on one
+panel, canvas circles and rectangles on a retained canvas, partial redraws of the
+toolbar, and [saved data](scene-persistence.md#saved-data).

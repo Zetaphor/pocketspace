@@ -1,6 +1,6 @@
 # Demo scripts and API additions: plan
 
-Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo models) complete; step 4 in progress, clock and monitor done.
+Status: approved; steps 1 (API additions), 2 (saved-state reset) and 3 (demo models) complete; step 4 in progress, clock, monitor and sketch board done.
 
 ## Goal
 
@@ -52,9 +52,10 @@ redraws once a second. A grab handle places it; the placement is restored next t
 
 **Sketch board (`sketch.js`).** A whiteboard panel drawn on with the trigger along
 the engine laser. Swatches pick a colour and brush size; buttons undo the last
-stroke, clear and save. The drawing is restored on the next start.
-*Shows:* panel hover and pointer events with pixel coordinates, canvas lines and
-circles, panel pixel persistence.
+stroke and clear. The strokes are saved after every change, within the saved-data
+limit, and restored on the next start, so Undo still works on them.
+*Shows:* panel hover and pointer events with pixel coordinates, canvas circles,
+saved data.
 
 **Sticky notes (`notes.js`).** A small dispenser offers coloured notes with preset
 labels (To do, Done, Idea, Call, a numbered card). Clicking it spawns a note at the

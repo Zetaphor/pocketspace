@@ -200,6 +200,37 @@ int main() {
       const at=getObjectTransform(handle);
       if(Math.abs(at.x+.2)>1e-6||Math.abs(at.y-.3)>1e-6||Math.abs(at.z+.6)>1e-6)throw Error('monitor restore');
     )";
+    if(entry.path()=="demos/sketch.js"&&run==0) controls=R"(
+      const ev=(type,hand,x,y)=>exampleCallback({type,objectId:panel.id,control:'left',hand,x,y});
+      const tap=(kind,index)=>{const t=tools.find(t=>t.kind===kind&&(index===undefined||t.index===index));ev('panel.pointerDown','right',t.x+5,t.y+5);ev('panel.pointerUp','right',t.x+5,t.y+5);};
+      const saved=()=>loadScriptData('sketch').strokes;
+      if(history.length||color!==0||size!==1||full)throw Error('sketch defaults');
+      ev('panel.hoverStart','left',500,400);if(!getLaserVisible('left'))throw Error('sketch laser');
+      ev('panel.hoverEnd','left',500,400);if(getLaserVisible('left'))throw Error('sketch laser hidden');
+      tap('color',2);tap('size',2);if(color!==2||size!==2||history.length)throw Error('sketch tools');
+      ev('panel.pointerDown','right',200,300);ev('panel.hover','right',210,300);ev('panel.hover','right',211,301);
+      ev('panel.pointerDown','left',600,400);ev('panel.hover','left',620,20);
+      ev('panel.hover','right',250,320);ev('panel.pointerUp','right',250,320);
+      if(history.length!==1||JSON.stringify(saved())!=='[{"c":2,"s":2,"p":[200,300,210,300,250,320]}]')throw Error('sketch stroke');
+      ev('panel.pointerUp','left',620,20);
+      if(history.length!==2||JSON.stringify(saved()[1].p)!=='[600,400,620,110]')throw Error('sketch second hand and clamp');
+      tap('undo');if(history.length!==1||saved().length!==1)throw Error('sketch undo');
+      tap('clear');if(visible().length||saved().length)throw Error('sketch clear');
+      tap('undo');if(visible().length!==1||saved().length!==1)throw Error('sketch undo clear');
+      tap('size',0);ev('panel.pointerDown','right',100,200);
+      for(let i=0;!full&&i<20000;i++)ev('panel.hover','right',100+(i%2)*800,200+(i%400));
+      ev('panel.pointerUp','right',0,0);
+      const bytes=JSON.stringify({strokes:saved()}).length;
+      if(!full||bytes>65536||bytes<60000||history.length!==2)throw Error('sketch full '+bytes);
+      ev('panel.pointerDown','right',300,300);ev('panel.pointerUp','right',300,300);
+      if(history.length!==2)throw Error('sketch accepted a stroke while full');
+      tap('clear');if(full)throw Error('sketch clear frees space');
+      tap('color',4);ev('panel.pointerDown','right',300,300);ev('panel.hover','right',320,330);ev('panel.pointerUp','right',320,330);
+      if(saved().length!==1)throw Error('sketch final stroke');
+    )";
+    if(entry.path()=="demos/sketch.js"&&run==1) controls=R"(
+      if(history.length!==1||JSON.stringify(visible())!=='[{"c":4,"s":0,"p":[300,300,320,330]}]'||full)throw Error('sketch restore');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});
