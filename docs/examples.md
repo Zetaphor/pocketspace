@@ -32,7 +32,7 @@ and their documented controls.
 | [avocado.js](../scripts/avocado.js) | Load and place one model |
 | [sample-gallery.js](../scripts/sample-gallery.js) | Multiple assets and animated object transforms |
 | [full-sphere-gallery.js](../scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |
-| [grabbing.js](../scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, and distant yaw/depth controls |
+| [grabbing.js](../scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, distant yaw/depth controls, and reading where a grab left the box |
 | [input.js](../scripts/input.js) | Controller pose/raw input and haptics; right stick moves the box, right bumper toggles it |
 | [panels.js](../scripts/panels.js) | Retained canvas drawing and a clickable button |
 | [blending.js](../scripts/blending.js) | Smooth rigid, skeletal and morph transitions; bumper changes clips/phases, A/X pauses or resumes |

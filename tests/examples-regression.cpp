@@ -135,6 +135,11 @@ int main() {
       inputEventForExample('/input/b/click');
       if(!head)throw Error('panel recreation');
     )";
+    if(name=="grabbing.js") controls=R"(
+      setObjectPosition(object,.2,.1,-.3);
+      exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});
+      if(!releasedAt||Math.abs(releasedAt.x-.2)>1e-5||Math.abs(releasedAt.z+.3)>1e-5)throw Error('grab end transform');
+    )";
     if(name=="animation.js") controls=R"(
       inputEventForExample('/input/b/click');
       if(getAnimationState(object).clip!==null)throw Error('animation stop');

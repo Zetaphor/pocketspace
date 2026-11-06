@@ -101,6 +101,25 @@ int main(){
   for(int i=0;i<180;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifyLength();configureBreak()"));updateScenePhysics(host.scene,1./90);assert(eval("verifyUpdatedBreak()"));
   puts("PASS joint update API: partial options, same ID, nested spring merge/null reset, rollback, new limits and threshold breaking");
+  assert(loadScript(host,"tests/object-transform-api-smoke.js"));
+  {
+    // A grab without a physics body moves the object; the script reads where it went.
+    controllers[0]={};controllers[0].valid=controllers[0].connected=true;
+    for(int i=0;i<3;i++)controllers[0].rotation[i*3+i]=1;
+    std::array<GrabState,2> held{};std::array<int,2> owners{};
+    // The earlier disconnect waits for a release that only a live input stream reports.
+    grabNeedsRelease[0]=false;
+    meshCurrentObject[0]=1;trigger(true);updateManipulation(host.scene,held,1.f/90,0,{},owners);assert(held[0].objectId==1);
+    for(int i=0;i<10;i++){controllers[0].x+=.02f;controllers[0].y+=.01f;updateManipulation(host.scene,held,1.f/90,0,{},owners);}
+    const auto *grabbed=findObject(1);assert(grabbed&&std::abs(grabbed->x-.2f)<1e-4f&&std::abs(grabbed->y-.1f)<1e-4f);
+    const std::string read="const g=getObjectTransform(held);check(Math.abs(g.x-("+std::to_string(grabbed->x)+"))<1e-5&&Math.abs(g.y-("+std::to_string(grabbed->y)+"))<1e-5)";
+    assert(eval(read.c_str()));
+    trigger(false);for(int i=0;i<5;i++)updateManipulation(host.scene,held,1.f/90,0,{},owners);
+    meshCurrentObject[0]=0;controllers[0].connected=false;
+  }
+  for(int i=0;i<30;i++)updateScenePhysics(host.scene,1./90);
+  assert(eval("verifyFall()"));
+  puts("PASS object transform API: set calls, scale, visibility, copies, a grab without a body, physics, invalid and removed IDs");
   assert(loadScript(host,"tests/engine-stats-api-smoke.js"));
   puts("PASS engine statistics API: field schema and unavailable sample values");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");

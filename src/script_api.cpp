@@ -925,6 +925,15 @@ static JSValue jsSetObjectVisible(JSContext *ctx,JSValueConst,int argc,JSValueCo
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   object->visible=JS_ToBool(ctx,argv[1])>0;return JS_UNDEFINED;
 }
+static JSValue jsGetObjectTransform(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"getObjectTransform(id)");
+  const auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  JSValue value=JS_NewObject(ctx);
+  const std::pair<const char *,float> fields[]={{"x",object->x},{"y",object->y},{"z",object->z},{"pitch",object->pitch},{"yaw",object->yaw},{"roll",object->roll},{"scale",object->scale}};
+  for(const auto &[name,number]:fields)JS_SetPropertyStr(ctx,value,name,JS_NewFloat64(ctx,number));
+  JS_SetPropertyStr(ctx,value,"visible",JS_NewBool(ctx,object->visible));
+  return value;
+}
 void forgetObjectInteraction(int id){
   for(int h=0;h<2;h++){
     if(meshHoveredObject[h]==id){sceneInput().addMeshEvent("overlay.meshHoverEnd",id,h,meshHitDistance[h],meshHitPoint[h]);meshHoveredObject[h]=0;meshHitPoint[h]={};}
@@ -1187,6 +1196,7 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"getPointLight",jsGetPointLight,1);
   bind(candidate.ctx,"removePointLight",jsRemovePointLight,1);
   bind(candidate.ctx,"createObject",jsCreateObject,6);
+  bind(candidate.ctx,"getObjectTransform",jsGetObjectTransform,1);
   bind(candidate.ctx,"setObjectPosition",jsSetObjectPosition,4);
   bind(candidate.ctx,"setObjectYaw",jsSetObjectYaw,2);
   bind(candidate.ctx,"setObjectRotation",jsSetObjectRotation,4);

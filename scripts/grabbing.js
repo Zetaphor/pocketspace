@@ -13,3 +13,10 @@ setObjectInteraction(object, {
 });
 setLaserVisible('left', true);
 setLaserVisible('right', true);
+// The engine moves the box while it is held; read where it was let go.
+let releasedAt = null;
+onInputEvent(event => {
+  if (event.type !== 'overlay.grabEnd' || event.objectId !== object) return;
+  releasedAt = getObjectTransform(object);
+  print(`Box let go at ${releasedAt.x.toFixed(2)}, ${releasedAt.y.toFixed(2)}, ${releasedAt.z.toFixed(2)}`);
+});

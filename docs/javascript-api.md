@@ -91,6 +91,7 @@ beyond it. Positions and rotations below are relative to the scene anchor.
 | `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
 | `setObjectScale(id, scale)` | Set positive scale, at most 2 meters. |
 | `setObjectVisible(id, visible)` | Show/hide rendering and selection. |
+| `getObjectTransform(id)` | Return `{x, y, z, pitch, yaw, roll, scale, visible}`: the current position, rotation in radians, scale and visibility. It includes movement by grabs and physics, with or without a physics body. |
 | `removeObject(id)` | Remove the instance and its interaction state. |
 
 Invalid IDs and invalid arguments throw. During live scene updates, object
