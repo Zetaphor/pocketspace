@@ -120,6 +120,20 @@ int main(){
   for(int i=0;i<30;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifyFall()"));
   puts("PASS object transform API: set calls, scale, visibility, copies, a grab without a body, physics, invalid and removed IDs");
+  assert(loadScript(host,"tests/canvas-text-api-smoke.js"));
+  {
+    // Measured widths match the native measurement, and drawn ink stays within them.
+    const auto &panel=host.scene.panels.at(0);int hello=0,world=0;
+    JSValue global=JS_GetGlobalObject(host.ctx),measured=JS_GetPropertyStr(host.ctx,global,"measured");
+    JSValue a=JS_GetPropertyStr(host.ctx,measured,"hello"),b=JS_GetPropertyStr(host.ctx,measured,"world");
+    JS_ToInt32(host.ctx,&hello,a);JS_ToInt32(host.ctx,&world,b);
+    JS_FreeValue(host.ctx,a);JS_FreeValue(host.ctx,b);JS_FreeValue(host.ctx,measured);JS_FreeValue(host.ctx,global);
+    assert(hello==canvasTextWidthFont("assets/fonts/montserrat/Montserrat-Medium.ttf","Hello",32,0)&&world>hello);
+    int left=panel.width,right=-1;
+    for(int y=0;y<panel.height;y++)for(int x=0;x<panel.width;x++)if(panel.rgba[size_t(y*panel.width+x)*4]>32){left=std::min(left,x);right=std::max(right,x);}
+    assert(left>=10&&right<10+world+2&&right>10+world*9/10);
+  }
+  puts("PASS canvas text API: widths, sizes, lines, empty text, missing font, removed panel and drawn extent");
   assert(loadScript(host,"tests/engine-stats-api-smoke.js"));
   puts("PASS engine statistics API: field schema and unavailable sample values");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");

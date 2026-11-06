@@ -11,7 +11,9 @@ function draw() {
   c.text(24, 20, 'Interactive panel', 240, 245, 255, 255, 30);
   c.line(24, 70, 616, 70, 80, 150, 220, 255);
   c.rect(24, 100, 440, 100, 30, 130, 90, 255, true);
-  c.text(48, 130, `Clicks: ${clicks}`, 255, 255, 255, 255, 28);
+  // measureText centers the label in the button, whatever its width.
+  const label = `Clicks: ${clicks}`, width = c.measureText(label, 28) ?? 0;
+  c.text(24 + (440 - width) / 2, 130, label, 255, 255, 255, 255, 28);
   c.circle(530, 150, 36, 240, 190, 80, 255, false);
   c.image(24, 240, 'assets/panel-icon.png');
   // Drawing changes retained pixels; present requests their upload only after a redraw.

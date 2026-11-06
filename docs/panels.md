@@ -16,11 +16,15 @@ to 0–255.
 | --- | --- |
 | `clear(r=0, g=0, b=0, a=255)` | Fill the canvas. |
 | `text(x, y, text, r=255, g=255, b=255, a=255, pixels=32)` | Draw text; return font/draw success. |
+| `measureText(text, pixels=32)` | Return the width in pixels that `text` would draw with the panel's font, or `null` without a usable font. Text with several lines measures as its widest line; empty text is `0`. |
 | `rect(x, y, width, height, r, g, b, a, fill=false)` | Outline or filled rectangle. |
 | `line(x1, y1, x2, y2, r, g, b, a)` | Draw a line. |
 | `circle(x, y, radius, r, g, b, a, fill=false)` | Outline or filled circle. |
 | `image(x, y, path)` | Decode/draw an image at native size; return success. |
 | `present()` | Schedule upload of the retained canvas. |
+
+Text is UTF-8. `x` and `y` place the top left of the first line, and lines are
+`pixels + 4` apart. Use `measureText` to center, right-align or wrap text.
 
 `panelLoadFont(panel, path)` stores the chosen font path;
 font loading occurs when text is drawn. Canvas text defaults to 32 pixels

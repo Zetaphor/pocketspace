@@ -34,7 +34,7 @@ and their documented controls.
 | [full-sphere-gallery.js](../scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |
 | [grabbing.js](../scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, distant yaw/depth controls, and reading where a grab left the box |
 | [input.js](../scripts/input.js) | Controller pose/raw input and haptics; right stick moves the box, right bumper toggles it |
-| [panels.js](../scripts/panels.js) | Retained canvas drawing and a clickable button |
+| [panels.js](../scripts/panels.js) | Retained canvas drawing and a clickable button with a centered, measured label |
 | [blending.js](../scripts/blending.js) | Smooth rigid, skeletal and morph transitions; bumper changes clips/phases, A/X pauses or resumes |
 | [morph.js](../scripts/morph.js) | Morphing cube; A/X pauses or resumes, bumper restarts |
 | [animation.js](../scripts/animation.js) | Clip selection, pause/resume, stop/default pose and right-stick scrubbing |
