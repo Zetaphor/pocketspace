@@ -92,6 +92,13 @@ void click(Dashboard &board,const std::string &key){
   const int x=b->x+b->w/2,y=b->y+b->h/2;
   board.pointerMove(x,y);board.pointerDown(x,y);board.pointerUp(x,y);
 }
+// Opens a page through the navigation rail.
+void go(Dashboard &board,dashboard::Page page){
+  using dashboard::Page;
+  if(board.page()==page)return;
+  click(board,page==Page::Space?"nav:space":page==Page::Library?"nav:library":page==Page::Alerts?"nav:alerts":"nav:settings");
+  board.draw(canvas,now);CHECK(board.page()==page);
+}
 const dashboard::Instance *instance(const Dashboard &board,long long id){
   for(const auto &x:board.instances())if(x.id==id)return &x;
   return nullptr;
@@ -108,9 +115,11 @@ int main(){
 
   // Offline: Start Engine asks the service manager and connects once the engine answers.
   int startCalls=0,stopCalls=0;std::string startResult;
-  Dashboard board(engine.path,{[&]{startCalls++;return startResult;},[&]{stopCalls++;return std::string();}});
+  Dashboard board(engine.path,{[&]{startCalls++;return startResult;},[&]{stopCalls++;return std::string();}},dashboard::Assets::in("."));
   board.setVisible(true,now);pump(nullptr,board);
   CHECK(!board.online()&&button(board,"start-engine")&&!button(board,"stop:1"));
+  // Offline, the rail cannot open other pages.
+  CHECK(!button(board,"nav:library")->enabled&&!button(board,"nav:alerts")->enabled&&!button(board,"nav:settings")->enabled);
   startResult="systemctl failed";click(board,"start-engine");
   CHECK(startCalls==1&&!board.starting());
   pump(nullptr,board);
@@ -127,19 +136,28 @@ int main(){
 
   // Two scripts plus scratch, with per-instance resources and the catalog.
   CHECK(board.instances().size()==3&&board.catalog().size()==3);
-  CHECK(button(board,"reload:1")&&button(board,"stop:1")&&button(board,"reload:2")&&button(board,"stop:2")&&button(board,"reset:0"));
-  CHECK(!button(board,"stop:0"));
+  using dashboard::Page;
+  // Space shows the running scripts and offers the rest for quick launch.
+  CHECK(board.page()==Page::Space);
+  CHECK(button(board,"reload:1")&&button(board,"stop:1")&&button(board,"reload:2")&&button(board,"stop:2"));
+  CHECK(!button(board,"stop:0")&&!button(board,"start:alpha.js")&&button(board,"start:gamma.js")->enabled);
+  go(board,Page::Settings);CHECK(button(board,"reset:0"));
+  go(board,Page::Library);
   CHECK(!button(board,"start:alpha.js")->enabled&&button(board,"start:gamma.js")->enabled);
   CHECK(instance(board,1)->heapBytes==2048.&&instance(board,1)->objects==4&&!instance(board,2)->heapBytes);
   CHECK(button(board,"auto:alpha.js")->active&&!button(board,"auto:beta.js")->active);
 
   // Stop sends the shown generation; the status event removes the row and frees the launch.
+  go(board,Page::Space);
   click(board,"stop:1");board.draw(canvas,now);
   CHECK(button(board,"stop:1")&&!button(board,"stop:1")->enabled);
   pump(&engine,board);
   CHECK(engine.requests.back().find("\"generation\":1")!=std::string::npos&&engine.requests.back().find("\"op\":\"stop\"")!=std::string::npos);
-  CHECK(instance(board,1)->state=="stopped"&&!button(board,"stop:1")&&button(board,"start:alpha.js")->enabled);
+  CHECK(instance(board,1)->state=="stopped"&&!button(board,"stop:1"));
+  go(board,Page::Library);
+  CHECK(button(board,"start:alpha.js")->enabled);
   click(board,"start:alpha.js");pump(&engine,board);
+  go(board,Page::Space);
   CHECK(instance(board,3)&&instance(board,3)->name=="alpha.js"&&button(board,"stop:3"));
 
   // A reload elsewhere makes the shown generation stale: the failure is reported and the list refreshed.
@@ -150,7 +168,7 @@ int main(){
   CHECK(countOp(engine,"list")==lists+1&&instance(board,2)->generation==5);
   click(board,"reload:2");pump(&engine,board);
   CHECK(instance(board,2)->generation==6);
-  click(board,"reset:0");pump(&engine,board);
+  go(board,Page::Settings);click(board,"reset:0");pump(&engine,board);
   CHECK(instance(board,0)->generation==2);
 
   // A restart loop produces one alert per instance, counting repeats.
@@ -161,8 +179,10 @@ int main(){
   }
   pump(&engine,board);
   CHECK(board.alerts().size()==1&&board.alerts()[0].count==3&&board.alerts()[0].name=="beta.js");
+  go(board,Page::Space);
   // A failed script waiting to restart can be stopped but not reloaded.
   CHECK(button(board,"stop:2")->enabled&&!button(board,"reload:2")->enabled);
+  go(board,Page::Alerts);
   click(board,"dismiss");pump(&engine,board);
   CHECK(board.alerts().empty()&&!button(board,"dismiss"));
 
@@ -174,10 +194,12 @@ int main(){
   CHECK(instance(board,3)->heapBytes==4096.&&!instance(board,3)->callbackMsPerSecond&&!instance(board,2)->heapBytes);
 
   // Settings: autostart and both toggles write the whole settings object.
+  go(board,Page::Library);
   click(board,"auto:gamma.js");pump(&engine,board);
   CHECK(engine.autostart==std::vector<std::string>({"alpha.js","gamma.js"})&&board.autostart()==engine.autostart);
   click(board,"auto:alpha.js");pump(&engine,board);
   CHECK(engine.autostart==std::vector<std::string>({"gamma.js"}));
+  go(board,Page::Settings);
   click(board,"auto-restart");pump(&engine,board);
   CHECK(!engine.autoRestart&&!board.autoRestart()&&engine.autostart.size()==1);
   click(board,"engine-autostart");pump(&engine,board);
@@ -187,6 +209,7 @@ int main(){
   CHECK(board.autoRestart());
 
   // A request whose reply never comes keeps its button busy, then clears on reconnect.
+  go(board,Page::Space);
   engine.silent.insert("stop");click(board,"stop:3");pump(&engine,board);
   CHECK(!button(board,"stop:3")->enabled);
   engine.silent.clear();
@@ -194,11 +217,13 @@ int main(){
   // Engine restart: offline, then reconnected and resynchronized.
   const size_t watches=countOp(engine,"watch");
   engine.server.stop();pump(nullptr,board);
-  CHECK(!board.online()&&button(board,"start-engine"));
+  // Losing the engine returns to the home page.
+  CHECK(!board.online()&&button(board,"start-engine")&&board.page()==Page::Space);
   CHECK(engine.start());
   pump(&engine,board);CHECK(!board.online());
   now+=std::chrono::seconds(2);pump(&engine,board);
-  CHECK(board.online()&&countOp(engine,"watch")==watches+1&&button(board,"stop:3")->enabled);
+  CHECK(board.online()&&countOp(engine,"watch")==watches+1);
+  CHECK(button(board,"stop:3")->enabled);
 
   // Hidden: the connection closes and nothing is requested until the tab shows again.
   board.setVisible(false,now);CHECK(board.fd()<0);

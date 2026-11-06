@@ -16,11 +16,12 @@ void onSignal(int){stopping=1;}
 
 constexpr const char *tabKey="pocketspace.dashboard";
 
-// The checkout's branding images: the binary runs from <checkout>/build.
-std::filesystem::path branding(const char *file){
+// The checkout's assets: the binary runs from <checkout>/build.
+std::filesystem::path checkout(){
   std::error_code ec;const auto executable=std::filesystem::read_symlink("/proc/self/exe",ec);
-  return ec?std::filesystem::path():executable.parent_path().parent_path()/"assets/branding"/file;
+  return ec?std::filesystem::path():executable.parent_path().parent_path();
 }
+std::filesystem::path branding(const char *file){return checkout()/"assets/branding"/file;}
 
 // Asks systemd to start or stop the engine's user service without waiting for it.
 std::string engineService(const char *action){
@@ -115,7 +116,8 @@ int main(int argc,char **argv){
   if(const auto error=overlays->SetOverlayFromFile(thumbnail,icon.c_str());error!=vr::VROverlayError_None)
     std::fprintf(stderr,"[dashboard] cannot load the tab icon %s (%s)\n",icon.c_str(),overlays->GetOverlayErrorNameFromEnum(error));
 
-  dashboard::Dashboard board(socket,{[]{return engineService("start");},[]{return engineService("stop");}});
+  dashboard::Dashboard board(socket,{[]{return engineService("start");},[]{return engineService("stop");}},
+    dashboard::Assets::in(checkout()));
   Canvas canvas;canvasInit(canvas,dashboard::width,dashboard::height,"");
   auto lastUpload=control::Clock::time_point{};
   board.setVisible(overlays->IsOverlayVisible(tab),control::Clock::now());

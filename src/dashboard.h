@@ -21,6 +21,19 @@ struct Instance {
 struct Alert {long long instanceId=0;std::string name,message;int count=1;};
 struct Button {int x=0,y=0,w=0,h=0;std::string key,label;bool enabled=true,active=false;std::function<void()> action;};
 
+// The dashboard's typefaces and icon, from a checkout's assets folder.
+struct Assets {
+  std::string medium,semibold,bold,extrabold,icon;
+  static Assets in(const std::filesystem::path &checkout){
+    const auto fonts=checkout/"assets/fonts/montserrat";
+    return {(fonts/"Montserrat-Medium.ttf").string(),(fonts/"Montserrat-SemiBold.ttf").string(),
+            (fonts/"Montserrat-Bold.ttf").string(),(fonts/"Montserrat-ExtraBold.ttf").string(),
+            (checkout/"assets/branding/shortcut_icon_512x512.png").string()};
+  }
+};
+// Space is the home page: what is running now, and quick launch.
+enum class Page {Space,Library,Alerts,Settings};
+
 struct Hooks {
   // Ask the service manager to start or stop the engine; return an error message, or empty.
   std::function<std::string()> startEngine,stopEngine;
@@ -28,7 +41,7 @@ struct Hooks {
 
 class Dashboard {
 public:
-  Dashboard(std::filesystem::path socket,Hooks hooks);
+  Dashboard(std::filesystem::path socket,Hooks hooks,Assets assets);
   // While hidden the dashboard holds no connection and does no work.
   void setVisible(bool visible,Clock::time_point now);
   bool visible()const{return visible_;}
@@ -52,6 +65,7 @@ public:
   const std::vector<Alert> &alerts()const{return alerts_;}
   const std::vector<Button> &buttons()const{return buttons_;}
   const std::string &notice()const{return notice_;}
+  Page page()const{return page_;}
   bool autoRestart()const{return autoRestart_;}
   bool engineAutostart()const{return engineAutostart_;}
   const std::vector<std::string> &autostart()const{return autostart_;}
@@ -67,7 +81,24 @@ private:
   // Process totals from the latest resources sample.
   std::optional<double> fps_,cpuPercent_,ramBytes_,vramBytes_,gpuEstimateBytes_,sharedGpuEstimateBytes_;
   std::vector<Button> buttons_;std::string hovered_,pressed_;
-  int scriptPage_=0,catalogPage_=0;
+  int runningPage_=0,libraryPage_=0;
+  Assets fonts_;Page page_=Page::Space;
+  // The icon, scaled once to the size it is drawn at.
+  std::vector<unsigned char> icon_;int iconSize_=0;
+  void drawIcon(Canvas &,int x,int y,int size);
+  enum class Style {Primary,Ghost,Danger};
+  // Draws a button and registers it for clicks; key also marks it busy while its request is pending.
+  void button(Canvas &,int x,int y,int w,int h,const std::string &key,const std::string &label,Style,bool enabled,std::function<void()> action);
+  // Registers a clickable area drawn by the caller.
+  void region(int x,int y,int w,int h,const std::string &key,const std::string &label,bool enabled,bool active,std::function<void()> action);
+  void toggle(Canvas &,int x,int y,const std::string &key,bool on,bool enabled,std::function<void()> action);
+  void rail(Canvas &);
+  void title(Canvas &,const std::string &heading,const std::string &subtitle);
+  void drawSpace(Canvas &,Clock::time_point now);
+  void drawOffline(Canvas &);
+  void drawLibrary(Canvas &);
+  void drawAlerts(Canvas &);
+  void drawSettings(Canvas &);
   void lost(Clock::time_point now);
   // key marks the button that shows the request as busy; label names it in a failure notice.
   void request(const std::string &op,const std::string &fields,const std::string &key={},const std::string &label={});

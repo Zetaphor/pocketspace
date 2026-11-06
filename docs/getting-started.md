@@ -162,6 +162,8 @@ Third-party code and sample assets retain their respective licenses.
 MikkTSpace by Morten S. Mikkelsen supplies tangent generation; its license is
 retained in [the upstream source](../third_party/mikktspace.h).
 Sample sources and licenses are listed in [asset attribution](../assets/samples/ATTRIBUTION.md).
+The dashboard uses the [Montserrat](https://github.com/JulietaUla/Montserrat) fonts,
+under the [SIL Open Font License 1.1](../assets/fonts/montserrat/OFL.txt).
 The glTF loader uses [cgltf](https://github.com/jkuhlmann/cgltf), vendored at
 commit `85cd62382dfea638278962690cf515023f33ed00`; see
 [its license](../third_party/cgltf-LICENSE).

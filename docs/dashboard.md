@@ -46,39 +46,41 @@ dashboard stops too, and it starts again the next time SteamVR starts.
 
 ## The tab
 
-The header shows whether the engine is running, followed by its process totals:
-FPS, CPU, RAM, driver GPU memory (`n/a` when the driver does not report it), and the
-engine's estimated GPU allocations with the shared part. These come from the
-[resources](control-protocol.md#resources) sample and are never divided among scripts.
+A rail on the left of the tab opens four pages: **Space**, **Library**, **Alerts**
+and **Settings**. The engine's power control sits at the foot of the rail.
 
-While the engine is offline, the tab offers **Start Engine**. This runs
-`systemctl --user start pocketspace.service`, just as
-[`pocketspace-cli start-engine`](cli.md) does. The tab shows an error if
-`systemctl` fails, or if the engine has not answered within 30 seconds.
+While the engine is offline, only Space is available. It offers **Start engine**, as
+does the power control. This runs `systemctl --user start pocketspace.service`, just
+as [`pocketspace-cli start-engine`](cli.md) does. The tab shows an error if
+`systemctl` fails, or if the engine has not answered within 30 seconds. When the
+engine stops, the tab returns to Space.
 
-While the engine runs, **Stop Engine** in the header runs
+While the engine runs, the power control stops it with
 `systemctl --user stop pocketspace.service`, which stops every script. The first
-press only arms it: it turns red and reads **Press again to stop** for three
-seconds. If the engine still answers 10 seconds after the second press, the tab
-reports that it did not stop. This happens when the engine was started outside the
-service, for example with `run-pocketspace.sh`.
+press only arms it: it turns red and reads **Press again** for three seconds. If
+the engine still answers 10 seconds after the second press, the tab reports that it
+did not stop. This happens when the engine was started outside the service, for
+example with `run-pocketspace.sh`.
 
-With the engine running, the tab has three areas:
-
-| Area | Shows and does |
+| Page | Shows and does |
 | --- | --- |
-| Scripts | Scratch (instance `0`) first, with **Reset**, then each running or failed script, newest last. For each: name, instance ID, generation, uptime or restart state, JavaScript heap, callback time per second and its worst frame, estimated GPU allocations, and object, panel, asset and body counts. If a reload failed and the old scene was kept, the row says so. A failed script shows its last error. Running scripts have **Reload** and **Stop**. A failed script waiting to restart has **Stop**, which cancels the restart. A failed script that is not restarting has **Start**. Stopped scripts are not listed; start them again from the catalog. |
-| Catalog | Every script the engine can start. **Launch** starts one; it reads **Running** while that script runs. **Auto** adds the script to, or removes it from, the [autostart list](lifecycle.md#startup-and-recovery). |
-| Settings | **Restart failed scripts** (`autoRestart`) and **Start engine with SteamVR** (`engineAutostart`). If the settings file is invalid, its error appears here. |
+| Space | The engine's uptime, FPS, CPU and RAM. A card for each running or failed script, three at a time, with its name, uptime, generation, JavaScript heap, callback time per second, object count and estimated GPU allocations. If a reload failed and the old scene was kept, the card says so. A failed script shows its last error. Running scripts have **Reload** and **Stop**. A failed script waiting to restart has **Stop**, which cancels the restart. A failed script that is not restarting has **Start again**. Below the cards, **Quick launch** starts up to eight scripts that are not running, autostart scripts first. |
+| Library | Every script the engine can start, nine to a page. **Launch** starts one; it reads **Running** while that script runs. The **Autostart** switch adds the script to, or removes it from, the [autostart list](lifecycle.md#startup-and-recovery). |
+| Alerts | Scripts that stopped on an error, with the error. **Dismiss all** clears them. |
+| Settings | **Restart failed scripts** (`autoRestart`) and **Start the engine with SteamVR** (`engineAutostart`). **Reset** clears the scratch scene (instance `0`) that the CLI REPL runs in. If the settings file is invalid, its error appears here. |
+
+Stopped scripts are not shown on Space; start them again from Quick launch or the
+Library. Process totals come from the [resources](control-protocol.md#resources)
+sample and are never divided among scripts.
 
 Stop and reload requests carry the generation the tab shows. If the script has
 reloaded since then, the request fails. The tab reports the failure at the bottom
 and refreshes the list, so the next click targets the current scene. A button
 shows `...` until its reply arrives.
 
-When a script stops because of a callback error, an alert line appears under the
-header. Repeated failures of the same script, such as those of a restart loop,
-update that one line and count them. **Dismiss** clears the alerts. The SteamVR
+When a script stops because of a callback error, it is added to Alerts, and the
+rail shows the number of alerts. Repeated failures of the same script, such as
+those of a restart loop, update its one alert and count them. The SteamVR
 notification for the failure comes from the engine itself, so it appears even
 when the tab is closed or the dashboard is not running.
 
@@ -101,8 +103,8 @@ is open. The dashboard never captures controller input outside it.
 
 ## Limitations
 
-- Text is ASCII, drawn with the engine's default monospace font (`SF_FONT`
-  overrides it). Long names and errors are cut to fit.
+- Text is drawn with the Montserrat fonts in `assets/fonts/montserrat`, read from
+  the checkout the dashboard runs from. Long names and errors are cut to fit.
 - Alerts appear only while the tab is open, because the dashboard is not connected
   to the engine while the tab is hidden.
 - The tab has no JavaScript evaluation or REPL; use [`pocketspace-cli`](cli.md).
