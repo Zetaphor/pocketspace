@@ -180,6 +180,26 @@ int main() {
       const at=getObjectTransform(handle);
       if(Math.abs(at.x-.1)>1e-6||Math.abs(at.y-.2)>1e-6||Math.abs(at.z+.5)>1e-6||duration!==1500||remaining!==1500||!hour12||running)throw Error('clock restore');
     )";
+    if(entry.path()=="demos/monitor.js"&&run==0) controls=R"(
+      if(rows.some(row=>row.values.length))throw Error('monitor recorded before the first sample');
+      for(let i=0;i<70;i++)record({fps:80+i%10,cpuPercent:i,ramBytes:(400+i)*MiB,vramBytes:i%3?null:1536*MiB,gpuAllocatedEstimateBytes:NaN});
+      if(rows.some(row=>row.values.length!==60)||rows[0].values[0]!==80||rows[1].values.at(-1)!==69)throw Error('monitor history');
+      if(rows[3].values.filter(v=>v===null).length!==40||rows[4].values.some(v=>v!==null))throw Error('monitor gaps');
+      draw();
+      if(bytes(512*MiB)!=='512 MiB'||bytes(1536*MiB)!=='1.50 GiB'||rows[1].format(42.4)!=='42%')throw Error('monitor format');
+      exampleCallback({type:'overlay.meshHoverStart',objectId:handle,hand:'left'});
+      if(!getLaserVisible('left'))throw Error('monitor hover laser');
+      exampleCallback({type:'overlay.meshHoverEnd',objectId:handle,hand:'left'});
+      if(getLaserVisible('left'))throw Error('monitor laser hidden');
+      setObjectPosition(handle,-.2,.3,-.6);
+      exampleCallback({type:'overlay.grabEnd',objectId:handle,hand:'right'});
+      const kept=loadScriptData('monitor');
+      if(Math.abs(kept.x+.2)>1e-6||Math.abs(kept.y-.3)>1e-6||Math.abs(kept.z+.6)>1e-6)throw Error('monitor grab save');
+    )";
+    if(entry.path()=="demos/monitor.js"&&run==1) controls=R"(
+      const at=getObjectTransform(handle);
+      if(Math.abs(at.x+.2)>1e-6||Math.abs(at.y-.3)>1e-6||Math.abs(at.z+.6)>1e-6)throw Error('monitor restore');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});

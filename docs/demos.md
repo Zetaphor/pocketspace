@@ -36,3 +36,26 @@ running countdown is not saved.
 **Shows:** retained-canvas drawing that redraws only when the display changes,
 panel buttons with hover, haptics, a panel following a grabbed object, and
 [saved data](scene-persistence.md#saved-data).
+
+## Performance monitor
+
+[monitor.js](../demos/monitor.js) is a compact panel with the engine's frame
+rate, CPU use, resident RAM, driver-reported GPU memory and its GPU allocation
+estimate, from [`getEngineStats`](javascript-api.md#engine-statistics). Each has
+its current value and a line of the last 60 samples. Statistics are sampled about
+once a second, and the panel redraws only when a new sample arrives.
+
+| Control | Action |
+| --- | --- |
+| Trigger or grip on the blue handle | Move the monitor. It stands on the handle and turns to face you. |
+
+FPS is drawn from zero to at least 90 and CPU from zero to at least 100%. Memory
+lines span their own minimum and maximum, so small changes stay visible. A value
+the system does not report, such as GPU memory without DRM fdinfo, shows `n/a`
+and leaves a gap in its line. The statistics cover the whole engine, not only
+this demo.
+
+**Saved:** the monitor's position.
+
+**Shows:** engine statistics, a retained canvas redrawn once per sample, a panel
+following a grabbed object, and [saved data](scene-persistence.md#saved-data).
