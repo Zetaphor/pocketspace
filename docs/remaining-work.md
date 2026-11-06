@@ -25,6 +25,9 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 
 ## Scripted experiences
 
+- Add a line drawing API for scene-space lines and segments, such as strings,
+  ropes, laser guides and measurement lines. Scripts can only draw lines on panel
+  canvases today, so scene lines must be modelled as geometry.
 - Define collider behavior for skeletal/morph deformation when experiences need
   it. Existing colliders remain rigid and use default-pose geometry; updating
   their shape with animation is not implemented.
