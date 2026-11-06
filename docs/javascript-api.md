@@ -764,7 +764,10 @@ Combine model interaction and physics in a complete script: [physics-controls.js
 Use `captureSceneContainer(id)` / `restoreSceneContainer(snapshot)` for in-memory
 JSON snapshots and `saveSceneContainer(id, name)` / `loadSceneContainer(name)` for
 named files private to the calling script. `importSceneContainer(sourceScript, name)`
-explicitly copies another script's save. See [scene save and restore](scene-persistence.md) for the complete
+explicitly copies another script's save. `saveScriptData(name, value)` /
+`loadScriptData(name)` keep small JSON-compatible values, such as settings or
+scores, in the same private namespace; see [saved data](scene-persistence.md#saved-data).
+See [scene save and restore](scene-persistence.md) for the complete
 schema, panels and pixels, animation
 playback, physics bodies/joints, per-script storage paths,
 fresh object/joint/group mappings, limits, and unsupported resources.

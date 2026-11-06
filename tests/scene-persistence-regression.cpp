@@ -70,9 +70,35 @@ static void namespaceRegression(){
     const int redirected=launch(registry,"redirected.js");auto &link=registry.find(redirected)->host;
     run(link,"saveSceneContainer(owner,'stolen')",false);run(link,"loadSceneContainer('layout')",false);
     assert(!fs::exists(leftKey/"stolen.json"));
+    run(link,"saveScriptData('stolen',1)",false);run(link,"loadScriptData('settings')",false);
+    assert(!fs::exists(leftKey/"stolen.data.json"));
+    // Saved data: round trip, per-script isolation, missing names, payload rules and limits.
+    run(left,"check(loadScriptData('settings')===null);saveScriptData('settings',{minutes:25,best:[3,1],name:'é',on:true,none:null})");
+    assert(fs::is_regular_file(leftKey/"settings.data.json")&&!fs::exists(leftKey/"settings.json"));
+    run(left,"{const v=loadScriptData('settings');check(v.minutes===25&&v.best[1]===1&&v.name==='é'&&v.on===true&&v.none===null);}");
+    run(right,"check(loadScriptData('settings')===null);saveScriptData('settings',7);check(loadScriptData('settings')===7)");
+    run(left,"check(loadScriptData('settings').minutes===25)");
+    // A scene save of the same name is a separate file.
+    run(left,"saveSceneContainer(owner,'settings');check(loadScriptData('settings').minutes===25)");
+    for(const char *value:{"undefined","()=>1","NaN","Infinity","new Date()","new Map()","(()=>{const a=[];a.push(a);return a;})()","'x'.repeat(65535)"})
+      run(left,std::string("saveScriptData('settings',")+value+")",false);
+    for(const char *name:{"''","'../settings'","'a.b'","'a b'","'x'.repeat(65)"}){
+      run(left,std::string("saveScriptData(")+name+",1)",false);run(left,std::string("loadScriptData(")+name+")",false);
+    }
+    run(left,"saveScriptData('settings')",false);run(left,"loadScriptData()",false);
+    run(left,"check(loadScriptData('settings').minutes===25)");
+    // Replacement is atomic and leaves no temporary file; 64 KiB of JSON is allowed.
+    run(left,"saveScriptData('settings',[1,2,3]);check(loadScriptData('settings').length===3)");
+    run(left,"saveScriptData('big','x'.repeat(65534));check(loadScriptData('big').length===65534)");
+    for(const auto &entry:fs::directory_iterator(leftKey))assert(entry.path().filename().string().find(".tmp-")==std::string::npos);
+    // Damaged, oversized and linked files are rejected.
+    writeFile(leftKey/"broken.data.json","{nope");run(left,"loadScriptData('broken')",false);
+    writeFile(leftKey/"huge.data.json",std::string(70000,' ')+"1");run(left,"loadScriptData('huge')",false);
+    fs::create_symlink(rightKey/"settings.data.json",leftKey/"linked.data.json");run(left,"loadScriptData('linked')",false);
     // Reload replaces the host but keeps its namespace; failed reload changes nothing.
     assert(registry.reload(firstLeft));
     run(registry.find(firstLeft)->host,"saveSceneContainer(owner,'reloaded')");assert(fs::is_regular_file(leftKey/"reloaded.json"));
+    run(registry.find(firstLeft)->host,"check(loadScriptData('settings').length===3)");
     writeFile(catalog/"left.js","throw Error('EXPECTED candidate failure');");
     assert(!registry.reload(firstLeft));
     run(registry.find(firstLeft)->host,"saveSceneContainer(owner,'kept')");assert(fs::is_regular_file(leftKey/"kept.json"));
@@ -96,6 +122,7 @@ static void namespaceRegression(){
     ScriptHost scratch;ScopeExit close{[&]{ScriptScope scope(scratch);closeScript(scratch);resetActiveInteraction();}};
     {ScriptScope scope(scratch);assert(loadScript(scratch,(root/"scratch.js").string()));}
     run(scratch,"saveSceneContainer(owner,'layout')");assert(fs::is_regular_file(state/"scratch"/"layout.json"));
+    run(scratch,"check(loadScriptData('settings')===null);saveScriptData('settings',1)");assert(fs::is_regular_file(state/"scratch"/"settings.data.json"));
     run(scratch,"{const c=loadSceneContainer('layout');check(c.objectIds.length===3);disposeSceneContainer(c.containerId);}");
     run(scratch,"{const c=importSceneContainer('left.js','layout');check(c.objectIds.length===1);disposeSceneContainer(c.containerId);}");
     assert(readFile(leftKey/"layout.json").find("\"objects\"")!=std::string::npos);
@@ -239,5 +266,5 @@ int main(){
     eval("setObjectVisible(handle,false)");assert(!panelShown(*panelById("tagId"),host.scene));
     eval("setObjectVisible(handle,true)");assert(panelShown(*panelById("tagId"),host.scene));
   }
-  puts("PASS scene persistence: per-script namespaces, restart, explicit import, JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback, object-following panels");
+  puts("PASS scene persistence: per-script namespaces, restart, explicit import, saved data, JSON/disk roundtrip, transforms/options, fresh IDs/groups, unsupported resources, validation, staged asset and surface rollback, repeated disposal, bounded files, atomic replacement cleanup, physics bodies/joints/motors/frames, independent skin/rigid animation poses, playback states, lossless panel pixels/handles and rollback, object-following panels");
 }

@@ -137,6 +137,10 @@ int main() {
       inputEventForExample('/input/b/click');
       if(!head)throw Error('panel recreation');
     )";
+    if(name=="scene-save.js") controls=R"(
+      const before=saves;inputEventForExample('/input/bumper/click');
+      if(saves!==before+1||loadScriptData('stats').saves!==saves)throw Error('saved data count');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});

@@ -1,5 +1,6 @@
 // Save a grabbable box arrangement to a named scene file.
 // Bumper saves; A/X restores the saved positions into a replacement container.
+// A small saved value counts the saves across runs.
 const model = loadModel('assets/samples/Box/Box.glb');
 let tool = createSceneContainer();
 for (let n = 0; n < 4; n++) {
@@ -12,10 +13,16 @@ function status(text) {
   hud.canvas.clear(20, 24, 32, 255);
   hud.canvas.text(12, 16, text, 255, 255, 255, 255, 24); hud.present();
 }
+// loadScriptData returns null until the value is first saved.
+let saves = loadScriptData('stats')?.saves ?? 0;
 onInputEvent(event => {
   if (event.type !== 'controller.button' || !event.down) return;
   try {
-    if (event.control === '/input/bumper/click') { saveSceneContainer(tool, 'boxes'); status('Saved. A/X restores the boxes.'); }
+    if (event.control === '/input/bumper/click') {
+      saveSceneContainer(tool, 'boxes');
+      saveScriptData('stats', {saves: ++saves});
+      status(`Saved ${saves} times. A/X restores the boxes.`);
+    }
     if (['/input/a/click', '/input/x/click'].includes(event.control)) {
       // Restore returns fresh IDs and must succeed before the old container is disposed.
       const restored = loadSceneContainer('boxes');

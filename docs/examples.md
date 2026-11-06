@@ -40,7 +40,7 @@ and their documented controls.
 | [animation.js](../scripts/animation.js) | Clip selection, pause/resume, stop/default pose and right-stick scrubbing |
 | [skinning.js](../scripts/skinning.js) | Two grabbable skeletal characters with independent playback |
 | [containers.js](../scripts/containers.js) | Bumper opens/closes a tool with grabbable objects, a clickable panel and an owned callback |
-| [scene-save.js](../scripts/scene-save.js) | Save model arrangements with bumper and restore with A/X |
+| [scene-save.js](../scripts/scene-save.js) | Save model arrangements with bumper and restore with A/X; count saves with saved data |
 | [scene-import.js](../scripts/scene-import.js) | Import the arrangement saved by `scene-save.js` into a second running script |
 | [event-bus.js](../scripts/event-bus.js) | Share a trigger counter between running scripts; logs other scripts' and engine messages |
 | [physics-save.js](../scripts/physics-save.js) | Save and restore bodies, hinge motors, springs, and motion |

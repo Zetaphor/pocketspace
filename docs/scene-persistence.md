@@ -36,6 +36,7 @@ Save and restore a grabbable arrangement: [scene-save.js](../scripts/scene-save.
 Names contain 1–64 ASCII letters, digits, underscores, or hyphens. The engine adds
 `.json`; names cannot contain directories.
 
+
 ```js
 const snapshot = captureSceneContainer(tool);
 const path = saveSceneContainer(tool, 'desk');
@@ -45,6 +46,30 @@ disposeSceneContainer(tool);
 tool = restored.containerId;
 ```
 
+## Saved data
+
+Small values that are not scene content, such as settings, high scores or a
+timer's last duration, are saved by name in the same namespace:
+
+- `saveScriptData(name, value)` atomically replaces the named value. Values
+  follow the [message payload rules](javascript-api.md#messages-between-scripts):
+  `null`, booleans, finite numbers, strings, arrays and plain objects, nested at
+  most 32 levels and at most 64 KiB as JSON. Anything else throws and leaves the
+  previous value in place. It returns `undefined`.
+- `loadScriptData(name)` returns a copy of the saved value, or `null` if the name
+  was never saved. A damaged, oversized or linked file throws.
+
+Names follow the scene save rules. The engine stores each value as
+`<name>.data.json`, so a value and a scene save with the same name do not
+collide. Another script's values cannot be read.
+
+```js
+const best = loadScriptData('best') ?? 0;
+saveScriptData('best', Math.max(best, score));
+```
+
+Count saves across runs: [scene-save.js](../scripts/scene-save.js).
+
 ## Storage namespaces
 
 Each script has its own save directory, so two scripts can both use `desk` without
@@ -53,6 +78,7 @@ the directory comes from the script's path rather than its instance ID:
 
 ```text
 <storage root>/my-scene.js/desk.json
+<storage root>/my-scene.js/best.data.json
 <storage root>/tools%2Fbench.js/desk.json
 <storage root>/scratch/desk.json
 ```

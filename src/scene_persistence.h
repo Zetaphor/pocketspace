@@ -273,14 +273,27 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   scene.nextId+=int(no);if(newWorld)scene.physics=std::move(newWorld);committed=true;
   return JS_DupValue(ctx,result);
 }
-static std::filesystem::path slot(JSContext *ctx,JSValueConst name,const std::string &storageKey=*activeNamespace){
-  auto n=string(ctx,name);require(!n.empty()&&n.size()<=64&&std::all_of(n.begin(),n.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-';}),"scene name must contain 1..64 ASCII letters, digits, underscores or hyphens");
+// The directory holding one script's saves; it need not exist yet.
+static std::filesystem::path namespaceDirectory(const std::string &storageKey){
   std::filesystem::path base=directory;
   if(base.empty()){const char *state=getenv("XDG_STATE_HOME");if(state&&std::filesystem::path(state).is_absolute())base=state;else {const char *home=getenv("HOME");require(home&&*home,"HOME or --scene-state-dir required");base=std::filesystem::path(home)/".local/state";}base/="pocketspace/scenes";}
   require(storageKey.size()<=255,"script path is too long for a scene namespace");
   const auto owner=base/storageKey;std::error_code ec;const auto type=std::filesystem::symlink_status(owner,ec).type();
   require(type==std::filesystem::file_type::not_found||(!ec&&type==std::filesystem::file_type::directory),"scene namespace must be a directory, not a symlink");
-  return owner/(n+".json");
+  return owner;
+}
+static std::string slotName(JSContext *ctx,JSValueConst name,const char *kind){
+  auto n=string(ctx,name);
+  const bool valid=!n.empty()&&n.size()<=64&&std::all_of(n.begin(),n.end(),[](unsigned char c){return (c>='a'&&c<='z')||(c>='A'&&c<='Z')||(c>='0'&&c<='9')||c=='_'||c=='-';});
+  if(!valid)throw std::runtime_error(std::string(kind)+" name must contain 1..64 ASCII letters, digits, underscores or hyphens");
+  return n;
+}
+static std::filesystem::path slot(JSContext *ctx,JSValueConst name,const std::string &storageKey=*activeNamespace){
+  const auto n=slotName(ctx,name,"scene");return namespaceDirectory(storageKey)/(n+".json");
+}
+// Saved data sits beside the scene saves; scene names cannot contain the dot.
+static std::filesystem::path dataSlot(JSContext *ctx,JSValueConst name){
+  const auto n=slotName(ctx,name,"data");return namespaceDirectory(*activeNamespace)/(n+".data.json");
 }
 // Resolving through the catalog gives a symlink alias its target's namespace and
 // rejects traversal or links that leave the catalog.
@@ -324,4 +337,24 @@ static JSValue jsLoadSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValue
 static JSValue jsImportSceneContainer(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(argc<2)return JS_ThrowTypeError(ctx,"importSceneContainer(sourceScript, name)");
   try{return scenePersistence::restoreFile(ctx,scenePersistence::slot(ctx,argv[1],scenePersistence::sourceNamespace(ctx,argv[0])));}catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
+}
+static JSValue jsSaveScriptData(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<2)return JS_ThrowTypeError(ctx,"saveScriptData(name, value)");
+  try{
+    const auto path=scenePersistence::dataSlot(ctx,argv[0]);
+    std::string error;const auto text=bus::encodePayload(ctx,argv[1],error);
+    if(text.empty())return JS_ThrowTypeError(ctx,"saved data: %s",error.c_str());
+    scenePersistence::write(path,text);return JS_UNDEFINED;
+  }catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
+}
+// A name that was never saved loads as null.
+static JSValue jsLoadScriptData(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(argc<1)return JS_ThrowTypeError(ctx,"loadScriptData(name)");
+  try{
+    const auto path=scenePersistence::dataSlot(ctx,argv[0]);
+    std::error_code ec;if(std::filesystem::symlink_status(path,ec).type()==std::filesystem::file_type::not_found)return JS_NULL;
+    const auto text=scenePersistence::read(path);
+    if(text.size()>bus::maxPayloadBytes)return JS_ThrowTypeError(ctx,"saved data exceeds 64 KiB");
+    return JS_ParseJSON(ctx,text.data(),text.size(),path.c_str());
+  }catch(const std::exception &e){if(JS_HasException(ctx))return JS_EXCEPTION;return JS_ThrowTypeError(ctx,"%s",e.what());}
 }

@@ -1231,6 +1231,8 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"restoreSceneContainer",jsRestoreSceneContainer,1);
   bind(candidate.ctx,"saveSceneContainer",jsSaveSceneContainer,2);
   bind(candidate.ctx,"loadSceneContainer",jsLoadSceneContainer,1);
+  bind(candidate.ctx,"saveScriptData",jsSaveScriptData,2);
+  bind(candidate.ctx,"loadScriptData",jsLoadScriptData,1);
   bind(candidate.ctx,"importSceneContainer",jsImportSceneContainer,2);
   bind(candidate.ctx,"createSceneContainer",jsCreateSceneContainer,1);
   bind(candidate.ctx,"setSceneContainerParent",jsSetSceneContainerParent,2);
