@@ -24,13 +24,15 @@ export default defineConfig({
     nav: [
       { text: 'Get started', link: '/getting-started' },
       { text: 'Examples', link: '/examples' },
+      { text: 'Demos', link: '/demos' },
       { text: 'API', link: '/javascript-api' }
     ],
     sidebar: [
       { text: 'Start here', items: [
         { text: 'Overview', link: '/' },
         { text: 'Getting started', link: '/getting-started' },
-        { text: 'Example scripts', link: '/examples' }
+        { text: 'Example scripts', link: '/examples' },
+        { text: 'Demos', link: '/demos' }
       ] },
       { text: 'Build your tool', items: [
         { text: 'JavaScript API', link: '/javascript-api' },
