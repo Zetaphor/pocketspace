@@ -267,6 +267,38 @@ int main() {
       setObjectPosition(notes[2].pin,.3,-.2,-.5);exampleCallback({type:'overlay.grabEnd',objectId:notes[2].pin,hand:'right'});
       if(notes.length!==2||loadScriptData('notes').notes.length!==2)throw Error('notes restored bin');
     )";
+    if(entry.path()=="demos/basketball.js"&&run==0) controls=R"(
+      const [a,b,c]=balls;
+      const hit=(ball,other)=>exampleCallback({type:'physics.collisionStart',objectId:Math.min(ball.id,other),otherObjectId:Math.max(ball.id,other)});
+      const shoot=(ball,speed=4)=>{exampleCallback({type:'overlay.grabStart',objectId:ball.id,hand:'right'});setObjectVelocity(ball.id,0,speed,speed);exampleCallback({type:'overlay.grabEnd',objectId:ball.id,hand:'right'});};
+      const drop=ball=>{setObjectPosition(ball.id,RING.x,RING.y+.2,RING.z);update();setObjectPosition(ball.id,RING.x+.03,RING.y-.05,RING.z-.02);update();};
+      if(floor!==-1.4||baskets||shots||streak||best||balls.length!==3)throw Error('basketball defaults');
+      exampleCallback({type:'overlay.meshHoverStart',objectId:a.id,hand:'left'});
+      if(!getLaserVisible('left'))throw Error('basketball laser');
+      exampleCallback({type:'overlay.meshHoverEnd',objectId:a.id,hand:'left'});
+      if(getLaserVisible('left'))throw Error('basketball laser hidden');
+      shoot(a,0);if(shots||a.shot)throw Error('basketball gentle release is not a shot');
+      shoot(a);drop(a);
+      if(shots!==1||baskets!==1||streak!==1||status!=='Swish!'||loadScriptData('basketball').best!==1)throw Error('basketball swish');
+      drop(a);if(baskets!==1)throw Error('basketball scored twice for one shot');
+      shoot(b);hit(b,rim);drop(b);if(streak!==2||status!=='Basket!')throw Error('basketball rim');
+      shoot(c);hit(c,board);drop(c);if(streak!==3||status!=='Bank shot!'||best!==3)throw Error('basketball bank');
+      // Passing up through the ring, or beside it, is not a basket.
+      shoot(a);setObjectPosition(a.id,RING.x,RING.y-.2,RING.z);update();setObjectPosition(a.id,RING.x,RING.y+.1,RING.z);update();
+      setObjectPosition(a.id,RING.x+.3,RING.y-.1,RING.z);update();if(baskets!==3)throw Error('basketball upward or outside');
+      hit(a,rim);hit(a,ground);if(streak!==0||status!=='So close'||a.shot||shots!==4)throw Error('basketball miss');
+      shoot(b);exampleCallback({type:'overlay.grabStart',objectId:b.id,hand:'left'});if(streak!==0||b.shot||status!=='Missed')throw Error('basketball regrab');
+      if(loadScriptData('basketball').best!==3)throw Error('basketball best saved');
+      setObjectPosition(a.id,0,-5,0);update();
+      const home=slot(a.slot),at=getObjectTransform(a.id);
+      if(Math.abs(at.x-home.x)>1e-6||Math.abs(at.y-home.y)>1e-6)throw Error('basketball out of bounds');
+      setObjectPosition(c.id,.5,-1,1);inputEventForExample('/input/x/click');
+      const back=getObjectTransform(c.id),cs=slot(c.slot);
+      if(Math.abs(back.x-cs.x)>1e-6||Math.abs(back.z-cs.z)>1e-6||getObjectPhysics(c.id).velocity.y!==0)throw Error('basketball return');
+    )";
+    if(entry.path()=="demos/basketball.js"&&run==1) controls=R"(
+      if(best!==3||baskets||shots||streak)throw Error('basketball restore');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});
@@ -288,6 +320,26 @@ int main() {
       result=JS_Eval(host.ctx,controls.c_str(),controls.size(),"example-controls",JS_EVAL_TYPE_GLOBAL);
       if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"%s controls: %s\n",entry.path().c_str(),message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
       assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+    }
+    if(entry.path()=="demos/basketball.js"&&run==0){
+      // Simulated drops: through the ring scores, onto the rim's front deflects,
+      // and a ball bounces on the invisible floor at the floor height.
+      auto eval=[&](const std::string &source){
+        JSValue result=JS_Eval(host.ctx,source.c_str(),source.size(),"basketball-physics",JS_EVAL_TYPE_GLOBAL);
+        if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"basketball physics: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+        assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      };
+      auto simulate=[&](int steps){for(int i=0;i<steps;i++){updateScenePhysics(host.scene,1./90);eval("update();rise=Math.max(rise,getObjectPhysics(balls[1].id).velocity.y);low=Math.min(low,getObjectTransform(balls[2].id).y);");}};
+      eval("globalThis.rise=-1;globalThis.low=0;{const [a,b,c]=balls;baskets=0;"
+           "setObjectPosition(a.id,RING.x,RING.y+.4,RING.z);a.lastY=RING.y+.4;a.shot={touched:new Set()};"
+           "setObjectPosition(b.id,RING.x,RING.y+.4,RING.z-.157);b.lastY=RING.y+.4;b.shot={touched:new Set()};"
+           "setObjectPosition(c.id,-1,floor+.6,0);for(const ball of balls)setObjectVelocity(ball.id,0,0,0);}");
+      simulate(120);
+      eval("{const [a,b,c]=balls,tb=getObjectTransform(b.id),tc=getObjectTransform(c.id);"
+           "if(baskets!==1||a.shot)throw Error('drop through ring');"
+           "if(rise<=0||Math.hypot(tb.x-RING.x,tb.z-(RING.z-.157))<.03)throw Error('rim did not deflect '+rise);"
+           "if(Math.abs(low-(floor+BALL_RADIUS))>.02||tc.y<low)throw Error('floor height '+low);}");
+      puts("PASS basketball physics: a drop through the ring scores, the rim deflects, the floor holds");
     }
     // Cover the animation switches and the panel's retained redraw callback.
     if (inputCallbackCtx == host.ctx) {

@@ -119,3 +119,33 @@ that the demo maps onto the restored notes.
 **Shows:** [scene containers](scene-containers.md), spawning and removing objects
 and panels, grabbing, panels following objects, scene saves with ID remapping,
 shared render groups for the pins, and saved data.
+
+## Basketball toss
+
+[basketball.js](../demos/basketball.js) puts a mini arcade hoop 2.5 meters in
+front of you, with its rim 1.6 meters above your floor, a shelf of three balls
+at your right hand and a scoreboard above the backboard.
+
+| Control | Action |
+| --- | --- |
+| Trigger or grip on a ball | Pick it up. Throw it by letting go while your hand moves. |
+| **A** or **X** | Return every ball you are not holding to the shelf. |
+
+A ball released at more than 1 m/s counts as a shot. It scores when it drops
+down through the rim, and the hand that threw it buzzes. The scoreboard shows
+**Swish!** for a clean basket, **Basket!** after touching the rim and **Bank
+shot!** off the backboard. A shot that lands on the floor first, or a ball
+picked up again before it scores, ends the streak. Balls that fall below the
+floor or roll more than 6 meters away come back to the shelf.
+
+The floor is invisible and sits where SteamVR tracks yours, from
+[`getFloorHeight`](javascript-api.md#coordinates-and-models); without it, the demo
+assumes 1.4 meters below the scene origin.
+
+**Saved:** the best streak. Baskets and shots count from zero each time.
+
+**Shows:** dynamic bodies and throwing, a static [mesh collider](physics-api.md#static-mesh-colliders)
+for the rim and post, restitution and friction,
+[collision events](physics-api.md#collision-events) for rim, backboard and floor
+contacts, haptics, the tracked floor height, a shared render group for the hoop,
+and [saved data](scene-persistence.md#saved-data).
