@@ -149,3 +149,30 @@ for the rim and post, restitution and friction,
 [collision events](physics-api.md#collision-events) for rim, backboard and floor
 contacts, haptics, the tracked floor height, a shared render group for the hoop,
 and [saved data](scene-persistence.md#saved-data).
+
+## Desk toys
+
+[desk-toys.js](../demos/desk-toys.js) puts a wooden desk at desk height in front
+of you, from [`getFloorHeight`](javascript-api.md#coordinates-and-models), with a
+Newton's cradle on the left and a green spinner on the right.
+
+| Control | Action |
+| --- | --- |
+| Trigger or grip on a cradle ball | Hold it. Pull an end ball out and let go to set the cradle going. |
+| Trigger or grip on the spinner | Turn it by hand; let go while moving to flick it. |
+| **A** or **X** | Switch the spinner's motor on or off. |
+| Bumper | Reset the cradle and the spinner, and switch the motor off, when you are not holding either. |
+
+Each ball hangs on a hinge through the pivot between its two strings, so it
+swings only along the rails. A rigid-body solver shares an impact across the
+whole touching row, so the demo hands it on as a real cradle does: when one or
+more swinging balls strike the row, the row stops and as many balls swing out of
+the far end at the striking speed. Balls held in your hand pause the hand-off.
+The motor drives the spinner at 10 radians per second; switched off, it coasts
+to a stop.
+
+**Saved:** nothing.
+
+**Shows:** [hinge joints](physics-api.md#joints) with limits, a
+[hinge motor](physics-api.md#hinge-motors), [collision events](physics-api.md#collision-events),
+setting velocities, grabbing jointed bodies and the tracked floor height.

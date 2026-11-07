@@ -299,6 +299,21 @@ int main() {
     if(entry.path()=="demos/basketball.js"&&run==1) controls=R"(
       if(best!==3||baskets||shots||streak)throw Error('basketball restore');
     )";
+    if(entry.path()=="demos/desk-toys.js"&&run==0) controls=R"(
+      if(motor||getPhysicsJoint(spin).motor.mode!=='off'||cradle.length!==5)throw Error('desk toys defaults');
+      if(cradle.some(ball=>getPhysicsJoint(ball.joint).type!=='hinge'))throw Error('desk toys hinges');
+      exampleCallback({type:'overlay.meshHoverStart',objectId:cradle[0].id,hand:'left'});
+      if(!getLaserVisible('left'))throw Error('desk toys laser');
+      exampleCallback({type:'overlay.meshHoverEnd',objectId:cradle[0].id,hand:'left'});
+      exampleCallback({type:'overlay.meshHoverStart',objectId:desk,hand:'left'});
+      if(getLaserVisible('left'))throw Error('desk toys laser on the desk');
+      inputEventForExample('/input/a/click');
+      const m=getPhysicsJoint(spin).motor;if(!motor||m.mode!=='velocity'||m.targetVelocity!==10)throw Error('desk toys motor');
+      setObjectPosition(cradle[0].id,0,0,0);setObjectRotation(spinner,0,1,0);
+      inputEventForExample('/input/bumper/click');
+      const t=getObjectTransform(cradle[0].id),r=cradle[0].rest;
+      if(motor||Math.abs(t.x-r.x)>1e-6||Math.abs(t.y-r.y)>1e-6||Math.abs(getObjectTransform(spinner).yaw)>1e-6)throw Error('desk toys reset');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});
@@ -340,6 +355,27 @@ int main() {
            "if(rise<=0||Math.hypot(tb.x-RING.x,tb.z-(RING.z-.157))<.03)throw Error('rim did not deflect '+rise);"
            "if(Math.abs(low-(floor+BALL_RADIUS))>.02||tc.y<low)throw Error('floor height '+low);}");
       puts("PASS basketball physics: a drop through the ring scores, the rim deflects, the floor holds");
+    }
+    if(entry.path()=="demos/desk-toys.js"&&run==0){
+      // Simulated toys: an end ball swung into the row swings the far ball out while
+      // the middle stays nearly still, and
+      // the motor spins the spinner; a held toy blocks the reset.
+      auto eval=[&](const std::string &source){
+        JSValue result=JS_Eval(host.ctx,source.c_str(),source.size(),"desk-toys-physics",JS_EVAL_TYPE_GLOBAL);
+        if(JS_IsException(result)){auto error=JS_GetException(host.ctx);const char *message=JS_ToCString(host.ctx,error);fprintf(stderr,"desk toys physics: %s\n",message?message:"exception");JS_FreeCString(host.ctx,message);JS_FreeValue(host.ctx,error);}
+        assert(!JS_IsException(result));JS_FreeValue(host.ctx,result);
+      };
+      eval("globalThis.far=0;setObjectVelocity(cradle[0].id,-.6,0,0);motor=true;drive();");
+      for(int i=0;i<180;i++){updateScenePhysics(host.scene,1./90);eval("for(const e of pollInputEvents())exampleCallback(e);update();far=Math.max(far,getObjectTransform(cradle[4].id).x-cradle[4].rest.x);globalThis.ext=globalThis.ext||[0,0,0,0,0];cradle.forEach((b,i)=>ext[i]=Math.max(ext[i],Math.abs(getObjectTransform(b.id).x-b.rest.x)));");}
+      eval("if(far<.025||ext.slice(1,4).some(v=>v>.012))throw Error('cradle hand-off '+ext.map(v=>v.toFixed(4)));"
+           "if(cradle.some(b=>Math.abs(getPhysicsJoint(b.joint).angle)>1.31))throw Error('cradle limits');"
+           "const w=getObjectPhysics(spinner).angularVelocity;if(Math.hypot(w.x,w.y,w.z)<8)throw Error('spinner motor '+JSON.stringify(w));");
+      int ball=0;{JSValue g=JS_GetGlobalObject(host.ctx);JSValue v=JS_Eval(host.ctx,"cradle[2].id",12,"id",JS_EVAL_TYPE_GLOBAL);JS_ToInt32(host.ctx,&ball,v);JS_FreeValue(host.ctx,v);JS_FreeValue(host.ctx,g);}
+      host.scene.physics->hold(ball);
+      eval("if(reset())throw Error('desk toys reset while held');");
+      host.scene.physics->release(ball,false);
+      eval("if(!reset())throw Error('desk toys reset after release');");
+      puts("PASS desk toys physics: the cradle hands the swing to the far ball, the motor spins, holding blocks reset");
     }
     // Cover the animation switches and the panel's retained redraw callback.
     if (inputCallbackCtx == host.ctx) {

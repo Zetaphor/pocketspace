@@ -92,8 +92,9 @@ balls, each hung by its modelled strings on a hinge along the rails) and a
 spinner on a vertical hinge. Pull back an end ball and let go; flick the spinner
 by grabbing it, or press A/X to drive it with the hinge motor. The bumper resets
 both toys.
-*Shows:* hinge joints and motors, restitution, grabbing jointed bodies. The cradle is a real rigid-body simulation, so it approximates the toy
-rather than conserving momentum perfectly.
+*Shows:* hinge joints and motors, collision events, setting velocities, grabbing
+jointed bodies. Jolt bounces only impacts above 1 m/s and solves a touching row
+at once, so the demo hands each impact to the far ball itself.
 
 **Pet fox (`pet-fox.js`).** The animated Fox wanders a small area in front of you.
 Look at the floor and it trots to the point you are looking at, blending from walk
