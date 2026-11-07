@@ -314,6 +314,41 @@ int main() {
       const t=getObjectTransform(cradle[0].id),r=cradle[0].rest;
       if(motor||Math.abs(t.x-r.x)>1e-6||Math.abs(t.y-r.y)>1e-6||Math.abs(getObjectTransform(spinner).yaw)>1e-6)throw Error('desk toys reset');
     )";
+    if(entry.path()=="demos/pet-fox.js"&&run==0) controls=R"(
+      const near=(a,b,e=1e-6)=>Math.abs(a-b)<e;
+      let now=Date.now()+10000;const run=(seconds,frames)=>{for(let i=0;i<frames;i++){now+=seconds*1000;step(seconds,now);}};
+      if(mode!=='idle'||getAnimationState(fox).name!=='Survey'||!near(getObjectTransform(fox).y,floor+FEET))throw Error('fox defaults');
+      // A far target runs, a near one walks, and arrival returns to the survey.
+      target={x:AREA.x,z:AREA.z+1.2};mode='moving';run(.02,1);
+      if(clip!=='Run'||getAnimationState(fox).transition===null)throw Error('fox run blend');
+      run(.02,60);const facing=getObjectTransform(fox);
+      if(!near(wrap(facing.yaw-headingYaw(target.x-facing.x,target.z-facing.z)),0,.05)||mode!=='moving')throw Error('fox facing '+facing.yaw);
+      run(.02,200);if(clip!=='Survey'||mode!=='idle'||Math.hypot(getObjectTransform(fox).x-AREA.x,getObjectTransform(fox).z-AREA.z-1.2)>.05)throw Error('fox arrival');
+      target={x:AREA.x+.3,z:AREA.z+1.2};mode='moving';run(.02,1);if(clip!=='Walk')throw Error('fox walk');
+      // Wandering picks targets inside the area after the rest ends.
+      mode='idle';target=null;restUntil=now-1;run(.02,1);
+      if(mode!=='moving'||!inArea(target.x,target.z))throw Error('fox wander');
+      for(let i=0;i<100;i++){const t=wanderTarget();if(!inArea(t.x,t.z))throw Error('fox wander area');}
+      // A gaze held on one floor spot for 0.4 s becomes the target; one outside the area does not.
+      const spot={x:-.4,z:.5},origin={x:0,y:.2,z:-1};
+      const gazeAt=p=>{const d=[p.x-origin.x,floor-origin.y,p.z-origin.z],l=Math.hypot(...d);
+        globalThis.getCalibratedEyeTracking=()=>({valid:true,origin,direction:{x:d[0]/l,y:d[1]/l,z:d[2]/l}});};
+      gazeAt(spot);run(.1,3);if(target&&near(target.x,spot.x,.01))throw Error('fox gaze too soon');
+      run(.1,2);if(!target||!near(target.x,spot.x,.01)||!near(target.z,spot.z,.01)||mode!=='moving')throw Error('fox gaze target');
+      const before=target;gazeAt({x:5,z:5});run(.1,10);if(target!==before&&mode==='moving')throw Error('fox gaze outside');
+      globalThis.getCalibratedEyeTracking=()=>({valid:false});
+      exampleCallback({type:'overlay.meshHoverStart',objectId:fox,hand:'left'});if(!getLaserVisible('left'))throw Error('fox laser');
+      exampleCallback({type:'overlay.meshHoverEnd',objectId:fox,hand:'left'});if(getLaserVisible('left'))throw Error('fox laser hidden');
+      // Picked up it surveys; put down outside the area it lands at the edge, level, and drops.
+      exampleCallback({type:'overlay.grabStart',objectId:fox,hand:'right'});
+      if(mode!=='held'||clip!=='Survey'||!getLaserVisible('right'))throw Error('fox held');
+      setObjectPosition(fox,AREA.x+3,floor+1,AREA.z);setObjectRotation(fox,.4,1,.2);run(.02,5);
+      if(getObjectTransform(fox).x!==AREA.x+3)throw Error('fox moved while held');
+      exampleCallback({type:'overlay.grabEnd',objectId:fox,hand:'right'});
+      const put=getObjectTransform(fox);
+      if(mode!=='falling'||!near(put.x,AREA.x+AREA.radius,1e-5)||put.pitch!==0||put.roll!==0||!near(put.yaw,1,1e-5))throw Error('fox put down');
+      run(.02,60);if(mode!=='idle'||!near(getObjectTransform(fox).y,floor+FEET))throw Error('fox landed');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});

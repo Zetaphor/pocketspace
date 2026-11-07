@@ -176,3 +176,25 @@ to a stop.
 **Shows:** [hinge joints](physics-api.md#joints) with limits, a
 [hinge motor](physics-api.md#hinge-motors), [collision events](physics-api.md#collision-events),
 setting velocities, grabbing jointed bodies and the tracked floor height.
+
+## Pet fox
+
+[pet-fox.js](../demos/pet-fox.js) lets the animated Fox sample roam a circle of
+floor 2.6 meters across in front of you, on the floor SteamVR tracks.
+
+| Control | Action |
+| --- | --- |
+| Look at a spot on the floor | After you hold your gaze there for 0.4 seconds, the fox heads to it. |
+| Trigger or grip on the fox | Pick it up. Let go to put it down; it drops to the floor. |
+
+The fox runs to targets more than a meter away and walks to nearer ones,
+blending between its clips, turns toward where it is going, and plays its idle
+survey when it arrives. Without eye tracking, or while you look elsewhere, it
+picks its own spots every few seconds. Gaze outside the circle, or above the
+horizon, is ignored. A fox put down outside the circle lands at its edge.
+
+**Saved:** nothing.
+
+**Shows:** skeletal animation with [blended transitions](animation-api.md#transitions-between-clips),
+[gaze tracking](tracking-api.md), grabbing an animated model, scripted movement
+and facing, and the tracked floor height.
