@@ -136,5 +136,21 @@ int main(){
   puts("PASS canvas text API: widths, sizes, lines, empty text, missing font, removed panel and drawn extent");
   assert(loadScript(host,"tests/engine-stats-api-smoke.js"));
   puts("PASS engine statistics API: field schema and unavailable sample values");
+  {
+    // The floor is world Y zero; the anchor maps scene coordinates into the standing space.
+    trackingAnchorValid=false;
+    assert(eval("globalThis.check=ok=>{if(!ok)throw Error('floor height assertion')};check(getFloorHeight()===null)"));
+    trackingAnchor={};for(int i=0;i<3;i++)trackingAnchor.m[i][i]=1;
+    trackingAnchor.m[1][3]=1.4f;trackingAnchorValid=true;
+    assert(eval("check(Math.abs(getFloorHeight()+1.4)<1e-6)"));
+    // A pitched start measures along the tilted scene +Y axis through the origin.
+    const float c=std::cos(.5f),s=std::sin(.5f);
+    trackingAnchor.m[1][1]=c;trackingAnchor.m[1][2]=-s;trackingAnchor.m[2][1]=s;trackingAnchor.m[2][2]=c;
+    assert(eval(("check(Math.abs(getFloorHeight()+"+std::to_string(1.4/std::cos(.5))+")<1e-5)").c_str()));
+    // A scene +Y axis almost parallel to the floor never meets it usefully.
+    trackingAnchor.m[1][1]=.05f;assert(eval("check(getFloorHeight()===null)"));
+    trackingAnchor={};trackingAnchorValid=false;
+  }
+  puts("PASS floor height API: level and pitched anchors, no anchor and a horizontal scene axis");
   puts("PASS physics API: configuration, argument validation, scaling, velocity/impulse, transforms, advancement, held rules, removal and reload isolation");
 }

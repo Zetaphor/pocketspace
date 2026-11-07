@@ -55,6 +55,12 @@ static JSValue jsGetController(JSContext *ctx,JSValueConst,int argc,JSValueConst
   JS_SetPropertyStr(ctx,object,"rotation",rotation);
   return object;
 }
+// The tracked floor is world Y zero in SteamVR's standing space. Report where it
+// crosses the scene's +Y axis through the origin.
+static JSValue jsGetFloorHeight(JSContext *ctx,JSValueConst,int,JSValueConst *){
+  if(!trackingAnchorValid||std::abs(trackingAnchor.m[1][1])<.1f)return JS_NULL;
+  return JS_NewFloat64(ctx,-trackingAnchor.m[1][3]/trackingAnchor.m[1][1]);
+}
 static int handIndex(JSContext *ctx,JSValueConst value){
   const char *hand=JS_ToCString(ctx,value);if(!hand)return -1;
   int index=std::string(hand)=="left"?0:std::string(hand)=="right"?1:-1;
@@ -1170,6 +1176,7 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"print",jsLog,1);
   bind(candidate.ctx,"getController",jsGetController,1);
   bind(candidate.ctx,"getControllerInput",jsGetControllerInput,1);
+  bind(candidate.ctx,"getFloorHeight",jsGetFloorHeight,0);
   bind(candidate.ctx,"getEyeTracking",jsGetEyeTracking,0);
   bind(candidate.ctx,"getCalibratedEyeTracking",jsGetCalibratedEyeTracking,0);
   bind(candidate.ctx,"saveEyeTrackingCalibration",jsSaveEyeCalibration,1);

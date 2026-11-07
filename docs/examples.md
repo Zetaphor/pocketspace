@@ -60,7 +60,7 @@ and their documented controls.
 | [convex.js](../scripts/convex.js) | Model-derived convex colliders, grabbing, and throwing; bumper resets unheld objects |
 | [colliders.js](../scripts/colliders.js) | Explicit box and sphere dimensions, a thin floor, and rotated walls |
 | [physics.js](../scripts/physics.js) | Gravity, grabbable boxes, throwing, and a collision event display; bumper resets unheld boxes |
-| [tracking.js](../scripts/tracking.js) | Corrected gaze, per-eye foveation centers and raw finger sensor values |
+| [tracking.js](../scripts/tracking.js) | Corrected gaze, per-eye foveation centers, raw finger sensor values and the floor height |
 | [eye-calibration.js](../scripts/eye-calibration.js) | Personal calibration generator; requires an output path |
 | [scene-snapshot.js](../scripts/scene-snapshot.js) | In-memory capture/restore with fresh IDs; bumper captures, A/X restores |
 | [container-transfer.js](../scripts/container-transfer.js) | Transfer object/panel ownership; B/Y transfers, A/X disposes left, bumper disposes right |

@@ -1,4 +1,5 @@
-// Display corrected gaze, eye foveation centers and raw controller finger sensors.
+// Display corrected gaze, eye foveation centers, raw controller finger sensors and
+// the tracked floor height.
 // Gaze correction is optional; finger values are contact/capacitance, not a hand skeleton.
 const panel = createPanel({widthPixels: 1024, heightPixels: 640, widthMeters: 1.1});
 let lastDraw = 0;
@@ -31,5 +32,8 @@ function update() {
   c.text(24, 360, centers.valid
     ? `Foveation L ${centers.left.x.toFixed(2)},${centers.left.y.toFixed(2)} R ${centers.right.x.toFixed(2)},${centers.right.y.toFixed(2)}`
     : 'Foveation centers unavailable', 180, 210, 240, 255, 22);
+  const floor = getFloorHeight();
+  c.text(24, 420, floor === null ? 'Floor unavailable' : `Floor: ${(-floor).toFixed(2)} m below the scene origin`,
+    180, 210, 240, 255, 22);
   c.present();
 }

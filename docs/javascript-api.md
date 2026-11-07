@@ -79,6 +79,12 @@ Imported geometry is centered and normalized to a unit maximum default-pose
 extent. Object scale specifies that extent in meters. Animated poses can extend
 beyond it. Positions and rotations below are relative to the scene anchor.
 
+`getFloorHeight()` returns the scene Y of the real floor tracked by SteamVR's
+standing space, in meters, or `null` before the anchor is placed and in tests
+without a headset. It is measured along scene +Y through the scene origin, so it
+is exact when your head was level at launch. Use it to stand props on the floor,
+for example `createObject(asset, 0, getFloorHeight() + height / 2, .5, height)`.
+
 | Function | Behavior |
 | --- | --- |
 | `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |

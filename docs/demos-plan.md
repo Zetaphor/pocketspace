@@ -135,6 +135,11 @@ gets a reference entry, a regression and coverage in the smallest relevant examp
    pixels of a line drawn with the panel's font, so text can be centered, aligned
    and wrapped. Used by the clock, notes and scoreboard.
 
+5. **`getFloorHeight()`** returns the scene Y of the floor SteamVR tracks in its
+   standing space, or `null` without an anchor, so props stand on the real floor
+   seated or standing. Added while building basketball; used by basketball and
+   the fox.
+
 Each demo uses only these additions plus today's API. Anything else that comes up
 during implementation is added to this list before it is built.
 
