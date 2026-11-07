@@ -273,3 +273,27 @@ cradle_ball.sphere('chrome', (0, -.12, 0), .02, 24, 48)
 for z in (-.07, .07):
     cradle_ball.cylinder('string', (0, 0, z), (0, -.12, 0), .001, 8)
 cradle_ball.save('CradleBall', {**cradle_paint, 'string': ((.85, .85, .82), 0, .8)})
+
+# Turntable: a 0.6 m rubber-topped disc with a chrome edge and a chrome mark that
+# shows it turning. Its origin is the bottom center.
+turntable = Model()
+turntable.cylinder('rubber', (0, 0, 0), (0, .03, 0), .294, 64)
+turntable.torus('chrome', (0, .03, 0), .294, .006, 96, 12)
+turntable.box('chrome', (.22, .03, -.006), (.28, .033, .006))
+turntable.save('Turntable', {'rubber': ((.1, .1, .11), 0, .7), 'chrome': ((.9, .9, .92), 1, .2)})
+
+# Material spheres: two rows of five on black steps, roughness rising from left
+# to right. The back row is gold metal, the front row white plastic. Origin at
+# the bottom center, +Z toward the player.
+spheres = Model()
+spheres.box('stand', (-.22, 0, .01), (.22, .015, .08))
+spheres.box('stand', (-.22, 0, -.08), (.22, .05, -.01))
+sphere_paint = {'stand': ((.03, .03, .035), 0, .5)}
+for i in range(5):
+    roughness = .05 + .2375 * i
+    x = (i - 2) * .09
+    spheres.sphere(f'gold{i}', (x, .085, -.045), .035, 24, 48)
+    spheres.sphere(f'plastic{i}', (x, .05, .045), .035, 24, 48)
+    sphere_paint[f'gold{i}'] = ((1, .77, .34), 1, roughness)
+    sphere_paint[f'plastic{i}'] = ((.9, .9, .88), 0, roughness)
+spheres.save('MaterialSpheres', sphere_paint)

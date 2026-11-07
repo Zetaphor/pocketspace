@@ -24,6 +24,8 @@ aligned.
 | `Desk.glb` | 0.9 | 0.9 × 0.03 × 0.5 | 0, 0, 0 | Wooden top with rounded corners and edges |
 | `CradleFrame.glb` | 0.32 | 0.32 × 0.224 × 0.18 | 0, 0.112, 0 | Black base, chrome uprights and rails |
 | `CradleBall.glb` | 0.1417 | 0.04 × 0.1405 × 0.1417 | 0, −0.0698, 0 | Steel ball and two strings |
+| `Turntable.glb` | 0.6 | 0.6 × 0.036 × 0.6 | 0, 0.018, 0 | Rubber-topped disc, chrome edge and mark |
+| `MaterialSpheres.glb` | 0.44 | 0.44 × 0.12 × 0.16 | 0, 0.06, 0 | Gold metal and white plastic spheres on black steps |
 
 ## Hoop
 
@@ -45,3 +47,11 @@ midway between the tops of its two strings; in the frame it sits at
 (x, 0.22, 0), between the rails. The ball is 0.04 m across with its
 center 0.12 m below the pivot, so it swings on a hinge whose axis runs along z
 through the pivot. Five touching balls sit at x −0.08, −0.04, 0, 0.04 and 0.08.
+
+## Studio pieces
+
+The turntable's origin is the bottom center of the disc; its rubber top is
+0.03 m up. The material spheres' origin is the bottom center of their steps,
+with +Z toward the player: five white plastic spheres in front and five gold
+metal spheres on the higher back step, each 0.07 m across, 0.09 m apart. In
+both rows roughness rises from 0.05 on the left to 1 on the right.

@@ -349,6 +349,30 @@ int main() {
       if(mode!=='falling'||!near(put.x,AREA.x+AREA.radius,1e-5)||put.pitch!==0||put.roll!==0||!near(put.yaw,1,1e-5))throw Error('fox put down');
       run(.02,60);if(mode!=='idle'||!near(getObjectTransform(fox).y,floor+FEET))throw Error('fox landed');
     )";
+    if(entry.path()=="demos/lighting-studio.js"&&run==0) controls=R"(
+      const press=(label,hand='right')=>{const b=buttons.find(b=>b.label===label);
+        exampleCallback({type:'panel.pointerDown',objectId:panel.id,control:'left',hand,x:b.x+b.w/2,y:b.y+b.h/2});};
+      const light=getPointLight(lampLight);
+      if(!environment||!shadows||!turning||!light.shadow.enabled||light.objectId!==lamp)throw Error('studio defaults');
+      // Pieces sit on the turntable at their radius, and turn with it.
+      const ring=()=>pieces.map(p=>{const t=getObjectTransform(p.id);return Math.hypot(t.x-TABLE.x,t.z-TABLE.z)-p.r;});
+      if(ring().some(d=>Math.abs(d)>1e-5))throw Error('studio placement');
+      const before=getObjectTransform(pieces[0].id);last=Date.now()-100;update();
+      const after=getObjectTransform(pieces[0].id);
+      if(Math.abs(after.yaw-before.yaw-.025)>.002||ring().some(d=>Math.abs(d)>1e-5))throw Error('studio turning');
+      press('Turntable');if(turning)throw Error('studio turntable off');
+      last=Date.now()-100;update();if(getObjectTransform(pieces[0].id).yaw!==after.yaw)throw Error('studio stopped');
+      press('Shadows');if(shadows||getPointLight(lampLight).shadow.enabled)throw Error('studio shadows off');
+      press('Shadows');if(!getPointLight(lampLight).shadow.enabled)throw Error('studio shadows on');
+      press('Environment');if(environment)throw Error('studio environment');
+      exampleCallback({type:'panel.hoverStart',objectId:panel.id,hand:'left',x:5,y:5});
+      if(!getLaserVisible('left')||hovered.left!==-1)throw Error('studio panel laser');
+      exampleCallback({type:'panel.hover',objectId:panel.id,hand:'left',x:50,y:130});if(hovered.left!==1)throw Error('studio hover');
+      exampleCallback({type:'panel.hoverEnd',objectId:panel.id,hand:'left',x:0,y:0});
+      if(getLaserVisible('left')||hovered.left!==-1)throw Error('studio laser hidden');
+      exampleCallback({type:'overlay.grabStart',objectId:sun,hand:'right'});if(!getLaserVisible('right'))throw Error('studio grab laser');
+      exampleCallback({type:'overlay.grabEnd',objectId:sun,hand:'right'});if(getLaserVisible('right'))throw Error('studio grab laser hidden');
+    )";
     if(name=="grabbing.js") controls=R"(
       setObjectPosition(object,.2,.1,-.3);
       exampleCallback({type:'overlay.grabEnd',objectId:object,hand:'left'});
@@ -526,6 +550,8 @@ int main() {
     {"Desk",1,{.9f,.03f,.5f},{0,0,0}},
     {"CradleFrame",2,{.32f,.224f,.18f},{0,.112f,0}},
     {"CradleBall",2,{.04f,.1405f,.1417f},{0,-.0698f,0}},
+    {"Turntable",2,{.6f,.036f,.6f},{0,.018f,0}},
+    {"MaterialSpheres",11,{.44f,.12f,.16f},{0,.06f,0}},
   };
   size_t demoFiles=0;
   for(const auto &entry:std::filesystem::directory_iterator("assets/demos"))demoFiles+=entry.path().extension()==".glb";

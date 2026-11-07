@@ -198,3 +198,33 @@ horizon, is ignored. A fox put down outside the circle lands at its edge.
 **Shows:** skeletal animation with [blended transitions](animation-api.md#transitions-between-clips),
 [gaze tracking](tracking-api.md), grabbing an animated model, scripted movement
 and facing, and the tracked floor height.
+
+## Lighting studio
+
+[lighting-studio.js](../demos/lighting-studio.js) shows physically based
+materials on a slowly turning turntable: the toy car, the lantern, gold and
+plastic spheres of rising roughness, and the fabric sheen sample. They are lit
+by the baked studio environment, a yellow lamp and a blue sun paddle. A small
+panel on your left switches the studio's features.
+
+| Control | Action |
+| --- | --- |
+| Trigger or grip on the yellow lamp | Move it; it carries a shadow-casting point light just below the bulb. |
+| Trigger or grip on the blue paddle | Move and turn it; the sunlight shines out of its underside. |
+| Trigger on **Environment** | Switch the studio environment's light and reflections on or off. |
+| Trigger on **Shadows** | Switch the lamp's shadows on or off. |
+| Trigger on **Turntable** | Start or stop the turntable. |
+
+The turntable turns once every 25 seconds. Each piece's own directional light is
+off, so all light comes from the environment, the lamp, the sun and a little
+ambient light. Shadows render six views each frame; the car accounts for most of
+their triangles.
+
+**Saved:** nothing.
+
+**Shows:** [PBR materials](lighting-api.md) including metal, plastic, glass and
+[fabric sheen](lighting-api.md#fabric-sheen),
+[environment lighting](lighting-api.md#environment-lighting-and-reflections),
+point and directional lights attached to objects,
+[point-light shadows](lighting-api.md#point-light-shadows), scripted turntable
+motion and panel buttons.
