@@ -202,10 +202,10 @@ int main(){
       assert(capped.width>=uncapped.width&&capped.width<uncapped.width+32/500.f); // Same bounds; a wider 32-pixel border.
       cache.displayFocal=5000; // A sharper display than the reference keeps the reference.
       assert(groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,4096,&cache).pixels==uncapped.pixels);
-      assert(displayLimitedPixels(768,.55f,1,0)==768&&displayLimitedPixels(768,.55f,1,400)==512);
-      assert(displayLimitedPixels(768,.55f,.2f,400)==768&&displayLimitedPixels(768,.55f,.01f,400)==768);
-      assert(displayLimitedPixels(768,.55f,10,400)==256&&displayLimitedPixels(256,.55f,10,400)==256);
       for(auto &object:groupScene.objects)object.renderGroup=0;
+      // Independent buffers allocate 25% headroom up to the reference; a crop that
+      // swings between 576 and 640 pixels then fits one 768-pixel allocation.
+      assert(surfaceBufferPixels(576,768)==768&&surfaceBufferPixels(640,768)==768&&surfaceBufferPixels(256,768)==320&&surfaceBufferPixels(128,256)==192);
       for(auto &object:groupScene.objects)object.y=-2;
       const auto tile=groupPlane(members,groupScene,renderer.anchor,head,eyes);
       const float tileCenter[3]={tile.transform.m[0][3],tile.transform.m[1][3],tile.transform.m[2][3]};

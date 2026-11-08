@@ -192,9 +192,12 @@ creation/removal and retain the final pose when a body goes to sleep. Physics
 timings in `getEngineStats` describe the latest advance, not the process sample.
 
 Object surfaces distinguish reference resolution from allocated resolution.
-`FrameBoundsCache::displayFocal` caps both independent and grouped density at
-`kDisplayOversample` times the headset's pixels per meter at the surface depth;
-reference resolution is the upper bound. Zero focal leaves reference density.
+`FrameBoundsCache::displayFocal` caps grouped density at `kDisplayOversample`
+times the headset's pixels per meter at the surface depth; reference resolution
+is the upper bound and zero focal leaves it. Independent surfaces keep reference
+density: their in-place resize clears the overlay, so distance-driven resizing
+flashes. `surfaceBufferPixels` gives them 25% headroom and a 60% shrink threshold
+so rotating objects' crops do not reallocate (each reallocation blanks a frame).
 Stereo projected bounds crop transparent margins; physical width scales with
 allocated pixels to preserve reference sample density and the centered grid.
 Keep immediate growth, near-plane fallback, delayed/budgeted shrinking, stable

@@ -701,12 +701,7 @@ int main(int argc,char **argv) {
         }
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
         ProjectedBounds targetBounds[2];if(id>0)for(int eye=0;eye<2;eye++)targetBounds[eye]=frameBounds.project(*target,eyes[eye],panelRight,panelUp,panelForward);
-        int reference=surface->referenceEyePixels;
-        if(id>0){
-          float depth=INFINITY;for(const auto &eye:eyes){float d=0;for(int axis=0;axis<3;axis++)d+=(surfaceCenter[axis]-eye[axis])*panelForward[axis];depth=std::min(depth,d);}
-          reference=displayLimitedPixels(reference,animatedWidth,depth,focal);
-        }
-        int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,reference):surface->referenceEyePixels;
+        int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels):surface->referenceEyePixels;
         if(id<0){
           const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels,&frameBounds);
           if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",surfaceRenderGroup(id),maxGroupPixels);
@@ -715,8 +710,8 @@ int main(int argc,char **argv) {
           targetBounds[0]=layout.bounds[0];targetBounds[1]=layout.bounds[1];
           surface->referenceEyePixels=crop;
         }
-        // Grow immediately when needed; shrink only after 45 consecutive frames.
-        if(crop<(id<0?surface->eyePixels*.6f:surface->eyePixels))++surface->shrinkFrames;else surface->shrinkFrames=0;
+        // Grow immediately when needed; shrink only below 60% for 45 consecutive frames.
+        if(crop<surface->eyePixels*.6f)++surface->shrinkFrames;else surface->shrinkFrames=0;
         if(crop>surface->eyePixels||(surface->shrinkFrames>=45&&shrinkBudget>0)){
           if(crop<surface->eyePixels)--shrinkBudget;
           if(id<0){
@@ -737,12 +732,12 @@ int main(int argc,char **argv) {
                 }
               }
             }
-          }else if(!resizeSurfaceBuffers(*surface,crop,gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
+          }else if(!resizeSurfaceBuffers(*surface,surfaceBufferPixels(crop,surface->referenceEyePixels),gbm,display)){fprintf(stderr,"[surface] resize id=%d failed\n",id);running=false;break;}
           surface->shrinkFrames=0;
         }
         // Moving bounds still fit when growth is throttled or cannot be admitted.
         // Render the complete group at temporarily reduced density, never crop it.
-        const float width=surfaceCoverageWidth(animatedWidth,surface->eyePixels,id>0?reference:surface->referenceEyePixels,id<0);
+        const float width=surfaceCoverageWidth(animatedWidth,surface->eyePixels,surface->referenceEyePixels,id<0);
         const auto placementError=prepareSurface(*overlays,*surface,width,panel);
         if(placementError!=vr::VROverlayError_None){fprintf(stderr,"[surface] placement id=%d error=%d\n",id,int(placementError));continue;}
         setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);

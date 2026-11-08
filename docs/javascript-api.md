@@ -88,7 +88,7 @@ for example `createObject(asset, 0, getFloorHeight() + height / 2, .5, height)`.
 | Function | Behavior |
 | --- | --- |
 | `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |
-| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048; it is the maximum sampling density, and surfaces farther away sample at the display density described below. Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 simultaneously loaded assets per scene; `unloadModel` releases unused assets. |
+| `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048; render groups use it as a maximum and sample distant members at [display density](#shared-render-group-behavior). Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 simultaneously loaded assets per scene; `unloadModel` releases unused assets. |
 | `unloadModel(assetId)` | Release a loaded model only when no live object uses it; released IDs remain invalid. See [asset lifetime](scene-containers.md#releasing-unused-model-assets) and [asset-lifetime.js](../scripts/asset-lifetime.js). |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
@@ -119,13 +119,10 @@ both eyes. Pixel count and physical overlay width shrink together, preserving
 the reference pixel spacing and centered sample grid; `loadModel` still defaults
 to a 768-pixel reference. This removes unused pixels rather than scaling the
 model into fewer samples. Near-plane crossings or invalid bounds retain the full
-reference surface. No surface samples more densely than the headset displays at
-its distance: the reference density applies up close, and beyond that the
-engine uses 1.25 times the display's pixels per meter at the surface's depth,
-in 256-pixel steps for independent surfaces. A 768-pixel model therefore uses
-fewer pixels when it is a meter or more away and regains them as you approach.
-Buffers grow immediately when required, and shrink after 45
-consecutive eligible frames, with at most two shrinks per frame. Resize keeps the
+reference surface. Buffers grow immediately when required, to 25% above the
+cropped size in 64-pixel steps and at most the reference. They shrink when the
+crop stays below 60% of the allocation for 45 consecutive frames, with at most
+two shrinks per frame, so a rotating object's changing crop does not reallocate. Resize keeps the
 overlay handle and interaction state; the native intersection mask retains its
 reference physical extent within the cropped surface. Allocation estimates count
 the actual current buffers, including crops.
@@ -212,8 +209,9 @@ limitations. Object framebuffer colors use premultiplied alpha, including masked
 and blended materials, and the native overlay is configured to match.
 
 Surface dimensions grow with projected bounds and the most demanding member's
-reference angular pixel density, capped at the same display density as
-independent surfaces at the group's depth. This can use more memory when members spread
+reference angular pixel density, capped at 1.25 times the headset's pixels per
+meter at the group's depth. Distant groups therefore use fewer pixels and regain
+them as you approach. This can use more memory when members spread
 apart or approach the headset. Resolution is bounded by 4096 pixels per eye and
 half the GPU's maximum renderbuffer width; reaching that ceiling logs a warning
 and reduces sampling density. Keep groups compact to avoid this limit. Buffer

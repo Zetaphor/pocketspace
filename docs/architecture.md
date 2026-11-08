@@ -252,8 +252,8 @@ independent surfaces reuse world corners in their own projection basis. Invalid
 or near-plane bounds fall back conservatively rather than dropping geometry.
 
 Stereo projected bounds crop transparent margins. Reference resolution sets the
-maximum sampling density; each surface is also capped at 1.25 times the headset's
-pixels per meter at its depth, from the projection already used for LOD. Allocated pixels and physical overlay width change together to
+maximum sampling density; render groups are also capped at 1.25 times the headset's
+pixels per meter at their depth, from the projection already used for LOD. Allocated pixels and physical overlay width change together to
 retain it. Group tiles share one head-facing, anchor-centered plane so compositor
 reprojection does not separate color edges from depth cutouts on other tiles.
 Density uses axial depth and oblique magnification rather than radial range.

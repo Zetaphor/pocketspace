@@ -130,6 +130,9 @@ bool replaceGroupedSurface(Surface &surface,int pixels,gbm_device *gbm,EGLDispla
   surface=std::move(replacement);
   return true;
 }
+int surfaceBufferPixels(int required,int reference){
+  return std::min(reference,int(std::ceil(required*1.25/64))*64);
+}
 int groupBufferPixels(int required,int maximum){
   return int(std::min(double(maximum),std::ceil(required*1.25/256)*256));
 }
@@ -364,11 +367,6 @@ int objectCropPixels(const ProjectedBounds bounds[2],const float center[3],const
   }
   // Extra transparent border and 64-pixel buckets limit resize churn.
   return std::min(referencePixels,std::max(128,((2*extent+32+63)/64)*64));
-}
-int displayLimitedPixels(int referencePixels,float width,float depth,float focal){
-  if(focal<=0||depth<=.05f||!std::isfinite(width*focal/depth))return referencePixels;
-  const double needed=double(width)*kDisplayOversample*focal/depth;
-  return int(std::clamp(std::ceil(needed/256)*256,256.0,double(std::max(256,referencePixels))));
 }
 GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels,const FrameBoundsCache *cache){
   GroupLayout result;float extent=0,density=0;

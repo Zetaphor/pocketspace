@@ -1,6 +1,7 @@
 #pragma once
 #include <EGL/egl.h>
 #include <GLES2/gl2ext.h>
+#include <unordered_map>
 #include "model_asset.h"
 #include "model_shaders.h"
 #include "scene_lights.h"
@@ -16,8 +17,9 @@ class SpotShadows:public SpotShadowFrame {
  PFNGLGENQUERIESEXTPROC gen=nullptr;PFNGLBEGINQUERYEXTPROC begin=nullptr;
  PFNGLENDQUERYEXTPROC end=nullptr;PFNGLGETQUERYOBJECTUIVEXTPROC available=nullptr;
  PFNGLGETQUERYOBJECTUI64VEXTPROC result=nullptr;PFNGLDELETEQUERIESEXTPROC destroy=nullptr;
- std::map<std::string,GLint> locations;
- GLint location(const char *name){auto [it,fresh]=locations.emplace(name,-1);if(fresh)it->second=glGetUniformLocation(program,name);return it->second;}
+ // Keyed by name pointer; names must be string literals (see PbrProgram).
+ std::unordered_map<const char*,GLint> locations;
+ GLint location(const char *name){auto [it,fresh]=locations.try_emplace(name,-1);if(fresh)it->second=glGetUniformLocation(program,name);return it->second;}
  struct State {
   GLint draw=0,read=0,viewport[4]{},program=0,vao=0,array=0,active=0,textures[2]{},depthFunc=0,front=0,cullMode=0;
   GLboolean depth=false,scissor=false,blend=false,cull=false,depthMask=false,colorMask[4]{};GLfloat clear=1;

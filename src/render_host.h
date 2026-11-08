@@ -83,6 +83,9 @@ static vr::EVROverlayError submitSurface(Overlays &overlays,Surface &surface,int
   return vr::VROverlayError_None;
 }
 int groupBufferPixels(int required,int maximum);
+// Independent buffers: 25% headroom in 64-pixel steps, at most the reference. With
+// the 60% shrink threshold, a rotating object's changing crop does not reallocate.
+int surfaceBufferPixels(int required,int reference);
 GLuint compile(GLenum type,const char *source);
 inline void setVec3(GLint location,float x,float y,float z){glUniform3f(location,x,y,z);}
 void faceViewer(vr::HmdMatrix34_t &panel,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,float right[3],float up[3],float forward[3]);
@@ -160,12 +163,10 @@ ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float center[
 // Crop only transparent margins: physical width and pixel count scale together,
 // leaving the original sample spacing and centered pixel grid unchanged.
 int objectCropPixels(const ProjectedBounds bounds[2],const float center[3],const float eyes[2][3],const float right[3],const float up[3],const float forward[3],float referenceWidth,int referencePixels);
-// Surfaces never sample more densely than the headset can show at their depth,
-// with kDisplayOversample headroom for resampling. Reference density is an upper bound.
+// Grouped surfaces never sample more densely than the headset can show at their
+// depth, with kDisplayOversample headroom for resampling. Independent surfaces keep
+// their reference density: their in-place resize clears the overlay for a frame.
 constexpr float kDisplayOversample=1.25f;
-// Independent-surface pixels across `width` at `depth` meters along the surface
-// normal: rounded up to 256-pixel steps, at least 256, at most the reference.
-int displayLimitedPixels(int referencePixels,float width,float depth,float focal);
 struct GroupLayout {float width=.55f;int pixels=128;ProjectedBounds bounds[2];bool limited=false;};
 // Project all members onto one plane for both eyes. Match the most demanding
 // member's reference angular density, rather than stretching a 768px texture,

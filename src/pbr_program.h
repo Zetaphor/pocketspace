@@ -4,6 +4,7 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <unordered_map>
 // A separate program keeps legacy shaders, storage and their fast paths intact.
 class PbrProgram {
  GLuint program=0;
@@ -14,10 +15,11 @@ class PbrProgram {
 #endif
  mutable int pointCount=-1;
  mutable std::array<float,104> pointPayload{};
- mutable std::map<std::string,GLint> locations;
+ // Keyed by name pointer: names must be string literals (static storage), so
+ // per-draw lookups neither allocate nor compare strings.
+ mutable std::unordered_map<const char*,GLint> locations;
  GLint location(const char *name)const{
-  const auto found=locations.find(name);if(found!=locations.end())return found->second;
-  const GLint value=glGetUniformLocation(program,name);locations.emplace(name,value);return value;
+  auto [it,fresh]=locations.try_emplace(name,-1);if(fresh)it->second=glGetUniformLocation(program,name);return it->second;
  }
  void scalar(const char *name,float v)const{glUniform1f(location(name),v);}
  void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
