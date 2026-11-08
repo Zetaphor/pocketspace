@@ -91,6 +91,7 @@ and visual acceptance.
 | File | Purpose |
 | --- | --- |
 | [compare-auto-split.py](compare-auto-split.py) | Bounded comparison of subdivision disabled/enabled on the same two-island scene. |
+| [../tools/benchmark-demos.py](../tools/benchmark-demos.py) | Production engine with the installed demos: SteamVR-only baseline, idle engine, each demo alone, all demos and idle after stopping, with CPU, RSS/PSS, DRM GPU busy and memory, GPU clock, `stats` and `[profile]` lines. |
 | [compare-overlays.py](compare-overlays.py) | Single versus grouped rendering with matched box/model layouts and telemetry. |
 | [scene-container-api-smoke.js](scene-container-api-smoke.js), [scene-container-regression.cpp](scene-container-regression.cpp) | Ownership, strict IDs/getters, transfers, physics/joints, self-disposing callbacks, rollback, shared surfaces and repeated cleanup. |
 | [multi-script-render-regression.cpp](multi-script-render-regression.cpp) | Two offscreen scenes with overlapping local object IDs, distinct pixels, and independent GPU target cleanup across three cycles; per-script GPU estimates for different workloads, surface depth and retained generations, and a shared environment and sheen table counted once. |

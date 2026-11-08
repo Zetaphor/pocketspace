@@ -108,6 +108,36 @@ default compact layout uses 0.16-meter spacing, a 1.5-meter floor, and a
 spacing, a 1.8-meter floor, and no forward offset. Compare renderers within a
 layout; changing layouts changes visibility and sampling demand.
 
+## Demo benchmark
+
+`tools/benchmark-demos.py` measures the production engine with the installed demos
+as the workload, the method of [demo-resource-usage.md](results/demo-resource-usage.md):
+
+```sh
+python3 tools/benchmark-demos.py                       # every capture, about 11 minutes
+python3 tools/benchmark-demos.py --captures all --repeat 3   # about 3 minutes
+```
+
+SteamVR must be running with the headset active. The script refuses to run while
+scripts other than scratch are running. If no engine answers, it first captures
+SteamVR alone, then starts `pocketspace.service` and stops it again at the end;
+otherwise it uses the running engine and leaves it running. The captures are
+`baseline`, `idle`, `each` (every demo alone), `all` and `after` (the idle engine
+after the demos stopped, for retained memory). Each waits `--settle` seconds
+(default 15), then averages `--samples` one-second samples (default 30), with
+`pocketspace-cli --json stats` polled every two seconds. Results go to
+`build/benchmarks/<timestamp>/report.md` and `samples.json`, or `--out`.
+
+What is in view changes GPU load, so a single capture cannot separate a code
+change from a different head pose. To compare builds, capture only what the change
+affects, three times each with `--repeat 3`, under the same kind of use, and alternate
+the builds. `--repeat` adds a table of each capture's median and min–max across
+runs; count a change only when it moves the median beyond that range. The script
+waits for Enter before the first capture. Without a terminal it refuses to start
+unless `--yes` confirms that the wearer is ready. Catalog demos with interactive panels capture pointer input while they run.
+The `[profile]` columns come from the service journal and are empty when the
+engine was not started as `pocketspace.service`.
+
 ## Bounded automated runs
 
 ```sh
