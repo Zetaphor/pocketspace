@@ -329,7 +329,10 @@ two-second regroup cooldown; it never changes script IDs or logical groups.
 
 `GroupBufferBudget` charges grouped color/depth generations, including retained
 snapshots, against 512 MiB before allocation. `Surface::groupBufferBytes` releases
-its charge in `destroySurface`, including partial creation failure. Preflight
+its charge in `destroySurface`, including partial creation failure. `syncSurfaces`
+creates a group at `fittingPixels` of its reference size; with no fit the reserved
+handles stay without buffers (`budgetDeferred`) and the render loop skips them, so
+budget exhaustion never stops the engine. Preflight
 both outputs before structural allocation. Ordinary grouped resize attempts are
 globally spaced by 100 ms, excluded during structural handoff, and delayed five
 seconds per tile after failure or budget refusal. `surfaceCoverageWidth` keeps

@@ -101,6 +101,11 @@ static void memoryBudget(){
   budget.release(GroupBufferBudget::limit);CHECK(budget.used==0);
   CHECK(budget.reserve(GroupBufferBudget::bytes(3840)+GroupBufferBudget::bytes(1024)));
   CHECK(budget.fittingPixels(2048)==768);
+  CHECK(budget.fittingPixels(1024)==768); // A new group starts smaller instead of failing.
+  const auto spare=GroupBufferBudget::limit-budget.used;
+  CHECK(budget.reserve(spare-GroupBufferBudget::bytes(256)));CHECK(budget.fittingPixels(768)==256);
+  CHECK(budget.reserve(GroupBufferBudget::bytes(256)));CHECK(budget.fittingPixels(768)==0); // It waits unallocated.
+  budget.release(spare);
   CHECK(budget.resizePixels(2048,3840)==0); // Preserve sharpness on refused shrink.
   CHECK(budget.resizePixels(4096,512)==768); // Partial growth is an improvement.
   CHECK(budget.resizePixels(4096,1024)==0); // Never shrink as a growth fallback.

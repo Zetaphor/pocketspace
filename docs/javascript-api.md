@@ -283,7 +283,9 @@ estimate, not a limit on total GPU memory: models, panels, independent surfaces,
 driver overhead, and compositor resources are outside this budget. A structural
 change must fit both complete new outputs alongside the old snapshots before
 allocation starts; otherwise membership stays unchanged and adaptation waits five
-seconds before retrying.
+seconds before retrying. A new group starts at the largest size the budget admits
+and grows like any group as buffers become free. When no buffers fit, its members
+stay unrendered until another group releases buffers; the script keeps running.
 
 Ordinary grouped buffer resizing admits at most one attempt per 100 ms and does
 not run during a structural handoff. Allocation failure or budget refusal retains

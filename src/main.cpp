@@ -200,6 +200,22 @@ int main(int argc,char **argv) {
         const int key=it->first;++it;forgetObjectInteraction(key);eraseSurface(host.instanceId,key);
       }else ++it;
     }
+    // Groups share one buffer budget. A new group starts at the largest size that
+    // fits and grows through the resize path; with no room it stays unallocated,
+    // and unrendered, until another group releases buffers.
+    auto create=[&](Surface &surface,int id,float width,int eyePixels){
+      int pixels=eyePixels;
+      if(id<0){
+        pixels=groupBufferBudget.fittingPixels(eyePixels);
+        if(!pixels){
+          if(!surface.budgetDeferred)fprintf(stderr,"[surface] group id=%d waits for grouped buffer budget\n",id);
+          surface.instanceId=host.instanceId;surface.objectId=id;surface.budgetDeferred=true;return true;
+        }
+        if(pixels<eyePixels||surface.budgetDeferred)fprintf(stderr,"[surface] group id=%d budget limited eye_px=%d requested=%d\n",id,pixels,eyePixels);
+        surface.budgetDeferred=false;
+      }
+      return createSurface(surface,host.instanceId,id,width,pixels,gbm,display,anchor);
+    };
     for(const auto &[id,members]:groups){
       const auto *object=members.front();
       const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
@@ -210,10 +226,10 @@ int main(int argc,char **argv) {
       }
       if(found==surfaces.end()){
         auto created=std::make_unique<Surface>();
-        if(!createSurface(*created,host.instanceId,id,width,eyePixels,gbm,display,anchor)){destroySurface(*created,display);return false;}
+        if(!create(*created,id,width,eyePixels)){destroySurface(*created,display);return false;}
         surfaces.emplace(id,std::move(created));
       }else if(!found->second->buffers[0].fbo){
-        if(!createSurface(*found->second,host.instanceId,id,width,eyePixels,gbm,display,anchor))return false;
+        if(!create(*found->second,id,width,eyePixels))return false;
       }
     }
     return true;

@@ -261,8 +261,9 @@ Density uses axial depth and oblique magnification rather than radial range.
 Group allocations grow with headroom and bucketed sizes; shrinking is delayed.
 Per-eye dimensions are capped by 4,096 pixels and hardware limits. The grouped
 buffer budget admits color/depth generations, including retained replacements,
-against 512 MiB. It excludes independent surfaces, assets, panels, and driver or
-compositor memory, so it is not a total GPU memory cap.
+against 512 MiB. A new group is created at the largest size that fits, or waits
+unallocated without failing its scene. It excludes independent surfaces, assets,
+panels, and driver or compositor memory, so it is not a total GPU memory cap.
 
 Optional automatic subdivision evaluates bounded angular cuts that save at least
 20% of allocation while keeping stereo bounds and sampling constraints. Optional
