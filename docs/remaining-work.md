@@ -72,12 +72,12 @@ describes.
   used about 220 MiB more GPU memory, and some were limited by the group budget.
   Automatic grouping would need to leave out large and near objects and keep
   density; measure it against the same workload before adopting it.
-- Reduce the point-light shadow cost in lighting-studio: about 3 ms GPU per frame,
-  and 80 FPS against 90 with shadows off. Per-face caster culling and skipping
-  receiver lookups did not help. Next suspects are the `glGet*` state save and
-  restore in `src/spot_shadows.h` and the per-frame timer query (both force
-  driver-thread syncs), and the render-pass switch on Zink; also reuse the map
-  when neither the light nor any caster moved.
+- Reduce the remaining shadow-pass overhead. Per-view culling cut
+  lighting-studio's point shadow from 0.72 to 0.18 ms GPU per frame
+  ([shadow-view-culling.md](../tests/results/shadow-view-culling.md)). The pass
+  still saves and restores GL state with about 25 `glGet*` calls and polls its
+  timer query every frame, which can force driver-thread syncs on Zink, and it
+  redraws the map when neither the light nor any caster moved.
 - Cut redundant GL calls. The PBR path sets about 60 uniforms per draw,
   including the environment's nine SH coefficients and light arrays; cache last
   values per program and set per-scene values once. Count and remove avoidable

@@ -716,7 +716,11 @@ surface origin; filtered light IDs, not original vector indices, select the
 shadowed contribution. Other lights, IBL and emission stay unshadowed. Clear
 texture unit 11 after PBR draws and restore caller GL state. Delete the private
 VAO after each update so it cannot retain unloaded asset or removed pose buffers.
-The depth texture is never compositor-owned.
+The depth texture is never compositor-owned. Per-view culling transforms caster
+and cluster boxes with `shadowCorners`, which must match the caster shader's
+`offset*vec3(1,1,-1)+modelScale*rotated`; `outsideShadowView` rejects a box only
+when all corners are outside one clip plane. `spot-shadow-regression` compares
+culled maps with `shadowViewValidation::cull` off in all three light modes.
 
 Geometry is limited to 128 visible casters and the configured submitted-triangle
 budget (default 500000, maximum 1000000). Geometry exhaustion retries when the

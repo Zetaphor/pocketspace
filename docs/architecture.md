@@ -618,7 +618,11 @@ After animation/physics and GPU pose uploads, the engine renders full visible
 opaque/masked geometry into one scene-space light projection, once per frame
 before surface/eye rendering. The spotlight's range and outer cone define its perspective camera;
 attachments are resolved by ID. CPU poses and GPU skinning use the same current
-geometry as color rendering. Alpha blend casters are skipped. A private VAO and
+geometry as color rendering. Alpha blend casters are skipped. Each light view
+draws only casters whose bounds reach its clip volume, and static casters with
+[depth clusters](#stereo-render-passes-and-draw-submission) draw only the clusters
+that reach it; geometry outside a view rasterizes nothing there, so the map is
+unchanged. A private VAO and
 scoped framebuffer, viewport, texture, program, depth, mask, blend, scissor and
 culling restoration isolate the pass from compositor surfaces. The depth texture
 is never shared with the compositor. The private VAO is deleted after each

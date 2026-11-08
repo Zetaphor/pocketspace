@@ -1,12 +1,53 @@
 #pragma once
 #include <EGL/egl.h>
 #include <GLES2/gl2ext.h>
+#include <array>
 #include <unordered_map>
 #include "model_asset.h"
 #include "model_shaders.h"
 #include "scene_lights.h"
 #include "scope_exit.h"
 
+void objectRotationMatrix(float pitch,float yaw,float roll,float m[9]);
+// Box corners in the shadow shader's space: scene coordinates with Z negated.
+template<class Object,class Box> std::array<std::array<float,3>,8> shadowCorners(const Object &object,const float rotation[9],const Box &box){
+  std::array<std::array<float,3>,8> corners;
+  for(int corner=0;corner<8;corner++){
+    float local[3],rotated[3]{};
+    for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?box.high[axis]:box.low[axis];
+    for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
+    corners[corner]={object.x+object.scale*rotated[0],object.y+object.scale*rotated[1],-object.z+object.scale*rotated[2]};
+  }
+  return corners;
+}
+// True when every corner lies outside one clip plane of a light view: that
+// geometry rasterizes nothing in the view, so skipping it leaves the map exact.
+inline bool outsideShadowView(const std::array<float,16> &m,const std::array<std::array<float,3>,8> &corners){
+  for(int plane=0;plane<6;plane++){
+    const int row=plane/2;const float sign=plane%2?-1.f:1.f;bool outside=true;
+    for(const auto &p:corners){
+      const float clip=m[row]*p[0]+m[4+row]*p[1]+m[8+row]*p[2]+m[12+row],w=m[3]*p[0]+m[7]*p[1]+m[11]*p[2]+m[15];
+      if(w+sign*clip>=-1e-4f){outside=false;break;}
+    }
+    if(outside)return true;
+  }
+  return false;
+}
+#ifdef SF_TEST_HOOKS
+// Regressions compare culled maps against unculled references.
+namespace shadowViewValidation {inline bool cull=true;inline uint64_t culledCasters=0,clusterTests=0,drawnClusters=0;}
+#endif
+inline bool skipShadowGeometry(const std::array<float,16> &view,const std::array<std::array<float,3>,8> &corners,bool cluster){
+  const bool outside=outsideShadowView(view,corners);
+#ifdef SF_TEST_HOOKS
+  if(cluster){++shadowViewValidation::clusterTests;shadowViewValidation::drawnClusters+=!outside||!shadowViewValidation::cull;}
+  else shadowViewValidation::culledCasters+=outside&&shadowViewValidation::cull;
+  if(!shadowViewValidation::cull)return false;
+#else
+  (void)cluster;
+#endif
+  return outside;
+}
 // One light-space map is generated before all surface/eye passes. It never owns
 // or retains scene pointers, model buffers, animation poses or compositor images.
 class SpotShadows:public SpotShadowFrame {
@@ -121,11 +162,16 @@ public:
    ModelCulling culling;
    for(const auto &object:scene.objects)if(object.visible){
     const auto &asset=scene.assets[size_t(object.asset)-1];
+    // Each view draws only casters, and clusters of large static casters, inside it.
+    float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
+    const auto &bounds=object.animationPose?object.animationPose->geometry:asset;
+    if(skipShadowGeometry(faces[face],shadowCorners(object,rotation,bounds),false))continue;
     glUniform3f(location("offset"),object.x,object.y,object.z);glUniform1f(location("modelScale"),object.scale);glUniform1f(location("pitch"),object.pitch);glUniform1f(location("yaw"),object.yaw);glUniform1f(location("roll"),object.roll);
     for(size_t i=0;i<asset.primitives.size();i++){const auto &part=asset.primitives[i];if(part.alphaMode==2)continue;
      culling.material(part,object.animationPose.get());glUniform1i(location("alphaMode"),part.alphaMode);glUniform1f(location("alpha"),part.factor[3]);glUniform1f(location("alphaCutoff"),part.alphaCutoff);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
      if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);}
-     else if(object.animationPose)drawPosePrimitive(part,*object.animationPose,i);else drawModelPrimitive(part,0,0);
+     else if(object.animationPose)drawPosePrimitive(part,*object.animationPose,i);
+     else if(!drawDepthClusters(part,[&](const DepthCluster &cluster){return !skipShadowGeometry(faces[face],shadowCorners(object,rotation,cluster),true);}))drawModelPrimitive(part,0,0);
     }
    }
   }

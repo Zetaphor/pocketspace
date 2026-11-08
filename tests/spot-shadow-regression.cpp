@@ -40,6 +40,26 @@ int main(int argc,char **argv){
     assert(std::abs(clip[0])<1e-5&&std::abs(clip[1])<1e-5&&clip[3]>.99f&&std::abs(clip[2]/clip[3])<1);
    }
   }
+  {
+   // Per-view caster and cluster culling must leave the map exact for a large
+   // clustered caster, while skipping work outside the light views.
+   ModelAsset sheet;sheet.primitives.resize(1);auto &part=sheet.primitives[0];constexpr int grid=80;
+   auto corner=[&](int x,int y){const float px=x*1.f/grid-.5f,py=y*1.f/grid-.5f;part.vertices.insert(part.vertices.end(),{px,py,.04f*std::sin(9*px)*std::cos(7*py),0,0});};
+   for(int y=0;y<grid;y++)for(int x=0;x<grid;x++){corner(x,y);corner(x+1,y);corner(x+1,y+1);corner(x,y);corner(x+1,y+1);corner(x,y+1);}
+   part.vertexCount=GLsizei(part.vertices.size()/5);part.rgba={255,255,255,255};
+   for(int axis=0;axis<3;axis++){sheet.low[axis]=axis==2?-.04f:-.5f;sheet.high[axis]=axis==2?.04f:.5f;}
+   uploadModel(sheet);assert(part.depthClusters.indexBuffer);
+   const auto objects=r.scene.objects;const auto shadow=r.scene.lights[0].shadow;r.scene.assets.push_back(std::move(sheet));
+   Object caster=objects[1];caster.id=3;caster.asset=int(r.scene.assets.size());caster.scale=.6f;r.scene.objects={objects[0],caster};
+   r.scene.lights[0].shadow.maxTriangles=1000000;r.scene.lights[0].shadow.enabled=false;auto unshadowed=r.renderSet({1},{0,0,-1.2f},0);r.scene.lights[0].shadow.enabled=true;
+   shadowViewValidation::cull=false;auto whole=r.renderSet({1},{0,0,-1.2f},0);shadowViewValidation::cull=true;assert(r.spotShadows.active);
+   shadowViewValidation::clusterTests=shadowViewValidation::drawnClusters=shadowViewValidation::culledCasters=0;
+   auto culled=r.renderSet({1},{0,0,-1.2f},0);assert(r.spotShadows.active);
+   printf("SHADOW culling clusters=%llu drawn=%llu culled_casters=%llu\n",(unsigned long long)shadowViewValidation::clusterTests,(unsigned long long)shadowViewValidation::drawnClusters,(unsigned long long)shadowViewValidation::culledCasters);
+   assert(whole==culled&&darker(unshadowed,culled)>100&&shadowViewValidation::clusterTests>0);
+   if(point)assert(shadowViewValidation::drawnClusters<shadowViewValidation::clusterTests&&shadowViewValidation::culledCasters>0);
+   r.scene.objects=objects;r.scene.lights[0].shadow=shadow;deleteModel(r.scene.assets.back());r.scene.assets.pop_back();
+  }
   for(int eye=0;eye<2;eye++){printf("STEREO eye=%d\n",eye);fflush(stdout);
    r.scene.lights[0].shadow.enabled=false;auto lit=r.renderSet({1},{.1f,.1f,-1.2f},eye);r.scene.lights[0].shadow.enabled=true;assert(darker(lit,r.renderSet({1},{.1f,.1f,-1.2f},eye))>100);
   }

@@ -652,8 +652,9 @@ Options have the [spotlight defaults and ranges](#spotlight-shadows), except:
 | `maxGpuMs` | Applies to all six views together, using the existing asynchronous 24-valid-sample average watchdog. |
 
 `center`, `size` and `depth` are directional-only and rejected. At most 128 visible
-caster objects are allowed, as for the other types. Every visible opaque/masked
-caster is submitted to each face; there is no per-face caster culling. Both eyes
+caster objects are allowed, as for the other types. Each face draws only the
+casters, and the parts of large static casters, that fall inside it; the triangle
+budget still counts every caster in all six views. Both eyes
 share the completed map. Light position and attachment translation move it;
 attachment rotation rotates its local position offset, not the omnidirectional
 illumination pattern. Near/far depth uses the light's range and shadow near.
