@@ -246,12 +246,12 @@ def running_scripts(cli):
     return [i for i in reply['result']['instances'] if i['instanceId'] != 0 and i['state'] == 'running']
 
 
-def start_demos(cli, names):
+def start_demos(cli, names, catalog):
     started = []
     for name in names:
-        _, reply = cli('start', f'demos/{name}.js')
+        _, reply = cli('start', f'{catalog}/{name}.js')
         started.append(reply['result'])
-        print(f'  started demos/{name}.js as instance {reply["result"]["instanceId"]}', flush=True)
+        print(f'  started {catalog}/{name}.js as instance {reply["result"]["instanceId"]}', flush=True)
     return started
 
 
@@ -338,7 +338,7 @@ def report(summaries, meta):
     lines = ['# Demo benchmark', '',
              f'Captured {meta["date"]} at commit `{meta["commit"]}`{" (with uncommitted changes)" if meta["dirty"] else ""}: '
              f'{meta["settle"]} s settle, {meta["samples"]} one-second samples, `stats` every 2 s, '
-             f'{meta["repeat"]} run(s) of each engine capture.', '',
+             f'{meta["repeat"]} run(s) of each engine capture, scripts from `{meta["catalog"]}/`.', '',
              'Catalog demos with interactive panels capture pointer input while they run. '
              'The sampler itself uses about 5% of one core, included in System CPU.', '',
              '| Capture | FPS (min–max) | Engine CPU | Engine RSS (PSS) | Engine GPU mem (private) | GPU est. | '
@@ -388,6 +388,7 @@ def main():
     parser.add_argument('--demos', default=','.join(DEMOS), help='comma-separated demo names (default: all eight)')
     parser.add_argument('--settle', type=int, default=15, help='seconds to wait before sampling (default 15)')
     parser.add_argument('--samples', type=int, default=30, help='one-second samples per capture (default 30)')
+    parser.add_argument('--catalog', default='demos', help='catalog folder holding the demo scripts (default demos)')
     parser.add_argument('--gap', type=int, default=8, help='seconds after stopping a demo before the next (default 8)')
     parser.add_argument('--cli', default=str(ROOT / 'build/pocketspace-cli'), help='pocketspace-cli path')
     parser.add_argument('--out', help='output directory (default build/benchmarks/<timestamp>)')
@@ -407,7 +408,7 @@ def main():
     out = pathlib.Path(args.out) if args.out else ROOT / 'build/benchmarks' / stamp
     meta = {'date': datetime.datetime.now().isoformat(timespec='seconds'), 'commit': git('rev-parse', '--short', 'HEAD'),
             'dirty': bool(git('status', '--porcelain', '--untracked-files=no')), 'settle': args.settle,
-            'samples': args.samples, 'repeat': args.repeat, 'captures': captures, 'demos': demos}
+            'samples': args.samples, 'catalog': args.catalog, 'repeat': args.repeat, 'captures': captures, 'demos': demos}
 
     engine_up = cli('list', check=False)[0] == 0
     if engine_up and running_scripts(cli):
@@ -434,12 +435,12 @@ def main():
                 results.append(capture('idle', label('idle'), cli, True, args.settle, args.samples))
             if 'each' in captures:
                 for name in demos:
-                    live += start_demos(cli, [name])
+                    live += start_demos(cli, [name], args.catalog)
                     results.append(capture(name, label(name), cli, True, args.settle, args.samples))
                     stop_demos(cli, live)
                     time.sleep(args.gap)
             if 'all' in captures:
-                live += start_demos(cli, demos)
+                live += start_demos(cli, demos, args.catalog)
                 results.append(capture('all', label('all'), cli, True, args.settle, args.samples))
                 stop_demos(cli, live)
                 time.sleep(args.gap)
