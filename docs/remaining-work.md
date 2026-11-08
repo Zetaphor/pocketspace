@@ -65,8 +65,9 @@ describes.
 - Reduce the remaining external-occluder depth cost. With all demos it was about
   half of the engine's GPU time per frame before clustered depth draws, which
   recovered about 40% of it ([depth-clusters.md](../tests/results/depth-clusters.md)).
-  Small meshes still draw whole, such as desk-toys' cradle balls (46 depth draws
-  per frame). Instanced depth draws or a lower cluster threshold are candidates.
+  Primitives under 4,096 triangles still draw whole, such as desk-toys' cradle
+  balls; a 1,024-triangle threshold drew fewer triangles but measured slower.
+  Instanced depth draws of repeated small occluders are a remaining candidate.
 - Reduce compositor overlay cost. Grouping each demo's small objects cut
   compositor GPU busy by about six points, but the groups drew more pixels and
   used about 220 MiB more GPU memory, and some were limited by the group budget.

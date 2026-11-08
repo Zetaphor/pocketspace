@@ -81,6 +81,23 @@ does not change.
 - The user confirmed in the headset that occlusion looked correct, including
   lighting-studio's turntable pieces passing in front of each other.
 
-Remaining depth cost comes from meshes below the cluster threshold, such as
-desk-toys' cradle balls (46 depth draws per frame), and clusters that do overlap
-their target.
+## Cluster threshold
+
+After [shadow view culling](shadow-view-culling.md), a temporary draw counter
+showed about 586k depth triangles per frame with all demos, against 364k for
+color: 248k from ToyCar clusters that overlap their targets, and about 290k from
+primitives below 4,096 triangles drawn whole (cradle balls, material spheres,
+basketballs, lantern). Lowering the threshold to 1,024 triangles cut depth
+triangles to about 470k, but was slower in alternating three-run comparisons
+(measured 2026-11-07, all demos):
+
+| | 4,096 triangles (kept) | 1,024 triangles |
+|---|---|---|
+| FPS | 49.5 (48.7–50.7) | 46.2 (45.5–47.4) |
+| Engine GPU busy | 49.4% (48.9–49.6) | 50.2% (49.9–51.1) |
+| Engine GPU time per frame | 10.0 ms | 10.9 ms |
+| Engine CPU (one core = 100%) | 59.0% (58.0–60.2) | 54.6% (52.9–57.0) |
+
+Splitting small primitives into several draws costs more than the vertex work it
+saves, so the threshold stays at 4,096 triangles. Remaining depth cost comes from
+those small primitives and from clusters that do overlap their target.
