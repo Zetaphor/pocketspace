@@ -55,6 +55,17 @@ reference, and shrink only when the crop stays below 60% of the allocation for
 45 frames. After the initial settling of seven surfaces, no surface reallocated
 while the turntable turned, and the user confirmed the flashes were gone.
 
+A later upper-bound test capped independent surfaces at the same 1.25 times
+display density with the flashing in-place resize, keeping their physical width
+and lowering only pixel count. With all eight demos (three runs each, 2026-11-07,
+after [depth clusters](depth-clusters.md) and
+[shadow view culling](shadow-view-culling.md)) it measured 51.2 FPS (45.9–57.2)
+against 49.5 (48.7–50.7) uncapped, engine GPU time 9.4 against 10.0 ms per frame,
+and no consistent change in GPU estimate (553–840 MiB against about 575 MiB).
+Most independent objects in the demos are within about a meter, where display
+density is close to their reference density, so a flash-free independent resize
+was not built for this.
+
 ## Lighting studio CPU
 
 A `perf` profile of lighting-studio showed 14% of engine samples in
