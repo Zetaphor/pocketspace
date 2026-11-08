@@ -80,10 +80,10 @@ describes.
   still saves and restores GL state with about 25 `glGet*` calls and polls its
   timer query every frame, which can force driver-thread syncs on Zink, and it
   redraws the map when neither the light nor any caster moved.
-- Cut redundant GL calls. The PBR path sets about 60 uniforms per draw,
-  including the environment's nine SH coefficients and light arrays; cache last
-  values per program and set per-scene values once. Count and remove avoidable
-  `glGet*` and query polls on the render path.
+- Remove the remaining avoidable `glGet*` calls and query polls on the render
+  path. PBR uniform sets are now cached
+  ([gl-call-reduction.md](../tests/results/gl-call-reduction.md)); the unlit model
+  program still sets every uniform per draw.
 
 ## Conditional performance work
 

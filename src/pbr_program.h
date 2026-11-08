@@ -2,6 +2,7 @@
 #include "model_shaders.h"
 #include "spot_shadow_settings.h"
 #include <cmath>
+#include <cstring>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -9,7 +10,7 @@
 class PbrProgram {
  GLuint program=0;
  bool depthSupport=false;
- mutable bool sheenTexturesBound=false,shadowBound=false;
+ mutable bool shadowBound=false;
 #ifdef SF_TEST_HOOKS
  const char *testLightLoop=nullptr; // Replaces the point/spot loop for reference pixels.
 #endif
@@ -17,13 +18,36 @@ class PbrProgram {
  mutable std::array<float,104> pointPayload{};
  // Keyed by name pointer: names must be string literals (static storage), so
  // per-draw lookups neither allocate nor compare strings.
- mutable std::unordered_map<const char*,GLint> locations;
- GLint location(const char *name)const{
-  auto [it,fresh]=locations.try_emplace(name,-1);if(fresh)it->second=glGetUniformLocation(program,name);return it->second;
+ // Each entry also keeps the value last set: a program keeps its uniform values
+ // and only this class sets them, so an unchanged value needs no GL call.
+ struct Uniform {GLint location=-1;std::vector<uint32_t> value;};
+ mutable std::unordered_map<const char*,Uniform> uniforms;
+ Uniform &uniform(const char *name)const{
+  auto [it,fresh]=uniforms.try_emplace(name);if(fresh)it->second.location=glGetUniformLocation(program,name);return it->second;
  }
- void scalar(const char *name,float v)const{glUniform1f(location(name),v);}
- void vector(const char *name,const float *v)const{glUniform3fv(location(name),1,v);}
- void integer(const char *name,int v)const{glUniform1i(location(name),v);}
+ GLint location(const char *name)const{return uniform(name).location;}
+ // Returns the location when the value differs bit for bit from the last one set.
+ template<class T> GLint changed(const char *name,const T *v,size_t count)const{
+  auto &u=uniform(name);if(u.location<0)return -1;
+  const size_t words=count*sizeof(T)/sizeof(uint32_t);
+  if(u.value.size()==words&&std::memcmp(u.value.data(),v,words*sizeof(uint32_t))==0)return -1;
+  u.value.resize(words);std::memcpy(u.value.data(),v,words*sizeof(uint32_t));return u.location;
+ }
+ void scalar(const char *name,float v)const{if(GLint l=changed(name,&v,1);l>=0)glUniform1f(l,v);}
+ void vector(const char *name,const float *v)const{if(GLint l=changed(name,v,3);l>=0)glUniform3fv(l,1,v);}
+ void integer(const char *name,int v)const{if(GLint l=changed(name,&v,1);l>=0)glUniform1i(l,v);}
+ void vectors4(const char *name,const float *v,int count)const{if(GLint l=changed(name,v,size_t(count)*4);l>=0)glUniform4fv(l,count,v);}
+ void vectors3(const char *name,const float *v,int count)const{if(GLint l=changed(name,v,size_t(count)*3);l>=0)glUniform3fv(l,count,v);}
+ void floats(const char *name,const float *v,int count)const{if(GLint l=changed(name,v,size_t(count));l>=0)glUniform1fv(l,count,v);}
+ void pair(const char *name,float a,float b)const{const float v[2]={a,b};if(GLint l=changed(name,v,2);l>=0)glUniform2f(l,a,b);}
+ void matrices3(const char *name,const float *v,int count)const{if(GLint l=changed(name,v,size_t(count)*9);l>=0)glUniformMatrix3fv(l,count,GL_FALSE,v);}
+ void matrices4(const char *name,const float *v,int count)const{if(GLint l=changed(name,v,size_t(count)*16);l>=0)glUniformMatrix4fv(l,count,GL_FALSE,v);}
+ // Texture units 2-10 bound to a nonzero texture since the last release.
+ mutable unsigned boundUnits=0;
+ void bind(int unit,GLenum target,GLuint texture)const{
+  glActiveTexture(GL_TEXTURE0+unit);glBindTexture(target,texture);
+  if(texture)boundUnits|=1u<<unit;else boundUnits&=~(1u<<unit);
+ }
 public:
 #ifdef SF_TEST_HOOKS
  bool initWithLightLoop(const char *loop,bool depth=false){testLightLoop=loop;return init(depth);}
@@ -279,7 +303,7 @@ void main(){
   }
   if(pointCount==count&&pointPayload==payload)return;
   integer("pointLightCount",count);
-  if(count){glUniform4fv(location("pointPositionRange"),count,payload.data());glUniform4fv(location("pointColorIntensity"),count,payload.data()+32);glUniform4fv(location("spotDirectionOuter"),count,payload.data()+64);glUniform1fv(location("spotInner"),count,payload.data()+96);}
+  if(count){vectors4("pointPositionRange",payload.data(),count);vectors4("pointColorIntensity",payload.data()+32,count);vectors4("spotDirectionOuter",payload.data()+64,count);floats("spotInner",payload.data()+96,count);}
   pointCount=count;pointPayload=payload;
  }
  void shadows(const SpotShadowFrame &frame,std::span<const ResolvedPointLight> lights,float x=0,float y=0,float z=0)const{
@@ -287,15 +311,15 @@ void main(){
   integer("shadowLightIndex",index);
   if(index<0)return;
   integer("pointShadowEnabled",frame.point);
-  if(frame.point){glUniformMatrix4fv(location("pointShadowMatrices[0]"),6,GL_FALSE,frame.faces[0].data());vector("pointShadowPosition",frame.position.data());}
-  integer("spotShadowMap",11);glUniformMatrix4fv(location("spotShadowMatrix"),1,GL_FALSE,frame.matrix.data());glUniform3f(location("spotShadowOrigin"),x,y,-z);scalar("shadowBias",frame.bias);scalar("shadowNormalBias",frame.normalBias);scalar("shadowTexel",1.f/frame.resolution);
+  if(frame.point){matrices4("pointShadowMatrices[0]",frame.faces[0].data(),6);vector("pointShadowPosition",frame.position.data());}
+  integer("spotShadowMap",11);matrices4("spotShadowMatrix",frame.matrix.data(),1);{const float origin[3]={x,y,-z};vector("spotShadowOrigin",origin);}scalar("shadowBias",frame.bias);scalar("shadowNormalBias",frame.normalBias);scalar("shadowTexel",1.f/frame.resolution);
   glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,frame.texture);glActiveTexture(GL_TEXTURE0);shadowBound=true;
  }
  void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
  }
  void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0,bool depthOnly=false)const{
-  glUniform4fv(location("factor"),1,p.factor);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
+  vectors4("factor",p.factor,1);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
   if(depthSupport){
     integer("depthOnly",depthOnly);
     if(depthOnly){
@@ -308,17 +332,17 @@ void main(){
   vector("sheenColor",p.sheen);scalar("sheenRoughness",p.sheenRoughness);
   const bool hasSheen=!p.materialUnlit&&asset.sheenLookup&&std::any_of(p.sheen,p.sheen+3,[](float c){return c>0;});
   integer("sheenEnabled",hasSheen);
-  if(hasSheen){sheenTexturesBound=true;asset.sheenLookup->upload();glActiveTexture(GL_TEXTURE10);glBindTexture(GL_TEXTURE_2D,asset.sheenLookup->texture);}
+  if(hasSheen){asset.sheenLookup->upload();bind(10,GL_TEXTURE_2D,asset.sheenLookup->texture);}
   integer("materialUnlit",p.materialUnlit);integer("doubleSided",p.doubleSided);
   const auto &l=asset.lighting;vector("lightDirection",l.direction);vector("lightColor",l.color);scalar("intensity",l.intensity);scalar("ambient",l.ambient);scalar("exposure",l.exposure);
   const char *samplers[]={"normalMap","metalRoughMap","occlusionMap","emissiveMap","sheenColorMap","sheenRoughnessMap"},*present[]={"hasNormal","hasMetalRough","hasOcclusion","hasEmissive","hasSheenColor","hasSheenRoughness"},*uv[]={"normalUV","metalRoughUV","occlusionUV","emissiveUV","sheenColorUV","sheenRoughnessUV"};
-  for(int i=0;i<6;i++){const int unit=i<4?i+2:i+4;integer(samplers[i],unit);integer(present[i],p.maps[i].texture!=0&&(i<4||hasSheen));if(i>=4&&!hasSheen)continue;glUniformMatrix3fv(location(uv[i]),1,GL_FALSE,p.maps[i].uv);glActiveTexture(GL_TEXTURE0+unit);glBindTexture(GL_TEXTURE_2D,p.maps[i].texture);}
+  for(int i=0;i<6;i++){const int unit=i<4?i+2:i+4;integer(samplers[i],unit);integer(present[i],p.maps[i].texture!=0&&(i<4||hasSheen));if(i>=4&&!hasSheen)continue;matrices3(uv[i],p.maps[i].uv,1);if(p.maps[i].texture||boundUnits&(1u<<unit))bind(unit,GL_TEXTURE_2D,p.maps[i].texture);}
   integer("environmentMap",6);integer("environmentBrdf",7);integer("sheenColorMap",8);integer("sheenRoughnessMap",9);integer("sheenAlbedo",10);
   const auto &env=asset.environment;
   const bool enabled=!p.materialUnlit&&env&&l.environmentIntensity>0&&env->upload();integer("environmentEnabled",enabled);
   if(enabled){
-   scalar("environmentIntensity",l.environmentIntensity);glUniform2f(location("environmentRotationCS"),std::cos(l.environmentRotation),std::sin(l.environmentRotation));scalar("environmentMaxLod",float(env->levels-1));glUniform3fv(location("environmentDiffuse"),9,env->diffuse.data());
-   glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,env->cube);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,env->lut);
+   scalar("environmentIntensity",l.environmentIntensity);pair("environmentRotationCS",std::cos(l.environmentRotation),std::sin(l.environmentRotation));scalar("environmentMaxLod",float(env->levels-1));vectors3("environmentDiffuse",env->diffuse.data(),9);
+   bind(6,GL_TEXTURE_CUBE_MAP,env->cube);bind(7,GL_TEXTURE_2D,env->lut);
   }
   glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,p.texture);
   const auto *lod=modelLodLevel(geometry,lodLevel);
@@ -326,5 +350,10 @@ void main(){
   glEnableVertexAttribArray(8);glEnableVertexAttribArray(9);glEnableVertexAttribArray(10);
   glVertexAttribPointer(8,3,GL_FLOAT,GL_FALSE,9*sizeof(float),nullptr);glVertexAttribPointer(9,4,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(3*sizeof(float)));glVertexAttribPointer(10,2,GL_FLOAT,GL_FALSE,9*sizeof(float),(void*)(7*sizeof(float)));
  }
- void release()const{if(shadowBound){glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,0);shadowBound=false;}glActiveTexture(GL_TEXTURE6);glBindTexture(GL_TEXTURE_CUBE_MAP,0);glActiveTexture(GL_TEXTURE7);glBindTexture(GL_TEXTURE_2D,0);for(int i=2;i<6;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}if(sheenTexturesBound){for(int i=8;i<=10;i++){glActiveTexture(GL_TEXTURE0+i);glBindTexture(GL_TEXTURE_2D,0);}sheenTexturesBound=false;}glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);}
+ // Clears only the units this program bound, so later draws see units 2-11 empty.
+ void release()const{
+  if(shadowBound){glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,0);shadowBound=false;}
+  for(int unit=2;unit<=10;unit++)if(boundUnits&(1u<<unit))bind(unit,unit==6?GL_TEXTURE_CUBE_MAP:GL_TEXTURE_2D,0);
+  glActiveTexture(GL_TEXTURE0);glDisableVertexAttribArray(8);glDisableVertexAttribArray(9);glDisableVertexAttribArray(10);
+ }
 };

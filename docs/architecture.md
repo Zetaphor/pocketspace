@@ -323,8 +323,10 @@ counts without rebuilding geometry tests. No scene IDs or light settings change.
 [range-selection validation and measured comparison](../tests/results/light-work.md)
 and [cone-selection comparison](../tests/results/spotlight-cone-selection.md).
 PBR shaders receive positions relative to each surface in the same model axes as
-surface normals. Cached uniform payloads avoid repeated uploads at unchanged
-surface origins. The bounded forward loop adds GGX point illumination with smooth
+surface normals. Each PBR program keeps the value it last set for every uniform
+and skips sets that match bit for bit, which is exact because uniform values
+persist per program and only `PbrProgram` sets them. After a draw it unbinds only
+the texture units it bound ([GL call reduction](../tests/results/gl-call-reduction.md)). The bounded forward loop adds GGX point illumination with smooth
 range cutoff and inverse-square attenuation; disabled/zero-intensity lights are
 excluded. Unlit materials and external-depth draws bypass the lighting work.
 Spotlights additionally rotate/normalize emitted direction with attachments and
