@@ -669,7 +669,7 @@ int main(int argc,char **argv) {
         if(error!=vr::VROverlayError_None)fprintf(stderr,"[panel] submit id=%d error=%d\n",panelData.id,int(error));
       }
       const auto groups=surfaceMembers(script);
-      int shrinkBudget=2;std::set<int> culledSurfaces;
+      int shrinkBudget=2;auto &culledSurfaces=sceneRender.culledSurfaces;culledSurfaces.clear();
       for(auto &[id,surface]:surfaces){
         if(!surface->buffers[0].fbo)continue; // A handle reserved during this update initializes next frame.
         auto group=groups.find(id);if(group==groups.end())continue;
@@ -802,11 +802,21 @@ int main(int argc,char **argv) {
         }
         ready.push_back(surface.get());
       }
-      const auto finishStart=std::chrono::steady_clock::now();
-      const double frameRenderMs=std::chrono::duration<double,std::milli>(finishStart-renderStart).count();renderMs+=frameRenderMs;
-      glFinish();
-      const double frameFinishMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();finishMs+=frameFinishMs;
-      glBindFramebuffer(GL_FRAMEBUFFER,0);
+      renderMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-renderStart).count();
+      sceneRender.awaitingPublish=true;
+    }
+      return 0;
+    };
+    // One glFinish after every scene has rendered proves this frame's producer
+    // completion; publish each scene afterwards. Resolve state again: callbacks of
+    // later scenes ran in between, and stop/reload resets the scene's render state.
+    auto publishScene=[&](int scriptInstanceId){
+      const auto render=renderStates.find(scriptInstanceId);const auto resources=resourcesByInstance.find(scriptInstanceId);
+      if(render==renderStates.end()||resources==resourcesByInstance.end()||!render->second->awaitingPublish)return;
+      auto &sceneRender=*render->second;sceneRender.awaitingPublish=false;
+      auto &surfaces=resources->second->surfaces;
+      auto &pendingTileChange=sceneRender.pendingTileChange;auto &ready=sceneRender.ready;auto &regroupAfter=sceneRender.regroupAfter;
+      auto &culledSurfaces=sceneRender.culledSurfaces;auto &pbrVariants=sceneRender.pbrVariants;
       std::set<int> changingSubmissions;
       if(pendingTileChange){
         const auto parent=surfaces.find(pendingTileChange->parent),child=surfaces.find(pendingTileChange->child);
@@ -834,8 +844,6 @@ int main(int argc,char **argv) {
       }
       const int completedFrame=frame+1;
       if(completedFrame%900==0)fprintf(stdout,"[pbr] prepared=%zu ready_draws=%zu fallback_draws=%zu\n",pbrVariants.programs.size(),pbrVariants.readyDraws,pbrVariants.fallbackDraws);
-    }
-      return 0;
     };
     int sceneResult=0;
     for(int id:scriptRegistry.runningIds()){
@@ -854,6 +862,13 @@ int main(int argc,char **argv) {
     }
     if(sceneResult>0)return sceneResult;
     if(sceneResult<0)break;
+    {
+      const auto finishStart=std::chrono::steady_clock::now();
+      glFinish();
+      finishMs+=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-finishStart).count();
+      glBindFramebuffer(GL_FRAMEBUFFER,0);
+      for(int id:scriptRegistry.runningIds())publishScene(id);
+    }
     // Bus delivery runs after every scene's callbacks and update for this frame.
     scriptRegistry.dispatchBus();
     scriptRegistry.endFrame();

@@ -351,7 +351,7 @@ and include every retained generation in resource estimates. Removal/visibility
 changes may eliminate either pending tile; resolve keys again before submission.
 
 
-Normal builds use `glFinish` for GPU completion. The alternate fence-wait
+Normal builds use one `glFinish` per frame, after every scene has rendered and before any scene publishes; `publishScene` resolves render state again because later scenes' callbacks run in between, and stop/reload clears `awaitingPublish`. The alternate fence-wait
 experiment and its profiler were removed in commit `92f4137`. See the
 [contract review and comparison](../tests/results/gpu-sync.md) before revisiting
 synchronization: a producer-complete fence does not acknowledge compositor

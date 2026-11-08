@@ -441,7 +441,7 @@ handles. Their FBOs share one owned depth attachment; only color is imported by
 the compositor. Resource destruction releases imports, GL objects, descriptors,
 and GBM allocations through their owning surface.
 
-Production waits with `glFinish` before publishing rendered frames. This proves
+Production renders every running scene, waits once per frame with `glFinish`, then publishes each scene's rendered surfaces. This proves
 producer completion, not compositor consumption. Three buffers and successful
 visual checks are not a consumer-completion protocol; changing synchronization
 requires preserving the existing ownership contract rather than assuming frame

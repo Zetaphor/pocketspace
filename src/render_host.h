@@ -218,6 +218,8 @@ struct SceneRenderState {
   std::vector<ObjectLightSet> frameObjectLights;
   std::array<GrabState,2> grabs{};
   std::vector<Surface*> ready;
+  // Rendered this frame and waiting for the frame's single glFinish before submission.
+  bool awaitingPublish=false;std::set<int> culledSurfaces;
   std::chrono::steady_clock::time_point lastAnimationTick=std::chrono::steady_clock::now();
   std::optional<PendingTileChange> pendingTileChange;
   StableGroupAdjustment stableAdjustment;
@@ -227,7 +229,7 @@ struct SceneRenderState {
   std::chrono::steady_clock::time_point nextGroupResize=std::chrono::steady_clock::now();
   void resetScene(){
     spotShadows.reset();pbrVariants.clear();instancing.reset();
-    frameBounds={};frameObjectLights.clear();ready.clear();grabs={};
+    frameBounds={};frameObjectLights.clear();ready.clear();awaitingPublish=false;culledSurfaces.clear();grabs={};
     lastAnimationTick=std::chrono::steady_clock::now();
     pendingTileChange.reset();stableAdjustment.reset();
     adjustmentCursor=0;regroupAfter.clear();
