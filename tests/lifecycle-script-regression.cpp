@@ -11,6 +11,8 @@ int main(){
   auto write=[&](const char *source){std::ofstream(path)<<source;};
   ScriptHost host;ScopeExit cleanup{[&]{closeScript(host);currentScene=liveScene=nullptr;}};
   write("globalThis.received=0;onInputEvent(()=>received++);function update(){}");
+  // Freeing a script requests one heap trim from the host.
+  {ScriptHost other;assert(loadScript(other,path.string()));heapTrimPending=false;closeScript(other);assert(heapTrimPending&&!other.ctx);currentScene=liveScene=nullptr;}
   assert(loadScript(host,path.string()));
   JSContext *original=host.ctx;
   meshHoveredObject[0]=1;meshHitPoint[0]={.1f,.2f,.3f};

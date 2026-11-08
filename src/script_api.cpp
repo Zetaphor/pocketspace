@@ -1155,6 +1155,7 @@ void closeScript(ScriptHost &s){
   // The host keeps its identity, so a later restart loads as the same instance.
   const int instanceId=s.instanceId;std::string saveNamespace=std::move(s.saveNamespace);
   s={};s.instanceId=instanceId;s.saveNamespace=std::move(saveNamespace);
+  heapTrimPending=true;
 }
 static int interruptEvaluation(JSContext*,void*){
   if(!evaluation::deadline||std::chrono::steady_clock::now()<*evaluation::deadline)return 0;

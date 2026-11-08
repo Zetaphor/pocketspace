@@ -1,5 +1,6 @@
 // Frame loop for the VR host.
 #include "render_host.h"
+#include <malloc.h>
 int main(int argc,char **argv) {
   // CPU-only workload: no SteamVR session or graphics context required.
   if(argc>2&&std::string(argv[1])=="--benchmark-picking"){
@@ -910,6 +911,9 @@ int main(int argc,char **argv) {
       updateLaser(lasers[hand],laserShown[hand],visible&&headValid,hand,pose,
                   poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking,distance);
     }
+    // glibc keeps a freed scene's pages in its arenas; return them once per teardown.
+    // A worker thread would not help: allocations wait on the arena lock it holds.
+    if(heapTrimPending){heapTrimPending=false;malloc_trim(0);}
     ++frame;
     if(frame%900==0){
       const auto now=std::chrono::steady_clock::now();

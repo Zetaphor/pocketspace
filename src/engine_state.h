@@ -80,6 +80,9 @@ inline std::set<int> containerSubtree(const Scene &scene,int root){
  bool changed=true;while(changed){changed=false;for(auto [child,parent]:scene.containerParents)if(result.count(parent))changed|=result.insert(child).second;}
  return result;
 }
+// Set whenever a script's runtime and scene are freed. The host returns free heap
+// pages to the system once, after that frame's work.
+inline bool heapTrimPending=false;
 inline int objectSurfaceKey(const Object &object){return object.renderGroup?-(object.renderGroup+256*object.renderTile):object.id;}
 inline int surfaceRenderGroup(int key){return key<0?((-key-1)%256)+1:0;}
 inline Scene *currentScene=nullptr,*liveScene=nullptr;

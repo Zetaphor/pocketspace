@@ -480,6 +480,10 @@ while other members need them. Panel cleanup detaches the native overlay before
 releasing its texture. Successful reload retires the old scene, including shared
 assets, per-pose buffers/palettes, streamed instance state, and retained surface
 generations; failed reload leaves those active resources in place.
+After any script teardown, the frame ends with one `malloc_trim(0)`, returning the
+freed scene's heap pages to the system; it takes up to about 40 ms after a large
+scene. Driver GPU memory is not trimmed: Mesa keeps freed buffers for reuse and
+releases them later ([memory retention](../tests/results/memory-retention.md)).
 
 Ctrl-C, SIGTERM, and acknowledged SteamVR quit unwind native overlays, GPU/shared
 buffers, EGL, input, and OpenVR resources through scoped cleanup. The engine exits

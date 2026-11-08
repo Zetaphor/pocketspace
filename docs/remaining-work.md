@@ -84,10 +84,6 @@ describes.
   including the environment's nine SH coefficients and light arrays; cache last
   values per program and set per-scene values once. Count and remove avoidable
   `glGet*` and query polls on the render path.
-- Explain the memory kept after scripts stop: after every demo was stopped the
-  engine held 192 MiB RSS and about 685 MiB of driver GPU memory across two DRM
-  clients, against 62 MiB and 7 MiB fresh. Decide whether it is a leak, allocator
-  cache or retained surface generations, then fix or bound it.
 
 ## Conditional performance work
 
