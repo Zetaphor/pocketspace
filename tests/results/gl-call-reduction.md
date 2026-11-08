@@ -39,3 +39,11 @@ program. `gpu-skinning-regression` and the shadow regressions pass unchanged.
 The unlit model program was not given a value cache. Consecutive draws are mostly
 different objects, so their transform uniforms rarely repeat; only material values
 would be skipped, a saving below what these runs can resolve.
+
+## Shadow pass state save
+
+The shadow pass saves about 25 values with `glGet*` before drawing the map and
+restores them afterwards. Timed in lighting-studio over 300-frame windows on Mesa
+26.3 (Zink), the save took 0.011–0.016 ms and the restore 0.001–0.013 ms per
+frame, so these queries do not wait for the driver thread and were left as they
+are.

@@ -74,15 +74,10 @@ describes.
   Automatic grouping of objects under 0.6 m measured the same FPS with about
   190 MiB more GPU memory ([depth-clusters.md](../tests/results/depth-clusters.md#automatic-grouping)),
   because groups rendered more pixels than the members' independent crops.
-- Reduce the remaining shadow-pass overhead. Per-view culling cut
-  lighting-studio's point shadow from 0.72 to 0.18 ms GPU per frame
-  ([shadow-view-culling.md](../tests/results/shadow-view-culling.md)). The pass
-  still saves and restores GL state with about 25 `glGet*` calls and polls its
-  timer query every frame, which can force driver-thread syncs on Zink, and it
-  redraws the map when neither the light nor any caster moved.
-- Remove the remaining avoidable `glGet*` calls and query polls on the render
-  path, chiefly the shadow pass's state save above. PBR uniform sets and skinning
-  uniform lookups are now cached
+- Reuse the shadow map when neither the light nor any caster moved, for static
+  scenes. After per-view culling the pass costs 0.18 ms GPU per frame in
+  lighting-studio ([shadow-view-culling.md](../tests/results/shadow-view-culling.md)),
+  whose turntable moves casters every frame; its GL state save measured 0.014 ms
   ([gl-call-reduction.md](../tests/results/gl-call-reduction.md)).
 
 ## Conditional performance work
