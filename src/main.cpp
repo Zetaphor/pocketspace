@@ -779,6 +779,15 @@ int main(int argc,char **argv) {
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
               glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
+              // An external occluder draws only the clusters that pass the same test as
+              // the whole object; the rest cannot cover any of the target's fragments.
+              auto drawStatic=[&](const PrimitiveAsset &part){
+                if(pass<0&&!modelLodLevel(part,object.lodLevel)&&drawDepthClusters(part,[&](const DepthCluster &cluster){
+                  const auto world=worldBounds(object,cluster,anchor);
+                  return mayOcclude(id<0?projectWorldBounds(world,eyes[i],frameBounds.right,frameBounds.up,frameBounds.forward):projectWorldBounds(world,eyes[i],panelRight,panelUp,panelForward),targetBounds[i]);
+                }))return;
+                drawModelPrimitive(part,0,object.lodLevel);
+              };
               for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
                 const auto &part=asset.primitives[primitive];
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
@@ -794,7 +803,7 @@ int main(int argc,char **argv) {
                   if(pass>=0)activePbr.shadows(spotShadows,frameObjectLights[size_t(&object-script.scene.objects.data())].values(),surfaceX,surfaceY,surfaceZ);
                   activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
                   ScopeExit restorePbr{[&]{activePbr.release();glUseProgram(program);}};
-                  if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
+                  if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawStatic(part);
                   continue;
                 }
                 if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
@@ -805,7 +814,7 @@ int main(int argc,char **argv) {
                   continue;
                 }
                 if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);
-                else drawModelPrimitive(part,0,object.lodLevel);
+                else drawStatic(part);
               }
             };
             if(useInstancing){

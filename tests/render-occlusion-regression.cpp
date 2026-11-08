@@ -1,5 +1,6 @@
 // Actual GLES shaders and render passes, without opening an OpenVR session.
 #include "render_harness.h"
+#include <set>
 static void indexingValidation(){
   // UV seams and distinct float bit patterns must remain separate.
   const std::vector<float> source={0,0,0,0,0, 1,0,0,1,0, 0,1,0,0,1, 0,0,0,0,0, 0,0,0,1,1, -0.f,0,0,0,0};
@@ -15,6 +16,89 @@ static void indexingValidation(){
     else assert(!part.indexBuffer&&part.gpuVertexCount==part.vertexCount);
     auto buffer=part.indexBuffer;deleteModel(asset);assert(!part.vbo&&!part.indexBuffer&&!part.texture);if(buffer)assert(!glIsBuffer(buffer));
   }
+}
+// External depth clusters: every triangle once with its winding, conservative
+// bounds, upload eligibility and cleanup, and exact depth inside a culled region.
+static void depthClusters(){
+  constexpr int grid=80;
+  auto mesh=[&](bool distinct){
+    std::vector<float> vertices;
+    auto corner=[&](int x,int y,int k){const float px=x*2.f/grid-1,py=y*2.f/grid-1;vertices.insert(vertices.end(),{px,py,.3f*std::sin(3*px)*std::cos(2*py),distinct?float(k):0,0});};
+    int k=0;
+    for(int y=0;y<grid;y++)for(int x=0;x<grid;x++){corner(x,y,k++);corner(x+1,y,k++);corner(x+1,y+1,k++);corner(x,y,k++);corner(x+1,y+1,k++);corner(x,y+1,k++);}
+    return vertices;
+  };
+  {
+    const auto vertices=mesh(false);const size_t count=vertices.size()/5;
+    std::vector<uint32_t> ordered;auto clusters=buildDepthClusters(vertices.data(),5,nullptr,count,ordered);
+    assert(ordered.size()==count&&clusters.size()==(count/3+kDepthClusterTriangles-1)/kDepthClusterTriangles);
+    std::multiset<std::array<uint32_t,3>> before,after;
+    for(size_t t=0;t<count/3;t++){before.insert({uint32_t(t*3),uint32_t(t*3+1),uint32_t(t*3+2)});after.insert({ordered[t*3],ordered[t*3+1],ordered[t*3+2]});}
+    assert(before==after); // Same triangles, same winding.
+    uint32_t next=0;
+    for(const auto &cluster:clusters){
+      assert(cluster.first==next&&cluster.count%3==0&&cluster.count<=kDepthClusterTriangles*3);next+=cluster.count;
+      for(uint32_t i=cluster.first;i<cluster.first+cluster.count;i++)for(int axis=0;axis<3;axis++){const float value=vertices[ordered[i]*5+axis];assert(value>=cluster.low[axis]&&value<=cluster.high[axis]);}
+    }
+    assert(next==count);
+    std::vector<uint32_t> again;buildDepthClusters(vertices.data(),5,nullptr,count,again);assert(again==ordered);
+  }
+  const char *vertexSource="attribute vec3 p;void main(){gl_Position=vec4(p,1.);}";
+  const char *fragmentSource="precision mediump float;uniform vec4 color;void main(){gl_FragColor=color;}";
+  auto compile=[](GLenum type,const char *source){GLuint shader=glCreateShader(type);glShaderSource(shader,1,&source,nullptr);glCompileShader(shader);GLint ok=0;glGetShaderiv(shader,GL_COMPILE_STATUS,&ok);assert(ok);return shader;};
+  GLuint program=glCreateProgram();glAttachShader(program,compile(GL_VERTEX_SHADER,vertexSource));glAttachShader(program,compile(GL_FRAGMENT_SHADER,fragmentSource));
+  glBindAttribLocation(program,0,"p");glLinkProgram(program);GLint linked=0;glGetProgramiv(program,GL_LINK_STATUS,&linked);assert(linked);
+  constexpr int size=128;GLuint color,depth,fbo;
+  glGenRenderbuffers(1,&color);glBindRenderbuffer(GL_RENDERBUFFER,color);glRenderbufferStorage(GL_RENDERBUFFER,GL_RGBA8,size,size);
+  glGenRenderbuffers(1,&depth);glBindRenderbuffer(GL_RENDERBUFFER,depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,size,size);
+  glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,color);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,depth);
+  assert(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);
+  glUseProgram(program);glEnableVertexAttribArray(0);glViewport(0,0,size,size);
+  const GLint colorLocation=glGetUniformLocation(program,"color");
+  GLuint quad;glGenBuffers(1,&quad);const float plane[]={-1,-1,0,0,0, 1,-1,0,0,0, 1,1,0,0,0, -1,-1,0,0,0, 1,1,0,0,0, -1,1,0,0,0};
+  glBindBuffer(GL_ARRAY_BUFFER,quad);glBufferData(GL_ARRAY_BUFFER,sizeof(plane),plane,GL_STATIC_DRAW);
+  const int region[4]={30,50,40,40}; // x, y, width, height in pixels
+  const float x0=region[0]*2.f/size-1,x1=(region[0]+region[2])*2.f/size-1,y0=region[1]*2.f/size-1,y1=(region[1]+region[3])*2.f/size-1;
+  for(bool distinct:{false,true}){
+    ModelAsset asset;asset.primitives.resize(1);auto &part=asset.primitives[0];
+    part.vertices=mesh(distinct);part.vertexCount=GLsizei(part.vertices.size()/5);part.rgba={255,255,255,255};
+    uploadModel(asset);
+    assert(bool(part.indexBuffer)==!distinct); // Indexed and unindexed streams both get clusters.
+    const auto &set=part.depthClusters;assert(set.indexBuffer&&!set.clusters.empty());
+    assert(set.bytes==uint64_t(part.vertexCount)*(set.indexType==GL_UNSIGNED_SHORT?2:4));
+    assert(set.indexType==GL_UNSIGNED_SHORT); // Under 65,536 vertices either way.
+    auto image=[&](bool clustered,size_t &drawn){
+      glDisable(GL_SCISSOR_TEST);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+      glEnable(GL_SCISSOR_TEST);glScissor(region[0],region[1],region[2],region[3]);
+      glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);glColorMask(GL_FALSE,GL_FALSE,GL_FALSE,GL_FALSE);
+      drawn=0;
+      if(!clustered)drawModelPrimitive(part);
+      else assert(drawDepthClusters(part,[&](const DepthCluster &c){const bool keep=c.high[0]>=x0&&c.low[0]<=x1&&c.high[1]>=y0&&c.low[1]<=y1;drawn+=keep;return keep;}));
+      glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);glUniform4f(colorLocation,1,1,1,1);
+      glBindBuffer(GL_ARRAY_BUFFER,quad);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glDrawArrays(GL_TRIANGLES,0,6);
+      std::vector<unsigned char> pixels(size_t(region[2])*region[3]*4);
+      glReadPixels(region[0],region[1],region[2],region[3],GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+      glDisable(GL_SCISSOR_TEST);glDisable(GL_DEPTH_TEST);return pixels;
+    };
+    size_t all=0,kept=0;const auto full=image(false,all),culled=image(true,kept);
+    assert(full==culled&&kept>0&&kept<set.clusters.size()/2);
+    size_t covered=0;for(size_t i=0;i<full.size();i+=4)covered+=full[i]==0;
+    assert(covered>0&&covered<full.size()/4); // The mesh both hides and reveals the plane here.
+    const GLuint buffer=set.indexBuffer;deleteModel(asset);assert(!part.depthClusters.indexBuffer&&!glIsBuffer(buffer));
+  }
+  for(int variant=0;variant<3;variant++){
+    ModelAsset asset;asset.primitives.resize(1);auto &part=asset.primitives[0];
+    part.vertices=mesh(false);
+    if(variant==0)part.vertices.resize(size_t(kDepthClusterMinTriangles-1)*15); // Too small to benefit.
+    if(variant==1)part.alphaMode=2; // Blended primitives never occlude.
+    if(variant==2)asset.hasAnimation=true; // Deformed geometry uses its pose.
+    part.vertexCount=GLsizei(part.vertices.size()/5);part.rgba={255,255,255,255};
+    uploadModel(asset);assert(!part.depthClusters.indexBuffer&&part.depthClusters.clusters.empty());deleteModel(asset);
+  }
+  glDisableVertexAttribArray(0);glDeleteBuffers(1,&quad);glDeleteFramebuffers(1,&fbo);glDeleteRenderbuffers(1,&color);glDeleteRenderbuffers(1,&depth);glDeleteProgram(program);
+  glBindFramebuffer(GL_FRAMEBUFFER,0);glUseProgram(0);
+  puts("PASS depth clusters: every triangle once with winding, conservative bounds, exact region depth for indexed and unindexed streams, eligibility and cleanup");
 }
 static void sharedDepthLifetime(EGLDisplay display){
   std::array<Buffer,3> buffers;GLuint shared=0;
@@ -139,7 +223,7 @@ int main(){
   EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));
   vertexCachePixels();
   {
-    coherentGroupPlanes();indexingValidation();sharedDepthLifetime(display);
+    coherentGroupPlanes();indexingValidation();depthClusters();sharedDepthLifetime(display);
     Renderer renderer;int sample=0,ignored=0;int cases=0;
     for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{0,.1f,-1.2f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       auto old=renderer.render(1,head,eye,false,false,sample);assert(old[sample+3]>250);

@@ -279,7 +279,11 @@ depth for the modeled geometry. For each eye the renderer performs:
 
 1. Depth-only occlusion from visible opaque/masked objects outside this surface.
    Conservative bounds reject non-occluders and scissor work to padded target
-   bounds. Members are excluded from their own external occluder pass.
+   bounds. Members are excluded from their own external occluder pass. Static
+   opaque/masked primitives of at least 4,096 triangles keep a second index
+   buffer of their full-detail triangles in spatially sorted 256-triangle
+   clusters. At full detail such an occluder draws only the clusters whose
+   bounds pass the same test, merging adjacent runs into one draw.
 2. Opaque/masked color rendering for surface members with depth testing.
 3. Blended material rendering in preserved scene/primitive order.
 
@@ -499,6 +503,7 @@ Script-facing defaults, opt-ins and tradeoffs are collected in
 | Optimization | Production policy | Evidence |
 | --- | --- | --- |
 | Cropped stereo targets, bounds/scissor reuse, shared depth attachments per surface | Automatic; retain conservative fallback and sampling density | [Render passes](../tests/results/render-passes.md), [fast motion](../tests/results/fast-motion.md) |
+| Clustered external depth draws | Automatic for static opaque/masked primitives of at least 4,096 triangles at full detail | [Depth clusters](../tests/results/depth-clusters.md) |
 | Grouped rendering and adaptive tiles | Script-selected groups; subdivision/merge/rebalance opt-in | [Overlay comparison](../tests/results/overlay-comparison.md), [subdivision](../tests/results/auto-split.md), [regrouping](../tests/results/regroup.md) |
 | Exact indexed geometry | Automatic for supported shared geometry | [Maintainer contracts](agent-handoff.md) |
 | Vertex-cache reordering | Explicit asset opt-in | [Vertex cache](../tests/results/vertex-cache.md) |

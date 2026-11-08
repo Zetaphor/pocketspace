@@ -55,20 +55,23 @@ This roadmap contains only unfinished work. Shipped behavior belongs in the
 These come from the demo measurements in
 [demo-resource-usage.md](../tests/results/demo-resource-usage.md) and
 [display-density-cap.md](../tests/results/display-density-cap.md). With all eight
-demos the engine runs at 45 FPS and total GPU busy is 96% at the maximum clock, so
-gains need less GPU work. The device uses Zink on Turnip (no native freedreno GL
+demos the engine runs at about 48 FPS and total GPU busy is above 90% at the
+maximum clock, so gains need less GPU work. The device uses Zink on Turnip (no native freedreno GL
 in this Mesa build), and kernel tracing is on, so every GL call also costs a
 trace marker in Mesa's driver threads. Measure changes with
 `tools/benchmark-demos.py --repeat 3` as [the test guide](../tests/README.md#demo-benchmark)
 describes.
 
-- Reduce compositor overlay cost. With all demos the compositor's GPU busy rises
-  from 24% to 41% and its memory by about 400 MiB for 27 surfaces and about 11
-  panels. Evaluate grouping a scene's objects by default or automatically; groups
-  are now capped at display density, so distant groups are cheap.
-- Measure external-occluder depth passes. Each independent surface draws the
-  depth of every other potentially covering object per eye, which grows with
-  surfaces times objects. Consider tighter occluder selection or shared depth.
+- Reduce the remaining external-occluder depth cost. With all demos it was about
+  half of the engine's GPU time per frame before clustered depth draws, which
+  recovered about 40% of it ([depth-clusters.md](../tests/results/depth-clusters.md)).
+  Small meshes still draw whole, such as desk-toys' cradle balls (46 depth draws
+  per frame). Instanced depth draws or a lower cluster threshold are candidates.
+- Reduce compositor overlay cost. Grouping each demo's small objects cut
+  compositor GPU busy by about six points, but the groups drew more pixels and
+  used about 220 MiB more GPU memory, and some were limited by the group budget.
+  Automatic grouping would need to leave out large and near objects and keep
+  density; measure it against the same workload before adopting it.
 - Reduce the point-light shadow cost in lighting-studio: about 3 ms GPU per frame,
   and 80 FPS against 90 with shadows off. Per-face caster culling and skipping
   receiver lookups did not help. Next suspects are the `glGet*` state save and

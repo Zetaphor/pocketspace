@@ -161,6 +161,7 @@ and visual acceptance.
 | [results/gpu-sync.md](results/gpu-sync.md) | Completion synchronization contract review and measured comparisons. |
 | [results/telemetry-overhead.md](results/telemetry-overhead.md) | Watching for per-script resources events: no measurable FPS or CPU cost on a steady two-script workload. |
 | [results/demo-resource-usage.md](results/demo-resource-usage.md) | CPU, RAM, GPU memory and GPU load of the demos, together and one at a time, against SteamVR alone and the idle engine. |
+| [results/depth-clusters.md](results/depth-clusters.md) | Overlay count against external-occluder depth cost with all demos, and clustered depth draws: 39.5 to 47.8 FPS. |
 | [results/display-density-cap.md](results/display-density-cap.md) | Render-group density cap for basketball, independent-surface resize flashes, and lighting-studio CPU profile. |
 | [results/memory-reload.md](results/memory-reload.md) | Reload RSS growth attributed mainly to reusable free allocator space. |
 | [results/multi-script-soak.md](results/multi-script-soak.md) | Ten-minute two-script soak: FPS, CPU, RSS, heap and clean shutdown. |

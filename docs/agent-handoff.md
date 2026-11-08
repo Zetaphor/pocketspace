@@ -297,7 +297,16 @@ physics complete, before surface rendering. It transforms each visible object's
 current geometry bounds once per frame. Shared-plane groups reuse one angular
 projection per object/eye for layout and occluder tests; independent surfaces
 reuse world corners with their own projection axes. The shared cache basis must
-match `groupPlane`'s anchor-centered plane exactly.
+match `groupPlane`'s anchor-centered plane exactly; `FrameBoundsCache` keeps it in
+`right`, `up` and `forward` for the frame.
+
+External depth clusters (`PrimitiveAsset::depthClusters`) apply only where the
+object draws its full-detail stream (`modelLodLevel` returns null) without an
+animation pose. Each cluster box goes through `worldBounds` and the same
+projection and `mayOcclude` test as its object, in the cache basis for groups, so
+culling stays exact. The index buffer addresses `part.vbo` (unique vertices when
+indexed, the expanded stream otherwise), is counted in GPU estimates, and is
+released in `deleteModel`. A failed upload leaves the primitive drawing whole.
 
 Cache entries follow the current object-vector order. Resolve entries only for
 visible objects belonging to that snapshot, and never use them across script

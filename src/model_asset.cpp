@@ -4,6 +4,7 @@
 #include <new>
 #include <meshoptimizer.h>
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -286,6 +287,56 @@ static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::I
     lod.count=GLsizei(count);lod.error=error;
   }
 }
+std::vector<DepthCluster> buildDepthClusters(const float *positions,size_t stride,const uint32_t *indices,size_t indexCount,std::vector<uint32_t> &ordered){
+  const size_t triangles=indexCount/3;
+  auto index=[&](size_t i){return indices?indices[i]:uint32_t(i);};
+  auto position=[&](size_t i){return positions+size_t(index(i))*stride;};
+  std::vector<std::array<float,3>> centers(triangles);
+  float low[3]={INFINITY,INFINITY,INFINITY},high[3]={-INFINITY,-INFINITY,-INFINITY};
+  for(size_t t=0;t<triangles;t++)for(int axis=0;axis<3;axis++){
+    const float center=(position(t*3)[axis]+position(t*3+1)[axis]+position(t*3+2)[axis])/3;
+    centers[t][axis]=center;low[axis]=std::min(low[axis],center);high[axis]=std::max(high[axis],center);
+  }
+  auto spread=[](uint32_t v){v&=1023;v=(v|(v<<16))&0x030000FF;v=(v|(v<<8))&0x0300F00F;v=(v|(v<<4))&0x030C30C3;v=(v|(v<<2))&0x09249249;return v;};
+  std::vector<std::pair<uint32_t,uint32_t>> keys(triangles);
+  for(size_t t=0;t<triangles;t++){
+    uint32_t code=0;
+    for(int axis=0;axis<3;axis++){
+      const float extent=high[axis]-low[axis];
+      const float unit=extent>0?std::clamp((centers[t][axis]-low[axis])/extent,0.f,1.f):0.f;
+      code|=spread(uint32_t(unit*1023))<<axis;
+    }
+    keys[t]={code,uint32_t(t)};
+  }
+  std::sort(keys.begin(),keys.end());
+  ordered.clear();ordered.reserve(triangles*3);
+  std::vector<DepthCluster> clusters;clusters.reserve((triangles+kDepthClusterTriangles-1)/kDepthClusterTriangles);
+  for(size_t start=0;start<triangles;start+=kDepthClusterTriangles){
+    DepthCluster cluster;cluster.first=uint32_t(start*3);
+    for(int axis=0;axis<3;axis++){cluster.low[axis]=INFINITY;cluster.high[axis]=-INFINITY;}
+    for(size_t k=start;k<std::min(triangles,start+kDepthClusterTriangles);k++)for(int corner=0;corner<3;corner++){
+      const size_t source=size_t(keys[k].second)*3+corner;ordered.push_back(index(source));
+      for(int axis=0;axis<3;axis++){const float value=position(source)[axis];cluster.low[axis]=std::min(cluster.low[axis],value);cluster.high[axis]=std::max(cluster.high[axis],value);}
+    }
+    cluster.count=uint32_t(ordered.size())-cluster.first;clusters.push_back(cluster);
+  }
+  return clusters;
+}
+// Optional: a primitive without clusters draws whole in external depth passes.
+static void uploadDepthClusters(const ModelAsset &asset,PrimitiveAsset &part,const float *positions,size_t stride,const uint32_t *indices,size_t indexCount) try {
+  if(asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode==2||indexCount%3||indexCount/3<kDepthClusterMinTriangles)return;
+  std::vector<uint32_t> ordered;auto clusters=buildDepthClusters(positions,stride,indices,indexCount,ordered);
+  const uint32_t largest=*std::max_element(ordered.begin(),ordered.end());
+  const GLenum type=largest<65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
+  GLuint buffer=0;glGenBuffers(1,&buffer);if(!buffer)return;
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,buffer);
+  uint64_t bytes=0;
+  if(type==GL_UNSIGNED_SHORT){std::vector<uint16_t> packed(ordered.begin(),ordered.end());bytes=packed.size()*sizeof(uint16_t);glBufferData(GL_ELEMENT_ARRAY_BUFFER,GLsizeiptr(bytes),packed.data(),GL_STATIC_DRAW);}
+  else{bytes=ordered.size()*sizeof(uint32_t);glBufferData(GL_ELEMENT_ARRAY_BUFFER,GLsizeiptr(bytes),ordered.data(),GL_STATIC_DRAW);}
+  GLint allocated=0;glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER,GL_BUFFER_SIZE,&allocated);
+  if(allocated<0||uint64_t(allocated)!=bytes){glDeleteBuffers(1,&buffer);return;}
+  part.depthClusters={buffer,type,bytes,std::move(clusters)};
+} catch(const std::bad_alloc&){}
 // Static PBR indexing keeps every shader input in vertex identity and requires
 // cache ordering; plain indexing measured slower.
 static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
@@ -337,6 +388,7 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
 #endif
   part.vbo=positionBuffer;part.surfaceVbo=surfaceBuffer;part.indexBuffer=indexBuffer;
   part.gpuVertexCount=GLsizei(unique);part.indexType=type;published=true;
+  uploadDepthClusters(asset,part,indexed.vertices.data(),14,indexed.indices.data(),indexed.indices.size());
   return true;
 } catch(const std::bad_alloc&){return false;}
 #include "pbr_lod.h"
@@ -363,8 +415,10 @@ void uploadModel(ModelAsset &asset){
       if(part.indexType==GL_UNSIGNED_SHORT){std::vector<uint16_t> indices(indexed.indices.begin(),indexed.indices.end());glBufferData(GL_ELEMENT_ARRAY_BUFFER,indices.size()*sizeof(uint16_t),indices.data(),GL_STATIC_DRAW);}
       else glBufferData(GL_ELEMENT_ARRAY_BUFFER,indexed.indices.size()*sizeof(uint32_t),indexed.indices.data(),GL_STATIC_DRAW);
       uploadLod(asset,part,indexed);
+      uploadDepthClusters(asset,part,indexed.vertices.data(),5,indexed.indices.data(),indexed.indices.size());
     }else{
       glBufferData(GL_ARRAY_BUFFER,part.vertices.size()*sizeof(float),part.vertices.data(),GL_STATIC_DRAW);part.gpuVertexCount=part.vertexCount;
+      uploadDepthClusters(asset,part,part.vertices.data(),5,nullptr,size_t(part.vertexCount));
     }
     }
     if(asset.pbr){
@@ -400,6 +454,7 @@ void deleteModel(ModelAsset &asset){
     if(part.surfaceVbo)glDeleteBuffers(1,&part.surfaceVbo);part.surfaceVbo=0;
     for(auto &map:part.maps){if(map.texture)glDeleteTextures(1,&map.texture);map.texture=0;}
     if(part.skinVbo)glDeleteBuffers(1,&part.skinVbo);if(part.skinIbo)glDeleteBuffers(1,&part.skinIbo);part.skinVbo=part.skinIbo=0;
+    if(part.depthClusters.indexBuffer)glDeleteBuffers(1,&part.depthClusters.indexBuffer);part.depthClusters={};
     for(auto &lod:part.lod){if(lod.indexBuffer)glDeleteBuffers(1,&lod.indexBuffer);if(lod.vbo)glDeleteBuffers(1,&lod.vbo);if(lod.surfaceVbo)glDeleteBuffers(1,&lod.surfaceVbo);pbrLodBudget.release(lod.budgetBytes);lod={};}
     if(part.vbo)glDeleteBuffers(1,&part.vbo);if(part.indexBuffer)glDeleteBuffers(1,&part.indexBuffer);if(part.texture)glDeleteTextures(1,&part.texture);part.vbo=part.indexBuffer=part.texture=0;part.gpuVertexCount=0;}
   asset.uploaded=false;

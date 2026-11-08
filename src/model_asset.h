@@ -12,6 +12,15 @@
 #include "gpu_skinning.h"
 #include "rigid_batching.h"
 
+// External depth passes draw an occluder only where it can cover the target, so
+// large static primitives keep a second copy of their full-detail triangles in
+// spatially compact clusters. Indices address the primitive's own vertex buffer.
+constexpr size_t kDepthClusterTriangles=256,kDepthClusterMinTriangles=4096;
+struct DepthCluster {float low[3]{},high[3]{};uint32_t first=0,count=0;}; // first/count in indices
+struct DepthClusters {GLuint indexBuffer=0;GLenum indexType=GL_UNSIGNED_INT;uint64_t bytes=0;std::vector<DepthCluster> clusters;};
+// Sorts triangles along a Morton curve of their centroids and splits them into
+// runs of kDepthClusterTriangles. `indices` may be null for an unindexed stream.
+std::vector<DepthCluster> buildDepthClusters(const float *positions,size_t stride,const uint32_t *indices,size_t indexCount,std::vector<uint32_t> &ordered);
 struct ModelLodLevel {GLuint indexBuffer=0;GLsizei count=0;float error=0;GLuint vbo=0,surfaceVbo=0;uint64_t budgetBytes=0;GLsizei gpuVertexCount=0;GLenum indexType=GL_UNSIGNED_INT;};
 struct MaterialMap {
   std::vector<unsigned char> rgba;
@@ -55,6 +64,7 @@ struct PrimitiveAsset {
   bool doubleSided=false;
   bool untextured=false;
   ModelLodLevel lod[2];
+  DepthClusters depthClusters;
   GLuint vbo=0,indexBuffer=0,texture=0;
   GLenum indexType=GL_UNSIGNED_INT;
   GLsizei vertexCount=0,gpuVertexCount=0; // expanded draw count; uploaded vertex count
@@ -90,6 +100,23 @@ void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.
 void drawModelPrimitive(const PrimitiveAsset &part,GLuint expandedVbo=0,int lodLevel=0);
+// Draws the full-detail clusters `visible` accepts, merging adjacent runs into
+// one draw. Returns false when the primitive has no clusters.
+template<class Visible> bool drawDepthClusters(const PrimitiveAsset &part,Visible &&visible){
+  const auto &set=part.depthClusters;if(!set.indexBuffer)return false;
+  glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
+  glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),(void*)(3*sizeof(float)));
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,set.indexBuffer);
+  const size_t size=set.indexType==GL_UNSIGNED_SHORT?2:4;
+  uint32_t first=0,count=0;
+  auto flush=[&]{if(count)glDrawElements(GL_TRIANGLES,GLsizei(count),set.indexType,(void*)(size_t(first)*size));count=0;};
+  for(const auto &cluster:set.clusters){
+    if(!visible(cluster))continue;
+    if(count&&first+count==cluster.first)count+=cluster.count;else{flush();first=cluster.first;count=cluster.count;}
+  }
+  flush();
+  return true;
+}
 
 inline bool rigidPoseCachingEnabled=true; // Comparison tests may force full CPU updates.
 struct PosePartState {

@@ -136,12 +136,14 @@ struct FrameBoundsCache {
   // Headset pixels per unit view tangent for this frame; zero when SteamVR has not
   // reported a projection, which leaves surfaces at their reference density.
   float displayFocal=0;
+  // Basis of the common projections; valid this frame when any object is grouped.
+  float right[3]{},up[3]{},forward[3]{};
   // Refresh only after callbacks, manipulation, animation and the physics barrier.
   // Object references and entries remain stable for the following render phase.
   void update(const Scene &source,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3]){
     scene=&source;entries.resize(source.objects.size());
     const bool grouped=std::any_of(source.objects.begin(),source.objects.end(),[](const Object &object){return object.visible&&object.renderGroup;});
-    auto plane=anchor;float right[3],up[3],forward[3];if(grouped)faceViewer(plane,anchor,head,right,up,forward);
+    auto plane=anchor;if(grouped)faceViewer(plane,anchor,head,right,up,forward);
     for(size_t i=0;i<source.objects.size();i++){
       const auto &object=source.objects[i];if(!object.visible)continue;
       const auto &geometry=object.animationPose?object.animationPose->geometry:source.assets[size_t(object.asset)-1];
@@ -287,6 +289,7 @@ inline uint64_t ownedGpuEstimate(const Scene &scene,const std::map<int,std::uniq
     if(part.texture)bytes+=uint64_t(part.width)*part.height*4;
     if(part.skinVbo)bytes+=part.skinVertices.size()*sizeof(float);
     if(part.skinIbo)bytes+=part.skinIndices.size()*sizeof(uint32_t);
+    bytes+=part.depthClusters.bytes;
     if(part.surfaceVbo)bytes+=uint64_t(part.gpuVertexCount)*9*sizeof(float);
     for(const auto &map:part.maps)if(map.texture){uint64_t w=map.width,h=map.height;for(;;){bytes+=w*h*4;if(w==1&&h==1)break;w=std::max(uint64_t(1),w/2);h=std::max(uint64_t(1),h/2);}}
   }

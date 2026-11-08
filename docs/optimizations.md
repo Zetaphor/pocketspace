@@ -86,7 +86,8 @@ transitions. A gain in one scene does not establish a universal best setting.
 ## Automatic optimizations
 
 Eligible GPU skinning, lazy exact picking, rigid-pose caching, adjacent rigid
-batching, target cropping, bounds/scissor reuse, panel submission caching and
+batching, target cropping, bounds/scissor reuse, clustered external depth draws,
+panel submission caching and
 physics sleeping/collider caches run automatically. They have no public script
 switch. The [architecture](architecture.md) explains their eligibility and
 pipeline contracts.
