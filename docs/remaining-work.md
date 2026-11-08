@@ -87,9 +87,6 @@ describes.
   engine held 192 MiB RSS and about 685 MiB of driver GPU memory across two DRM
   clients, against 62 MiB and 7 MiB fresh. Decide whether it is a leak, allocator
   cache or retained surface generations, then fix or bound it.
-- Fix GPU memory reporting: `src/runtime_stats.h` reads `drm-memory-total:`, but
-  the msm driver writes `drm-total-memory:`, so `vramBytes` is null and the
-  monitor demo shows `n/a`.
 
 ## Conditional performance work
 

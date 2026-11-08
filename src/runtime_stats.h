@@ -24,21 +24,35 @@ inline std::optional<uint64_t> residentBytes(){
   while(std::getline(input,line))if(line.starts_with("VmRSS:")){std::istringstream value(line.substr(6));uint64_t kb;if(value>>kb)return kb*1024;}
   return {};
 }
-// Count only an explicit driver total, once per DRM client. Region-specific
-// counters may overlap; do not invent a total by adding them together.
+// One DRM fdinfo memory value: an integer with an optional KiB or MiB unit.
+inline std::optional<uint64_t> drmMemoryBytes(const std::string &text){
+  std::istringstream value(text);uint64_t bytes;std::string unit;
+  if(!(value>>bytes))return std::nullopt;
+  if(!(value>>unit))return bytes;
+  if(unit=="KiB")return bytes*1024;
+  if(unit=="MiB")return bytes*1024*1024;
+  return std::nullopt;
+}
+// The driver's total for one DRM client file, from `drm-total-memory`, the key
+// for drivers with a single memory region such as msm. Region-specific counters
+// may overlap; do not invent a total by adding them together.
+struct DrmClientMemory {std::string client;std::optional<uint64_t> bytes;};
+inline DrmClientMemory drmClientMemory(std::istream &input){
+  DrmClientMemory result;std::string line,device;
+  while(std::getline(input,line)){
+    if(line.starts_with("drm-client-id:"))result.client=line.substr(14);
+    if(line.starts_with("drm-pdev:"))device=line.substr(9);
+    if(line.starts_with("drm-total-memory:"))result.bytes=drmMemoryBytes(line.substr(17));
+  }
+  if(!result.client.empty())result.client=device+":"+result.client;
+  return result;
+}
+// Count each DRM client once, however many descriptors share it.
 inline std::optional<uint64_t> gpuBytes(){
   uint64_t total=0;bool available=false;std::set<std::string> clients;std::error_code error;
   for(const auto &entry:std::filesystem::directory_iterator("/proc/self/fdinfo",error)){
-    std::ifstream input(entry.path());std::string line,client,device;std::optional<uint64_t> memory;
-    while(std::getline(input,line)){
-      if(line.starts_with("drm-client-id:"))client=line.substr(14);
-      if(line.starts_with("drm-pdev:"))device=line.substr(9);
-      if(line.starts_with("drm-memory-total:")){
-        std::istringstream value(line.substr(17));uint64_t bytes;std::string unit;
-        if(value>>bytes>>unit){if(unit=="KiB")bytes*=1024;else if(unit=="MiB")bytes*=1024*1024;else if(unit!="bytes"&&unit!="B")continue;memory=bytes;}
-      }
-    }
-    if(memory&&!client.empty()&&clients.insert(device+":"+client).second){total+=*memory;available=true;}
+    std::ifstream input(entry.path());const auto memory=drmClientMemory(input);
+    if(memory.bytes&&!memory.client.empty()&&clients.insert(memory.client).second){total+=*memory.bytes;available=true;}
   }
   return available?std::optional<uint64_t>(total):std::nullopt;
 }
