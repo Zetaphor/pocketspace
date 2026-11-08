@@ -101,3 +101,24 @@ triangles to about 470k, but was slower in alternating three-run comparisons
 Splitting small primitives into several draws costs more than the vertex work it
 saves, so the threshold stays at 4,096 triangles. Remaining depth cost comes from
 those small primitives and from clusters that do overlap their target.
+
+## Automatic grouping
+
+A build put every object created without a `renderGroup` option and below 0.6 m
+scale into one engine-owned group per scene, splitting into up to four tiles with
+the default policy; larger objects stayed independent. With all eight demos
+(three runs each, 2026-11-07, after shadow view culling):
+
+| | Independent by default | Automatic grouping |
+|---|---|---|
+| FPS | 49.5 (48.7–50.7) | 49.6 (49.2–50.4) |
+| Engine CPU (one core = 100%) | 59.0% | 40.2% |
+| Engine GPU busy | 49.4% | 59.3% |
+| Compositor GPU busy | 42.0% | 37.6% |
+| Engine GPU estimate | about 575 MiB | 759–789 MiB |
+
+Fewer overlays and depth passes saved compositor GPU and engine CPU time, but the
+groups rendered more pixels than the independent surfaces they replaced, so the
+GPU-bound frame rate did not change and GPU memory rose by about 190 MiB. The
+change was not adopted. Grouping that pays off would need group pixel counts no
+larger than the members' independent crops.

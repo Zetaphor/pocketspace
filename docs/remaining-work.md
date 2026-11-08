@@ -71,8 +71,9 @@ describes.
 - Reduce compositor overlay cost. Grouping each demo's small objects cut
   compositor GPU busy by about six points, but the groups drew more pixels and
   used about 220 MiB more GPU memory, and some were limited by the group budget.
-  Automatic grouping would need to leave out large and near objects and keep
-  density; measure it against the same workload before adopting it.
+  Automatic grouping of objects under 0.6 m measured the same FPS with about
+  190 MiB more GPU memory ([depth-clusters.md](../tests/results/depth-clusters.md#automatic-grouping)),
+  because groups rendered more pixels than the members' independent crops.
 - Reduce the remaining shadow-pass overhead. Per-view culling cut
   lighting-studio's point shadow from 0.72 to 0.18 ms GPU per frame
   ([shadow-view-culling.md](../tests/results/shadow-view-culling.md)). The pass
