@@ -329,6 +329,8 @@ int main() {
       mode='idle';target=null;restUntil=now-1;run(.02,1);
       if(mode!=='moving'||!inArea(target.x,target.z))throw Error('fox wander');
       for(let i=0;i<100;i++){const t=wanderTarget();if(!inArea(t.x,t.z))throw Error('fox wander area');}
+      // Rest first: a random wander target within 0.25 m of the spot would keep the gaze from replacing it.
+      mode='idle';target=null;restUntil=now+60000;
       // A gaze held on one floor spot for 0.4 s becomes the target; one outside the area does not.
       const spot={x:-.4,z:.5},origin={x:0,y:.2,z:-1};
       const gazeAt=p=>{const d=[p.x-origin.x,floor-origin.y,p.z-origin.z],l=Math.hypot(...d);
