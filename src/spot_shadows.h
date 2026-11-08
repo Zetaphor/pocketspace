@@ -53,6 +53,7 @@ inline bool skipShadowGeometry(const std::array<float,16> &view,const std::array
 class SpotShadows:public SpotShadowFrame {
  bool allocatedPoint=false;
  GLuint program=0,fbo=0,vao=0,query=0;
+ SkinUniforms skin;
  bool pending=false,blocked=false;int warmFrames=0;
  uint64_t revision=0;SpotShadowSettings settings;SpotShadowGpuBudget gpuBudget;
  PFNGLGENQUERIESEXTPROC gen=nullptr;PFNGLBEGINQUERYEXTPROC begin=nullptr;
@@ -89,7 +90,7 @@ void main(){if(alphaMode==1&&texture(material,t).a*alpha<alphaCutoff)discard;}
 )";
   auto shader=[](GLenum type,const char *source){GLuint s=glCreateShader(type);glShaderSource(s,1,&source,nullptr);glCompileShader(s);GLint ok=0;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);if(!ok){char log[2048];glGetShaderInfoLog(s,sizeof(log),nullptr,log);fprintf(stderr,"[shadow] %s\n",log);glDeleteShader(s);return GLuint(0);}return s;};
   GLuint v=shader(GL_VERTEX_SHADER,vertex.c_str()),f=shader(GL_FRAGMENT_SHADER,fragment);if(!v||!f){if(v)glDeleteShader(v);if(f)glDeleteShader(f);return false;}
-  program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);if(!ok){glDeleteProgram(program);program=0;return false;}
+  program=glCreateProgram();glAttachShader(program,v);glAttachShader(program,f);glLinkProgram(program);glDeleteShader(v);glDeleteShader(f);GLint ok=0;glGetProgramiv(program,GL_LINK_STATUS,&ok);if(!ok){glDeleteProgram(program);program=0;return false;}skin=SkinUniforms::of(program);
   bool timers=false;GLint count=0;glGetIntegerv(GL_NUM_EXTENSIONS,&count);for(int i=0;i<count;i++)if(std::strcmp(reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS,i)),"GL_EXT_disjoint_timer_query")==0)timers=true;
   if(timers){
    gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));available=reinterpret_cast<PFNGLGETQUERYOBJECTUIVEXTPROC>(eglGetProcAddress("glGetQueryObjectuivEXT"));result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));
@@ -169,7 +170,7 @@ public:
     glUniform3f(location("offset"),object.x,object.y,object.z);glUniform1f(location("modelScale"),object.scale);glUniform1f(location("pitch"),object.pitch);glUniform1f(location("yaw"),object.yaw);glUniform1f(location("roll"),object.roll);
     for(size_t i=0;i<asset.primitives.size();i++){const auto &part=asset.primitives[i];if(part.alphaMode==2)continue;
      culling.material(part,object.animationPose.get());glUniform1i(location("alphaMode"),part.alphaMode);glUniform1f(location("alpha"),part.factor[3]);glUniform1f(location("alphaCutoff"),part.alphaCutoff);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
-     if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);}
+     if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,skin)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(skin);}
      else if(object.animationPose)drawPosePrimitive(part,*object.animationPose,i);
      else if(!drawDepthClusters(part,[&](const DepthCluster &cluster){return !skipShadowGeometry(faces[face],shadowCorners(object,rotation,cluster),true);}))drawModelPrimitive(part,0,0);
     }

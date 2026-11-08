@@ -68,13 +68,13 @@ static void uploadSkinPose(ModelPose &pose){
  if(animationProfileFrame)animationProfileFrame->uploadMs+=animationProfileMs(start);
 #endif
 }
-bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,GLuint program){
+bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,const SkinUniforms &uniforms){
  if(!pose.gpuSkin)return false;
- glUniform1i(glGetUniformLocation(program,"skinEnabled"),1);glUniform1i(glGetUniformLocation(program,"skinPalette"),1);
- glUniform4f(glGetUniformLocation(program,"skinNormalize"),asset.center[0],asset.center[1],asset.center[2],asset.normalization);
+ glUniform1i(uniforms.enabled,1);glUniform1i(uniforms.palette,1);
+ glUniform4f(uniforms.normalize,asset.center[0],asset.center[1],asset.center[2],asset.normalization);
  glActiveTexture(GL_TEXTURE1);glBindTexture(GL_TEXTURE_2D,pose.skinTextures[part.skin]);glActiveTexture(GL_TEXTURE0);
  glBindBuffer(GL_ARRAY_BUFFER,part.skinVbo);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,13*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,13*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
  for(int a=6;a<=7;a++){glEnableVertexAttribArray(a);glVertexAttribDivisor(a,0);glVertexAttribPointer(a,4,GL_FLOAT,GL_FALSE,13*sizeof(float),reinterpret_cast<void*>((a==6?5:9)*sizeof(float)));}
  return true;
 }
-void unbindSkinPrimitive(GLuint program){glDisableVertexAttribArray(6);glDisableVertexAttribArray(7);glUniform1i(glGetUniformLocation(program,"skinEnabled"),0);}
+void unbindSkinPrimitive(const SkinUniforms &uniforms){glDisableVertexAttribArray(6);glDisableVertexAttribArray(7);glUniform1i(uniforms.enabled,0);}

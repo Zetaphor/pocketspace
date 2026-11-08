@@ -29,3 +29,13 @@ lights, environments, sheen and shadows, pass unchanged.
 - FPS was higher, but compositor GPU busy was nine points lower than in the
   reference runs, which suggests the view differed. The runs were not alternated
   with a rebuilt reference, so the FPS change is not attributed to this change.
+
+## Skinning and unlit draws
+
+GPU-skinned draws looked up three uniform locations by name per draw, in the color,
+external depth and shadow passes. Callers now pass `SkinUniforms` looked up once per
+program. `gpu-skinning-regression` and the shadow regressions pass unchanged.
+
+The unlit model program was not given a value cache. Consecutive draws are mostly
+different objects, so their transform uniforms rarely repeat; only material values
+would be skipped, a saving below what these runs can resolve.

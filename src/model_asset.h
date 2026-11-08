@@ -141,8 +141,13 @@ struct ModelPose {
 void evaluateModelPose(const ModelAsset &asset,const animation::Playback &state,ModelPose &pose);
 void uploadModelPose(ModelPose &pose);
 void prepareSkinPicking(const ModelAsset &asset,ModelPose &pose);
-bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,GLuint program);
-void unbindSkinPrimitive(GLuint program);
+// GPU skinning uniforms of one program, looked up once rather than per draw.
+struct SkinUniforms {
+  GLint enabled=-1,palette=-1,normalize=-1;
+  static SkinUniforms of(GLuint program){return {glGetUniformLocation(program,"skinEnabled"),glGetUniformLocation(program,"skinPalette"),glGetUniformLocation(program,"skinNormalize")};}
+};
+bool bindSkinPrimitive(const ModelAsset &asset,const PrimitiveAsset &part,const ModelPose &pose,const SkinUniforms &uniforms);
+void unbindSkinPrimitive(const SkinUniforms &uniforms);
 
 inline const ModelLodLevel *modelLodLevel(const PrimitiveAsset &part,int level){
   if(level==2&&(part.lod[1].indexBuffer||part.lod[1].vbo))return &part.lod[1];

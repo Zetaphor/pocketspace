@@ -81,9 +81,9 @@ describes.
   timer query every frame, which can force driver-thread syncs on Zink, and it
   redraws the map when neither the light nor any caster moved.
 - Remove the remaining avoidable `glGet*` calls and query polls on the render
-  path. PBR uniform sets are now cached
-  ([gl-call-reduction.md](../tests/results/gl-call-reduction.md)); the unlit model
-  program still sets every uniform per draw.
+  path, chiefly the shadow pass's state save above. PBR uniform sets and skinning
+  uniform lookups are now cached
+  ([gl-call-reduction.md](../tests/results/gl-call-reduction.md)).
 
 ## Conditional performance work
 

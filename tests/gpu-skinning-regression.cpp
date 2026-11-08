@@ -70,7 +70,7 @@ int main(int argc,char **argv){
    if(pass){glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(GL_FALSE);}else{glDisable(GL_BLEND);glDepthMask(GL_TRUE);}
    for(size_t p=0;p<asset.primitives.size();p++){
     const auto &part=asset.primitives[p];if((selected>=0&&int(p)!=selected)||(part.alphaMode==2)!=bool(pass))continue;glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform3fv(glGetUniformLocation(program,"sheen"),1,part.sheen);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
-    if(bindSkinPrimitive(asset,part,pose,program)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);}
+    if(bindSkinPrimitive(asset,part,pose,SkinUniforms::of(program))){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(SkinUniforms::of(program));}
     else drawPosePrimitive(part,pose,p);
    }
    }
@@ -90,7 +90,7 @@ int main(int argc,char **argv){
    for(size_t p=0;p<asset.primitives.size();p++){
     const auto &part=asset.primitives[p];const size_t unique=part.skinVertices.size()/13;
     GLuint feedback;glGenBuffers(1,&feedback);glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER,feedback);glBufferData(GL_TRANSFORM_FEEDBACK_BUFFER,unique*3*sizeof(float),nullptr,GL_STREAM_READ);glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER,0,feedback);
-    assert(bindSkinPrimitive(asset,part,gpu,program));glEnable(GL_RASTERIZER_DISCARD);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,GLsizei(unique));glEndTransformFeedback();glDisable(GL_RASTERIZER_DISCARD);unbindSkinPrimitive(program);
+    assert(bindSkinPrimitive(asset,part,gpu,SkinUniforms::of(program)));glEnable(GL_RASTERIZER_DISCARD);glBeginTransformFeedback(GL_POINTS);glDrawArrays(GL_POINTS,0,GLsizei(unique));glEndTransformFeedback();glDisable(GL_RASTERIZER_DISCARD);unbindSkinPrimitive(SkinUniforms::of(program));
     glBindBuffer(GL_TRANSFORM_FEEDBACK_BUFFER,feedback);const auto *result=static_cast<const float*>(glMapBufferRange(GL_TRANSFORM_FEEDBACK_BUFFER,0,unique*3*sizeof(float),GL_MAP_READ_BIT));assert(result);
     for(size_t i=0;i<part.skinIndices.size();i++)for(int a=0;a<3;a++){
      const float actual=result[part.skinIndices[i]*3+a],expected=cpu.geometry.primitives[p].vertices[i*5+a];assert(near(actual,expected));

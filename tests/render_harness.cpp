@@ -96,8 +96,8 @@ std::vector<unsigned char> Renderer::renderSet(const std::vector<int> &ids,physi
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;
           }
-          if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
+          if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,SkinUniforms::of(program))){
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(SkinUniforms::of(program));
           }else {
             if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive))continue;
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);

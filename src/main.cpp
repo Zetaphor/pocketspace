@@ -298,6 +298,7 @@ int main(int argc,char **argv) {
   };
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   glUniform1i(glGetUniformLocation(program,"material"),0);glEnable(GL_DEPTH_TEST);
+  const auto skinUniforms=SkinUniforms::of(program);
   const GLint centerLocation=glGetUniformLocation(program,"center");
   const GLint rightLocation=glGetUniformLocation(program,"right");
   const GLint upLocation=glGetUniformLocation(program,"up");
@@ -807,8 +808,8 @@ int main(int argc,char **argv) {
                   if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawStatic(part);
                   continue;
                 }
-                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,program)){
-                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(program);
+                if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,skinUniforms)){
+                  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(skinUniforms);
                   continue;
                 }
                 if(object.animationPose&&drawRigidBatch(asset,*object.animationPose,primitive)){
