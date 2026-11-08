@@ -2,8 +2,10 @@
 #include "model_asset.h"
 #include "mesh_index.h"
 #include <meshoptimizer.h>
+#include <exception>
 #include <map>
 #include <new>
+#include <thread>
 // Surface-aware PBR simplification with independently owned reduced streams.
 // Cache-enabled assets can compact them; full CPU and full GPU data survive.
 #include "scope_exit.h"
@@ -20,20 +22,29 @@ inline bool uploadBuffer(GLuint &buffer,const std::vector<float> &values){
  GLint bytes=0;glGetBufferParameteriv(GL_ARRAY_BUFFER,GL_BUFFER_SIZE,&bytes);
  return bytes>=0&&uint64_t(bytes)==uint64_t(values.size())*sizeof(float);
 }
-inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
-#ifdef SF_TEST_HOOKS
- if(const char *enabled=std::getenv("SF_PBR_LOD");enabled&&std::string(enabled)=="0")return;
-#endif
- if(!asset.pbr||!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300||pbrLodBudget.used>=PbrLodBudget::limit)return;
+// CPU half: index, lock seams and simplify both levels. It only reads the asset
+// and budget, so primitives prepare concurrently; publish() then applies the
+// budget and uploads in order, giving the same levels as a sequential upload.
+struct PreparedLevel {bool valid=false,compact=false;size_t count=0,uploaded=0;float error=0;GLenum indexType=GL_UNSIGNED_INT;std::vector<uint32_t> reduced;std::vector<float> packed;};
+struct Prepared {bool eligible=false;mesh::Indexed indexed;PreparedLevel levels[2];};
+inline bool eligible(const ModelAsset &asset,const PrimitiveAsset &part){
+ if(!asset.pbr||!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300||pbrLodBudget.used>=PbrLodBudget::limit)return false;
  // Do not build large temporary remaps when even the quarter target cannot
  // fit. Actual pairs still require an exact reservation after simplification.
- if(!asset.optimizeVertexCache&&uint64_t(part.vertexCount/4/3*3)*14*sizeof(float)>PbrLodBudget::limit-pbrLodBudget.used)return;
+ return asset.optimizeVertexCache||uint64_t(part.vertexCount/4/3*3)*14*sizeof(float)<=PbrLodBudget::limit-pbrLodBudget.used;
+}
+inline Prepared prepare(const ModelAsset &asset,const PrimitiveAsset &part) try {
+ Prepared result;
+#ifdef SF_TEST_HOOKS
+ if(const char *enabled=std::getenv("SF_PBR_LOD");enabled&&std::string(enabled)=="0")return result;
+#endif
+ if(!eligible(asset,part))return result;
  std::vector<float> combined;combined.reserve(size_t(part.vertexCount)*14);
  for(size_t v=0;v<size_t(part.vertexCount);v++){
   combined.insert(combined.end(),part.vertices.begin()+v*5,part.vertices.begin()+(v+1)*5);
   combined.insert(combined.end(),part.surface.begin()+v*9,part.surface.begin()+(v+1)*9);
  }
- auto indexed=mesh::index<14>(combined);const size_t unique=indexed.vertices.size()/14;
+ result.indexed=mesh::index<14>(combined);auto &indexed=result.indexed;const size_t unique=indexed.vertices.size()/14;
  // Lock coincident positions with distinct surface/UV inputs. All members of a
  // seam position receive the same lock, as required by the simplifier.
  std::map<std::array<uint32_t,3>,std::vector<size_t>> positions;
@@ -41,26 +52,43 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
  std::vector<unsigned char> locked(unique,0);
  for(const auto &[key,vertices]:positions)if(vertices.size()>1)for(size_t v:vertices)locked[v]=1;
  const float weights[11]={.1f,.1f,1,1,1,.5f,.5f,.5f,1,.1f,.1f};
- for(int level=0;level<2;level++){
-  std::vector<uint32_t> reduced(indexed.indices.size());float error=0;
-  const size_t target=indexed.indices.size()/(level==0?2:4)/3*3;
-  const size_t count=meshopt_simplifyWithAttributes(reduced.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,14*sizeof(float),indexed.vertices.data()+3,14*sizeof(float),weights,11,locked.data(),target,.001f,meshopt_SimplifyLockBorder,&error);
-  if(!count||count%3||count>indexed.indices.size()*4/5||!std::isfinite(error)||error>.001001f)continue;
-  if(level&&part.lod[0].vbo&&count>size_t(part.lod[0].count)*4/5)continue;
-  reduced.resize(count);
-  bool compact=asset.optimizeVertexCache;
+ bool compactAllowed=asset.optimizeVertexCache;
 #ifdef SF_TEST_HOOKS
-  if(const char *enabled=std::getenv("SF_PBR_LOD_INDEXED");enabled&&std::string(enabled)=="0")compact=false;
+ if(const char *enabled=std::getenv("SF_PBR_LOD_INDEXED");enabled&&std::string(enabled)=="0")compactAllowed=false;
 #endif
-  std::vector<float> packed;size_t uploaded=count;GLenum indexType=GL_UNSIGNED_INT;
+ auto simplify=[&](int level){
+  auto &out=result.levels[level];
+  out.reduced.resize(indexed.indices.size());
+  const size_t target=indexed.indices.size()/(level==0?2:4)/3*3;
+  out.count=meshopt_simplifyWithAttributes(out.reduced.data(),indexed.indices.data(),indexed.indices.size(),indexed.vertices.data(),unique,14*sizeof(float),indexed.vertices.data()+3,14*sizeof(float),weights,11,locked.data(),target,.001f,meshopt_SimplifyLockBorder,&out.error);
+  if(!out.count||out.count%3||out.count>indexed.indices.size()*4/5||!std::isfinite(out.error)||out.error>.001001f){out.reduced.clear();return;}
+  out.reduced.resize(out.count);out.uploaded=out.count;bool compact=compactAllowed;
   if(compact){
-    meshopt_optimizeVertexCache(reduced.data(),reduced.data(),count,unique);
-    packed.resize(indexed.vertices.size());
-    uploaded=meshopt_optimizeVertexFetch(packed.data(),reduced.data(),count,indexed.vertices.data(),unique,14*sizeof(float));
-    packed.resize(uploaded*14);indexType=uploaded<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
-    compact=uploaded*14*sizeof(float)+count*(indexType==GL_UNSIGNED_SHORT?2:4)<count*14*sizeof(float);
+    meshopt_optimizeVertexCache(out.reduced.data(),out.reduced.data(),out.count,unique);
+    out.packed.resize(indexed.vertices.size());
+    out.uploaded=meshopt_optimizeVertexFetch(out.packed.data(),out.reduced.data(),out.count,indexed.vertices.data(),unique,14*sizeof(float));
+    out.packed.resize(out.uploaded*14);out.indexType=out.uploaded<=65536?GL_UNSIGNED_SHORT:GL_UNSIGNED_INT;
+    compact=out.uploaded*14*sizeof(float)+out.count*(out.indexType==GL_UNSIGNED_SHORT?2:4)<out.count*14*sizeof(float);
   }
-  if(!compact)uploaded=count;
+  if(!compact)out.uploaded=out.count;
+  out.compact=compact;out.valid=true;
+ };
+ // The two levels simplify the same input independently.
+ std::exception_ptr failure;
+ std::thread second([&]{try{simplify(1);}catch(...){failure=std::current_exception();}});
+ try{simplify(0);}catch(...){second.join();throw;}
+ second.join();if(failure)std::rethrow_exception(failure);
+ result.eligible=true;return result;
+} catch(const std::bad_alloc&){return {};}
+// GL half, in upload order: the budget reservation and level rules as before.
+inline void publish(const ModelAsset &asset,PrimitiveAsset &part,Prepared &prepared) try {
+ if(!prepared.eligible||!eligible(asset,part))return;
+ const auto &indexed=prepared.indexed;
+ for(int level=0;level<2;level++){
+  auto &prep=prepared.levels[level];if(!prep.valid)continue;
+  const size_t count=prep.count;const float error=prep.error;
+  if(level&&part.lod[0].vbo&&count>size_t(part.lod[0].count)*4/5)continue;
+  const auto &reduced=prep.reduced;const auto &packed=prep.packed;const bool compact=prep.compact;const size_t uploaded=prep.uploaded;const GLenum indexType=prep.indexType;
   const uint64_t bytes=uint64_t(uploaded)*14*sizeof(float)+(compact?uint64_t(count)*(indexType==GL_UNSIGNED_SHORT?2:4):0);
   if(!pbrLodBudget.reserve(bytes))continue;
   ModelLodLevel staged;bool published=false;
@@ -98,7 +126,6 @@ inline void upload(const ModelAsset &asset,PrimitiveAsset &part) try {
   staged.gpuVertexCount=GLsizei(uploaded);staged.indexType=indexType;
   staged.count=GLsizei(count);staged.error=error;staged.budgetBytes=bytes;
   part.lod[level]=staged;published=true;
-
  }
 } catch(const std::bad_alloc&){
  // Optional detail must not invalidate an already uploaded full mesh. Any

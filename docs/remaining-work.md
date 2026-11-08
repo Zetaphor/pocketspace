@@ -101,9 +101,12 @@ as open tasks here.
   across eyes, surfaces and depth passes.
 - Consider GPU physics only when CPU simulation remains a bottleneck after Jolt
   worker tuning. Account for contacts, queries, callbacks and synchronization.
-- Improve model loading/LOD-generation latency only when it is significant.
-  Compare offline preprocessing and CPU improvements before a GPU generator;
-  preserve material boundaries, UV quality, error limits and the full mesh.
+- Shorten the remaining start stall. Starting lighting-studio still blocks every
+  scene for about 1.9 s ([model-loading.md](../tests/results/model-loading.md)),
+  mostly MikkTSpace tangents for one 88.8k-triangle primitive and its PBR LOD.
+  Options are cached tangents and levels (offline preprocessing) or evaluating a
+  starting script and preparing its models off the frame loop; preserve material
+  boundaries, UV quality, error limits, the full mesh and transactional loading.
 - Extend stability checks to longer sessions or larger workloads as usage
   requires. Investigate allocation sites if live heap growth or memory pressure
   appears.

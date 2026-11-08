@@ -171,6 +171,11 @@ Temporary pose loss and actual controller disconnection have different behavior.
 textures, material state, transforms, supported animation channels, skins, and
 morph targets. Shared assets retain expanded CPU triangles for picking, bounds,
 and collider construction. A picking BVH accelerates exact triangle tests.
+Loading and the first upload both block the frame loop, so the independent work
+in them runs on up to one thread per core: a model's referenced images decode in
+parallel before its primitives are built, and PBR LOD simplification prepares
+every primitive, with both levels concurrently, before uploads publish them in
+order ([model loading](../tests/results/model-loading.md)).
 
 Static GPU geometry deduplicates exact position/UV tuples into vertex and index
 buffers, choosing 16- or 32-bit indices as appropriate. This changes storage,

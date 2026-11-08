@@ -509,6 +509,11 @@ MikkTSpace is vendored at upstream commit
 `3e895b49d05ea07e4c2133156cfa94369e19e409`; `mikktspace.cpp` is the unmodified
 upstream C source compiled as C++, with its embedded license preserved.
 
+`pbrLod::prepare` is the CPU half and only reads the asset, primitive and budget, so
+`uploadModel` runs it for all primitives on worker threads. `pbrLod::publish`
+repeats the eligibility check, applies the level-1 rule against the published
+level 0 and reserves budget in primitive order, which keeps the result identical to
+a sequential upload; a prepared level the budget rejects is discarded.
 Production PBR LOD in `src/pbr_lod.h` retains independently owned reduced
 position/surface buffers and optional indices in each primitive's LOD records.
 The cache option enables compact indexing of reduced streams when smaller;

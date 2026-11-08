@@ -165,6 +165,7 @@ and visual acceptance.
 | [results/shadow-view-culling.md](results/shadow-view-culling.md) | Per-view caster and cluster culling for shadow maps: lighting-studio point shadow 0.72 to 0.18 ms GPU, 74 to 79 FPS. |
 | [results/display-density-cap.md](results/display-density-cap.md) | Render-group density cap for basketball, independent-surface resize flashes, and lighting-studio CPU profile. |
 | [results/gl-call-reduction.md](results/gl-call-reduction.md) | PBR uniform value cache and bound-unit release: CPU submit time per frame 2.6–3.0 to 1.5–1.8 ms with all demos. |
+| [results/model-loading.md](results/model-loading.md) | Script start stall by loading phase; parallel image decoding and PBR LOD preparation, lighting-studio about 3.1 to 1.9 s. |
 | [results/memory-retention.md](results/memory-retention.md) | Memory kept after scripts stop: allocator free space (now trimmed), Mesa buffer reuse and the SteamVR client's reservation; no leak across cycles. |
 | [results/memory-reload.md](results/memory-reload.md) | Reload RSS growth attributed mainly to reusable free allocator space. |
 | [results/multi-script-soak.md](results/multi-script-soak.md) | Ten-minute two-script soak: FPS, CPU, RSS, heap and clean shutdown. |

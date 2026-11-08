@@ -5,6 +5,9 @@
 #include <meshoptimizer.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <thread>
+#include <unordered_map>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -16,8 +19,45 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../stb_image.h"
 
+// A model's images decode once, in parallel, before its primitives are built;
+// each primitive copies the shared pixels. Failed entries decode again on demand.
+struct DecodedImage {std::vector<unsigned char> rgba;int width=0,height=0;bool ok=false;};
+static thread_local const std::unordered_map<const cgltf_image*,DecodedImage> *decodedImages=nullptr;
+static DecodedImage decodeImage(const cgltf_image &image) try {
+  DecodedImage result;
+  const auto *bytes=image.buffer_view?static_cast<const unsigned char*>(cgltf_buffer_view_data(image.buffer_view)):nullptr;
+  if(!bytes)return result;
+  int channels=0;auto *pixels=stbi_load_from_memory(bytes,(int)image.buffer_view->size,&result.width,&result.height,&channels,4);
+  if(!pixels)return result;
+  ScopeExit release{[&]{stbi_image_free(pixels);}};
+  result.rgba.assign(pixels,pixels+(size_t)result.width*result.height*4);result.ok=true;
+  return result;
+} catch(const std::bad_alloc&){return {};}
+// Only images the materials use: base color, plus the material maps for PBR.
+static std::unordered_map<const cgltf_image*,DecodedImage> decodeImages(const cgltf_data &data,bool pbr){
+  std::vector<const cgltf_image*> used;
+  auto add=[&](const cgltf_texture_view &view){if(view.texture&&view.texture->image&&std::find(used.begin(),used.end(),view.texture->image)==used.end())used.push_back(view.texture->image);};
+  for(cgltf_size i=0;i<data.materials_count;i++){
+    const auto &m=data.materials[i];
+    if(m.has_pbr_metallic_roughness)add(m.pbr_metallic_roughness.base_color_texture);
+    if(!pbr)continue;
+    add(m.normal_texture);add(m.pbr_metallic_roughness.metallic_roughness_texture);add(m.occlusion_texture);add(m.emissive_texture);
+    if(m.has_sheen){add(m.sheen.sheen_color_texture);add(m.sheen.sheen_roughness_texture);}
+  }
+  std::vector<DecodedImage> results(used.size());std::atomic<size_t> next{0};
+  auto work=[&]{for(size_t i;(i=next++)<results.size();)results[i]=decodeImage(*used[i]);};
+  const size_t threads=std::min<size_t>(results.size(),std::max(1u,std::thread::hardware_concurrency()));
+  std::vector<std::thread> pool;for(size_t t=1;t<threads;t++)pool.emplace_back(work);
+  work();for(auto &thread:pool)thread.join();
+  std::unordered_map<const cgltf_image*,DecodedImage> decoded;
+  for(size_t i=0;i<results.size();i++)decoded.emplace(used[i],std::move(results[i]));
+  return decoded;
+}
 static bool decodeBaseColor(const cgltf_image *image,PrimitiveAsset &part) {
   if(!image){part.rgba={255,255,255,255};return true;}
+  if(decodedImages)if(auto found=decodedImages->find(image);found!=decodedImages->end()&&found->second.ok){
+    part.rgba=found->second.rgba;part.width=found->second.width;part.height=found->second.height;return true;
+  }
   if(!image->buffer_view){std::fprintf(stderr,"[model] external image unsupported\n");return false;}
   const auto *bytes=cgltf_buffer_view_data(image->buffer_view);
   if(!bytes)return false;
@@ -229,6 +269,7 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   if(result!=cgltf_result_success){std::fprintf(stderr,"[model] parse failed %s: %d\n",path.c_str(),(int)result);return false;}
   result=cgltf_load_buffers(&options,data,path.c_str());
   if(result!=cgltf_result_success||cgltf_validate(data)!=cgltf_result_success){std::fprintf(stderr,"[model] invalid glTF %s\n",path.c_str());cgltf_free(data);return false;}
+  const auto images=decodeImages(*data,out.pbr);decodedImages=&images;ScopeExit forgetImages{[]{decodedImages=nullptr;}};
   out.path=path;out.hasAnimation=data->animations_count>0;out.hasSkin=data->skins_count>0;
   if(!loadAnimations(*data,out)){std::fprintf(stderr,"[model] invalid animation data in %s\n",path.c_str());cgltf_free(data);return false;}
   std::vector<animation::Node> bindNodes;std::vector<animation::Matrix> bindWorld;
@@ -395,6 +436,14 @@ static bool uploadIndexedPbr(const ModelAsset &asset,PrimitiveAsset &part) try {
 void uploadModel(ModelAsset &asset){
   if(asset.sheenLookup)asset.sheenLookup->upload();
   if(asset.uploaded)return;
+  // Simplification is CPU work independent per primitive: prepare every part in
+  // parallel, then publish in order below.
+  std::vector<pbrLod::Prepared> lods(asset.primitives.size());
+  if(asset.pbr&&asset.lod){
+    std::atomic<size_t> next{0};auto work=[&]{for(size_t i;(i=next++)<lods.size();)lods[i]=pbrLod::prepare(asset,asset.primitives[i]);};
+    std::vector<std::thread> pool;for(size_t t=1;t<std::min<size_t>(lods.size(),std::max(1u,std::thread::hardware_concurrency()));t++)pool.emplace_back(work);
+    work();for(auto &thread:pool)thread.join();
+  }
   for(auto &part:asset.primitives){
     if(!uploadIndexedPbr(asset,part)){
     glGenBuffers(1,&part.vbo);glBindBuffer(GL_ARRAY_BUFFER,part.vbo);
@@ -423,7 +472,7 @@ void uploadModel(ModelAsset &asset){
     }
     if(asset.pbr){
       if(!part.surfaceVbo)uploadSurface(part,GL_STATIC_DRAW);
-      pbrLod::upload(asset,part);
+      pbrLod::publish(asset,part,lods[size_t(&part-asset.primitives.data())]);
       for(size_t i=0;i<6;i++){auto &map=part.maps[i];if(map.rgba.empty())continue;
         glGenTextures(1,&map.texture);glBindTexture(GL_TEXTURE_2D,map.texture);
         glTexImage2D(GL_TEXTURE_2D,0,(i==3||i==4)?GL_SRGB8_ALPHA8:GL_RGBA8,map.width,map.height,0,GL_RGBA,GL_UNSIGNED_BYTE,map.rgba.data());
