@@ -192,6 +192,20 @@ int main(){
         assert(std::abs(bounds.x0-eyes[eye][0]*-1)<layout.width*.5f);assert(std::abs(bounds.x1-eyes[eye][0]*-1)<layout.width*.5f);
       }
       const auto limited=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,128);assert(limited.limited&&limited.pixels==128);
+      // Display density caps the reference density: 1.25 * 400 px per tangent at 1 m.
+      for(auto &object:groupScene.objects)object.renderGroup=1;
+      FrameBoundsCache cache;cache.update(groupScene,renderer.anchor,head,eyes);
+      const auto uncapped=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,4096,&cache);
+      cache.displayFocal=400;
+      const auto capped=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,4096,&cache);
+      assert(!capped.limited&&capped.pixels<uncapped.pixels&&capped.pixels/capped.width>=500.f&&capped.pixels/capped.width<500.f*1.2f);
+      assert(capped.width>=uncapped.width&&capped.width<uncapped.width+32/500.f); // Same bounds; a wider 32-pixel border.
+      cache.displayFocal=5000; // A sharper display than the reference keeps the reference.
+      assert(groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,1,4096,&cache).pixels==uncapped.pixels);
+      assert(displayLimitedPixels(768,.55f,1,0)==768&&displayLimitedPixels(768,.55f,1,400)==512);
+      assert(displayLimitedPixels(768,.55f,.2f,400)==768&&displayLimitedPixels(768,.55f,.01f,400)==768);
+      assert(displayLimitedPixels(768,.55f,10,400)==256&&displayLimitedPixels(256,.55f,10,400)==256);
+      for(auto &object:groupScene.objects)object.renderGroup=0;
       for(auto &object:groupScene.objects)object.y=-2;
       const auto tile=groupPlane(members,groupScene,renderer.anchor,head,eyes);
       const float tileCenter[3]={tile.transform.m[0][3],tile.transform.m[1][3],tile.transform.m[2][3]};
@@ -201,7 +215,7 @@ int main(){
       groupScene.objects[0].z=-.98f;
       const auto near=groupLayout(members,groupScene,renderer.anchor,head,eyes,center,r,u,f,2);assert(!near.bounds[0].valid&&near.width==2);
     }
-    puts("PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, resolution ceiling and near-plane fallback");
+    puts("PASS grouped GLES: stereo shared/independent pixels, external floor occlusion, bounds, density, display density cap, resolution ceiling and near-plane fallback");
     {
       auto &material=renderer.scene.assets[2].primitives[0];const auto originalMode=material.alphaMode;const float originalAlpha=material.factor[3];
       material.alphaMode=0;material.factor[3]=1;auto opaque=renderer.renderSet({3},{0,.1f,-1.2f},0);

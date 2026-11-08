@@ -594,7 +594,7 @@ int main(int argc,char **argv) {
       spotShadows.update(script.scene);
       const auto frameLights=resolvePointLights(script.scene);
       updateObjectLights(script.scene,frameLights,frameObjectLights);
-      frameBounds.update(script.scene,anchor,head,eyes);
+      frameBounds.update(script.scene,anchor,head,eyes);frameBounds.displayFocal=focal;
       const bool useInstancing=std::any_of(script.scene.assets.begin(),script.scene.assets.end(),[](const ModelAsset &asset){return asset.gpuInstancing;});
       if(!pendingTileChange&&std::chrono::steady_clock::now()>=nextAdaptationCheck){
         const auto now=std::chrono::steady_clock::now();nextAdaptationCheck=now+std::chrono::milliseconds(500);
@@ -701,7 +701,12 @@ int main(int argc,char **argv) {
         }
         const float surfaceCenter[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
         ProjectedBounds targetBounds[2];if(id>0)for(int eye=0;eye<2;eye++)targetBounds[eye]=frameBounds.project(*target,eyes[eye],panelRight,panelUp,panelForward);
-        int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,surface->referenceEyePixels):surface->referenceEyePixels;
+        int reference=surface->referenceEyePixels;
+        if(id>0){
+          float depth=INFINITY;for(const auto &eye:eyes){float d=0;for(int axis=0;axis<3;axis++)d+=(surfaceCenter[axis]-eye[axis])*panelForward[axis];depth=std::min(depth,d);}
+          reference=displayLimitedPixels(reference,animatedWidth,depth,focal);
+        }
+        int crop=id>0?objectCropPixels(targetBounds,surfaceCenter,eyes,panelRight,panelUp,panelForward,animatedWidth,reference):surface->referenceEyePixels;
         if(id<0){
           const auto layout=groupLayout(members,script.scene,anchor,head,eyes,surfaceCenter,panelRight,panelUp,panelForward,animatedWidth,maxGroupPixels,&frameBounds);
           if(layout.limited&&!surface->resolutionLimited)fprintf(stderr,"[surface] group=%d reaches %d pixels per eye; use smaller groups to retain density\n",surfaceRenderGroup(id),maxGroupPixels);
@@ -737,7 +742,7 @@ int main(int argc,char **argv) {
         }
         // Moving bounds still fit when growth is throttled or cannot be admitted.
         // Render the complete group at temporarily reduced density, never crop it.
-        const float width=surfaceCoverageWidth(animatedWidth,surface->eyePixels,surface->referenceEyePixels,id<0);
+        const float width=surfaceCoverageWidth(animatedWidth,surface->eyePixels,id>0?reference:surface->referenceEyePixels,id<0);
         const auto placementError=prepareSurface(*overlays,*surface,width,panel);
         if(placementError!=vr::VROverlayError_None){fprintf(stderr,"[surface] placement id=%d error=%d\n",id,int(placementError));continue;}
         setVec3(centerLocation,panel.m[0][3],panel.m[1][3],panel.m[2][3]);

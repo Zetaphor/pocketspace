@@ -365,6 +365,11 @@ int objectCropPixels(const ProjectedBounds bounds[2],const float center[3],const
   // Extra transparent border and 64-pixel buckets limit resize churn.
   return std::min(referencePixels,std::max(128,((2*extent+32+63)/64)*64));
 }
+int displayLimitedPixels(int referencePixels,float width,float depth,float focal){
+  if(focal<=0||depth<=.05f||!std::isfinite(width*focal/depth))return referencePixels;
+  const double needed=double(width)*kDisplayOversample*focal/depth;
+  return int(std::clamp(std::ceil(needed/256)*256,256.0,double(std::max(256,referencePixels))));
+}
 GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels,const FrameBoundsCache *cache){
   GroupLayout result;float extent=0,density=0;
   for(int eye=0;eye<2;eye++){
@@ -380,7 +385,9 @@ GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &s
       // plane requires referenceDensity * axialDepth / plane, not radial range.
       float axialDepth=0;for(int axis=0;axis<3;axis++){const float delta=anchor.m[axis][3]+anchor.m[axis][0]*object->x+anchor.m[axis][1]*object->y-anchor.m[axis][2]*object->z-head.m[axis][3];axialDepth+=delta*forward[axis];}
       const float referenceWidth=std::max(.55f,object->scale*2.1f*objectRadius(*object));
-      density=std::max(density,asset.eyePixels/referenceWidth*std::max(.05f,axialDepth)/std::max(.05f,plane));
+      float memberDensity=asset.eyePixels/referenceWidth*std::max(.05f,axialDepth)/std::max(.05f,plane);
+      if(cache&&cache->displayFocal>0&&plane>.05f)memberDensity=std::min(memberDensity,kDisplayOversample*cache->displayFocal/plane);
+      density=std::max(density,memberDensity);
     }
   }
   density=std::max(1.f,density);

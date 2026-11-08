@@ -130,6 +130,9 @@ ProjectedBounds projectedBounds(const Object &object,const ModelAsset &geometry,
 struct FrameBoundsCache {
   struct Entry {WorldBounds world;ProjectedBounds common[2];};
   const Scene *scene=nullptr;std::vector<Entry> entries;
+  // Headset pixels per unit view tangent for this frame; zero when SteamVR has not
+  // reported a projection, which leaves surfaces at their reference density.
+  float displayFocal=0;
   // Refresh only after callbacks, manipulation, animation and the physics barrier.
   // Object references and entries remain stable for the following render phase.
   void update(const Scene &source,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3]){
@@ -157,9 +160,16 @@ ScissorRegion projectedScissor(const ProjectedBounds &bounds,const float center[
 // Crop only transparent margins: physical width and pixel count scale together,
 // leaving the original sample spacing and centered pixel grid unchanged.
 int objectCropPixels(const ProjectedBounds bounds[2],const float center[3],const float eyes[2][3],const float right[3],const float up[3],const float forward[3],float referenceWidth,int referencePixels);
+// Surfaces never sample more densely than the headset can show at their depth,
+// with kDisplayOversample headroom for resampling. Reference density is an upper bound.
+constexpr float kDisplayOversample=1.25f;
+// Independent-surface pixels across `width` at `depth` meters along the surface
+// normal: rounded up to 256-pixel steps, at least 256, at most the reference.
+int displayLimitedPixels(int referencePixels,float width,float depth,float focal);
 struct GroupLayout {float width=.55f;int pixels=128;ProjectedBounds bounds[2];bool limited=false;};
 // Project all members onto one plane for both eyes. Match the most demanding
-// member's reference angular density, rather than stretching a 768px texture.
+// member's reference angular density, rather than stretching a 768px texture,
+// capped at the cache's display density.
 GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &scene,const vr::HmdMatrix34_t &anchor,const vr::HmdMatrix34_t &head,const float eyes[2][3],const float center[3],const float right[3],const float up[3],const float forward[3],float fallbackWidth,int maxPixels=4096,const FrameBoundsCache *cache=nullptr);
 struct GroupPlane {
   vr::HmdMatrix34_t transform{};

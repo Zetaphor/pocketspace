@@ -192,6 +192,9 @@ creation/removal and retain the final pose when a body goes to sleep. Physics
 timings in `getEngineStats` describe the latest advance, not the process sample.
 
 Object surfaces distinguish reference resolution from allocated resolution.
+`FrameBoundsCache::displayFocal` caps both independent and grouped density at
+`kDisplayOversample` times the headset's pixels per meter at the surface depth;
+reference resolution is the upper bound. Zero focal leaves reference density.
 Stereo projected bounds crop transparent margins; physical width scales with
 allocated pixels to preserve reference sample density and the centered grid.
 Keep immediate growth, near-plane fallback, delayed/budgeted shrinking, stable
@@ -245,7 +248,7 @@ and per-object grab state. Rebuild frame-local member lists after script updates
 so object-vector mutations cannot leave stale pointers.
 
 `groupLayout` unions both eyes' projected bounds and requests the maximum member
-reference angular density. Group extents can grow sharply near the headset;
+reference angular density, each capped at display density. Group extents can grow sharply near the headset;
 resolution is capped by 4096 pixels per eye and half the renderbuffer width, with
 a warning when limited. Group buffers grow with 25% headroom in 256-pixel
 buckets and shrink only after demand stays below 60% for 45 frames. Keep grouped
