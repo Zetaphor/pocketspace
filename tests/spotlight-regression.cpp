@@ -7,7 +7,7 @@ int main(){
   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
   assert(loadModelFile("assets/samples/Box/Box.glb",asset));asset.lighting.intensity=asset.lighting.ambient=0;uploadModel(asset);
   for(auto &p:asset.primitives){p.factor[0]=p.factor[1]=p.factor[2]=1;p.metallic=0;p.roughness=.5;}
-  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.45;r.scene.objects={object};
+  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale.fill(.45);r.scene.objects={object};
   PointLight light;light.id=1;light.spot=true;light.position={0,0,-.6f};light.direction={0,0,1};light.range=2;light.intensity=.15f;light.innerConeAngle=.12f;light.outerConeAngle=.25f;
   for(int eye=0;eye<2;eye++){
    r.scene.lights.clear();auto dark=r.renderSet({1},{0,0,-1.2f},eye);
@@ -23,9 +23,9 @@ int main(){
    auto hemisphere=r.renderSet({1},{0,0,-1.2f},eye);r.scene.lights[0].spot=false;assert(hemisphere==r.renderSet({1},{0,0,-1.2f},eye));
    r.scene.lights[0]=light;r.scene.lights[0].innerConeAngle=r.scene.lights[0].outerConeAngle=.3;auto hard=r.renderSet({1},{0,0,-1.2f},eye);assert(brightness(hard)>brightness(narrow));
    for(auto &p:asset.primitives)p.materialUnlit=true;auto unlit=r.renderSet({1},{0,0,-1.2f},eye);r.scene.lights.clear();assert(unlit==r.renderSet({1},{0,0,-1.2f},eye));for(auto &p:asset.primitives)p.materialUnlit=false;
-   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale=.8;r.scene.objects.push_back(target);auto depth=r.renderSet({2},{0,0,-1.2f},eye);r.scene.lights={light};assert(depth==r.renderSet({2},{0,0,-1.2f},eye));r.scene.objects.pop_back();
+   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale.fill(.8);r.scene.objects.push_back(target);auto depth=r.renderSet({2},{0,0,-1.2f},eye);r.scene.lights={light};assert(depth==r.renderSet({2},{0,0,-1.2f},eye));r.scene.objects.pop_back();
   }
-  light.objectId=1;light.position={0,0,.1};r.scene.lights={light};auto &o=r.scene.objects[0];o.x=.2;o.y=.3;o.z=.4;o.yaw=float(std::acos(-1)/2);o.scale=.9;
+  light.objectId=1;light.position={0,0,.1};r.scene.lights={light};auto &o=r.scene.objects[0];o.x=.2;o.y=.3;o.z=.4;o.yaw=float(std::acos(-1)/2);o.scale.fill(.9);
   auto resolved=resolvePointLights(r.scene);assert(resolved.size()==1&&std::abs(resolved[0].position[0]-.1)<1e-5&&std::abs(resolved[0].position[2]-.4)<1e-5&&std::abs(resolved[0].direction[0]+1)<1e-5&&std::abs(resolved[0].direction[2])<1e-5);
   o.yaw=0;o.pitch=float(std::acos(-1)/2);resolved=resolvePointLights(r.scene);assert(std::abs(resolved[0].direction[1]-1)<1e-5&&std::abs(resolved[0].position[1]-.4)<1e-5);
   o.pitch=0;o.roll=float(std::acos(-1)/2);r.scene.lights[0].direction={1,0,0};resolved=resolvePointLights(r.scene);assert(std::abs(resolved[0].direction[1]-1)<1e-5);
@@ -44,9 +44,9 @@ int main(){
    for(const options of [{direction:[0,0,0]},{direction:[1,2]},{direction:[0,Infinity,1]},{direction:null},{innerConeAngle:-1},{outerConeAngle:0},{outerConeAngle:2},{innerConeAngle:.6},{outerConeAngle:.1},{innerConeAngle:'0'},{range:0},{enabled:1}]){fails(()=>setSpotLight(spot,options));check(JSON.stringify(getSpotLight(spot))===initial);}
    fails(()=>setSpotLight(spot,{get direction(){throw Error('expected getter')}}));check(JSON.stringify(getSpotLight(spot))===initial);
    setSpotLight(spot,{innerConeAngle:Math.PI/2,outerConeAngle:Math.PI/2});const edge=captureSceneContainer(owner),edgeCopy=restoreSceneContainer(edge);check(getSpotLight(edgeCopy.lightMap[spot]).outerConeAngle>1.57);disposeSceneContainer(edgeCopy.containerId);
-   setSpotLight(spot,{innerConeAngle:.2,outerConeAngle:.4});const snapshot=captureSceneContainer(owner);check(snapshot.version===1&&snapshot.lights.length===2&&snapshot.lights[0].type==='spot');
+   setSpotLight(spot,{innerConeAngle:.2,outerConeAngle:.4});const snapshot=captureSceneContainer(owner);check(snapshot.version===2&&snapshot.lights.length===2&&snapshot.lights[0].type==='spot');
    saveSceneContainer(owner,'spot');const disk=loadSceneContainer('spot');check(getSpotLight(disk.lightMap[spot]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
-   for(const mutate of [s=>s.lights[0].type='area',s=>s.lights[0].direction=[0,0,0],s=>s.lights[0].innerConeAngle=.9,s=>delete s.lights[0].direction,s=>s.version=2]){
+   for(const mutate of [s=>s.lights[0].type='area',s=>s.lights[0].direction=[0,0,0],s=>s.lights[0].innerConeAngle=.9,s=>delete s.lights[0].direction,s=>s.version=1]){
     const bad=JSON.parse(JSON.stringify(snapshot));mutate(bad);const before=JSON.stringify(getSceneContainerState(owner));fails(()=>restoreSceneContainer(bad));check(JSON.stringify(getSceneContainerState(owner))===before&&JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snapshot));
    }
    const extras=Array.from({length:6},(_,i)=>i%2?createSpotLight({enabled:false}):createPointLight());fails(()=>createPointLight());fails(()=>createSpotLight());extras.forEach((id,i)=>i%2?removeSpotLight(id):removePointLight(id));

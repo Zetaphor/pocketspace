@@ -28,7 +28,7 @@ int main(int argc,char **argv){
   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;
   assert(loadModelFile("assets/samples/Box/Box.glb",a));uploadModel(a);a.lighting.intensity=0;a.lighting.ambient=0;
   auto &p=a.primitives[0];p.metallic=1;p.roughness=.045f;p.factor[0]=p.factor[1]=p.factor[2]=.8f;
-  Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.6f;o.yaw=.3f;o.pitch=.2f;r.scene.objects={o};
+  Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale.fill(.6f);o.yaw=.3f;o.pitch=.2f;r.scene.objects={o};
   auto dark=r.renderSet({1},{0,.1f,-1.2f},0);assert(lightPixels(dark)==0);
   a.environment=env;a.lighting.environment=path;auto lit=r.renderSet({1},{0,.1f,-1.2f},0);assert(lightPixels(lit)>100&&lit!=dark);cube=env->cube;lut=env->lut;assert(cube&&lut&&env->gpuBytes()>0);
   a.lighting.environmentIntensity=0;assert(r.renderSet({1},{0,.1f,-1.2f},0)==dark);a.lighting.environmentIntensity=1;
@@ -46,7 +46,7 @@ int main(int argc,char **argv){
   }
   for(const char *name:{"NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","TextureEncodingTest"}){
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",asset));uploadModel(asset);asset.environment=env;asset.lighting.environment=path;asset.lighting.intensity=0;asset.lighting.ambient=0;
-   o.asset=int(r.scene.assets.size());o.scale=.7f;r.scene.objects={o};
+   o.asset=int(r.scene.assets.size());o.scale.fill(.7f);r.scene.objects={o};
    for(int eye=0;eye<2;eye++)for(float angle:{0.f,1.f}){asset.lighting.environmentRotation=angle;auto image=r.renderSet({1},{0,.1f,-1.2f},eye);assert(lightPixels(image)>100);
     if(!eye&&angle==0)if(const char *directory=std::getenv("SF_ENV_IMAGES")){
      std::filesystem::create_directories(directory);std::ofstream out(std::filesystem::path(directory)/(std::string(name)+".ppm"),std::ios::binary);out<<"P6\n"<<pixels<<" "<<pixels<<"\n255\n";
@@ -63,7 +63,7 @@ int main(int argc,char **argv){
    function check(v){if(!v)throw Error('environment assertion');}function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
    const model=loadModel('assets/samples/Box/Box.glb',512,{pbr:true});
    setModelLighting(model,{environment:'assets/environments/studio.psenv',environmentIntensity:.8,environmentRotation:.4});
-   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===1&&snap.models[0].lighting.environmentIntensity>.79);
+   const owner=createSceneContainer();createObject(model,0,0,0,.2,{container:owner});const snap=captureSceneContainer(owner);check(snap.version===2&&snap.models[0].lighting.environmentIntensity>.79);
    fails(()=>setModelLighting(model,{environment:'/missing.psenv',intensity:9}));fails(()=>setModelLighting(model,{environment:'x\0y'}));fails(()=>setModelLighting(model,{environment:1}));fails(()=>setModelLighting(model,{environmentIntensity:-1}));fails(()=>setModelLighting(model,{environmentRotation:Infinity}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
    const copy=restoreSceneContainer(snap);disposeSceneContainer(copy.containerId);
@@ -78,7 +78,7 @@ int main(int argc,char **argv){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:{1,16}){
    Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment(path);asset.lighting.environment=path;assert(asset.environment&&asset.environment->upload());std::vector<int> members;
-   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
+   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(count==1?.7f:.25f);o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
    for(int stage=0;stage<4;stage++){
     asset.lighting.environmentIntensity=stage==1||stage==2?1:0;double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);
     for(int frame=0;frame<150;frame++){

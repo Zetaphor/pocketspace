@@ -9,6 +9,8 @@ let angle = 0;
 function update(dt) {
   angle += dt * 0.35;
   setObjectYaw(boxObject, angle);
+  // Each scale axis is the object's own: the box stretches along its X as it turns.
+  setObjectScale(boxObject, .2 + Math.sin(angle) * .06, .2, .2);
   setObjectYaw(carObject, angle * 0.5);
   // Scale is the model's normalized maximum extent in meters.
   setObjectScale(lanternObject, .3 + Math.sin(angle) * .03);

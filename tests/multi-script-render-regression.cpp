@@ -10,7 +10,7 @@ int main(){
     Object leftObject{},rightObject{};
     leftObject.id=rightObject.id=1;
     leftObject.asset=rightObject.asset=3; // Each renderer owns its own Box asset.
-    leftObject.scale=rightObject.scale=.4f;
+    leftObject.scale.fill(.4f);rightObject.scale.fill(.4f);
     leftObject.x=-.25f;rightObject.x=.25f;
     left->scene.objects={leftObject};right->scene.objects={rightObject};
     const auto leftImage=left->renderSet({1},{0,0,-1.2f},0);

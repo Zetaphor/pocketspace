@@ -136,7 +136,7 @@ int main(){
   std::ofstream(script)<<R"JS(
     const a=loadModel('assets/samples/Box/Box.glb',512,{lod:false,gpuInstancing:false,optimizeVertexCache:true});
     const owner=createSceneContainer();
-    const o=createObject(a,.1,.2,-.3,.15,{container:owner,renderGroup:4});
+    const o=createObject(a,.1,.2,-.3,{x:.15,y:.3,z:.05},{container:owner,renderGroup:4});
     enableObjectInteraction(o,{grabButton:'both'});
     setObjectRotation(o,.2,.3,.4);setObjectInteraction(o,{laserYaw:true,depthAdjust:true,handRotationAxes:{pitch:true,yaw:true,roll:true}});
     const other=createObject(a,-.2,.1,0,.1,{container:owner});setObjectVisible(other,false);
@@ -145,6 +145,7 @@ int main(){
     function check(v){if(!v)throw Error('persistence assertion');}
     function fails(fn){let caught=false;try{fn();}catch(e){caught=true;}check(caught);}
     check(copy.objectIds.length===2&&copy.objectMap[o]===copy.objectIds[0]&&copy.renderGroups[4]!==4&&copy.renderGroups[4]!==1);
+    check(JSON.stringify(snap.objects[0].scale)===JSON.stringify(getObjectTransform(o).scale)&&Object.keys(snap.objects[0].scale).join()==='x,y,z');
     const again=captureSceneContainer(copy.containerId);check(again.models[0].lod===false&&again.models[0].optimizeVertexCache===true);
     for(const key of Object.keys(snap.objects[0]))if(!['id','renderGroup','container'].includes(key))check(JSON.stringify(snap.objects[0][key])===JSON.stringify(again.objects[0][key]));
     check(again.objects[0].container===copy.containerId&&copy.containerMap[owner]===copy.containerId);
@@ -153,9 +154,9 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(16*1024*1024));
-    bad(s=>s.version=2);bad(s=>s.version=14);bad(s=>s.format='sf-overlay-engine.scene-container');bad(s=>s.format='other');
+    bad(s=>s.version=1);bad(s=>s.version=14);bad(s=>s.format='sf-overlay-engine.scene-container');bad(s=>s.format='other');
     for(const key of ['joints','panels','lights','containers','rootContainer'])bad(s=>delete s[key]);
-    bad(s=>delete s.objects[0].physics);bad(s=>delete s.objects[0].animation);bad(s=>delete s.objects[0].container);bad(s=>delete s.models[0].pbr);bad(s=>delete s.models[0].lighting);bad(s=>delete s.models[0].lighting.environment);bad(s=>s.objects[0].scale=0);bad(s=>s.objects[0].x=Infinity);
+    bad(s=>delete s.objects[0].physics);bad(s=>delete s.objects[0].animation);bad(s=>delete s.objects[0].container);bad(s=>delete s.models[0].pbr);bad(s=>delete s.models[0].lighting);bad(s=>delete s.models[0].lighting.environment);bad(s=>s.objects[0].scale=.15);bad(s=>s.objects[0].scale=[.15,.3,.05]);bad(s=>delete s.objects[0].scale.z);bad(s=>s.objects[0].scale.y=0);bad(s=>s.objects[0].scale.x=-.1);bad(s=>s.objects[0].scale.z=2.5);bad(s=>s.objects[0].scale.y='.3');bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);
     bad(s=>s.objects[0].model=5);bad(s=>s.models[0].eyePixels=513);bad(s=>s.models[0].lod=true);
     bad(s=>s.models[0].path='/missing-model.glb');bad(s=>s.models.push(s.models[0]));

@@ -21,7 +21,7 @@ struct Settings {
 struct Collider {Vec3 halfExtents,offset;float radius=0;Vec3 centerOfMass;unsigned vertexCount=0,triangleCount=0;};
 // Vertices use normalized model coordinates (local +Z backward), before scale.
 // A key identifies immutable geometry within this World; cached calls may omit vertices.
-struct GeometrySource {int key=0;float scale=1;std::span<const Vec3> vertices;};
+struct GeometrySource {int key=0;Vec3 scale{1,1,1};std::span<const Vec3> vertices;};
 struct State {
   Settings settings;Pose pose;Vec3 velocity,angularVelocity;
   bool held=false,sleeping=false;

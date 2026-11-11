@@ -8,7 +8,7 @@ int main(){
   assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);
   asset.lighting.intensity=.3;asset.lighting.ambient=.04;
   std::vector<int> ids;
-  for(int i=0;i<32;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.16f;o.x=(i%8-3.5f)*.22f;o.y=(i/8-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
+  for(int i=0;i<32;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(.16f);o.x=(i%8-3.5f)*.22f;o.y=(i/8-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
   auto pose=[&](int frame){for(auto &o:r.scene.objects){o.yaw=.2f+frame*.013f;o.pitch=.1f+std::sin(frame*.02f)*.15f;}};
   struct Case{int lights,level,pixels;double gpu=0,wall=0;uint64_t triangles=0;};
   std::vector<Case> cases;for(int lights:{0,8})for(int level:{0,2})for(int size:{768,384,2048})cases.push_back({lights,level,size});

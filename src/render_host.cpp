@@ -269,13 +269,13 @@ void updateManipulation(Scene &scene,std::array<GrabState,2> &grabs,float dt,int
         // Acquisition requires a current engine-ray hit on this mesh.
         if(rayOwners[h]==instanceId&&meshCurrentObject[h]==candidate.id&&frameGrabDown(h,candidate.grabButton)){
           const float dx=candidate.x-hand.x,dy=candidate.y-hand.y,dz=candidate.z-hand.z;
-          const float reach=.10f+candidate.scale*.5f;
+          const float reach=.10f+largestScale(candidate)*.5f;
           const bool direct=candidate.directGrab&&dx*dx+dy*dy+dz*dz<reach*reach;
           beginGrab(grab,candidate,hand,direct);
           grabOwners[h]=instanceId;
           if(scene.physics&&scene.physics->contains(candidate.id))scene.physics->hold(candidate.id);
           const float centerDistance=std::sqrt(dx*dx+dy*dy+dz*dz);
-          grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,candidate.scale*.5f)),.02f,2.f);
+          grab.laserDistance=std::clamp(std::min(meshHitDistance[h],centerDistance-std::max(.1f,largestScale(candidate)*.5f)),.02f,2.f);
           sceneInput().addMeshEvent("overlay.grabStart",candidate.id,h,meshHitDistance[h],meshHitPoint[h]);object=&candidate;break;
         }
       }
@@ -382,7 +382,7 @@ GroupLayout groupLayout(const std::vector<const Object*> &members,const Scene &s
       // magnification is plane/cos(theta), so matching an object's own facing
       // plane requires referenceDensity * axialDepth / plane, not radial range.
       float axialDepth=0;for(int axis=0;axis<3;axis++){const float delta=anchor.m[axis][3]+anchor.m[axis][0]*object->x+anchor.m[axis][1]*object->y-anchor.m[axis][2]*object->z-head.m[axis][3];axialDepth+=delta*forward[axis];}
-      const float referenceWidth=std::max(.55f,object->scale*2.1f*objectRadius(*object));
+      const float referenceWidth=std::max(.55f,largestScale(*object)*2.1f*objectRadius(*object));
       float memberDensity=asset.eyePixels/referenceWidth*std::max(.05f,axialDepth)/std::max(.05f,plane);
       if(cache&&cache->displayFocal>0&&plane>.05f)memberDensity=std::min(memberDensity,kDisplayOversample*cache->displayFocal/plane);
       density=std::max(density,memberDensity);
@@ -503,17 +503,20 @@ float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnaps
   if(!hand.valid)return std::numeric_limits<float>::max();
   float origin[3],direction[3];laserSceneRay(hand,handIndex,origin,direction);
   const float miss=std::numeric_limits<float>::max();
-  if(object.scale<=0)return miss;
-  // Invert the renderer's F*R transform once per ray, rather than applying it
+  if(!validScale(object.scale))return miss;
+  // Invert the renderer's F*R*S transform once per ray, rather than applying it
   // to every triangle. Keep direction unit length; convert hit distance back.
   float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
   const float delta[3]={origin[0]-object.x,origin[1]-object.y,-(origin[2]-object.z)};
   const float reflectedDirection[3]={direction[0],direction[1],-direction[2]};
   float localOrigin[3]{},localDirection[3]{};
   for(int axis=0;axis<3;axis++)for(int row=0;row<3;row++){
-    localOrigin[axis]+=rotation[row*3+axis]*delta[row]/object.scale;
-    localDirection[axis]+=rotation[row*3+axis]*reflectedDirection[row];
+    localOrigin[axis]+=rotation[row*3+axis]*delta[row]/object.scale[axis];
+    localDirection[axis]+=rotation[row*3+axis]*reflectedDirection[row]/object.scale[axis];
   }
+  // One local unit along the ray covers 1/length meters.
+  const float length=std::sqrt(localDirection[0]*localDirection[0]+localDirection[1]*localDirection[1]+localDirection[2]*localDirection[2]);
+  for(float &component:localDirection)component/=length;
   if(object.animationPose&&object.animationPose->gpuSkin && &asset==&object.animationPose->geometry){
     float near;if(!picking::bounds(localOrigin,localDirection,asset.low,asset.high,miss,near))return miss;
     prepareSkinPicking(currentScene->assets[size_t(object.asset)-1],*object.animationPose);
@@ -528,5 +531,5 @@ float meshHit(const Object &object,const ModelAsset &asset,const ControllerSnaps
       if(rayTriangle(localOrigin,localDirection,v,v+5,v+10,distance))best=std::min(best,distance);
     }
   }
-  return best==miss?miss:best*object.scale;
+  return best==miss?miss:best/length;
 }

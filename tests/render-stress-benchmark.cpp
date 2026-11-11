@@ -13,8 +13,8 @@ int main(int argc,char **argv){
     Scene scene;vr::HmdMatrix34_t anchor{},head{};for(int i=0;i<3;i++)anchor.m[i][i]=head.m[i][i]=1;
     head.m[1][3]=.15f;head.m[2][3]=1;
     for(const char *path:{"assets/physics/ThinPlatform.glb","assets/samples/Box/Box.glb"}){ModelAsset a;assert(loadModelFile(path,a));uploadModel(a);scene.assets.push_back(std::move(a));}
-    scene.objects.push_back({1,1,0,-.55f,0,1.2f,0});
-    for(int i=0;i<count-1;i++)scene.objects.push_back({i+2,2,((i%6)-2.5f)*.13f,-.25f+(i/6)*.13f,0,.1f,0});
+    scene.objects.push_back({1,1,0,-.55f,0,{1.2f,1.2f,1.2f},0});
+    for(int i=0;i<count-1;i++)scene.objects.push_back({i+2,2,((i%6)-2.5f)*.13f,-.25f+(i/6)*.13f,0,{.1f,.1f,.1f},0});
     if(detailed){
       for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","assets/Avocado.glb"}){ModelAsset a;assert(loadModelFile(path,a));uploadModel(a);scene.assets.push_back(std::move(a));}
       scene.objects[count-2]={count-1,3,-.25f,.35f,.1f,.25f,0};scene.objects[count-1]={count,4,.25f,.35f,.1f,.25f,0};
@@ -37,7 +37,7 @@ int main(int argc,char **argv){
       float r[3],u[3],f[3];faceViewer(panel,anchor,head,r,u,f);
       const float eyes[2][3]={{-.032f,.15f,1},{.032f,.15f,1}},center[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
       ProjectedBounds bounds[2];for(int eye=0;eye<2;eye++)bounds[eye]=projectedBounds(target,scene.assets[target.asset-1],anchor,eyes[eye],r,u,f);
-      Target t;t.size=mode?objectCropPixels(bounds,center,eyes,r,u,f,std::max(.55f,target.scale*2.1f),pixels):pixels;glGenFramebuffers(1,&t.fbo);glBindFramebuffer(GL_FRAMEBUFFER,t.fbo);
+      Target t;t.size=mode?objectCropPixels(bounds,center,eyes,r,u,f,std::max(.55f,largestScale(target)*2.1f),pixels):pixels;glGenFramebuffers(1,&t.fbo);glBindFramebuffer(GL_FRAMEBUFFER,t.fbo);
       glGenTextures(1,&t.color);glBindTexture(GL_TEXTURE_2D,t.color);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,t.size,t.size,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,t.color,0);
       glGenRenderbuffers(1,&t.depth);glBindRenderbuffer(GL_RENDERBUFFER,t.depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,t.size,t.size);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,t.depth);assert(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);targets.push_back(t);
     }
@@ -47,7 +47,7 @@ int main(int argc,char **argv){
         float right[3],up[3],forward[3];faceViewer(panel,anchor,head,right,up,forward);
         const auto &buffer=targets[(crop?2*count:0)+2*(target.id-1)];
         const int size=buffer.size;
-        const float center[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]},width=std::max(.55f,target.scale*2.1f)*size/pixels;
+        const float center[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]},width=std::max(.55f,largestScale(target)*2.1f)*size/pixels;
         glUniform3fv(centerLoc,1,center);glUniform3fv(rLoc,1,right);glUniform3fv(uLoc,1,up);glUniform3fv(fLoc,1,forward);glUniform1f(halfLoc,width*.5f);
         for(int eyeIndex=0;eyeIndex<2;eyeIndex++){
           const float eye[3]={eyeIndex?.032f:-.032f,.15f,1};glUniform3fv(eyeLoc,1,eye);
@@ -58,7 +58,7 @@ int main(int argc,char **argv){
             for(const auto &object:scene.objects){
               if(pass<0?object.id==id:object.id!=id)continue;
               const auto &asset=scene.assets[object.asset-1];if(pass<0&&!mayOcclude(projectedBounds(object,asset,anchor,eye,right,up,forward),bounds))continue;
-              glUniform1f(yawLoc,object.yaw);glUniform1f(pitchLoc,object.pitch);glUniform1f(rollLoc,object.roll);glUniform1f(scaleLoc,object.scale);glUniform3f(offsetLoc,object.x-target.x,object.y-target.y,object.z-target.z);
+              glUniform1f(yawLoc,object.yaw);glUniform1f(pitchLoc,object.pitch);glUniform1f(rollLoc,object.roll);glUniform3fv(scaleLoc,1,object.scale.data());glUniform3f(offsetLoc,object.x-target.x,object.y-target.y,object.z-target.z);
               for(const auto &part:asset.primitives){
                 if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
                 glUniform4fv(factorLoc,1,part.factor);glUniform1i(modeLoc,part.alphaMode);glUniform1f(cutoffLoc,part.alphaCutoff);glUniform3fv(sheenLoc,1,part.sheen);

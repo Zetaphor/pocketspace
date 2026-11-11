@@ -41,7 +41,7 @@ and visual acceptance.
 | [multi-script-soak.py](multi-script-soak.py) | Bounded two-script production soak without input capture: two display-only scenes, alternating reloads, `stats` samples, and clean shutdown with the control socket removed. Needs SteamVR running. |
 | [control-live-check.py](control-live-check.py) | Live engine checks over the control socket: two display-only scripts started, reloaded, evaluated and stopped with generations and watch events; `--service` starts, restarts and stops the systemd user service. Needs SteamVR already running. |
 | [panel-submission-regression.cpp](panel-submission-regression.cpp) | Cached panel writes and grouped surface handoffs, including injected presentation failures and fallback cleanup; object placement offsets, orientation, viewer facing and visibility. |
-| [physics-api-regression.cpp](physics-api-regression.cpp), [object-transform-api-smoke.js](object-transform-api-smoke.js), [canvas-text-api-smoke.js](canvas-text-api-smoke.js) | Physics JavaScript fixtures against real bindings, with native simulation and lifecycle checks; `getObjectTransform` after set calls, a grab without a body and physics, with invalid and removed IDs; `canvas.measureText` widths, sizes, lines, missing font and drawn extent; `getFloorHeight` with level, pitched, missing and horizontal anchors. |
+| [physics-api-regression.cpp](physics-api-regression.cpp), [object-transform-api-smoke.js](object-transform-api-smoke.js), [canvas-text-api-smoke.js](canvas-text-api-smoke.js) | Physics JavaScript fixtures against real bindings, with native simulation and lifecycle checks; `getObjectTransform` after set calls, per-axis scale, a grab without a body and physics, with invalid and removed IDs; `canvas.measureText` widths, sizes, lines, missing font and drawn extent; `getFloorHeight` with level, pitched, missing and horizontal anchors. |
 | [physics-collision-regression.cpp](physics-collision-regression.cpp) | Collision events and contact lifecycle, including interaction with input handling. |
 | [physics-joint-regression.cpp](physics-joint-regression.cpp) | Native joint constraints, springs, motors, breakage, updates, and cleanup. |
 | [physics-performance-regression.cpp](physics-performance-regression.cpp) | Physics optimization correctness, including worker policy and collision processing. |
@@ -75,6 +75,7 @@ and visual acceptance.
 | [collision-api-smoke.js](collision-api-smoke.js) | Collision event API and filtering options. |
 | [convex-api-smoke.js](convex-api-smoke.js) | Convex hull collider creation, caching, state, and validation. |
 | [custom-collider-api-smoke.js](custom-collider-api-smoke.js) | Explicit collider dimensions and offsets. |
+| [stretched-collider-api-smoke.js](stretched-collider-api-smoke.js) | Box, convex and mesh colliders on per-axis scaled objects, automatic sphere rejection, explicit radius and scale rollback. |
 | [engine-stats-api-smoke.js](engine-stats-api-smoke.js) | Statistics field availability before the first runtime sample. |
 | [eye-calibration-smoke.js](eye-calibration-smoke.js) | Calibration file validation, save/load round-trip, and activation. |
 | [grab-buttons-api-smoke.js](grab-buttons-api-smoke.js) | Accepted grab buttons and rejection of invalid options. |

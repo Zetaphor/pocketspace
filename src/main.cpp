@@ -5,7 +5,7 @@ int main(int argc,char **argv) {
   // CPU-only workload: no SteamVR session or graphics context required.
   if(argc>2&&std::string(argv[1])=="--benchmark-picking"){
     ModelAsset asset;if(!loadModelFile(argv[2],asset))return 1;
-    Object object{1,1,0,0,0,.4f,.5f};
+    Object object{1,1,0,0,0,{.4f,.4f,.4f},.5f};
     ControllerSnapshot hand;hand.valid=true;
     constexpr float tilt=.6981317008f;
     const float c=std::cos(tilt),s=std::sin(tilt);
@@ -219,7 +219,7 @@ int main(int argc,char **argv) {
     };
     for(const auto &[id,members]:groups){
       const auto *object=members.front();
-      const float width=std::max(.55f,object->scale*2.1f*objectRadius(*object));
+      const float width=std::max(.55f,largestScale(*object)*2.1f*objectRadius(*object));
       const int eyePixels=host.scene.assets[(size_t)object->asset-1].eyePixels;
       auto found=surfaces.find(id);
       if(found!=surfaces.end()&&found->second->buffers[0].fbo&&id>0&&found->second->referenceEyePixels!=eyePixels){
@@ -604,8 +604,8 @@ int main(int argc,char **argv) {
         const bool available=asset.lod&&!object.animationPose&&std::any_of(asset.primitives.begin(),asset.primitives.end(),[](const auto &p){return p.lod[0].indexBuffer||p.lod[1].indexBuffer||p.lod[0].vbo||p.lod[1].vbo;});
         if(!available||grabs[0].objectId==object.id||grabs[1].objectId==object.id){selectDetail(0);continue;}
         float center[3];for(int row=0;row<3;row++)center[row]=anchor.m[row][3]+anchor.m[row][0]*object.x+anchor.m[row][1]*object.y-anchor.m[row][2]*object.z;
-        float extent=0;for(int axis=0;axis<3;axis++){const float e=asset.high[axis]-asset.low[axis];extent+=e*e;}
-        const float radius=.5f*std::abs(object.scale)*std::sqrt(extent);float nearest=std::numeric_limits<float>::infinity(),pixels=0;
+        float extent=0;for(int axis=0;axis<3;axis++){const float e=(asset.high[axis]-asset.low[axis])*object.scale[axis];extent+=e*e;}
+        const float radius=.5f*std::sqrt(extent);float nearest=std::numeric_limits<float>::infinity(),pixels=0;
         for(const auto &eye:eyes){float squared=0,depth=0;for(int axis=0;axis<3;axis++){const float d=center[axis]-eye[axis];squared+=d*d;depth-=d*head.m[axis][2];}nearest=std::min(nearest,std::sqrt(squared)-radius);pixels=std::max(pixels,modelLod::projectedDiameter(radius,focal,squared,depth));}
         selectDetail(modelLod::select(pixels,nearest,object.lodLevel));
       }
@@ -696,7 +696,7 @@ int main(int argc,char **argv) {
         // cohort snapshots stay visible until the complete handoff succeeds.
         const bool changing=pendingTileChange&&(id==pendingTileChange->parent||(!pendingTileChange->merge&&id==pendingTileChange->child));
         if(changing&&hideSurfaceFront(*overlays,*surface)!=vr::VROverlayError_None)continue;
-        float animatedWidth=std::max(.55f,target->scale*2.1f*objectRadius(*target));
+        float animatedWidth=std::max(.55f,largestScale(*target)*2.1f*objectRadius(*target));
         float surfaceX=target->x,surfaceY=target->y,surfaceZ=target->z;
         auto panel=anchor;
         float panelRight[3],panelUp[3],panelForward[3];
@@ -704,14 +704,14 @@ int main(int argc,char **argv) {
           const auto projection=groupPlane(members,script.scene,anchor,head,eyes,&frameBounds);
           panel=projection.transform;surfaceX=projection.sceneOrigin[0];surfaceY=projection.sceneOrigin[1];surfaceZ=projection.sceneOrigin[2];
           std::copy_n(projection.right,3,panelRight);std::copy_n(projection.up,3,panelUp);std::copy_n(projection.forward,3,panelForward);
-          for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+member->scale*objectRadius(*member)));}
+          for(const auto *member:members){const float dx=member->x-surfaceX,dy=member->y-surfaceY,dz=member->z-surfaceZ;animatedWidth=std::max(animatedWidth,2.1f*(std::sqrt(dx*dx+dy*dy+dz*dz)+largestScale(*member)*objectRadius(*member)));}
         }else{
           for(int r=0;r<3;r++)panel.m[r][3]+=anchor.m[r][0]*surfaceX+anchor.m[r][1]*surfaceY-anchor.m[r][2]*surfaceZ;
           faceViewer(panel,anchor,head,panelRight,panelUp,panelForward);
         }
         float distanceSquared=0,facing=0;
         for(int r=0;r<3;r++){float delta=panel.m[r][3]-head.m[r][3];distanceSquared+=delta*delta;facing-=delta*head.m[r][2];}
-        if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:target->scale*(target->animationPose?objectRadius(*target):.6f))){
+        if(facing<.25f*std::sqrt(distanceSquared)-(id<0?animatedWidth*.5f:largestScale(*target)*(target->animationPose?objectRadius(*target):.6f))){
           const auto error=changing?hideSurfaceFront(*overlays,*surface):hideSurface(*overlays,*surface);
           if(error!=vr::VROverlayError_None)fprintf(stderr,"[surface] hide id=%d error=%d\n",id,int(error));
           else culledSurfaces.insert(id);
@@ -779,7 +779,7 @@ int main(int argc,char **argv) {
             };
             auto drawObject=[&](const Object &object){
               const auto &asset=script.scene.assets[(size_t)object.asset-1];
-              glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+              glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform3fv(scaleLocation,1,object.scale.data());
               glUniform3f(offsetLocation,object.x-surfaceX,object.y-surfaceY,object.z-surfaceZ);
               // An external occluder draws only the clusters that pass the same test as
               // the whole object; the rest cannot cover any of the target's fragments.

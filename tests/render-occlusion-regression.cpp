@@ -191,7 +191,7 @@ static void vertexCachePixels(){
 }
 static void coherentGroupPlanes(){
   Scene scene;ModelAsset asset;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}scene.assets.push_back(std::move(asset));
-  scene.objects.push_back({1,1,-.3f,-.2f,-.35f,.15f,0});scene.objects.push_back({2,1,.3f,.1f,.35f,.15f,0});
+  scene.objects.push_back({1,1,-.3f,-.2f,-.35f,{.15f,.15f,.15f},0});scene.objects.push_back({2,1,.3f,.1f,.35f,{.15f,.15f,.15f},0});
   vr::HmdMatrix34_t anchor{};for(int axis=0;axis<3;axis++)anchor.m[axis][axis]=1;
   for(const auto position:{physics::Vec3{0,.2f,1.2f},physics::Vec3{.4f,.3f,1},physics::Vec3{-.4f,.3f,1.5f}}){
     auto head=anchor;head.m[0][3]=position.x;head.m[1][3]=position.y;head.m[2][3]=position.z;
@@ -265,7 +265,7 @@ int main(){
     puts("PASS subdivided GLES: runtime tile keys preserve cross-tile floor/body occlusion and exact stereo pixels on a matching grid");
     {
       Scene groupScene;ModelAsset asset;asset.eyePixels=768;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}groupScene.assets.push_back(std::move(asset));
-      groupScene.objects.push_back({1,1,-.25f,0,0,.1f,0});groupScene.objects.push_back({2,1,.25f,0,0,.1f,0});
+      groupScene.objects.push_back({1,1,-.25f,0,0,{.1f,.1f,.1f},0});groupScene.objects.push_back({2,1,.25f,0,0,{.1f,.1f,.1f},0});
       std::vector<const Object*> members{&groupScene.objects[0],&groupScene.objects[1]};
       auto head=renderer.anchor;head.m[2][3]=1;
       const float center[3]={0,0,0},eyes[2][3]={{-.032f,0,1},{.032f,0,1}},r[3]={1,0,0},u[3]={0,1,0},f[3]={0,0,-1};
@@ -341,7 +341,7 @@ int main(){
     }
     for(const char *path:{"assets/samples/ToyCar/ToyCar.glb","assets/Avocado.glb"}){
       ModelAsset asset;assert(loadModelFile(path,asset));uploadModel(asset);renderer.scene.assets.push_back(std::move(asset));
-      const int id=int(renderer.scene.objects.size())+1;renderer.scene.objects.push_back({id,int(renderer.scene.assets.size()),0,-.32f,0,.12f,0});
+      const int id=int(renderer.scene.objects.size())+1;renderer.scene.objects.push_back({id,int(renderer.scene.assets.size()),0,-.32f,0,{.12f,.12f,.12f},0});
     }
     for(int id:{3,4,5})for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{0,-.32f,-.08f}})for(int eye=0;eye<2;eye++){
       auto full=renderer.render(id,head,eye,true,true,ignored,true,false,true);

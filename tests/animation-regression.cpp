@@ -6,7 +6,7 @@ static void testSkins(const char *fixtures){
  ModelAsset man;assert(loadModelFile("assets/samples/CesiumMan/CesiumMan.glb",man));
  assert(man.skins.size()==1&&man.skins[0].joints.size()==19&&man.animations[0].supported());
  animation::Playback state;state.clip=0;ModelPose pose;std::vector<float> first;bool moved=false;int hits=0;
- Object object{};object.scale=.5;
+ Object object{};object.scale.fill(.5);
  std::mt19937 random(9);std::uniform_real_distribution<float> position(-.7,.7);
  for(double time:{0.,.3,.7,1.2}){
   state.time=time;evaluateModelPose(man,state,pose);
@@ -60,7 +60,7 @@ int main(int argc,char **argv){
  evaluateModelPose(asset,state,bind);
  for(size_t p=0;p<asset.primitives.size();p++)for(size_t v=0;v<asset.primitives[p].vertices.size();v++)assert(approximately(bind.geometry.primitives[p].vertices[v],asset.primitives[p].vertices[v]));
  asset.animations.pop_back();
- Object object{};object.id=1;object.scale=.4;object.yaw=.2;object.pitch=.1;
+ Object object{};object.id=1;object.scale.fill(.4);object.yaw=.2;object.pitch=.1;
  std::mt19937 random(7);std::uniform_real_distribution<float> position(-1.5,1.5);
  ModelPose pose;int hits=0;
  for(int clip=0;clip<9;clip++)for(double time:{0.,.25,.75,1.,1.5,2.}){

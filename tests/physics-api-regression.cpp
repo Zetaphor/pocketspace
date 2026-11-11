@@ -101,6 +101,8 @@ int main(){
   for(int i=0;i<180;i++)updateScenePhysics(host.scene,1./90);
   assert(eval("verifyLength();configureBreak()"));updateScenePhysics(host.scene,1./90);assert(eval("verifyUpdatedBreak()"));
   puts("PASS joint update API: partial options, same ID, nested spring merge/null reset, rollback, new limits and threshold breaking");
+  assert(loadScript(host,"tests/stretched-collider-api-smoke.js"));
+  puts("PASS stretched collider API: per-axis box, convex and mesh sizes, automatic sphere rejection, explicit radius and scale rollback");
   assert(loadScript(host,"tests/object-transform-api-smoke.js"));
   {
     // A grab without a physics body moves the object; the script reads where it went.

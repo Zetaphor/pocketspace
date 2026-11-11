@@ -26,8 +26,8 @@ int main(int argc,char **argv){
    assert(loadModelFile("tests/fixtures/pbr/MissingNormals.glb",a));uploadModel(a);
    a.lighting.intensity=0;a.lighting.ambient=.03;for(auto &p:a.primitives){p.metallic=0;p.roughness=.8f;p.factor[0]=p.factor[1]=p.factor[2]=.7f;}
   }
-  Object receiver{},caster{};receiver.id=1;receiver.asset=1;receiver.scale=1.5;
-  caster.id=2;caster.asset=2;caster.scale=.25f;caster.z=-.3f;r.scene.objects={receiver,caster};
+  Object receiver{},caster{};receiver.id=1;receiver.asset=1;receiver.scale.fill(1.5);
+  caster.id=2;caster.asset=2;caster.scale.fill(.25f);caster.z=-.3f;r.scene.objects={receiver,caster};
   PointLight light;light.id=1;light.spot=true;light.position={-.4f,.5f,-1.f};light.direction={.4f,-.5f,1.f};light.range=3;light.intensity=2;light.innerConeAngle=.6;light.outerConeAngle=.9;light.shadow.resolution=256;light.shadow.maxGpuMs=16;if(directional){light.spot=false;light.directional=true;light.shadow.size=2;light.shadow.depth=4;}if(point)light.spot=false;r.scene.lights={light};
   auto baseline=r.renderSet({1},{0,0,-1.2f},0);assert(!r.spotShadows.texture);
   r.scene.lights[0].shadow.enabled=true;auto shaded=r.renderSet({1},{0,0,-1.2f},0);assert(r.spotShadows.active);const size_t solid=darker(baseline,shaded);printf("SHADOW opaque pixels=%zu\n",solid);assert(solid>100);
@@ -50,7 +50,7 @@ int main(int argc,char **argv){
    for(int axis=0;axis<3;axis++){sheet.low[axis]=axis==2?-.04f:-.5f;sheet.high[axis]=axis==2?.04f:.5f;}
    uploadModel(sheet);assert(part.depthClusters.indexBuffer);
    const auto objects=r.scene.objects;const auto shadow=r.scene.lights[0].shadow;r.scene.assets.push_back(std::move(sheet));
-   Object caster=objects[1];caster.id=3;caster.asset=int(r.scene.assets.size());caster.scale=.6f;r.scene.objects={objects[0],caster};
+   Object caster=objects[1];caster.id=3;caster.asset=int(r.scene.assets.size());caster.scale.fill(.6f);r.scene.objects={objects[0],caster};
    r.scene.lights[0].shadow.maxTriangles=1000000;r.scene.lights[0].shadow.enabled=false;auto unshadowed=r.renderSet({1},{0,0,-1.2f},0);r.scene.lights[0].shadow.enabled=true;
    shadowViewValidation::cull=false;auto whole=r.renderSet({1},{0,0,-1.2f},0);shadowViewValidation::cull=true;assert(r.spotShadows.active);
    shadowViewValidation::clusterTests=shadowViewValidation::drawnClusters=shadowViewValidation::culledCasters=0;
@@ -58,6 +58,25 @@ int main(int argc,char **argv){
    printf("SHADOW culling clusters=%llu drawn=%llu culled_casters=%llu\n",(unsigned long long)shadowViewValidation::clusterTests,(unsigned long long)shadowViewValidation::drawnClusters,(unsigned long long)shadowViewValidation::culledCasters);
    assert(whole==culled&&darker(unshadowed,culled)>100&&shadowViewValidation::clusterTests>0);
    if(point)assert(shadowViewValidation::drawnClusters<shadowViewValidation::clusterTests&&shadowViewValidation::culledCasters>0);
+   {
+    // A stretched, rotated caster must cast the same culled shadow as a copy with
+    // the stretch baked into its vertices; the copy's uniform scale is the largest axis.
+    const std::array<float,3> stretch{.6f,.25f,.9f},bake{stretch[0]/.9f,stretch[1]/.9f,1.f};
+    ModelAsset baked;baked.primitives.resize(1);
+    {const auto &source=r.scene.assets.back();auto &part=baked.primitives[0];part.vertices=source.primitives[0].vertices;
+     for(size_t v=0;v<part.vertices.size();v+=5)for(int axis=0;axis<3;axis++)part.vertices[v+axis]*=bake[axis];
+     part.vertexCount=source.primitives[0].vertexCount;part.rgba={255,255,255,255};
+     for(int axis=0;axis<3;axis++){baked.low[axis]=source.low[axis]*bake[axis];baked.high[axis]=source.high[axis]*bake[axis];}}
+    uploadModel(baked);const int sheetAsset=int(r.scene.assets.size());r.scene.assets.push_back(std::move(baked));
+    caster.asset=sheetAsset;caster.scale=stretch;caster.pitch=.2f;caster.yaw=.3f;r.scene.objects={objects[0],caster};
+    r.scene.lights[0].shadow.enabled=false;auto open=r.renderSet({1},{0,0,-1.2f},0);r.scene.lights[0].shadow.enabled=true;
+    auto stretched=r.renderSet({1},{0,0,-1.2f},0);
+    r.scene.objects[1].asset=sheetAsset+1;r.scene.objects[1].scale.fill(.9f);auto reference=r.renderSet({1},{0,0,-1.2f},0);
+    int maxDelta=0;size_t changed=0;for(size_t i=0;i<stretched.size();i++){const int d=std::abs(int(stretched[i])-int(reference[i]));maxDelta=std::max(maxDelta,d);changed+=d>1;}
+    printf("SHADOW stretched caster max_delta=%d changed=%zu darker=%zu\n",maxDelta,changed,darker(open,stretched));
+    assert(darker(open,stretched)>100&&changed<=8);
+    deleteModel(r.scene.assets.back());r.scene.assets.pop_back();
+   }
    r.scene.objects=objects;r.scene.lights[0].shadow=shadow;deleteModel(r.scene.assets.back());r.scene.assets.pop_back();
   }
   for(int eye=0;eye<2;eye++){printf("STEREO eye=%d\n",eye);fflush(stdout);
@@ -125,7 +144,7 @@ int main(int argc,char **argv){
   for(const char *name:{"Fox","AnimatedMorphCube","InterpolationTest"}){
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();
    assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",asset));uploadModel(asset);
-   r.scene.objects[1].asset=int(r.scene.assets.size());r.scene.objects[1].scale=.4f;
+   r.scene.objects[1].asset=int(r.scene.assets.size());r.scene.objects[1].scale.fill(.4f);
    // Isolate the shadow image from the caster's separate overlay depth mask.
    auto poseShadow=[&]{r.spotShadows.update(r.scene);assert(r.spotShadows.active);r.updateShadows=false;r.scene.objects[1].visible=false;auto image=r.renderSet({1},{0,0,-1.2f},0);r.scene.objects[1].visible=true;r.updateShadows=true;return image;};
    std::vector<unsigned char> previous;
@@ -139,7 +158,7 @@ int main(int argc,char **argv){
     assert(changed<size_t(pixels)*pixels/200);if(!previous.empty())assert(actual!=previous);previous=actual;
    }
   }
-  r.scene.objects[1].animationPose.reset();r.scene.objects[1].asset=2;r.scene.objects[1].scale=.25f;
+  r.scene.objects[1].animationPose.reset();r.scene.objects[1].asset=2;r.scene.objects[1].scale.fill(.25f);
   // Restore caller GL state, using a private VAO for all caster attributes.
   GLuint vao=0;glGenVertexArrays(1,&vao);glBindVertexArray(vao);glViewport(7,11,31,29);glEnable(GL_SCISSOR_TEST);glEnable(GL_BLEND);glEnable(GL_CULL_FACE);glCullFace(GL_FRONT);glFrontFace(GL_CW);glDepthMask(GL_FALSE);glColorMask(GL_FALSE,GL_TRUE,GL_FALSE,GL_TRUE);glClearDepthf(.3f);glActiveTexture(GL_TEXTURE4);
   r.spotShadows.update(r.scene);GLint saved=0,viewport[4]{};GLboolean mask[4]{};glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&saved);assert(GLuint(saved)==vao);glGetIntegerv(GL_ACTIVE_TEXTURE,&saved);assert(saved==GL_TEXTURE4);glGetIntegerv(GL_VIEWPORT,viewport);assert(viewport[0]==7&&viewport[3]==29);glGetBooleanv(GL_COLOR_WRITEMASK,mask);assert(!mask[0]&&mask[1]&&!mask[2]&&mask[3]);assert(glIsEnabled(GL_SCISSOR_TEST)&&glIsEnabled(GL_BLEND)&&glIsEnabled(GL_CULL_FACE));
@@ -172,7 +191,7 @@ int main(int argc,char **argv){
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);
   for(int count:point?std::vector<int>{1}:std::vector<int>{1,4})for(int resolution:point?std::vector<int>{256,512}:std::vector<int>{256,512,1024}){
    r.scene.objects.clear();std::vector<int> members;
-   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.6f:.3f;o.x=count==1?0:(i%2-.5f)*.5f;o.y=count==1?0:(i/2-.5f)*.5f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
+   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(count==1?.6f:.3f);o.x=count==1?0:(i%2-.5f)*.5f;o.y=count==1?0:(i/2-.5f)*.5f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
    light.shadow.resolution=resolution;r.scene.lights={light};
    for(int stage=0;stage<4;stage++){
     r.scene.lights[0].shadow.enabled=stage==1||stage==2;

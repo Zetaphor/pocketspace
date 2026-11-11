@@ -17,7 +17,7 @@ int main(int argc,char **argv){
   auto unchanged=independent.geometry.primitives[0].vertices;
   state.time=2;evaluateModelPose(asset,state,pose);assert(independent.geometry.primitives[0].vertices==unchanged);
   assert(near(pose.geometry.high[2],(name=="skin"?4.f:2.f)-initial));
-  Object object{};object.scale=1;ControllerSnapshot hand;hand.valid=true;hand.x=-.25;hand.y=-.25;hand.z=5;const float rotation[9]={1,0,0,0,std::cos(.6981317008f),-std::sin(.6981317008f),0,std::sin(.6981317008f),std::cos(.6981317008f)};std::copy_n(rotation,9,hand.rotation);
+  Object object{};object.scale.fill(1);ControllerSnapshot hand;hand.valid=true;hand.x=-.25;hand.y=-.25;hand.z=5;const float rotation[9]={1,0,0,0,std::cos(.6981317008f),-std::sin(.6981317008f),0,std::sin(.6981317008f),std::cos(.6981317008f)};std::copy_n(rotation,9,hand.rotation);
   const float hit=meshHit(object,pose.geometry,hand,0);
   assert(hit!=std::numeric_limits<float>::max()&&near(hit,meshHit(object,pose.geometry,hand,0,false)));
  }

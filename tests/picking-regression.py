@@ -24,6 +24,7 @@ for index in indices:
     vertices.extend([*positions[index*3:index*3+3], 0, 0])
 
 header = r"""#include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -35,7 +36,8 @@ struct Part {std::vector<float> vertices;};
 struct ModelAsset {float low[3]={-.5,-.5,-.08},high[3]={.5,.5,.08};std::vector<Part> primitives;std::vector<picking::Triangle> pickTriangles;std::vector<picking::Node> pickNodes;};
 // Rigid geometry only; animated picking is covered by the engine regressions.
 struct ModelPose {bool gpuSkin=false;ModelAsset geometry;};
-struct Object {float x=0,y=0,z=0,scale=.5,pitch=0,yaw=0,roll=0;int asset=0;ModelPose *animationPose=nullptr;};
+struct Object {float x=0,y=0,z=0;std::array<float,3> scale{.5f,.5f,.5f};float pitch=0,yaw=0,roll=0;int asset=0;ModelPose *animationPose=nullptr;};
+static bool validScale(const std::array<float,3> &scale){for(float s:scale)if(!std::isfinite(s)||s<=0||s>2)return false;return true;}
 struct PickScene {std::vector<ModelAsset> assets;};
 static PickScene *currentScene=nullptr;
 static void prepareSkinPicking(const ModelAsset&,ModelPose&){}
@@ -54,11 +56,11 @@ reference = r"""static float meshHitReference(const Object &object,const ModelAs
   }
   float best=std::numeric_limits<float>::max();
   const float cp=std::cos(object.pitch),sp=std::sin(object.pitch),cy=std::cos(object.yaw),sy=std::sin(object.yaw),cr=std::cos(object.roll),sr=std::sin(object.roll);
-  const float centerX=(asset.low[0]+asset.high[0])*.5f*object.scale,centerY=(asset.low[1]+asset.high[1])*.5f*object.scale,centerZ=(asset.low[2]+asset.high[2])*.5f*object.scale;
+  const float centerX=(asset.low[0]+asset.high[0])*.5f*object.scale[0],centerY=(asset.low[1]+asset.high[1])*.5f*object.scale[1],centerZ=(asset.low[2]+asset.high[2])*.5f*object.scale[2];
   const float rotatedX=cr*centerX-sr*centerY,rotatedY=sr*centerX+cr*centerY;
   const float pitchedY=cp*rotatedY-sp*centerZ,pitchedZ=sp*rotatedY+cp*centerZ;
   const float center[3]={object.x+cy*rotatedX+sy*pitchedZ,object.y+pitchedY,object.z+sy*rotatedX-cy*pitchedZ};
-  const float halfX=(asset.high[0]-asset.low[0])*.5f*object.scale,halfY=(asset.high[1]-asset.low[1])*.5f*object.scale,halfZ=(asset.high[2]-asset.low[2])*.5f*object.scale;
+  const float halfX=(asset.high[0]-asset.low[0])*.5f*object.scale[0],halfY=(asset.high[1]-asset.low[1])*.5f*object.scale[1],halfZ=(asset.high[2]-asset.low[2])*.5f*object.scale[2];
   const float outerRadiusSquared=halfX*halfX+halfY*halfY+halfZ*halfZ;
   float along=0,centerDistanceSquared=0;
   for(int axis=0;axis<3;axis++){const float delta=center[axis]-origin[axis];along+=delta*direction[axis];centerDistanceSquared+=delta*delta;}
@@ -67,7 +69,7 @@ reference = r"""static float meshHitReference(const Object &object,const ModelAs
   for(const auto &part:asset.primitives)for(size_t index=0;index+14<part.vertices.size();index+=15){
     float triangle[3][3];
     for(int vertex=0;vertex<3;vertex++){
-      const float x=part.vertices[index+vertex*5]*object.scale,y=part.vertices[index+vertex*5+1]*object.scale,z=part.vertices[index+vertex*5+2]*object.scale;
+      const float x=part.vertices[index+vertex*5]*object.scale[0],y=part.vertices[index+vertex*5+1]*object.scale[1],z=part.vertices[index+vertex*5+2]*object.scale[2];
       const float rotatedX=cr*x-sr*y,rotatedY=sr*x+cr*y;
       const float pitchedY=cp*rotatedY-sp*z,pitchedZ=sp*rotatedY+cp*z;
       triangle[vertex][0]=object.x+cy*rotatedX+sy*pitchedZ;
@@ -93,15 +95,19 @@ for(int hand=0;hand<2;hand++){ControllerSnapshot h;float t=.6981317008f,c=std::c
 assert(meshHit(o,a,h,hand)==std::numeric_limits<float>::max());
 h.x+=.21f;assert(meshHit(o,a,h,hand)<1.f);
 o.yaw=.9f;h.x-=.21f;assert(meshHit(o,a,h,hand)==std::numeric_limits<float>::max());o.yaw=0;
+int stretchedHits=0;
 for(int n=0;n<2000;n++){
-  o.pitch=(n%13)*.17f;o.yaw=(n%17)*.19f;o.roll=(n%11)*.23f;o.scale=.1f+(n%9)*.08f;
+  o.pitch=(n%13)*.17f;o.yaw=(n%17)*.19f;o.roll=(n%11)*.23f;
+  // Every third ray uses a uniform scale; the rest stretch each axis differently.
+  const float size=.1f+(n%9)*.08f;o.scale=n%3==0?std::array<float,3>{size,size,size}:std::array<float,3>{size,.1f+(n%7)*.11f,.05f+(n%5)*.3f};
   h.x=(hand==0?-.012694f:.012694f)+((n%41)-20)*.012f;
   h.y=-(-.02522f*c-.020687f*s)+((n%37)-18)*.013f;
   const float actual=meshHit(o,a,h,hand),reference=meshHitReference(o,a,h,hand);
   assert((actual==std::numeric_limits<float>::max())==(reference==std::numeric_limits<float>::max()));
-  if(actual!=std::numeric_limits<float>::max())assert(std::fabs(actual-reference)<1e-4f);
+  if(actual!=std::numeric_limits<float>::max()){assert(std::fabs(actual-reference)<1e-4f);stretchedHits+=n%3!=0;}
 }
-o.pitch=o.yaw=o.roll=0;o.scale=.5f;
+assert(stretchedHits>100);
+o.pitch=o.yaw=o.roll=0;o.scale.fill(.5f);
 h.valid=false;assert(meshHit(o,a,h,hand)==std::numeric_limits<float>::max());}
 // Exercise tree traversal with sparse layers, overlapping surfaces, and rays
 // both outside and inside the geometry. Compare nearest hits with a full scan.
@@ -135,7 +141,7 @@ assert(grid.pickTriangles.empty()&&grid.pickNodes.empty());
 origin[0]=origin[1]=0;origin[2]=1;
 assert(picking::intersect(grid,origin,direction,rayTriangle)==std::numeric_limits<float>::max());
 puts("PASS BVH: 8000 rays, nearest hits, inside origins, parallel rays, sparse layers, rebuild");
-puts("PASS both hands: hollow center miss, rail hit, rotated opening miss, invalid tracking miss");}
+puts("PASS both hands: hollow center miss, rail hit, rotated opening miss, uniform and per-axis scale, invalid tracking miss");}
 """
 
 def function(text, start):
@@ -149,6 +155,7 @@ def function(text, start):
 program = (header + function(source, 'void objectRotationMatrix(')
            + function(inline_source, 'inline bool rayTriangle(')
            + 'float meshHit(const Object&,const ModelAsset&,const ControllerSnapshot&,int,bool accelerated=true);\n'
+           + function(source, 'void laserSceneRay(')
            + function(source, 'float meshHit(')
            + reference + checks.replace('VERTICES', ','.join(map(str, vertices))))
 with tempfile.TemporaryDirectory() as directory:

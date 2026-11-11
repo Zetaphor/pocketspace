@@ -26,7 +26,7 @@ static bool near(float a,float b){return std::fabs(a-b)<1e-5f;}
 // Object placement: the offset and orientation turn with the object; offsets stay in meters.
 static void following(){
   auto anchor=identity(),head=identity();for(int row=0;row<3;row++){anchor.m[row][3]=float(row+1);head.m[row][3]=float(row+4);}
-  Scene scene;Object object{};object.id=7;object.x=.5f;object.y=0;object.z=1;object.scale=.3f;object.yaw=float(M_PI/2);scene.objects.push_back(object);
+  Scene scene;Object object{};object.id=7;object.x=.5f;object.y=0;object.z=1;object.scale.fill(.3f);object.yaw=float(M_PI/2);scene.objects.push_back(object);
   Panel panel;panel.mode="object";panel.objectId=7;panel.z=.5f;
   CHECK(panelObject(panel,scene)==&scene.objects[0]&&panelShown(panel,scene));
   auto placed=panelTransform(panel,anchor,head,panelObject(panel,scene));
@@ -34,7 +34,7 @@ static void following(){
   CHECK(near(placed.m[0][3],1)&&near(placed.m[1][3],2)&&near(placed.m[2][3],2));
   const float turned[9]={0,0,1,0,1,0,-1,0,0};
   for(int row=0;row<3;row++)for(int col=0;col<3;col++)CHECK(near(placed.m[row][col],turned[row*3+col]));
-  scene.objects[0].scale=1.5f;auto scaled=panelTransform(panel,anchor,head,panelObject(panel,scene));CHECK(!std::memcmp(placed.m,scaled.m,sizeof(placed.m)));
+  scene.objects[0].scale.fill(1.5f);auto scaled=panelTransform(panel,anchor,head,panelObject(panel,scene));CHECK(!std::memcmp(placed.m,scaled.m,sizeof(placed.m)));
   // Following a moved object needs no new placement call.
   scene.objects[0].y=.25f;CHECK(near(panelTransform(panel,anchor,head,panelObject(panel,scene)).m[1][3],2.25f));
   scene.objects[0].y=0;

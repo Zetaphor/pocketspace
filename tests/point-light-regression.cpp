@@ -8,7 +8,7 @@ int main(int argc,char **argv){
   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
   assert(loadModelFile("assets/samples/Box/Box.glb",asset));asset.lighting.intensity=asset.lighting.ambient=0;uploadModel(asset);
   for(auto &p:asset.primitives){p.factor[0]=p.factor[1]=p.factor[2]=1;p.metallic=0;p.roughness=.5;}
-  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.45;r.scene.objects={object};
+  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale.fill(.45);r.scene.objects={object};
   PointLight light;light.id=1;light.position={0,.15f,-.5f};light.range=2;light.intensity=.15f;
   for(int eye=0;eye<2;eye++){
    r.scene.lights.clear();auto dark=r.renderSet({1},{0,0,-1.2f},eye);
@@ -20,7 +20,7 @@ int main(int argc,char **argv){
    r.scene.lights[0]=light;r.scene.lights[0].color={1,0,0};auto red=r.renderSet({1},{0,0,-1.2f},eye);uint64_t redSum=0,blueSum=0;for(size_t i=0;i<red.size();i+=4){redSum+=red[i];blueSum+=red[i+2];}assert(redSum>blueSum+10000);
    for(auto &p:asset.primitives)p.materialUnlit=true;auto unlit=r.renderSet({1},{0,0,-1.2f},eye);r.scene.lights.clear();assert(unlit==r.renderSet({1},{0,0,-1.2f},eye));for(auto &p:asset.primitives)p.materialUnlit=false;
    // Lights outside a receiving surface cannot change its depth cutout silhouette.
-   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale=.8;r.scene.objects.push_back(target);
+   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale.fill(.8);r.scene.objects.push_back(target);
    auto depth=r.renderSet({2},{0,0,-1.2f},eye);r.scene.lights={light};assert(depth==r.renderSet({2},{0,0,-1.2f},eye));r.scene.objects.pop_back();
   }
   r.scene.objects[0].x=.2;r.scene.objects[0].y=.3;r.scene.objects[0].z=.4;r.scene.objects[0].yaw=float(std::acos(-1)/2);
@@ -32,7 +32,7 @@ int main(int argc,char **argv){
    std::vector<int> members;
    if(detailed){
     r.scene.assets.emplace_back();auto &car=r.scene.assets.back();car.pbr=true;car.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",car));uploadModel(car);car.lighting.intensity=0;car.lighting.ambient=.04;
-    r.scene.objects.clear();for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.2f;o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);members.push_back(o.id);}
+    r.scene.objects.clear();for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(.2f);o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);members.push_back(o.id);}
    }else members={1};
    for(bool spot:{false,true}){
    if(spot&&std::string(argv[1])!="--profile-spots")continue;
@@ -68,7 +68,7 @@ int main(int argc,char **argv){
    fails(()=>setPointLight(light,{get color(){throw Error('expected getter')}}));check(JSON.stringify(getPointLight(light))===initial);
    setPointLight(light,{get intensity(){for(let i=0;i<7;i++)createPointLight();return .4}});fails(()=>createPointLight());
    for(let id=2;id<=8;id++)removePointLight(id);
-   const snap=captureSceneContainer(owner);check(snap.version===1&&snap.lights.length===1);
+   const snap=captureSceneContainer(owner);check(snap.version===2&&snap.lights.length===1);
    saveSceneContainer(owner,'light');const disk=loadSceneContainer('light');check(getPointLight(disk.lightIds[0]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const restored=restoreSceneContainer(snap),copy=restored.lightIds[0];check(copy!==light&&restored.lightMap[light]===copy&&getPointLight(copy).objectId===restored.objectMap[object]);disposeSceneContainer(restored.containerId);fails(()=>getPointLight(copy));
    for(const mutate of [s=>s.lights[0].range=0,s=>s.lights[0].objectId=999,s=>s.lights[0].color=[1,2],s=>s.lights.push(s.lights[0])]){

@@ -68,26 +68,26 @@ static void customColliders(){
 static void convexColliders(){
   World w;w.gravity({0,0,0});Settings s;s.shape=Shape::Convex;
   const std::vector<Vec3> tetra{{0,0,0},{1,0,0},{0,1,0},{0,0,1},{0,0,0}};
-  w.set(1,s,{}, {0,0,0},{1,1,1},{17,1,tetra});
+  w.set(1,s,{}, {0,0,0},{1,1,1},{17,{1,1,1},tetra});
   auto c=w.get(1).collider;assert(c.vertexCount==4);
   assert(std::abs(c.centerOfMass.x-.25f)<1e-5&&std::abs(c.centerOfMass.z+.25f)<1e-5);
   assert(std::abs(c.halfExtents.x-.5f)<1e-5&&w.hasConvexHull(17));
-  w.set(2,s,{{2,0,0}},{0,0,0},{2,2,2},{17,2,{}});
+  w.set(2,s,{{2,0,0}},{0,0,0},{2,2,2},{17,{2,2,2},{}});
   assert(std::abs(w.get(2).collider.centerOfMass.y-.5f)<1e-5);
   s.offset=Vec3{.2f,.3f,.4f};
-  w.set(1,s,{}, {0,0,0},{1,1,1},{17,1,{}});
+  w.set(1,s,{}, {0,0,0},{1,1,1},{17,{1,1,1},{}});
   c=w.get(1).collider;assert(std::abs(c.centerOfMass.x+.05f)<1e-5&&std::abs(c.centerOfMass.z-.65f)<1e-5);
   w.hold(1);
   for(int i=1;i<=10;i++){w.target(1,{{0,0,0},0,float(i)*.01f,0},1./90);w.advance(1./90);}
   w.release(1,true);assert(w.get(1).angularVelocity.y>.8f&&w.get(1).velocity.x<-.5f);
   const auto previous=w.get(1).pose;
   const std::vector<Vec3> plane{{0,0,0},{1,0,0},{0,1,0},{1,1,0}};
-  try{w.set(1,s,{}, {0,0,0},{1,1,0},{18,1,plane});assert(false);}catch(const std::exception&){}
+  try{w.set(1,s,{}, {0,0,0},{1,1,0},{18,{1,1,1},plane});assert(false);}catch(const std::exception&){}
   assert(w.get(1).pose.yaw==previous.yaw&&!w.hasConvexHull(18));
   // The empty corner of a tetrahedron must not collide as its bounds box would.
   World contacts;contacts.gravity({0,0,0});contacts.collisionEvents(true);
   Settings fixed=s;fixed.offset.reset();fixed.type=Type::Static;
-  contacts.set(1,fixed,{}, {0,0,0},{1,1,1},{17,1,tetra});
+  contacts.set(1,fixed,{}, {0,0,0},{1,1,1},{17,{1,1,1},tetra});
   Settings ball;ball.shape=Shape::Sphere;ball.radius=.04f;
   contacts.set(2,ball,{{.8f,.8f,-.8f}}, {-.04f,-.04f,-.04f},{.04f,.04f,.04f});
   contacts.advance(1./90);assert(contacts.takeCollisionEvents().empty());
@@ -103,23 +103,23 @@ static void meshColliders(){
     Vec3 a{x,0,-.5f},b{x,0,.5f},c{x+.3f,0,.5f},d{x+.3f,0,-.5f};
     triangles.insert(triangles.end(),{a,b,c,a,c,d});
   }
-  w.set(1,mesh,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,triangles});
+  w.set(1,mesh,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,{1,1,1},triangles});
   assert(w.hasMesh(22)&&w.get(1).collider.triangleCount==4);
   Settings ball;ball.shape=Shape::Sphere;ball.radius=.05f;
   w.set(2,ball,{{-.35f,.3f,0}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
   w.set(3,ball,{{0,.3f,0}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
   tick(w,90);assert(std::abs(w.get(2).pose.position.y-.05f)<.01f);
   assert(w.get(3).pose.position.y<-1); // A convex hull would fill this gap.
-  w.set(4,mesh,{{2,0,0}},{-1,0,-1},{1,0,1},{22,2,{}});
+  w.set(4,mesh,{{2,0,0}},{-1,0,-1},{1,0,1},{22,{2,2,2},{}});
   assert(std::abs(w.get(4).collider.halfExtents.x-1)<1e-5);
   auto bad=mesh;bad.type=Type::Dynamic;
-  try{w.set(1,bad,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,{}});assert(false);}catch(const std::exception&){}
+  try{w.set(1,bad,{}, {-.5f,0,-.5f},{.5f,0,.5f},{22,{1,1,1},{}});assert(false);}catch(const std::exception&){}
   assert(w.get(1).settings.type==Type::Static);
   const std::vector<Vec3> degenerate{{0,0,0},{1,0,0},{2,0,0}};
-  try{w.set(1,mesh,{}, {0,0,0},{2,0,0},{23,1,degenerate});assert(false);}catch(const std::exception&){}
+  try{w.set(1,mesh,{}, {0,0,0},{2,0,0},{23,{1,1,1},degenerate});assert(false);}catch(const std::exception&){}
   assert(!w.hasMesh(23)&&w.get(1).collider.triangleCount==4);
   World transformed;mesh.offset=Vec3{.2f,.3f,.4f};
-  transformed.set(1,mesh,{{0,0,0},0,1.57079632679f,0}, {-.5f,0,-.5f},{.5f,0,.5f},{22,1,triangles});
+  transformed.set(1,mesh,{{0,0,0},0,1.57079632679f,0}, {-.5f,0,-.5f},{.5f,0,.5f},{22,{1,1,1},triangles});
   transformed.set(2,ball,{{-.4f,1,-.15f}}, {-.05f,-.05f,-.05f},{.05f,.05f,.05f});
   transformed.collisionEvents(true);tick(transformed,90);
   assert(std::abs(transformed.get(2).pose.position.y-.35f)<.01f);

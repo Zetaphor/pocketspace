@@ -171,7 +171,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 
 ## Format
 
-The `format` string is `pocketspace.scene-container` and `version` is `1`. Restore
+The `format` string is `pocketspace.scene-container` and `version` is `2`. Restore
 rejects any other format or version.
 
 All fields below are required unless a table says otherwise.
@@ -195,7 +195,7 @@ All fields below are required unless a table says otherwise.
 | `renderGroup` | Integer from 0 to 256 |
 | `x`, `y`, `z` | Finite float-range scene-anchor coordinates, metres |
 | `pitch`, `yaw`, `roll` | Finite float-range angles, radians |
-| `scale` | Greater than 0 and at most 2 |
+| `scale` | `{x, y, z}`, metres along the object's own axes; each component greater than 0 and at most 2 |
 | `visible`, `laserPassThrough`, `grabbable`, `directGrab` | Booleans |
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |

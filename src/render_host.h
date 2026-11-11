@@ -121,9 +121,9 @@ template<class Geometry> static WorldBounds worldBounds(const Object &object,con
   WorldBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
   for(int corner=0;corner<8;corner++){
     float local[3],rotated[3]{},position[3]={object.x,object.y,object.z};
-    for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?geometry.high[axis]:geometry.low[axis];
+    for(int axis=0;axis<3;axis++)local[axis]=object.scale[axis]*((corner&(1<<axis))?geometry.high[axis]:geometry.low[axis]);
     for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
-    for(int axis=0;axis<3;axis++)position[axis]+=object.scale*rotated[axis]*(axis==2?-1.f:1.f);
+    for(int axis=0;axis<3;axis++)position[axis]+=rotated[axis]*(axis==2?-1.f:1.f);
     for(int row=0;row<3;row++)result[corner][row]=anchor.m[row][3]+anchor.m[row][0]*position[0]+anchor.m[row][1]*position[1]-anchor.m[row][2]*position[2];
   }
   return result;

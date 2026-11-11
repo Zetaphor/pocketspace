@@ -76,8 +76,10 @@ For child ownership and unused model release, see
 Scene coordinates are meters: +X right, +Y up, +Z forward. The fixed standing-space
 anchor starts one meter ahead and 0.2 meters below the initial HMD position.
 Imported geometry is centered and normalized to a unit maximum default-pose
-extent. Object scale specifies that extent in meters. Animated poses can extend
-beyond it. Positions and rotations below are relative to the scene anchor.
+extent. Object scale specifies that extent in meters along each of the object's
+own X, Y and Z axes; equal components keep the model's proportions. Scale applies
+before rotation, so a stretched object keeps its shape when it turns. Animated
+poses can extend beyond it. Positions and rotations below are relative to the scene anchor.
 
 `getFloorHeight()` returns the scene Y of the real floor tracked by SteamVR's
 standing space, in meters, or `null` before the anchor is placed and in tests
@@ -90,14 +92,14 @@ for example `createObject(asset, 0, getFloorHeight() + height / 2, .5, height)`.
 | `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |
 | `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048; render groups use it as a maximum and sample distant members at [display density](#shared-render-group-behavior). Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 simultaneously loaded assets per scene; `unloadModel` releases unused assets. |
 | `unloadModel(assetId)` | Release a loaded model only when no live object uses it; released IDs remain invalid. See [asset lifetime](scene-containers.md#releasing-unused-model-assets) and [asset-lifetime.js](../scripts/asset-lifetime.js). |
-| `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates and scale greater than zero and at most 2 meters are required. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
+| `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates are required. `scale` is a number for equal axes or `{x, y, z}`, with each component greater than zero and at most 2 meters. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
 | `setObjectYaw(id, radians)` | Set yaw. |
 | `setObjectRotation(id, pitch, yaw, roll)` | Set rotation in radians. |
-| `setObjectScale(id, scale)` | Set positive scale, at most 2 meters. |
+| `setObjectScale(id, x, y = x, z = x)` | Set the scale along the object's X, Y and Z axes; omitted components repeat `x`. Each is greater than zero and at most 2 meters. |
 | `setObjectVisible(id, visible)` | Show/hide rendering and selection. |
-| `getObjectTransform(id)` | Return `{x, y, z, pitch, yaw, roll, scale, visible}`: the current position, rotation in radians, scale and visibility. It includes movement by grabs and physics, with or without a physics body. |
+| `getObjectTransform(id)` | Return `{x, y, z, pitch, yaw, roll, scale, visible}`: the current position, rotation in radians, scale as `{x, y, z}` and visibility. It includes movement by grabs and physics, with or without a physics body. |
 | `removeObject(id)` | Remove the instance and its interaction state. |
 
 Invalid IDs and invalid arguments throw. During live scene updates, object
@@ -593,7 +595,8 @@ setLaserVisible('right', true);
 
 Acquisition requires a current transformed triangle hit. Empty mesh gaps never
 fall back to a bounding sphere. Near-hand mode is selected after that hit when
-the controller-to-object-center distance is below `0.10 + scale * 0.5` meters;
+the controller-to-object-center distance is below `0.10 + scale * 0.5` meters,
+using the largest scale component;
 there is no proximity-only pickup. Static picking uses a shared per-asset BVH;
 animated instances refit their own picking geometry. Each hand can hold its own
 object. A held object releases after all allowed buttons are up for five frames.

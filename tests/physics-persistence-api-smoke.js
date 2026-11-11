@@ -3,13 +3,13 @@ const asset=loadModel('assets/samples/Box/Box.glb',512);
 const owner=createSceneContainer();setPhysicsGravity(0,0,0);
 function check(v,message='physics persistence assertion'){if(!v)throw Error(message);}
 function fails(fn){let caught=false;try{fn();}catch(_){caught=true;}check(caught,'expected rejection');}
-function body(x,type,shape,options={}){
-  const id=createObject(asset,x,0,0,.1,{container:owner,renderGroup:1});
+function body(x,type,shape,options={},scale=.1){
+  const id=createObject(asset,x,0,0,scale,{container:owner,renderGroup:1});
   setObjectPhysics(id,{type,shape,...options});enableObjectInteraction(id,{grabButton:'both'});return id;
 }
 const a=body(-.5,'static','mesh'),b=body(-.25,'dynamic','sphere',{radius:.06,offset:{x:.01,y:.02,z:.03},mass:.3,friction:.6,restitution:.2,continuous:false,gravityFactor:.4,linearDamping:.12,angularDamping:.23});
-const c=body(.1,'static','box',{halfExtents:{x:.04,y:.05,z:.06}}),d=body(.3,'dynamic','convex');
-const e=body(.6,'kinematic','box'),f=body(.8,'dynamic','box');
+const c=body(.1,'static','box',{halfExtents:{x:.04,y:.05,z:.06}}),d=body(.3,'dynamic','convex',{},{x:.1,y:.06,z:.14});
+const e=body(.6,'kinematic','box',{},{x:.05,y:.2,z:.1}),f=body(.8,'dynamic','box');
 const hinge=createPhysicsJoint(a,b,{type:'hinge',anchor:{x:-.5,y:0,z:0},axis:{x:0,y:0,z:1},minAngle:-1,maxAngle:1,breakForce:1000,breakTorque:1000});
 setPhysicsJointMotor(hinge,{mode:'position',targetAngle:.4,maxTorque:3,frequency:1.5,damping:.8});
 const fixed=createPhysicsJoint(c,d,{type:'fixed',collideConnected:true,breakForce:1000,breakTorque:500});
@@ -18,7 +18,7 @@ setPhysicsJoint(spring,{maxDistance:.35,spring:{frequency:3,damping:.7}});
 setObjectRotation(b,0,0,.65);setObjectPosition(b,-.5+.25*Math.cos(.65),.25*Math.sin(.65),0);
 setObjectVelocity(b,.12,.23,.34);setObjectAngularVelocity(b,.3,.2,.1);
 const sourceAngle=getPhysicsJoint(hinge).angle;check(Math.abs(sourceAngle)>.5,'hinge must be away from zero');
-const snap=captureSceneContainer(owner);check(snap.version===1&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
+const snap=captureSceneContainer(owner);check(snap.version===2&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
 saveSceneContainer(owner,'physics');
 const copy=loadSceneContainer('physics');check(copy.jointIds.length===3&&copy.objectIds.length===6);
 const restored=captureSceneContainer(copy.containerId);
@@ -26,6 +26,9 @@ for(let n=0;n<snap.objects.length;n++){
   const source=snap.objects[n],target=restored.objects[n];
   check(JSON.stringify(source.physics)===JSON.stringify(target.physics),'body settings and velocities');
   for(const key of ['x','y','z','pitch','yaw','roll'])check(Math.abs(source[key]-target[key])<1e-5,'body pose');
+  check(JSON.stringify(source.scale)===JSON.stringify(target.scale),'object scale');
+  const sourceSize=getObjectPhysics(source.id).collider.halfExtents,targetSize=getObjectPhysics(copy.objectIds[n]).collider.halfExtents;
+  if(sourceSize)for(const axis of ['x','y','z'])check(Math.abs(sourceSize[axis]-targetSize[axis])<1e-5,'stretched collider size');
 }
 for(const source of snap.joints){
   const target=restored.joints.find(j=>j.id===copy.jointMap[source.id]);
@@ -42,7 +45,7 @@ bad(s=>s.joints[0].objectA=999);bad(s=>s.joints[0].objectB=s.joints[0].objectA);
 bad(s=>s.objects[0].physics=null);bad(s=>s.joints[1].id=s.joints[0].id);
 bad(s=>s.joints[1].settings.breakForce=-1);bad(s=>s.joints[2].settings.spring.frequency=0);
 bad(s=>s.joints[0].motor.maxTorque=-1);bad(s=>s.joints[0].referenceA.pitch=null);
-bad(s=>s.joints=Array(513).fill(s.joints[0]));bad(s=>s.version=2);
+bad(s=>s.joints=Array(513).fill(s.joints[0]));bad(s=>s.version=1);
 const outside=createObject(asset,2,0,0,.1);setObjectPhysics(outside,{type:'static'});
 const cross=createPhysicsJoint(outside,f,{type:'distance'});fails(()=>captureSceneContainer(owner));removePhysicsJoint(cross);removeObject(outside);
 for(const mode of ['velocity','off']){

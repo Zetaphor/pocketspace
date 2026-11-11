@@ -3,7 +3,7 @@
 static void populate(Renderer &r,const char *path,int count){
  r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);
  asset.lighting.intensity=.3;asset.lighting.ambient=.04;
- for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.6f:.2f;o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2f;o.pitch=.1f;r.scene.objects.push_back(o);}
+ for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(count==1?.6f:.2f);o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2f;o.pitch=.1f;r.scene.objects.push_back(o);}
 }
 static bool localRange=false;
 static void lights(Renderer &r,int count,int kind){
@@ -21,7 +21,7 @@ static void equalPixels(Renderer &a,Renderer &b,const std::vector<int> &ids,phys
 int main(int argc,char **argv){
  EGLDisplay display;EGLContext context;EGLSurface surface;assert(initEgl(display,context,surface));size_t images=0;
  {
-  Object o{};o.scale=1;ModelAsset geometry;for(int c=0;c<3;c++){geometry.low[c]=-.5;geometry.high[c]=.5;}
+  Object o{};o.scale.fill(1);ModelAsset geometry;for(int c=0;c<3;c++){geometry.low[c]=-.5;geometry.high[c]=.5;}
   ResolvedPointLight light{{1.0660254f,0,0},{1,1,1},1,.2f};std::vector<ResolvedPointLight> lights{light};
   assert(selectObjectLights(o,geometry,lights).count==1);lights[0].position[0]=1.1;assert(selectObjectLights(o,geometry,lights).count==0);
   o.pitch=.7;o.yaw=1.1;assert(selectObjectLights(o,geometry,lights).count==0);

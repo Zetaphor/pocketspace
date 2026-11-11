@@ -25,7 +25,7 @@ int main(){
     Renderer r;ModelAsset car;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",car));car.optimizeVertexCache=true;
     std::vector<std::vector<float>> cpu;for(auto &p:car.primitives)cpu.push_back(p.vertices);uploadModel(car);
     std::vector<GLuint> buffers;for(size_t n=0;n<car.primitives.size();n++){const auto &p=car.primitives[n];assert(p.vertices==cpu[n]);for(const auto &lod:p.lod){assert(lod.indexBuffer&&lod.count<p.vertexCount&&lod.error<=.001001f);buffers.push_back(lod.indexBuffer);}}
-    r.scene.assets.push_back(std::move(car));const int key=r.scene.assets.size();auto &object=r.scene.objects[2];object.asset=key;object.y=-.2f;object.scale=.4f;int compared=0;
+    r.scene.assets.push_back(std::move(car));const int key=r.scene.assets.size();auto &object=r.scene.objects[2];object.asset=key;object.y=-.2f;object.scale.fill(.4f);int compared=0;
     for(int level:{1,2}){
       auto reference=expanded(r.scene.assets[key-1],level);
       for(int angle=0;angle<3;angle++)for(int eye=0;eye<2;eye++){
@@ -42,7 +42,7 @@ int main(){
       ModelAsset guarded=cpuGrid;if(variant==0)guarded.lod=false;if(variant==1)guarded.hasAnimation=true;if(variant==2)guarded.hasSkin=true;if(variant==3)guarded.hasMorph=true;if(variant>=4)guarded.primitives[0].alphaMode=variant-3;
       uploadModel(guarded);for(const auto &part:guarded.primitives)assert(!part.lod[0].indexBuffer&&!part.lod[1].indexBuffer);deleteModel(guarded);
     }r.scene.assets.push_back(std::move(grid));
-    r.scene.objects.clear();for(int n=0;n<8;n++)r.scene.objects.push_back({n+1,int(r.scene.assets.size()),(n%4-1.5f)*.12f,-.2f+(n/4)*.13f,0,.1f,n*.1f});
+    r.scene.objects.clear();for(int n=0;n<8;n++)r.scene.objects.push_back({n+1,int(r.scene.assets.size()),(n%4-1.5f)*.12f,-.2f+(n/4)*.13f,0,{.1f,.1f,.1f},n*.1f});
     for(int level:{0,1,2})for(int eye=0;eye<2;eye++){
       for(auto &o:r.scene.objects)o.lodLevel=level;
       r.instancing.mode=ModelInstancing::Original;auto a=r.renderSet({1,2,3,4,5,6,7,8},{0,.1f,-.7f},eye,0,true,1,true);

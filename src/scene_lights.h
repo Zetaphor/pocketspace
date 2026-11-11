@@ -64,9 +64,9 @@ template<class ObjectType,class Geometry>
 static ObjectLightSet selectObjectLights(const ObjectType &object,const Geometry &geometry,std::span<const ResolvedPointLight> lights,bool filterCones=true){
  // Origin-centered sphere encloses every full/deformed mesh corner under rotation.
  // Double arithmetic and a small meter-space margin keep boundary cases conservative.
- bool valid=std::isfinite(object.scale)&&object.scale>0;
- double radius2=0;for(int axis=0;axis<3;axis++){valid=valid&&std::isfinite(geometry.low[axis])&&std::isfinite(geometry.high[axis])&&geometry.low[axis]<=geometry.high[axis];const double extent=std::max(std::abs(double(geometry.low[axis])),std::abs(double(geometry.high[axis])));radius2+=extent*extent;}
- const double radius=std::sqrt(radius2)*object.scale;
+ bool valid=true;for(float s:object.scale)valid=valid&&std::isfinite(s)&&s>0;
+ double radius2=0;for(int axis=0;axis<3;axis++){valid=valid&&std::isfinite(geometry.low[axis])&&std::isfinite(geometry.high[axis])&&geometry.low[axis]<=geometry.high[axis];const double extent=std::max(std::abs(double(geometry.low[axis])),std::abs(double(geometry.high[axis])))*object.scale[axis];radius2+=extent*extent;}
+ const double radius=std::sqrt(radius2);
  ObjectLightSet result;
  for(const auto &light:lights){
   // Negative range marks an infinite directional source; never range/cone-cull it.

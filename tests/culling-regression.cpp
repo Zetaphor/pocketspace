@@ -7,7 +7,7 @@ int main(int argc,char **argv){
   Renderer r;r.scene.objects.clear();size_t views=0;
   for(bool pbr:{false,true})for(const char *path:{"tests/fixtures/pbr/MissingNormals.glb","tests/fixtures/pbr/MissingNormalsMirrored.glb"}){
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=pbr;assert(loadModelFile(path,asset));uploadModel(asset);
-   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.6f;r.scene.objects={object};
+   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale.fill(.6f);r.scene.objects={object};
    for(int alpha=0;alpha<3;alpha++)for(int eye=0;eye<2;eye++){
     auto &part=asset.primitives[0];part.alphaMode=alpha;part.factor[3]=alpha==2?.7f:1;
     for(float headZ:{-1.2f,1.2f}){
@@ -23,7 +23,7 @@ int main(int argc,char **argv){
   for(bool mirrored:{false,true}){
    const char *path=mirrored?"tests/fixtures/pbr/MissingNormalsMirrored.glb":"tests/fixtures/pbr/MissingNormals.glb";
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();assert(loadModelFile(path,a));uploadModel(a);
-   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.4f;object.x=-.12f;Object second=object;second.id=2;second.x=.12f;r.scene.objects={object,second};
+   Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale.fill(.4f);object.x=-.12f;Object second=object;second.id=2;second.x=.12f;r.scene.objects={object,second};
    for(bool sided:{false,true})for(int eye=0;eye<2;eye++)for(float z:{-1.2f,1.2f}){
     a.primitives[0].doubleSided=sided;r.instancing.mode=ModelInstancing::Off;auto expected=r.renderSet({1,2},{0,0,z},eye);
     r.instancing.mode=ModelInstancing::Instanced;auto actual=r.renderSet({1,2},{0,0,z},eye);assert(actual==expected);assert(!glIsEnabled(GL_CULL_FACE));++views;
@@ -31,7 +31,7 @@ int main(int argc,char **argv){
   }
   {
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();assert(loadModelFile("assets/samples/InterpolationTest/InterpolationTest.glb",a));assert(a.rigidBatchEligible);a.nodes[1].scale[0]=-1;uploadModel(a);
-   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.8f;o.animationPose=std::make_shared<ModelPose>();r.scene.objects={o};
+   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale.fill(.8f);o.animationPose=std::make_shared<ModelPose>();r.scene.objects={o};
    for(double time:{.1,.5,.9}){
     animation::Playback state;state.clip=0;state.time=time;evaluateModelPose(a,state,*r.scene.objects[0].animationPose);uploadModelPose(*r.scene.objects[0].animationPose);
     assert(modelPrimitiveMirrored(a.primitives[0],r.scene.objects[0].animationPose.get())!=modelPrimitiveMirrored(a.primitives[1],r.scene.objects[0].animationPose.get()));
@@ -47,7 +47,7 @@ int main(int argc,char **argv){
   for(bool cars:{false,true}){
    Renderer r;r.instancing.mode=ModelInstancing::Instanced;r.scene.objects.clear();
    r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.lod=false;assert(loadModelFile(cars?"assets/samples/ToyCar/ToyCar.glb":"assets/samples/Box/Box.glb",asset));uploadModel(asset);const int id=int(r.scene.assets.size()),count=cars?32:240;std::vector<int> members;
-   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale=cars?.16f:.07f;o.x=(i%8-3.5f)*.15f;o.y=(i/8%5-2)*.15f;o.z=(i/40)*.1f;o.pitch=.15f;o.yaw=.35f;r.scene.objects.push_back(o);members.push_back(o.id);}
+   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale.fill(cars?.16f:.07f);o.x=(i%8-3.5f)*.15f;o.y=(i/8%5-2)*.15f;o.z=(i/40)*.1f;o.pitch=.15f;o.yaw=.35f;r.scene.objects.push_back(o);members.push_back(o.id);}
    size_t triangles=0;for(const auto &p:asset.primitives)triangles+=p.vertexCount/3;
    for(int round=0;round<4;round++){
     r.materialCulling=round==1||round==2;double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);

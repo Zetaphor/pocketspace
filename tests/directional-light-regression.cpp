@@ -9,7 +9,7 @@ int main(int argc,char **argv){
   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;
   assert(loadModelFile("assets/samples/Box/Box.glb",asset));uploadModel(asset);asset.lighting.intensity=asset.lighting.ambient=0;
   for(auto &p:asset.primitives){p.factor[0]=p.factor[1]=p.factor[2]=1;p.metallic=0;p.roughness=.5;}
-  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale=.45;r.scene.objects={object};
+  Object object{};object.id=1;object.asset=int(r.scene.assets.size());object.scale.fill(.45);r.scene.objects={object};
   PointLight sun;sun.id=1;sun.directional=true;sun.direction={0,0,1};sun.intensity=1;
   for(int eye=0;eye<2;eye++){
    r.scene.lights.clear();auto dark=r.renderSet({1},{0,0,-1.2f},eye);
@@ -20,11 +20,11 @@ int main(int argc,char **argv){
    r.scene.lights[0].enabled=false;assert(dark==r.renderSet({1},{0,0,-1.2f},eye));
    r.scene.lights[0]=sun;r.scene.lights[0].intensity=0;assert(dark==r.renderSet({1},{0,0,-1.2f},eye));
    Object handle=object;handle.id=2;handle.visible=false;r.scene.objects.push_back(handle);r.scene.lights[0]=sun;r.scene.lights[0].objectId=2;
-   r.scene.objects[1].x=1000;r.scene.objects[1].y=-1000;r.scene.objects[1].scale=10;assert(lit==r.renderSet({1},{0,0,-1.2f},eye));
+   r.scene.objects[1].x=1000;r.scene.objects[1].y=-1000;r.scene.objects[1].scale.fill(10);assert(lit==r.renderSet({1},{0,0,-1.2f},eye));
    r.scene.objects[1].yaw=float(std::acos(-1));assert(dark==r.renderSet({1},{0,0,-1.2f},eye));r.scene.objects.pop_back();
    for(auto &p:asset.primitives)p.materialUnlit=true;r.scene.lights={sun};auto unlit=r.renderSet({1},{0,0,-1.2f},eye);r.scene.lights.clear();assert(unlit==r.renderSet({1},{0,0,-1.2f},eye));for(auto &p:asset.primitives)p.materialUnlit=false;
    // Adding lighting cannot change the external-depth cutout on an unlit target.
-   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale=.8;r.scene.objects.push_back(target);auto depth=r.renderSet({2},{0,0,-1.2f},eye);r.scene.lights={sun};assert(depth==r.renderSet({2},{0,0,-1.2f},eye));r.scene.objects.pop_back();images+=9;
+   Object target{};target.id=2;target.asset=3;target.z=.3;target.scale.fill(.8);r.scene.objects.push_back(target);auto depth=r.renderSet({2},{0,0,-1.2f},eye);r.scene.lights={sun};assert(depth==r.renderSet({2},{0,0,-1.2f},eye));r.scene.objects.pop_back();images+=9;
   }
   r.scene.lights.assign(4,sun);for(auto &l:r.scene.lights)l.position={10000,10000,10000};auto resolved=resolvePointLights(r.scene);std::vector<ObjectLightSet> sets;updateObjectLights(r.scene,resolved,sets);assert(sets[0].count==4);
   // Normalization and attachment rotations use the same axes as spotlights.
@@ -34,7 +34,7 @@ int main(int argc,char **argv){
   Renderer r(1024);r.scene.objects.clear();
   for(const char *name:{"ToyCar","NormalTangentTest","AlphaBlendModeTest","Fox","AnimatedMorphCube"}){
    r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);
-   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.4;o.pitch=.2;o.yaw=.3;r.scene.objects={o};
+   Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale.fill(.4);o.pitch=.2;o.yaw=.3;r.scene.objects={o};
    if(a.hasAnimation){auto &object=r.scene.objects[0];object.animationPose=std::make_shared<ModelPose>();animation::Playback state;state.clip=0;state.time=.4;evaluateModelPose(a,state,*object.animationPose);uploadModelPose(*object.animationPose);}
    std::vector<std::array<float,3>> sheens;for(const auto &part:a.primitives)sheens.push_back({part.sheen[0],part.sheen[1],part.sheen[2]});
    r.directionalVariants.clear();
@@ -69,10 +69,10 @@ int main(int argc,char **argv){
    const detached=getDirectionalLight(sun);detached.direction[0]=33;check(JSON.stringify(getDirectionalLight(sun))===initial);
    const outside=createObject(asset,0,0,0,.1),outgoing=createDirectionalLight({container:owner,objectId:outside});fails(()=>captureSceneContainer(owner));removeDirectionalLight(outgoing);removeObject(outside);
    const incoming=createDirectionalLight({objectId:object});fails(()=>captureSceneContainer(owner));removeDirectionalLight(incoming);
-   const snapshot=captureSceneContainer(owner);check(snapshot.version===1&&snapshot.lights.length===3);
+   const snapshot=captureSceneContainer(owner);check(snapshot.version===2&&snapshot.lights.length===3);
    saveSceneContainer(owner,'directional');const disk=loadSceneContainer('directional');check(getDirectionalLight(disk.lightMap[sun]).objectId===disk.objectMap[object]);disposeSceneContainer(disk.containerId);
    const beforeInvalid=createDirectionalLight();removeDirectionalLight(beforeInvalid);
-   for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=2]){
+   for(const mutate of [s=>s.lights[0].direction=[0,0,0],s=>delete s.lights[0].direction,s=>s.lights[0].range=1,s=>s.lights[0].position=[0,0,0],s=>s.lights[0].type='area',s=>s.version=1]){
     const bad=JSON.parse(JSON.stringify(snapshot));mutate(bad);fails(()=>restoreSceneContainer(bad));check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snapshot));
    }
    const afterInvalid=createDirectionalLight();check(afterInvalid===beforeInvalid+1);removeDirectionalLight(afterInvalid);
@@ -88,7 +88,7 @@ int main(int argc,char **argv){
  }
  if(argc>1&&std::string(argv[1])=="--profile"){
   Renderer r;r.scene.objects.clear();r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;a.optimizeVertexCache=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",a));uploadModel(a);a.lighting.intensity=0;a.lighting.ambient=.04;
-  std::vector<int> ids;for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=.2;o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
+  std::vector<int> ids;for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(.2);o.x=(i%4-1.5f)*.22f;o.y=(i/4-1.5f)*.22f;r.scene.objects.push_back(o);ids.push_back(o.id);}
   auto gen=reinterpret_cast<PFNGLGENQUERIESEXTPROC>(eglGetProcAddress("glGenQueriesEXT"));auto begin=reinterpret_cast<PFNGLBEGINQUERYEXTPROC>(eglGetProcAddress("glBeginQueryEXT"));auto end=reinterpret_cast<PFNGLENDQUERYEXTPROC>(eglGetProcAddress("glEndQueryEXT"));auto result=reinterpret_cast<PFNGLGETQUERYOBJECTUI64VEXTPROC>(eglGetProcAddress("glGetQueryObjectui64vEXT"));auto destroy=reinterpret_cast<PFNGLDELETEQUERIESEXTPROC>(eglGetProcAddress("glDeleteQueriesEXT"));assert(gen&&begin&&end&&result&&destroy);GLuint q=0;gen(1,&q);
   for(int kind=0;kind<3;kind++)for(int count:{0,1,4,8}){
    r.scene.lights.clear();for(int i=0;i<count;i++){PointLight l;l.id=i+1;l.spot=kind==1;l.directional=kind==2;l.position={float(i%2)*.2f,.15f,-.5f};l.range=2;l.intensity=l.directional?.2f:.1f;l.direction={0,0,1};l.innerConeAngle=.3;l.outerConeAngle=.7;r.scene.lights.push_back(l);}

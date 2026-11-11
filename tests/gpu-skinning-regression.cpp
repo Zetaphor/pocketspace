@@ -16,7 +16,7 @@ static void profilePicking(){
  for(int candidates:{0,1,4,32})for(int order=0;order<2;order++){
   gpuSkinningEnabled=(order+(candidates%2))%2;
   scene.objects.clear();
-  for(int i=0;i<32;i++){Object object{};object.id=i+1;object.asset=1;object.scale=.5;object.animationPose=std::make_shared<ModelPose>();scene.objects.push_back(std::move(object));}
+  for(int i=0;i<32;i++){Object object{};object.id=i+1;object.asset=1;object.scale.fill(.5);object.animationPose=std::make_shared<ModelPose>();scene.objects.push_back(std::move(object));}
   for(bool playing:{true,false}){
    AnimationProfileFrame total;std::vector<double> elapsed;uint64_t hits=0;
    for(int frame=0;frame<140;frame++){
@@ -62,7 +62,7 @@ int main(int argc,char **argv){
   glUseProgram(program);glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
   auto vec=[&](const char *name,float x,float y,float z){glUniform3f(glGetUniformLocation(program,name),x,y,z);};
   vec("right",1,0,0);vec("up",0,1,0);vec("forward",0,0,-1);vec("panelRight",1,0,0);vec("panelUp",0,1,0);vec("panelForward",0,0,-1);vec("center",0,0,0);vec("offset",0,0,0);
-  glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),.65);glUniform1f(glGetUniformLocation(program,"modelScale"),.7);glUniform1f(glGetUniformLocation(program,"yaw"),.23);glUniform1f(glGetUniformLocation(program,"roll"),-.1);glUniform1i(glGetUniformLocation(program,"material"),0);
+  glUniform1f(glGetUniformLocation(program,"panelHalfWidth"),.65);glUniform3f(glGetUniformLocation(program,"modelScale"),.7,.7,.7);glUniform1f(glGetUniformLocation(program,"yaw"),.23);glUniform1f(glGetUniformLocation(program,"roll"),-.1);glUniform1i(glGetUniformLocation(program,"material"),0);
   GLuint fbo,color,depth;glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);glGenTextures(1,&color);glBindTexture(GL_TEXTURE_2D,color);glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,256,256,0,GL_RGBA,GL_UNSIGNED_BYTE,nullptr);glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,color,0);glGenRenderbuffers(1,&depth);glBindRenderbuffer(GL_RENDERBUFFER,depth);glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT24,256,256);glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,depth);assert(glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE);
   auto image=[&](ModelPose &pose,float eye,int selected=-1){
    vec("eye",eye,0,1);glViewport(0,0,256,256);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LESS);
@@ -77,7 +77,7 @@ int main(int argc,char **argv){
    glDepthMask(GL_TRUE);glDisable(GL_BLEND);
    std::vector<unsigned char> pixels(256*256*4);glReadPixels(0,0,256,256,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());assert(glGetError()==GL_NO_ERROR);return pixels;
   };
-  Object object{};object.id=1;object.asset=1;object.scale=.5;object.animationPose=std::make_shared<ModelPose>();
+  Object object{};object.id=1;object.asset=1;object.scale.fill(.5);object.animationPose=std::make_shared<ModelPose>();
   std::mt19937 random(22);std::uniform_real_distribution<float> position(-.8,.8);int hits=0;
   for(size_t clip=0;clip<asset.animations.size();clip++)for(double fraction:{0.,.125,.5,.875,1.}){
    animation::Playback state;state.clip=int(clip);state.time=fraction*asset.animations[clip].duration;

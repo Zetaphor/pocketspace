@@ -515,6 +515,22 @@ static JSValue jsSetObjectInteraction(JSContext *ctx,JSValueConst,int argc,JSVal
 static bool number(JSContext *ctx,JSValueConst value,float &out){
   double n=0;if(JS_ToFloat64(ctx,&n,value)<0||!std::isfinite(n))return false;out=(float)n;return std::isfinite(out);
 }
+// Reads a scale given as one number or as {x, y, z}; throws and returns false on failure.
+static bool scaleValue(JSContext *ctx,JSValueConst value,std::array<float,3> &out,const char *usage){
+  if(JS_IsObject(value)&&!JS_IsFunction(ctx,value)){
+    const char *names[3]={"x","y","z"};
+    for(int axis=0;axis<3;axis++){
+      JSValue component=JS_GetPropertyStr(ctx,value,names[axis]);if(JS_IsException(component))return false;
+      const bool valid=JS_IsNumber(component)&&number(ctx,component,out[axis]);JS_FreeValue(ctx,component);
+      if(!valid){JS_ThrowTypeError(ctx,"%s: scale.%s must be a finite number",usage,names[axis]);return false;}
+    }
+  }else{
+    float uniform=0;if(!number(ctx,value,uniform)){if(!JS_HasException(ctx))JS_ThrowTypeError(ctx,"%s: scale must be a finite number or {x, y, z}",usage);return false;}
+    out={uniform,uniform,uniform};
+  }
+  if(!validScale(out)){JS_ThrowRangeError(ctx,"%s: each scale component must be greater than 0 and at most 2 meters",usage);return false;}
+  return true;
+}
 static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<1)return JS_ThrowTypeError(ctx,"loadModel(path) requires a path");
   const char *path=JS_ToCString(ctx,argv[0]);if(!path)return JS_EXCEPTION;
@@ -626,9 +642,9 @@ static JSValue jsSetRenderGroupAutoSplit(JSContext *ctx,JSValueConst,int argc,JS
 static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
   if(!currentScene||argc<4||currentScene->objects.size()>=256)return JS_ThrowRangeError(ctx,"createObject needs asset, x, y, z; limit is 256 objects");
   int asset=0;if(JS_ToInt32(ctx,&asset,argv[0])<0||!loadedAsset(*currentScene,asset))return JS_ThrowRangeError(ctx,"unknown asset id");
-  float values[4]={0,0,0,.55f};
-  for(int i=1;i<std::min(argc,5);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates and scale must be finite numbers");
-  if(values[3]<=0||values[3]>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
+  float values[3]={0,0,0};std::array<float,3> scale{.55f,.55f,.55f};
+  for(int i=1;i<std::min(argc,4);i++)if(!number(ctx,argv[i],values[i-1]))return JS_ThrowTypeError(ctx,"object coordinates must be finite numbers");
+  if(argc>4&&!JS_IsUndefined(argv[4])&&!scaleValue(ctx,argv[4],scale,"createObject"))return JS_EXCEPTION;
   int group=0,owner=0;
   if(argc>5&&!JS_IsUndefined(argv[5])){
     if(!JS_IsObject(argv[5])||JS_IsNull(argv[5]))return JS_ThrowTypeError(ctx,"createObject options must be an object");
@@ -646,7 +662,7 @@ static JSValue jsCreateObject(JSContext *ctx,JSValueConst,int argc,JSValueConst 
   }
   int id=currentScene->nextId++;
   if(currentScene==liveScene&&reserveObjectOverlay){const auto error=reserveObjectOverlay(group?-(group+256*tile):id);if(!error.empty())return JS_ThrowRangeError(ctx,"%s",error.c_str());}
-  currentScene->objects.push_back({id,asset,values[0],values[1],values[2],values[3],0});
+  currentScene->objects.push_back({id,asset,values[0],values[1],values[2],scale,0});
   currentScene->objects.back().renderGroup=group;currentScene->objects.back().renderTile=tile;currentScene->objects.back().container=owner;
   return JS_NewInt32(ctx,id);
 }
@@ -654,15 +670,16 @@ static physics::Pose physicsPose(const Object &o){return {{o.x,o.y,o.z},o.pitch,
 static physics::World &physicsWorld(Scene &scene){if(!scene.physics)scene.physics=std::make_unique<physics::World>();return *scene.physics;}
 static void configurePhysics(Scene &scene,const Object &object,const physics::Settings &settings){
   const auto &asset=scene.assets[size_t(object.asset)-1];
-  physics::Vec3 low{asset.low[0]*object.scale,asset.low[1]*object.scale,asset.low[2]*object.scale};
-  physics::Vec3 high{asset.high[0]*object.scale,asset.high[1]*object.scale,asset.high[2]*object.scale};
+  const auto &k=object.scale;
+  physics::Vec3 low{asset.low[0]*k[0],asset.low[1]*k[1],asset.low[2]*k[2]};
+  physics::Vec3 high{asset.high[0]*k[0],asset.high[1]*k[1],asset.high[2]*k[2]};
   auto &world=physicsWorld(scene);
   std::vector<physics::Vec3> vertices;
   if((settings.shape==physics::Shape::Convex&&!world.hasConvexHull(object.asset))||
      (settings.shape==physics::Shape::Mesh&&!world.hasMesh(object.asset)))
     for(const auto &part:asset.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)
       vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
-  world.set(object.id,settings,physicsPose(object),low,high,{object.asset,object.scale,vertices});
+  world.set(object.id,settings,physicsPose(object),low,high,{object.asset,{k[0],k[1],k[2]},vertices});
 }
 static void teleportPhysics(Object &object){
   if(!currentScene->physics||!currentScene->physics->contains(object.id))return;
@@ -947,12 +964,17 @@ static JSValue jsSetObjectRotation(JSContext *ctx,JSValueConst,int argc,JSValueC
   object->pitch=pitch;object->yaw=yaw;object->roll=roll;teleportPhysics(*object);return JS_UNDEFINED;
 }
 static JSValue jsSetObjectScale(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
-  int id=0;float scale;
-  if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0||!number(ctx,argv[1],scale))return JS_ThrowTypeError(ctx,"setObjectScale(id, meters)");
-  if(scale<=0||scale>2)return JS_ThrowRangeError(ctx,"scale must be greater than 0 and at most 2 meters");
+  int id=0;std::array<float,3> scale{};
+  if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"setObjectScale(id, x, y = x, z = x)");
+  for(int axis=0;axis<3;axis++){
+    // Omitted y and z repeat x, so one argument sets a uniform scale.
+    const int index=1+(argc>axis+1&&!JS_IsUndefined(argv[axis+1])?axis:0);
+    if(!JS_IsNumber(argv[index])||!number(ctx,argv[index],scale[axis]))return JS_ThrowTypeError(ctx,"setObjectScale(id, x, y = x, z = x) requires finite numbers");
+  }
+  if(!validScale(scale))return JS_ThrowRangeError(ctx,"each scale component must be greater than 0 and at most 2 meters");
   auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   if(currentScene->physics&&currentScene->physics->contains(id)){
-    auto &w=*currentScene->physics;const auto state=w.get(id);const float old=object->scale;object->scale=scale;
+    auto &w=*currentScene->physics;const auto state=w.get(id);const auto old=object->scale;object->scale=scale;
     try{configurePhysics(*currentScene,*object,state.settings);if(state.settings.type==physics::Type::Dynamic&&!state.held){w.velocity(id,state.velocity);w.angularVelocity(id,state.angularVelocity);}}
     catch(const std::exception &e){object->scale=old;return JS_ThrowRangeError(ctx,"%s",e.what());}
   }else object->scale=scale;return JS_UNDEFINED;
@@ -966,8 +988,11 @@ static JSValue jsGetObjectTransform(JSContext *ctx,JSValueConst,int argc,JSValue
   int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"getObjectTransform(id)");
   const auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
   JSValue value=JS_NewObject(ctx);
-  const std::pair<const char *,float> fields[]={{"x",object->x},{"y",object->y},{"z",object->z},{"pitch",object->pitch},{"yaw",object->yaw},{"roll",object->roll},{"scale",object->scale}};
+  const std::pair<const char *,float> fields[]={{"x",object->x},{"y",object->y},{"z",object->z},{"pitch",object->pitch},{"yaw",object->yaw},{"roll",object->roll}};
   for(const auto &[name,number]:fields)JS_SetPropertyStr(ctx,value,name,JS_NewFloat64(ctx,number));
+  JSValue scale=JS_NewObject(ctx);const char *axes[3]={"x","y","z"};
+  for(int axis=0;axis<3;axis++)JS_SetPropertyStr(ctx,scale,axes[axis],JS_NewFloat64(ctx,object->scale[axis]));
+  JS_SetPropertyStr(ctx,value,"scale",scale);
   JS_SetPropertyStr(ctx,value,"visible",JS_NewBool(ctx,object->visible));
   return value;
 }

@@ -4,7 +4,7 @@
 static vr::HmdMatrix34_t identity(){vr::HmdMatrix34_t m{};for(int axis=0;axis<3;axis++)m.m[axis][axis]=1;return m;}
 static void planner(){
   Scene scene;ModelAsset asset;asset.eyePixels=768;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}scene.assets.push_back(std::move(asset));
-  for(int n=0;n<16;n++){scene.objects.push_back({n+1,1,(n<8?-.65f:.65f)+(n%2)*.025f,(n%4)*.025f,0,.1f,0});scene.objects.back().renderGroup=1;}
+  for(int n=0;n<16;n++){scene.objects.push_back({n+1,1,(n<8?-.65f:.65f)+(n%2)*.025f,(n%4)*.025f,0,{.1f,.1f,.1f},0});scene.objects.back().renderGroup=1;}
   auto anchor=identity(),head=identity();head.m[2][3]=1.2f;
   float eyes[2][3]={{-.032f,0,1.2f},{.032f,0,1.2f}};FrameBoundsCache cache;cache.update(scene,anchor,head,eyes);
   std::vector<const Object*> members;for(const auto &object:scene.objects)members.push_back(&object);
@@ -24,12 +24,12 @@ static void planner(){
   policy.targetEyePixels=4096;CHECK(!planGroupSplit(members,scene,anchor,head,eyes,cache,4096,2048,policy));policy.targetEyePixels=512;
   for(auto &object:scene.objects)object.x=0;cache.update(scene,anchor,head,eyes);CHECK(!planGroupSplit(members,scene,anchor,head,eyes,cache,4096,2048,policy));
   for(auto &object:scene.objects)object.z=-1.2f;cache.update(scene,anchor,head,eyes);CHECK(!planGroupSplit(members,scene,anchor,head,eyes,cache,4096,2048,policy));
-  for(int group:{1,256})for(int tile:{0,1,15,255}){Object object{123,1,0,0,0,1,0};object.renderGroup=group;object.renderTile=tile;CHECK(surfaceRenderGroup(objectSurfaceKey(object))==group);}
+  for(int group:{1,256})for(int tile:{0,1,15,255}){Object object{123,1,0,0,0,{1,1,1},0};object.renderGroup=group;object.renderTile=tile;CHECK(surfaceRenderGroup(objectSurfaceKey(object))==group);}
   printf("PASS split planner: stable complete partitions, common plane, >=20%% allocated-texel savings, threshold, compact/single-member and near-plane fallbacks\n");
 }
 static void adjustments(){
   Scene scene;ModelAsset asset;asset.eyePixels=768;for(int axis=0;axis<3;axis++){asset.low[axis]=-.5f;asset.high[axis]=.5f;}scene.assets.push_back(std::move(asset));
-  for(int n=0;n<16;n++){scene.objects.push_back({n+1,1,(n<8?-.55f:.55f)+(n%2)*.09f,-.25f+(n%8/2)*.09f,.1f,.08f,0});scene.objects.back().renderGroup=1;scene.objects.back().renderTile=n/8;}
+  for(int n=0;n<16;n++){scene.objects.push_back({n+1,1,(n<8?-.55f:.55f)+(n%2)*.09f,-.25f+(n%8/2)*.09f,.1f,{.08f,.08f,.08f},0});scene.objects.back().renderGroup=1;scene.objects.back().renderTile=n/8;}
   auto anchor=identity(),head=identity();head.m[2][3]=1.2f;float eyes[2][3]={{-.032f,0,1.2f},{.032f,0,1.2f}};
   FrameBoundsCache cache;cache.update(scene,anchor,head,eyes);std::vector<const Object*> a,b;
   for(const auto &object:scene.objects)(object.renderTile?b:a).push_back(&object);

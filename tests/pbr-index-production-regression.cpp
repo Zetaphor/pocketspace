@@ -52,8 +52,8 @@ static void benchmarkMaterials(){
   assert(work==triangles(r.scene.assets[ids[1]-1],0)*count);
   for(bool depthOnly:{false,true}){
    r.scene.objects.clear();std::vector<int> members;
-   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale=count==1?.7f:.2f;o.x=count==1?0:(i%4-1.5f)*.23f;o.y=count==1?0:(i/4-1.5f)*.23f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
-   if(depthOnly){Object target{};target.id=100;target.asset=3;target.z=.7f;target.scale=.95f;r.scene.objects.push_back(target);members={100};}
+   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale.fill(count==1?.7f:.2f);o.x=count==1?0:(i%4-1.5f)*.23f;o.y=count==1?0:(i/4-1.5f)*.23f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
+   if(depthOnly){Object target{};target.id=100;target.asset=3;target.z=.7f;target.scale.fill(.95f);r.scene.objects.push_back(target);members={100};}
    for(int stage=0;stage<4;stage++){
     const bool cache=stage==1||stage==2;for(auto &o:r.scene.objects)if(o.id!=100)o.asset=ids[cache];double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);
     for(int frame=0;frame<150;frame++){
@@ -102,9 +102,9 @@ int main(int argc,char **argv){
   for(int level:{0,1,2})for(int phase:{0,1})for(int eye:{0,1})for(const auto &members:std::vector<std::vector<int>>{{1,2},{1},{2}}){
    std::vector<unsigned char> reference;
    for(int mode=0;mode<2;mode++){
-    auto &a=r.scene.assets[ids[mode]-1];Object o{};o.id=1;o.asset=ids[mode];o.scale=.35f;o.pitch=.15f;o.yaw=.25f+phase*.3f;o.lodLevel=level;
+    auto &a=r.scene.assets[ids[mode]-1];Object o{};o.id=1;o.asset=ids[mode];o.scale.fill(.35f);o.pitch=.15f;o.yaw=.25f+phase*.3f;o.lodLevel=level;
     if(a.hasAnimation){o.animationPose=std::make_shared<ModelPose>();animation::Playback state;state.clip=0;state.time=.35+phase*.2;evaluateModelPose(a,state,*o.animationPose);uploadModelPose(*o.animationPose);}
-    Object other=o;other.id=2;other.x=.12f;other.z=-.1f;other.scale=.25f;r.scene.objects={o,other};
+    Object other=o;other.id=2;other.x=.12f;other.z=-.1f;other.scale.fill(.25f);r.scene.objects={o,other};
     auto image=r.renderSet(members,{phase*.15f,.1f,-1.2f},eye);
     if(!mode)reference=std::move(image);else{if(image!=reference)std::fprintf(stderr,"production index mismatch %s level=%d phase=%d eye=%d\n",name,level,phase,eye);assert(image==reference);++views;}
    }
@@ -125,7 +125,7 @@ int main(int argc,char **argv){
    p.vertexCount=GLsizei(p.vertices.size()/5);uploadModel(a);if(mode)assert(p.indexBuffer&&verifyStream(p,true));r.scene.assets.push_back(std::move(a));ids[mode]=int(r.scene.assets.size());
   }
   for(int eye:{0,1}){
-   Object o{};o.id=1;o.asset=ids[0];o.scale=.7f;r.scene.objects={o};auto original=r.renderSet({1},{0,.1f,-1.2f},eye);
+   Object o{};o.id=1;o.asset=ids[0];o.scale.fill(.7f);r.scene.objects={o};auto original=r.renderSet({1},{0,.1f,-1.2f},eye);
    r.scene.objects[0].asset=ids[1];auto optimized=r.renderSet({1},{0,.1f,-1.2f},eye);size_t changed=0;
    for(size_t i=0;i<original.size();i+=4){assert(original[i+3]==optimized[i+3]);changed+=!std::equal(original.begin()+i,original.begin()+i+3,optimized.begin()+i);}
    assert(changed>0);coplanarChanges+=changed;std::printf("PBR_COPLANAR_SAMPLE {\"alphaMode\":%d,\"eye\":%d,\"changedPixels\":%zu}\n",alpha,eye,changed);
@@ -171,7 +171,7 @@ int main(int argc,char **argv){
    function check(v){if(!v)throw Error('index assertion');}
    const asset=loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true,optimizeVertexCache:true});
    const owner=createSceneContainer();createObject(asset,0,0,0,.3,{container:owner});
-   const saved=captureSceneContainer(owner);check(saved.version===1&&saved.models[0].optimizeVertexCache&&saved.models[0].lod);
+   const saved=captureSceneContainer(owner);check(saved.version===2&&saved.models[0].optimizeVertexCache&&saved.models[0].lod);
    const restored=restoreSceneContainer(saved);check(captureSceneContainer(restored.containerId).models[0].optimizeVertexCache);
    let failed=false;try{loadModel('assets/samples/ToyCar/ToyCar.glb',768,{pbr:true,optimizeVertexCache:false});}catch(e){failed=true;}check(failed);
    function update(){}
@@ -189,8 +189,8 @@ int main(int argc,char **argv){
   assert(r.pbrProgram.init()&&r.depthPbrProgram.init(true));
   for(bool depthOnly:{false,true})for(int level:{0,1,2}){
    r.scene.objects.clear();std::vector<int> members;
-   for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale=.2f;o.x=(i%4-1.5f)*.23f;o.y=(i/4-1.5f)*.23f;o.pitch=.2f;o.yaw=.3f;o.lodLevel=level;r.scene.objects.push_back(o);members.push_back(o.id);}
-   if(depthOnly){Object target{};target.id=17;target.asset=3;target.z=.7f;target.scale=.95f;r.scene.objects.push_back(target);members={17};}
+   for(int i=0;i<16;i++){Object o{};o.id=i+1;o.asset=ids[0];o.scale.fill(.2f);o.x=(i%4-1.5f)*.23f;o.y=(i/4-1.5f)*.23f;o.pitch=.2f;o.yaw=.3f;o.lodLevel=level;r.scene.objects.push_back(o);members.push_back(o.id);}
+   if(depthOnly){Object target{};target.id=17;target.asset=3;target.z=.7f;target.scale.fill(.95f);r.scene.objects.push_back(target);members={17};}
    const uint64_t work=triangles(r.scene.assets[ids[0]-1],level)*16;assert(work==triangles(r.scene.assets[ids[1]-1],level)*16);
    for(int stage=0;stage<4;stage++){
     const int mode=stage==1||stage==2;for(auto &o:r.scene.objects)if(o.id!=17)o.asset=ids[!mode&&level?2:mode];double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);

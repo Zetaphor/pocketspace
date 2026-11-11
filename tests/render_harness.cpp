@@ -18,9 +18,9 @@ Renderer::Renderer(int storagePixels):samplePixels(storagePixels),backingPixels(
     for(const char *path:{"assets/physics/ThinPlatform.glb","assets/physics/ThinWallBlue.glb","assets/samples/Box/Box.glb"}){
       ModelAsset asset;assert(loadModelFile(path,asset));uploadModel(asset);scene.assets.push_back(std::move(asset));
     }
-    scene.objects.push_back({1,1,0,-.43f,0,1.2f,0});
-    scene.objects.push_back({2,2,-.6f,-.1f,0,.6f,0,0,float(std::acos(-1)/2)});
-    scene.objects.push_back({3,3,0,-.32f,0,.16f,0});
+    scene.objects.push_back({1,1,0,-.43f,0,{1.2f,1.2f,1.2f},0});
+    scene.objects.push_back({2,2,-.6f,-.1f,0,{.6f,.6f,.6f},0,0,float(std::acos(-1)/2)});
+    scene.objects.push_back({3,3,0,-.32f,0,{.16f,.16f,.16f},0});
   }
 
 std::vector<unsigned char> Renderer::renderSet(const std::vector<int> &ids,physics::Vec3 headScene,int eyeIndex,int sharedDepth,bool readback,float gridScale,bool cull,int tileKey,int requestedPixels){
@@ -65,7 +65,7 @@ std::vector<unsigned char> Renderer::renderSet(const std::vector<int> &ids,physi
       };
       auto drawObject=[&](const Object &object){
         const auto &asset=scene.assets[object.asset-1];
-        glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform1f(scaleLocation,object.scale);
+        glUniform1f(yawLocation,object.yaw);glUniform1f(pitchLocation,object.pitch);glUniform1f(rollLocation,object.roll);glUniform3fv(scaleLocation,1,object.scale.data());
         glUniform3f(offsetLocation,object.x,object.y+.2f,object.z);
         for(size_t primitive=0;primitive<asset.primitives.size();primitive++){
           const auto &part=asset.primitives[primitive];
@@ -132,7 +132,7 @@ std::vector<unsigned char> Renderer::render(int id,physics::Vec3 headScene,int e
     float eye[3]={head.m[0][3]+(eyeIndex?.032f:-.032f),head.m[1][3],head.m[2][3]};
     glUseProgram(program);vector("center",panel.m[0][3],panel.m[1][3],panel.m[2][3]);vector("eye",eye[0],eye[1],eye[2]);
     vector("panelRight",r[0],r[1],r[2]);vector("panelUp",u[0],u[1],u[2]);vector("panelForward",f[0],f[1],f[2]);
-    const float referenceWidth=std::max(.55f,target.scale*2.1f);
+    const float referenceWidth=std::max(.55f,largestScale(target)*2.1f);
     const float center[3]={panel.m[0][3],panel.m[1][3],panel.m[2][3]};
     float eyes[2][3]={{head.m[0][3]-.032f,head.m[1][3],head.m[2][3]},{head.m[0][3]+.032f,head.m[1][3],head.m[2][3]}};
     FrameBoundsCache frameBounds;if(cached)frameBounds.update(scene,anchor,head,eyes);
@@ -149,7 +149,7 @@ std::vector<unsigned char> Renderer::render(int id,physics::Vec3 headScene,int e
         const auto &asset=scene.assets[size_t(object.asset)-1];
         if(pass<0&&bounds&&!mayOcclude(cached?frameBounds.project(object,eye,r,u,f):projectedBounds(object,asset,anchor,eye,r,u,f),targetBounds))continue;
         glUniform1f(glGetUniformLocation(program,"yaw"),object.yaw);glUniform1f(glGetUniformLocation(program,"pitch"),object.pitch);glUniform1f(glGetUniformLocation(program,"roll"),object.roll);
-        glUniform1f(glGetUniformLocation(program,"modelScale"),object.scale);vector("offset",object.x-target.x,object.y-target.y,object.z-target.z);
+        glUniform3fv(glGetUniformLocation(program,"modelScale"),1,object.scale.data());vector("offset",object.x-target.x,object.y-target.y,object.z-target.z);
         for(const auto &part:asset.primitives){
           if(pass<0?part.alphaMode==2:(part.alphaMode==2)!=bool(pass))continue;
           glUniform4fv(glGetUniformLocation(program,"factor"),1,part.factor);glUniform1i(glGetUniformLocation(program,"alphaMode"),part.alphaMode);glUniform1f(glGetUniformLocation(program,"alphaCutoff"),part.alphaCutoff);

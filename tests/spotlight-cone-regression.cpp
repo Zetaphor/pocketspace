@@ -2,7 +2,7 @@
 #include "render_harness.h"
 static void populate(Renderer &r,const char *path,int count){
  r.scene.objects.clear();r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;asset.lod=false;asset.optimizeVertexCache=true;assert(loadModelFile(path,asset));uploadModel(asset);asset.lighting.intensity=.3;asset.lighting.ambient=.04;
- for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale=count==1?.6f:.2f;o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2;o.pitch=.1;r.scene.objects.push_back(o);}
+ for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(r.scene.assets.size());o.scale.fill(count==1?.6f:.2f);o.x=count==1?0:(i%4-1.5f)*.22f;o.y=count==1?0:(i/4-1.5f)*.22f;o.yaw=.2;o.pitch=.1;r.scene.objects.push_back(o);}
 }
 static void setLights(Renderer &r,int count,int kind){
  r.scene.lights.clear();for(int i=0;i<count;i++){
@@ -41,7 +41,7 @@ int main(int argc,char **argv){
  {
   Scene scene;scene.assets.emplace_back();scene.assets[0].pbr=true;
   for(int c=0;c<3;c++){scene.assets[0].low[c]=-.01;scene.assets[0].high[c]=.01;}
-  Object o{};o.id=1;o.asset=1;o.scale=1;o.x=.6;o.z=1;scene.objects.push_back(o);
+  Object o{};o.id=1;o.asset=1;o.scale.fill(1);o.x=.6;o.z=1;scene.objects.push_back(o);
   ResolvedPointLight l{{0,0,0},{1,1,1},1,8,{0,0,1},.98f,float(std::cos(.25))};std::vector<ResolvedPointLight> lights(4,l);std::vector<ObjectLightSet> sets;
   updateObjectLights(scene,lights,sets,false);assert(sets[0].count==4);updateObjectLights(scene,lights,sets,true);assert(sets[0].count==0);
   scene.objects[0].animationPose=std::make_shared<ModelPose>();for(int c=0;c<3;c++){scene.objects[0].animationPose->geometry.low[c]=-1;scene.objects[0].animationPose->geometry.high[c]=1;}

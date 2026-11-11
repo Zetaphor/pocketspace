@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 namespace scenePersistence {
-constexpr int snapshotVersion=1;
+constexpr int snapshotVersion=2;
 struct Value {
   JSContext *ctx;JSValue value;
   Value(JSContext *c,JSValue v):ctx(c),value(v){}
@@ -39,7 +39,8 @@ static constexpr std::pair<const char*,bool Object::*> flags[]={
   {"laserPitchWithStickClick",&Object::laserPitchWithStickClick},{"depthAdjust",&Object::depthAdjust},
   {"handPitch",&Object::handPitch},{"handYaw",&Object::handYaw},{"handRoll",&Object::handRoll}};
 static constexpr std::pair<const char*,float Object::*> transforms[]={
-  {"x",&Object::x},{"y",&Object::y},{"z",&Object::z},{"pitch",&Object::pitch},{"yaw",&Object::yaw},{"roll",&Object::roll},{"scale",&Object::scale}};
+  {"x",&Object::x},{"y",&Object::y},{"z",&Object::z},{"pitch",&Object::pitch},{"yaw",&Object::yaw},{"roll",&Object::roll}};
+static constexpr const char *scaleAxes[3]={"x","y","z"};
 static std::string json(JSContext *ctx,JSValueConst value){
   Value encoded(ctx,JS_JSONStringify(ctx,value,JS_UNDEFINED,JS_UNDEFINED));
   if(JS_IsException(encoded))throw std::runtime_error("snapshot cannot be encoded as JSON");
@@ -70,9 +71,11 @@ static JSValue capture(JSContext *ctx,int owner){
       put(ctx,lighting,"intensity",JS_NewFloat64(ctx,a.lighting.intensity));put(ctx,lighting,"ambient",JS_NewFloat64(ctx,a.lighting.ambient));put(ctx,lighting,"exposure",JS_NewFloat64(ctx,a.lighting.exposure));put(ctx,lighting,"environment",JS_NewString(ctx,a.lighting.environment.c_str()));put(ctx,lighting,"environmentIntensity",JS_NewFloat64(ctx,a.lighting.environmentIntensity));put(ctx,lighting,"environmentRotation",JS_NewFloat64(ctx,a.lighting.environmentRotation));put(ctx,m,"lighting",JS_DupValue(ctx,lighting));putIndex(ctx,models,i,m);
     }
     for(auto [key,member]:transforms)require(std::isfinite(o.*member),"non-finite object transform");
+    require(validScale(o.scale),"invalid object scale");
     JSValue item=JS_NewObject(ctx);put(ctx,item,"id",JS_NewInt32(ctx,o.id));put(ctx,item,"model",JS_NewInt32(ctx,modelIds.at(o.asset)));
     put(ctx,item,"renderGroup",JS_NewInt32(ctx,o.renderGroup));put(ctx,item,"container",JS_NewInt32(ctx,o.container));
     for(auto [key,member]:transforms)put(ctx,item,key,JS_NewFloat64(ctx,o.*member));
+    {Value scale(ctx,JS_NewObject(ctx));for(int axis=0;axis<3;axis++)put(ctx,scale,scaleAxes[axis],JS_NewFloat64(ctx,o.scale[axis]));put(ctx,item,"scale",JS_DupValue(ctx,scale));}
     for(auto [key,member]:flags)put(ctx,item,key,JS_NewBool(ctx,o.*member));
     put(ctx,item,"grabButton",JS_NewString(ctx,o.grabButton==GrabButton::Both?"both":o.grabButton==GrabButton::Grip?"grip":"trigger"));
     put(ctx,item,"physics",state?bodyValue(ctx,*state):JS_NULL);
@@ -156,7 +159,9 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     if(group&&!groups.count(group)){int free=1;while(free<=256&&occupied.count(free))free++;require(free<=256,"no free render groups");groups[group]=free;occupied.insert(free);}
     o.renderGroup=group?groups.at(group):0;
     for(auto [key,member]:transforms)o.*member=float(number(ctx,item,key,-std::numeric_limits<float>::max(),std::numeric_limits<float>::max()));
-    require(o.scale>0&&o.scale<=2,"scale must be greater than zero and at most 2");
+    {auto scale=field(ctx,item,"scale");require(JS_IsObject(scale)&&!JS_IsArray(scale),"scale must be {x, y, z}");
+     for(int axis=0;axis<3;axis++)o.scale[axis]=float(number(ctx,scale,scaleAxes[axis],0,2));
+     require(validScale(o.scale),"each scale component must be greater than zero and at most 2");}
     for(auto [key,member]:flags)o.*member=boolean(ctx,item,key);
     auto button=field(ctx,item,"grabButton");auto name=string(ctx,button);require(name=="both"||name=="trigger"||name=="grip","invalid grabButton");o.grabButton=name=="both"?GrabButton::Both:name=="grip"?GrabButton::Grip:GrabButton::Trigger;
     auto body=field(ctx,item,"physics");
@@ -229,10 +234,10 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(auto &body:bodies){
     const auto &o=*std::find_if(restored.begin(),restored.end(),[&](const Object &o){return o.id==body.id;});
     const auto &a=o.asset<=int(scene.assets.size())?scene.assets[o.asset-1]:pending[o.asset-int(scene.assets.size())-1];
-    body.low={a.low[0]*o.scale,a.low[1]*o.scale,a.low[2]*o.scale};body.high={a.high[0]*o.scale,a.high[1]*o.scale,a.high[2]*o.scale};
+    const auto &k=o.scale;body.low={a.low[0]*k[0],a.low[1]*k[1],a.low[2]*k[2]};body.high={a.high[0]*k[0],a.high[1]*k[1],a.high[2]*k[2]};
     geometry.emplace_back();auto &vertices=geometry.back();
     if(body.state.settings.shape==physics::Shape::Convex||body.state.settings.shape==physics::Shape::Mesh)for(const auto &part:a.primitives)for(size_t i=0;i+4<part.vertices.size();i+=5)vertices.push_back({part.vertices[i],part.vertices[i+1],part.vertices[i+2]});
-    body.geometry={o.asset,o.scale,vertices};
+    body.geometry={o.asset,{k[0],k[1],k[2]},vertices};
   }
   scene.lights.reserve(scene.lights.size()+nl);
   scene.panels.reserve(scene.panels.size()+np);

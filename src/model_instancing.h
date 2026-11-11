@@ -6,8 +6,8 @@ public:
   enum Mode {Off,Original,Instanced};
   Mode mode=Off;
 private:
-  struct Instance {float offsetScale[4],angles[3];};
-  static_assert(sizeof(Instance)==7*sizeof(float));
+  struct Instance {float offset[3],angles[3],scale[3];};
+  static_assert(sizeof(Instance)==9*sizeof(float));
   static constexpr size_t capacity=256;
   GLuint buffer=0;
   struct Program {
@@ -44,10 +44,11 @@ private:
     std::string vertex=modelVertexShader;
     const auto begin=vertex.find("uniform vec3 offset;"),end=vertex.find("out vec2 t;");
     if(begin==std::string::npos||end==std::string::npos)return false;
-    vertex.replace(begin,end-begin,R"(layout(location=2) in vec4 instanceOffsetScale;
+    vertex.replace(begin,end-begin,R"(layout(location=2) in vec3 instanceOffset;
 layout(location=3) in vec3 instanceAngles;
-#define offset instanceOffsetScale.xyz
-#define modelScale instanceOffsetScale.w
+layout(location=4) in vec3 instanceScale;
+#define offset instanceOffset
+#define modelScale instanceScale
 #define pitch instanceAngles.x
 #define yaw instanceAngles.y
 #define roll instanceAngles.z
@@ -89,7 +90,7 @@ public:
       const auto &part=asset.primitives[0];Program *active=program.get();
       staging.clear();
       for(size_t n=begin;n<end;n++){
-        const auto &o=*objects[n];staging.push_back({{o.x-origin[0],o.y-origin[1],o.z-origin[2],o.scale},{o.pitch,o.yaw,o.roll}});
+        const auto &o=*objects[n];staging.push_back({{o.x-origin[0],o.y-origin[1],o.z-origin[2]},{o.pitch,o.yaw,o.roll},{o.scale[0],o.scale[1],o.scale[2]}});
       }
       culling.material(part);
       active->view(anchor,center,eye,r,u,f,halfWidth);
@@ -97,13 +98,13 @@ public:
       glActiveTexture(GL_TEXTURE0);
       glBindTexture(GL_TEXTURE_2D,part.texture);
       glBindBuffer(GL_ARRAY_BUFFER,buffer);glBufferData(GL_ARRAY_BUFFER,capacity*sizeof(Instance),nullptr,GL_STREAM_DRAW);glBufferSubData(GL_ARRAY_BUFFER,0,staging.size()*sizeof(Instance),staging.data());
-      glEnableVertexAttribArray(2);glEnableVertexAttribArray(3);
-      glVertexAttribPointer(2,4,GL_FLOAT,GL_FALSE,sizeof(Instance),nullptr);glVertexAttribPointer(3,3,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<void*>(4*sizeof(float)));
-      glVertexAttribDivisor(2,1);glVertexAttribDivisor(3,1);
+      glEnableVertexAttribArray(2);glEnableVertexAttribArray(3);glEnableVertexAttribArray(4);
+      glVertexAttribPointer(2,3,GL_FLOAT,GL_FALSE,sizeof(Instance),nullptr);glVertexAttribPointer(3,3,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<void*>(3*sizeof(float)));glVertexAttribPointer(4,3,GL_FLOAT,GL_FALSE,sizeof(Instance),reinterpret_cast<void*>(6*sizeof(float)));
+      glVertexAttribDivisor(2,1);glVertexAttribDivisor(3,1);glVertexAttribDivisor(4,1);
       {glBindBuffer(GL_ARRAY_BUFFER,part.vbo);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,5*sizeof(float),nullptr);glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,5*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
       if(part.indexBuffer){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,modelIndexBuffer(part,objects[begin]->lodLevel));glDrawElementsInstanced(GL_TRIANGLES,modelDrawVertexCount(part,objects[begin]->lodLevel),part.indexType,nullptr,end-begin);}
       else glDrawArraysInstanced(GL_TRIANGLES,0,part.vertexCount,end-begin);}
-      glVertexAttribDivisor(2,0);glVertexAttribDivisor(3,0);glDisableVertexAttribArray(2);glDisableVertexAttribArray(3);glUseProgram(baseline);
+      glVertexAttribDivisor(2,0);glVertexAttribDivisor(3,0);glVertexAttribDivisor(4,0);glDisableVertexAttribArray(2);glDisableVertexAttribArray(3);glDisableVertexAttribArray(4);glUseProgram(baseline);
       if constexpr(!std::is_same_v<Restored,std::nullptr_t>)restored();
       unsigned vertices=modelDrawVertexCount(part,objects[begin]->lodLevel);
       savedDraws+=asset.primitives.size()*(end-begin)-1;

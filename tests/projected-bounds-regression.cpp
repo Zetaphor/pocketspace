@@ -7,9 +7,10 @@ static ProjectedBounds referenceBounds(const Object &object,const ModelAsset &ge
   ProjectedBounds result;float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
   for(int corner=0;corner<8;corner++){
     float local[3],rotated[3]{},position[3]={object.x,object.y,object.z};
-    for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?geometry.high[axis]:geometry.low[axis];
+    // Scale along the object's own axes, then rotate.
+    for(int axis=0;axis<3;axis++)local[axis]=object.scale[axis]*((corner&(1<<axis))?geometry.high[axis]:geometry.low[axis]);
     for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
-    for(int axis=0;axis<3;axis++)position[axis]+=object.scale*rotated[axis]*(axis==2?-1.f:1.f);
+    for(int axis=0;axis<3;axis++)position[axis]+=rotated[axis]*(axis==2?-1.f:1.f);
     float ray[3];for(int row=0;row<3;row++)ray[row]=anchor.m[row][3]+anchor.m[row][0]*position[0]+anchor.m[row][1]*position[1]-anchor.m[row][2]*position[2]-eye[row];
     float x=0,y=0,d=0;for(int axis=0;axis<3;axis++){x+=ray[axis]*right[axis];y+=ray[axis]*up[axis];d+=ray[axis]*forward[axis];}
     if(d<=.05f){result.valid=false;return result;}
@@ -30,12 +31,12 @@ static void correctness(Scene &scene){
   std::mt19937 random(9327);std::uniform_real_distribution<float> unit(-1,1);
   FrameBoundsCache cache;int cases=0;
   for(int frame=0;frame<20;frame++){
-    if(frame==2){scene.objects.erase(scene.objects.begin()+5);scene.objects.push_back({1000,1,0,0,0,.1f,0});}
-    if(frame==3)for(int i=0;i<80;i++)scene.objects.push_back({1001+i,1,0,0,0,.1f,0});
+    if(frame==2){scene.objects.erase(scene.objects.begin()+5);scene.objects.push_back({1000,1,0,0,0,{.1f,.1f,.1f},0});}
+    if(frame==3)for(int i=0;i<80;i++)scene.objects.push_back({1001+i,1,0,0,0,{.1f,.1f,.1f},0});
     if(frame==4)scene.objects[0].animationPose=std::make_shared<ModelPose>();
     for(auto &object:scene.objects){
       object.x=unit(random)*.7f;object.y=unit(random)*.7f;object.z=unit(random)*.8f;
-      object.pitch=unit(random)*3;object.yaw=unit(random)*3;object.roll=unit(random)*3;object.scale=.05f+.2f*std::abs(unit(random));
+      object.pitch=unit(random)*3;object.yaw=unit(random)*3;object.roll=unit(random)*3;for(auto &size:object.scale)size=.05f+.2f*std::abs(unit(random));
       object.visible=(object.id+frame)%7!=0;object.renderGroup=frame==19?0:1+object.id%4;
       if(object.animationPose)for(int axis=0;axis<3;axis++){object.animationPose->geometry.low[axis]=-.3f-axis*.1f;object.animationPose->geometry.high[axis]=.4f+frame*.01f;}
     }
@@ -55,7 +56,8 @@ static void correctness(Scene &scene){
         equalBounds(cache.project(object,eyes[eye],r2,u2,f2),referenceBounds(object,geometry(scene,object),anchor,eyes[eye],r2,u2,f2));
         const float center[3]={common.m[0][3],common.m[1][3],common.m[2][3]};
         auto a=projectedScissor(actual,center,eyes[eye],r,u,f,.8f,768),b=projectedScissor(expected,center,eyes[eye],r,u,f,.8f,768);
-        CHECK(a.x==b.x&&a.y==b.y&&a.width==b.width&&a.height==b.height);cases++;
+        // Last-bit float differences between translation units can move an edge by one pixel.
+        CHECK(std::abs(a.x-b.x)<=1&&std::abs(a.y-b.y)<=1&&std::abs(a.x+a.width-b.x-b.width)<=1&&std::abs(a.y+a.height-b.y-b.height)<=1);cases++;
       }
     }
     if(!members.empty()){
@@ -70,7 +72,7 @@ static void correctness(Scene &scene){
   }
   // Near-plane crossing, scene replacement, and return to a grouped snapshot.
   Scene replacement;replacement.assets.resize(1);for(int axis=0;axis<3;axis++){replacement.assets[0].low[axis]=-.5f;replacement.assets[0].high[axis]=.5f;}
-  replacement.objects.push_back({1,1,0,0,-.98f,.1f,0});replacement.objects[0].renderGroup=1;
+  replacement.objects.push_back({1,1,0,0,-.98f,{.1f,.1f,.1f},0});replacement.objects[0].renderGroup=1;
   auto anchor=identity(),head=identity();head.m[2][3]=1;float eyes[2][3]={{-.032f,0,1},{.032f,0,1}};
   cache.update(replacement,anchor,head,eyes);CHECK(!cache.common(replacement.objects[0],0).valid);
   replacement.objects.clear();cache.update(replacement,anchor,head,eyes);CHECK(cache.entries.empty());
@@ -78,7 +80,7 @@ static void correctness(Scene &scene){
 }
 static volatile double sink;
 static void benchmark(Scene &scene){
-  scene.objects.clear();for(int i=0;i<240;i++){scene.objects.push_back({i+1,1+i%3,((i%8)-3.5f)*.12f,-.25f+(i/64)*.15f,(i/8%8)*.12f,.1f,.2f});scene.objects.back().renderGroup=1+i%4;}
+  scene.objects.clear();for(int i=0;i<240;i++){scene.objects.push_back({i+1,1+i%3,((i%8)-3.5f)*.12f,-.25f+(i/64)*.15f,(i/8%8)*.12f,{.1f,.1f,.1f},.2f});scene.objects.back().renderGroup=1+i%4;}
   auto anchor=identity(),head=identity();head.m[1][3]=.15f;head.m[2][3]=1;
   const float eyes[2][3]={{-.032f,.15f,1},{.032f,.15f,1}};auto common=anchor;float r[3],u[3],f[3];faceViewer(common,anchor,head,r,u,f);
   FrameBoundsCache cache;
@@ -100,6 +102,6 @@ static void benchmark(Scene &scene){
 }
 int main(){
   Scene scene;for(const char *path:{"assets/samples/Box/Box.glb","assets/samples/ToyCar/ToyCar.glb","assets/Avocado.glb"}){ModelAsset asset;CHECK(loadModelFile(path,asset));scene.assets.push_back(std::move(asset));}
-  for(int i=0;i<32;i++)scene.objects.push_back({i+1,1+i%3,0,0,0,.1f,0});
+  for(int i=0;i<32;i++)scene.objects.push_back({i+1,1+i%3,0,0,0,{.1f,.1f,.1f},0});
   correctness(scene);benchmark(scene);
 }

@@ -55,17 +55,19 @@ of scale, and uniform scale is the case where all three are equal.
   `{x, y, z}`. `createObject`'s `scale` argument accepts a number or `{x, y, z}`.
 - Transform order is scale, then rotation, then translation, so a stretched part
   keeps stretching along its own axes when rotated.
-- Normals use the inverse-transpose of the model matrix in the unlit, PBR,
-  skinned, instanced and shadow paths. Today they rely on scale being uniform.
+- Every draw path (unlit, PBR, skinned, instanced and shadow) scales positions
+  before rotating them. Only PBR shades with normals: they use the inverse of the
+  scale, tangents use the scale, and both are normalized per vertex.
 - Picking and grabbing transform the ray into object space. Bounds, crop,
   render-group layout, LOD distance and the near-hand grab threshold use the
   largest axis where they need a single size.
 - Physics: box, convex and mesh colliders take the per-axis scale through Jolt's
-  scaled shapes. A sphere collider on a non-uniformly scaled object throws,
-  because Jolt can't scale a sphere into an ellipsoid. Grabbed and simulated
+  scaled shapes. An automatic sphere collider on a non-uniformly scaled object
+  throws, because Jolt can't scale a sphere into an ellipsoid; an explicit radius
+  is in meters and stays allowed. Grabbed and simulated
   bodies keep their current release behavior.
-- Snapshots store the three components. Saves that predate this change are not
-  read; the snapshot version increases.
+- Snapshots store `scale` as `{x, y, z}`. Saves that predate this change are not
+  read; the snapshot version is 2.
 - Every example, demo and test that reads `scale` from `getObjectTransform`
   changes in the same work.
 
@@ -308,7 +310,7 @@ demo and assets.
 ## Order
 
 1. Text input spike: done, see [steamvr-keyboard.md](../tests/results/steamvr-keyboard.md).
-2. Per-axis object scale.
+2. Per-axis object scale: done.
 3. Shape assets, then material overrides, then shape-asset snapshots.
 4. Text input on the SteamVR keyboard.
 5. Builder version 1, in commits for build mode and palette, manipulation and

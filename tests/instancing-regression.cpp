@@ -21,7 +21,7 @@ static void multipartOrder(Renderer &r){
   }
   uploadModel(asset);r.scene.assets.push_back(std::move(asset));const int key=r.scene.assets.size();
   for(int row=0;row<3;row++)for(int column=0;column<3;column++)r.anchor.m[row][column]=float(row==column);
-  r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,float(n)*.1f,-.2f,0,.2f,0});
+  r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,float(n)*.1f,-.2f,0,{.2f,.2f,.2f},0});
   auto &parts=r.scene.assets.back().primitives;r.instancing.mode=ModelInstancing::Original;
   const auto first=r.renderSet({1},{0,-.2f,-.7f},0,0,true,1,true);std::swap(parts[0],parts[1]);
   const auto reversed=r.renderSet({1},{0,-.2f,-.7f},0,0,true,1,true);std::swap(parts[0],parts[1]);assert(first!=reversed);
@@ -44,7 +44,7 @@ static void extraChecks(Renderer &r){
     p.vertexCount=p.vertices.size()/5;p.rgba={190,220,255,255};uploadModel(asset);
     assert(large?(p.indexBuffer&&p.indexType==GL_UNSIGNED_INT):!p.indexBuffer);
     r.scene.assets.push_back(std::move(asset));const int key=r.scene.assets.size();
-    r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,(n-1)*.12f,-.2f,0,.2f,float(n)*.3f,.1f,-.1f});
+    r.scene.objects.clear();for(int n=0;n<3;n++)r.scene.objects.push_back({n+1,key,(n-1)*.12f,-.2f,0,{.2f,.2f,.2f},float(n)*.3f,.1f,-.1f});
     compare(r,{1,2,3},{0,.1f,-.7f},0);compare(r,{1,2,3},{0,.1f,-.7f},1);
   }
   auto &asset=r.scene.assets.back();const auto before=r.instancing.submittedBatches();
@@ -58,7 +58,7 @@ static void extraChecks(Renderer &r){
   // Capacity boundary and an asset barrier: no global sorting to manufacture runs.
   r.scene.objects.clear();std::vector<int> ids;
   const int small=r.scene.assets.size()-1;
-  for(int n=0;n<256;n++){r.scene.objects.push_back({n+1,small,(n%16-7.5f)*.035f,(n/16-7.5f)*.035f,0,.025f,0});ids.push_back(n+1);}
+  for(int n=0;n<256;n++){r.scene.objects.push_back({n+1,small,(n%16-7.5f)*.035f,(n/16-7.5f)*.035f,0,{.025f,.025f,.025f},0});ids.push_back(n+1);}
   compare(r,ids,{0,.1f,-.7f},0);compare(r,ids,{0,.1f,-.7f},1);
   r.scene.objects[128].asset=r.scene.assets.size();compare(r,ids,{0,.1f,-.7f},0);
   puts("PASS instancing paths: arrays/32-bit indices, deformation flags and poses, 256-instance capacity, ordered asset barrier");
@@ -75,7 +75,9 @@ int main(){
     ModelAsset quad;quad.gpuInstancing=true;quad.low[0]=quad.low[1]=-.5f;quad.high[0]=quad.high[1]=.5f;quad.primitives.resize(1);
     quad.primitives[0].vertices={-.5f,-.5f,0,0,0, .5f,-.5f,0,1,0, .5f,.5f,0,1,1, -.5f,-.5f,0,0,0, .5f,.5f,0,1,1, -.5f,.5f,0,0,1};
     quad.primitives[0].vertexCount=6;quad.primitives[0].rgba={255,255,255,255};uploadModel(quad);r.scene.assets.push_back(std::move(quad));
-    for(int n=0;n<7;n++){auto object=r.scene.objects[2];object.id=4+n;object.x=(n%3-1)*.12f;object.y=-.2f+(n/3)*.1f;object.z=(n%2)*.08f;object.yaw=n*.3f;object.pitch=n*.11f;object.roll=-n*.08f;object.scale=.1f+n*.007f;r.scene.objects.push_back(object);}
+    for(int n=0;n<7;n++){auto object=r.scene.objects[2];object.id=4+n;object.x=(n%3-1)*.12f;object.y=-.2f+(n/3)*.1f;object.z=(n%2)*.08f;object.yaw=n*.3f;object.pitch=n*.11f;object.roll=-n*.08f;
+      // Odd instances stretch each axis differently; even ones stay uniform.
+      const float size=.1f+n*.007f;object.scale=n%2?std::array<float,3>{size,size*.6f,size*1.4f}:std::array<float,3>{size,size,size};r.scene.objects.push_back(object);}
     // Coplanar instances with rotated UVs must retain input ownership/order.
     r.scene.objects[4]=r.scene.objects[3];r.scene.objects[4].id=5;r.scene.objects[4].roll=float(std::acos(-1));
     for(int asset:{3,4,5,6}){

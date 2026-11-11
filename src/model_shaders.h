@@ -3,7 +3,8 @@ inline constexpr const char *modelVertexShader=R"(#version 300 es
 layout(location=0) in vec3 p;layout(location=1) in vec2 uv;
 uniform vec3 center,right,up,forward,panelRight,panelUp,panelForward,eye;
 uniform vec3 offset;
-uniform float yaw,pitch,roll,modelScale,panelHalfWidth;
+uniform float yaw,pitch,roll,panelHalfWidth;
+uniform vec3 modelScale;
 out vec2 t;
 
 layout(location=6) in vec4 skinJoints;
@@ -24,11 +25,13 @@ vec3 skinPoint(){
 void main(){
   vec3 skinVertex=skinEnabled?skinPoint():p;
   gpuSkinPosition=skinVertex;
+  // Scale along the object's own axes before rotating it.
+  vec3 scaled=skinVertex*modelScale;
   float cr=cos(roll),sr=sin(roll),cp=cos(pitch),sp=sin(pitch),cy=cos(yaw),sy=sin(yaw);
-  vec3 rolled=vec3(cr*skinVertex.x-sr*skinVertex.y,sr*skinVertex.x+cr*skinVertex.y,skinVertex.z);
+  vec3 rolled=vec3(cr*scaled.x-sr*scaled.y,sr*scaled.x+cr*scaled.y,scaled.z);
   vec3 pitched=vec3(rolled.x,cp*rolled.y-sp*rolled.z,sp*rolled.y+cp*rolled.z);
   vec3 rotated=vec3(cy*pitched.x+sy*pitched.z,pitched.y,-sy*pitched.x+cy*pitched.z);
-  vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+modelScale*(right*rotated.x+up*rotated.y-forward*rotated.z);
+  vec3 world=center+right*offset.x+up*offset.y+forward*offset.z+right*rotated.x+up*rotated.y-forward*rotated.z;
   vec3 ray=world-eye;
   float distanceAlong=dot(ray,panelForward);
   float hitScale=dot(center-eye,panelForward)/distanceAlong;

@@ -206,7 +206,7 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Geomet
   const JPH::Vec3 center=s.offset?linear(*s.offset):boundsCenter;
   unsigned vertexCount=0,triangleCount=0;
   if(s.shape==Shape::Convex){
-    bounded(source.scale,1e-6f,100);
+    bounded(source.scale.x,1e-6f,100);bounded(source.scale.y,1e-6f,100);bounded(source.scale.z,1e-6f,100);
     auto cached=impl->hulls.find(source.key);
     if(cached==impl->hulls.end()){
       std::vector<Vec3> points(source.vertices.begin(),source.vertices.end());
@@ -225,13 +225,13 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Geomet
       cached=impl->hulls.emplace(source.key,hull).first;
     }
     vertexCount=cached->second->GetNumPoints();
-    auto scaled=JPH::ScaledShapeSettings(cached->second,JPH::Vec3::sReplicate(source.scale)).Create();
+    auto scaled=JPH::ScaledShapeSettings(cached->second,JPH::Vec3(source.scale.x,source.scale.y,source.scale.z)).Create();
     if(scaled.HasError())throw std::invalid_argument("invalid convex scale: "+std::string(scaled.GetError()));
     shape=scaled.Get();
     half=shape->GetLocalBounds().GetExtent();
     shape=new JPH::RotatedTranslatedShape(center-boundsCenter,JPH::Quat::sIdentity(),shape);
   }else if(s.shape==Shape::Mesh){
-    bounded(source.scale,1e-6f,100);
+    bounded(source.scale.x,1e-6f,100);bounded(source.scale.y,1e-6f,100);bounded(source.scale.z,1e-6f,100);
     auto cached=impl->meshes.find(source.key);
     if(cached==impl->meshes.end()){
       if(source.vertices.empty()||source.vertices.size()%3)throw std::invalid_argument("mesh collider requires a triangle stream");
@@ -248,11 +248,14 @@ void World::set(int id,const Settings &s,const Pose &p,Vec3 low,Vec3 high,Geomet
       cached=impl->meshes.emplace(source.key,Impl::Mesh{result.Get(),unsigned(meshSettings.mIndexedTriangles.size())}).first;
     }
     triangleCount=cached->second.triangles;
-    auto scaled=JPH::ScaledShapeSettings(cached->second.shape,JPH::Vec3::sReplicate(source.scale)).Create();
+    auto scaled=JPH::ScaledShapeSettings(cached->second.shape,JPH::Vec3(source.scale.x,source.scale.y,source.scale.z)).Create();
     if(scaled.HasError())throw std::invalid_argument("invalid mesh scale: "+std::string(scaled.GetError()));
     shape=scaled.Get();half=shape->GetLocalBounds().GetExtent();
     shape=new JPH::RotatedTranslatedShape(center-boundsCenter,JPH::Quat::sIdentity(),shape);
   }else{
+    // Jolt can't stretch a sphere into an ellipsoid; an explicit radius is in meters and doesn't follow scale.
+    if(s.shape==Shape::Sphere&&!s.radius&&!(source.scale.x==source.scale.y&&source.scale.y==source.scale.z))
+      throw std::invalid_argument("automatic sphere collider requires equal scale on every axis; set an explicit radius or use another shape");
     if(s.shape==Shape::Sphere)shape=new JPH::SphereShape(radius);
     else shape=new JPH::BoxShape(half,std::min(.01f,half.ReduceMin()*.1f));
     shape=new JPH::RotatedTranslatedShape(center,JPH::Quat::sIdentity(),shape);

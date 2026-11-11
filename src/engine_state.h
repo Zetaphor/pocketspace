@@ -58,7 +58,10 @@ constexpr int kDefaultEyePixels=768;
 enum class GrabButton { Trigger, Grip, Both };
 #include "model_lod.h"
 struct Object {
-  int id,asset;float x,y,z,scale,yaw,pitch=0,roll=0;
+  int id,asset;float x,y,z;
+  // Size in meters along the object's local axes, applied before rotation.
+  std::array<float,3> scale{1,1,1};
+  float yaw,pitch=0,roll=0;
   bool visible=true,laserPassThrough=false,grabbable=false,directGrab=true;
   GrabButton grabButton=GrabButton::Trigger;
   bool laserYaw=false,laserPitchWithStickClick=false,depthAdjust=false;
@@ -68,6 +71,8 @@ struct Object {
   int renderGroup=0,renderTile=0;
   int lodLevel=0,container=0;
 };
+inline float largestScale(const Object &object){return std::max({object.scale[0],object.scale[1],object.scale[2]});}
+inline bool validScale(const std::array<float,3> &scale){for(float s:scale)if(!std::isfinite(s)||s<=0||s>2)return false;return true;}
 #include "scene_lights.h"
 struct RenderGroupSplitPolicy {int maxSurfaces=4,targetEyePixels=2048;bool merge=false,rebalance=false;};
 struct Scene {bool assetsReleased=false;std::vector<PointLight> lights;int nextLightId=1;std::set<int> containers;std::map<int,int> containerParents;int nextContainerId=1;std::unique_ptr<physics::World> physics;std::vector<Object> objects;std::map<int,RenderGroupSplitPolicy> renderGroupSplits;std::vector<ModelAsset> assets;std::vector<Panel> panels,retiredPanels;int nextId=1,nextPanelId=1;bool eyeTrackingRequested=false,foveationRequested=false;

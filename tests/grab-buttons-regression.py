@@ -59,7 +59,7 @@ int main(){
   frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;meshCurrentObject[0]=meshCurrentObject[1]=0;
   controllers[0]=controllers[1]={};controllers[h].connected=true;controllers[h].valid=true;
   for(int i=0;i<3;i++)controllers[h].rotation[i*3+i]=1;
-  Scene scene;Object object{};object.id=1;object.scale=.2;object.z=1;object.grabbable=true;object.grabButton=mode;
+  Scene scene;Object object{};object.id=1;object.scale.fill(.2f);object.z=1;object.grabbable=true;object.grabButton=mode;
   scene.objects.push_back(object);std::array<GrabState,2> grabs{};
   meshCurrentObject[h]=1;buttons(h,mask&1,mask&2);
   const bool allowed=(mode!=GrabButton::Grip&&(mask&1))||(mode!=GrabButton::Trigger&&(mask&2));
@@ -81,7 +81,7 @@ int main(){
  // Analog thresholds, defaults, direct mode, current-hit requirement and hand ownership.
  frameInput={};Scene scene;Object object{};
  assert(object.grabButton==GrabButton::Trigger);
- object.id=1;object.scale=.2;object.z=.05;object.grabbable=true;object.grabButton=GrabButton::Grip;scene.objects.push_back(object);
+ object.id=1;object.scale.fill(.2f);object.z=.05;object.grabbable=true;object.grabButton=GrabButton::Grip;scene.objects.push_back(object);
  controllers[0]=controllers[1]={};for(auto &c:controllers){c.connected=true;c.valid=true;for(int i=0;i<3;i++)c.rotation[i*3+i]=1;}
  meshCurrentObject[0]=meshCurrentObject[1]=0;std::array<GrabState,2> grabs{};
  frameInput.hands[0].raw["/input/grip/value"].value=.21;
@@ -116,7 +116,7 @@ int main(){
  frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;
  controllers[0]={};controllers[0].connected=controllers[0].valid=true;
  for(int i=0;i<3;i++)controllers[0].rotation[i*3+i]=1;
- Scene competing;Object rival{};rival.id=1;rival.scale=.2f;rival.z=1;
+ Scene competing;Object rival{};rival.id=1;rival.scale.fill(.2f);rival.z=1;
  rival.visible=rival.grabbable=true;rival.grabButton=GrabButton::Trigger;
  competing.objects.push_back(rival);std::array<GrabState,2> competingGrabs{};
  meshCurrentObject[0]=1;buttons(0,true,false);
@@ -129,7 +129,7 @@ int main(){
  // Distant grabs read yaw and depth from the raw thumbstick, past a dead zone.
  {
   frameInput={};grabNeedsRelease[0]=grabNeedsRelease[1]=false;grabOwners={};
-  Scene stickScene;Object held{};held.id=1;held.scale=.2f;held.z=1;held.grabbable=held.laserYaw=held.depthAdjust=true;
+  Scene stickScene;Object held{};held.id=1;held.scale.fill(.2f);held.z=1;held.grabbable=held.laserYaw=held.depthAdjust=true;
   stickScene.objects.push_back(held);std::array<GrabState,2> stickGrabs{};
   meshCurrentObject[0]=1;buttons(0,true,false);
   updateManipulation(stickScene,stickGrabs,1.f/90,0,{},grabOwners);assert(stickGrabs[0].objectId==1&&!stickGrabs[0].direct);

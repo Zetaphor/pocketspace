@@ -34,7 +34,7 @@ int main(int argc,char **argv){
   }
   assert(renderer.scene.assets[0].sheenLookup==renderer.scene.assets[1].sheenLookup);
   ModelAsset invalid;invalid.pbr=true;assert(!loadModelFile("tests/fixtures/pbr/SheenUnsupportedUV.glb",invalid));
-  Object object{};object.id=1;object.asset=1;object.scale=.6f;renderer.scene.objects={object};
+  Object object{};object.id=1;object.asset=1;object.scale.fill(.6f);renderer.scene.objects={object};
   auto &factors=renderer.scene.assets[0];auto &textured=renderer.scene.assets[1];
   auto &fp=factors.primitives[0];auto &tp=textured.primitives[0];
   assert(tp.maps[4].texture&&tp.maps[5].texture);
@@ -73,7 +73,7 @@ int main(int argc,char **argv){
    renderer.scene.lights.clear();sample.lighting.intensity=3;sample.lighting.ambient=0;
    for(int count:{1,16}){
     renderer.scene.objects.clear();std::vector<int> members;
-    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(renderer.scene.assets.size());o.scale=count==1?.6f:.18f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.yaw=.3f;renderer.scene.objects.push_back(o);members.push_back(o.id);}
+    for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=int(renderer.scene.assets.size());o.scale.fill(count==1?.6f:.18f);o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.yaw=.3f;renderer.scene.objects.push_back(o);members.push_back(o.id);}
     for(int stage=0;stage<4;stage++){
      const bool enabled=stage==1||stage==2;
      for(size_t i=0;i<sample.primitives.size();i++)for(int c=0;c<3;c++)sample.primitives[i].sheen[c]=enabled?colors[i][c]:0;

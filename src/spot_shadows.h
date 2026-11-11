@@ -14,9 +14,9 @@ template<class Object,class Box> std::array<std::array<float,3>,8> shadowCorners
   std::array<std::array<float,3>,8> corners;
   for(int corner=0;corner<8;corner++){
     float local[3],rotated[3]{};
-    for(int axis=0;axis<3;axis++)local[axis]=(corner&(1<<axis))?box.high[axis]:box.low[axis];
+    for(int axis=0;axis<3;axis++)local[axis]=object.scale[axis]*((corner&(1<<axis))?box.high[axis]:box.low[axis]);
     for(int row=0;row<3;row++)for(int axis=0;axis<3;axis++)rotated[row]+=rotation[row*3+axis]*local[axis];
-    corners[corner]={object.x+object.scale*rotated[0],object.y+object.scale*rotated[1],-object.z+object.scale*rotated[2]};
+    corners[corner]={object.x+rotated[0],object.y+rotated[1],-object.z+rotated[2]};
   }
   return corners;
 }
@@ -83,7 +83,7 @@ class SpotShadows:public SpotShadowFrame {
   std::string vertex=modelVertexShader;
   vertex.insert(vertex.find("void main(){"),"uniform mat4 lightMatrix;\n");
   const auto first=vertex.find("  vec3 world="),last=vertex.find("  t=uv;",first);
-  vertex.replace(first,last-first,"  vec3 world=offset*vec3(1,1,-1)+modelScale*rotated;\n  gl_Position=lightMatrix*vec4(world,1);\n");
+  vertex.replace(first,last-first,"  vec3 world=offset*vec3(1,1,-1)+rotated;\n  gl_Position=lightMatrix*vec4(world,1);\n");
   const char *fragment=R"(#version 300 es
 precision highp float;in vec2 t;uniform sampler2D material;uniform int alphaMode;uniform float alpha,alphaCutoff;
 void main(){if(alphaMode==1&&texture(material,t).a*alpha<alphaCutoff)discard;}
@@ -167,7 +167,7 @@ public:
     float rotation[9];objectRotationMatrix(object.pitch,object.yaw,object.roll,rotation);
     const auto &bounds=object.animationPose?object.animationPose->geometry:asset;
     if(skipShadowGeometry(faces[face],shadowCorners(object,rotation,bounds),false))continue;
-    glUniform3f(location("offset"),object.x,object.y,object.z);glUniform1f(location("modelScale"),object.scale);glUniform1f(location("pitch"),object.pitch);glUniform1f(location("yaw"),object.yaw);glUniform1f(location("roll"),object.roll);
+    glUniform3f(location("offset"),object.x,object.y,object.z);glUniform3fv(location("modelScale"),1,object.scale.data());glUniform1f(location("pitch"),object.pitch);glUniform1f(location("yaw"),object.yaw);glUniform1f(location("roll"),object.roll);
     for(size_t i=0;i<asset.primitives.size();i++){const auto &part=asset.primitives[i];if(part.alphaMode==2)continue;
      culling.material(part,object.animationPose.get());glUniform1i(location("alphaMode"),part.alphaMode);glUniform1f(location("alpha"),part.factor[3]);glUniform1f(location("alphaCutoff"),part.alphaCutoff);glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,part.texture);
      if(object.animationPose&&bindSkinPrimitive(asset,part,*object.animationPose,skin)){glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,part.skinIbo);glDrawElements(GL_TRIANGLES,GLsizei(part.skinIndices.size()),GL_UNSIGNED_INT,nullptr);unbindSkinPrimitive(skin);}

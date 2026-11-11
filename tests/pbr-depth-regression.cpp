@@ -16,7 +16,7 @@ int main(int argc,char **argv){
   r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(path,a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
   auto &p=a.primitives[0];const unsigned char pixels2x2[]={255,255,255,0,255,255,255,127,255,255,255,128,255,255,255,255};
   glBindTexture(GL_TEXTURE_2D,p.texture);glTexImage2D(GL_TEXTURE_2D,0,GL_SRGB8_ALPHA8,2,2,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels2x2);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-  Object target{};target.id=1;target.asset=3;target.scale=.9f;target.z=.7f;Object occluder=target;occluder.id=2;occluder.asset=int(r.scene.assets.size());occluder.scale=.7f;occluder.z=-.1f;Object second=occluder;second.id=3;second.x=.18f;second.y=.08f;second.z=.02f;r.scene.objects={target,occluder,second};
+  Object target{};target.id=1;target.asset=3;target.scale.fill(.9f);target.z=.7f;Object occluder=target;occluder.id=2;occluder.asset=int(r.scene.assets.size());occluder.scale.fill(.7f);occluder.z=-.1f;Object second=occluder;second.id=3;second.x=.18f;second.y=.08f;second.z=.02f;r.scene.objects={target,occluder,second};
   // Ensure external depth materially changes the target, including real alpha
   // cutouts. Equality alone could otherwise pass for an occluder behind it.
   p.factor[3]=1;p.alphaCutoff=.5f;p.doubleSided=true;
@@ -32,7 +32,7 @@ int main(int argc,char **argv){
  }
  for(const char *name:{"ToyCar","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","Fox","RiggedSimple","AnimatedMorphCube","InterpolationTest"}){
   r.scene.assets.emplace_back();auto &a=r.scene.assets.back();a.pbr=true;assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",a));uploadModel(a);a.environment=loadLightingEnvironment("assets/environments/studio.psenv");
-  Object target{};target.id=1;target.asset=3;target.scale=.8f;target.z=.7f;Object o=target;o.id=2;o.asset=int(r.scene.assets.size());o.scale=.45f;o.z=-.1f;o.pitch=.2f;o.yaw=.3f;r.scene.objects={target,o};
+  Object target{};target.id=1;target.asset=3;target.scale.fill(.8f);target.z=.7f;Object o=target;o.id=2;o.asset=int(r.scene.assets.size());o.scale.fill(.45f);o.z=-.1f;o.pitch=.2f;o.yaw=.3f;r.scene.objects={target,o};
   for(int phase=0;phase<3;phase++)for(int eye=0;eye<2;eye++){
    auto &object=r.scene.objects[1];object.lodLevel=phase;object.yaw=.3f+phase*.4f;
    if(a.hasAnimation){object.animationPose=std::make_shared<ModelPose>();animation::Playback state;state.clip=0;state.time=.2+phase*.3;evaluateModelPose(a,state,*object.animationPose);uploadModelPose(*object.animationPose);}
@@ -50,8 +50,8 @@ int main(int argc,char **argv){
 
    assert(r.pbrProgram.init(false)&&r.depthPbrProgram.init(true));
    std::vector<int> members;
-   Object target{};target.id=1;target.asset=3;target.scale=.95f;target.z=.7f;if(depthWork){r.scene.objects.push_back(target);members.push_back(1);}
-   for(int i=0;i<count;i++){Object o{};o.id=i+2;o.asset=id;o.scale=count==4?.32f:.2f;o.x=(i%(count==4?2:4)-(count==4?.5f:1.5f))*.18f;o.y=(i/(count==4?2:4)-(count==4?.5f:1.5f))*.18f;o.z=-.1f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);if(!depthWork)members.push_back(o.id);}
+   Object target{};target.id=1;target.asset=3;target.scale.fill(.95f);target.z=.7f;if(depthWork){r.scene.objects.push_back(target);members.push_back(1);}
+   for(int i=0;i<count;i++){Object o{};o.id=i+2;o.asset=id;o.scale.fill(count==4?.32f:.2f);o.x=(i%(count==4?2:4)-(count==4?.5f:1.5f))*.18f;o.y=(i/(count==4?2:4)-(count==4?.5f:1.5f))*.18f;o.z=-.1f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);if(!depthWork)members.push_back(o.id);}
    std::array<uint64_t,4> workload{};
    for(int stage=0;stage<4;stage++){
     const int mode=stage==1||stage==2?1:0;r.fastPbrDepth=mode;double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);

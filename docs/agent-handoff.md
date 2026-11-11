@@ -70,6 +70,19 @@ refresh as normal connection loss so the host cancels stale holds before its
 bounded reconnect. Retry missing initial hand state after five seconds, but
 do not expire healthy delta subscriptions merely because their values are idle.
 
+## Object scale
+
+`Object::scale` holds meters along the object's local X, Y and Z axes and is
+applied before rotation in every draw path, bounds corner, shadow corner and
+mesh ray. PBR normals use the inverse of the scale and tangents use the scale,
+each normalized per vertex so a stretched object shades exactly like a mesh with
+the scale baked in. Picking divides the local ray by each axis, renormalizes it
+and divides the local hit distance by that length. Consumers that need one size,
+such as crop width, LOD radius, grab reach and laser distance, use
+`largestScale`. Collider sizes take every axis; an automatic sphere requires
+equal components. Aggregate-initialize `Object` with a braced three-component
+scale: a bare number fills only X.
+
 ## Multiple scripts
 
 Each running script is a `ScriptInstance` in `src/script_registry.h`, with a stable

@@ -1,6 +1,7 @@
 #pragma once
 #include "model_shaders.h"
 #include "spot_shadow_settings.h"
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <map>
@@ -79,8 +80,11 @@ vec3 rotateSurface(vec3 v){
 }
 )");
   vertex.insert(vertex.find("  vec3 ray=world-eye;"),R"(
-  litPosition=offset*vec3(1,1,-1)+modelScale*rotated;
-  litNormal=rotateSurface(surfaceNormal);litTangent=rotateSurface(surfaceTangent.xyz);tangentSign=surfaceTangent.w;mapUV=surfaceUV;
+  litPosition=offset*vec3(1,1,-1)+rotated;
+  // Inverse-transpose of a diagonal scale for normals; tangents scale like positions.
+  // Normalizing per vertex interpolates like a mesh with the scale baked in.
+  vec3 scaledNormal=surfaceNormal/modelScale,scaledTangent=surfaceTangent.xyz*modelScale;
+  litNormal=rotateSurface(scaledNormal*inversesqrt(max(dot(scaledNormal,scaledNormal),1e-20)));litTangent=rotateSurface(scaledTangent*inversesqrt(max(dot(scaledTangent,scaledTangent),1e-20)));tangentSign=surfaceTangent.w;mapUV=surfaceUV;
   vec3 v=eye-world;litView=vec3(dot(v,right),dot(v,up),-dot(v,forward));
 )");
   const char *fragment=R"(#version 300 es
@@ -315,8 +319,8 @@ void main(){
   integer("spotShadowMap",11);matrices4("spotShadowMatrix",frame.matrix.data(),1);{const float origin[3]={x,y,-z};vector("spotShadowOrigin",origin);}scalar("shadowBias",frame.bias);scalar("shadowNormalBias",frame.normalBias);scalar("shadowTexel",1.f/frame.resolution);
   glActiveTexture(GL_TEXTURE11);glBindTexture(GL_TEXTURE_2D,frame.texture);glActiveTexture(GL_TEXTURE0);shadowBound=true;
  }
- void object(float pitch,float yaw,float roll,float scale,float x,float y,float z)const{
-  scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);scalar("modelScale",scale);float offset[3]={x,y,z};vector("offset",offset);
+ void object(float pitch,float yaw,float roll,const std::array<float,3> &scale,float x,float y,float z)const{
+  scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);vector("modelScale",scale.data());float offset[3]={x,y,z};vector("offset",offset);
  }
  void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0,bool depthOnly=false)const{
   vectors4("factor",p.factor,1);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);

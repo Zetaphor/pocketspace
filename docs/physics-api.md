@@ -72,9 +72,11 @@ configuration throws while preserving the previous body.
 | `gravityFactor` | `1` | 0–10. |
 
 Without custom dimensions, box colliders follow the model's normalized
-default-pose bounds multiplied by object scale; thin dimensions have a
-one-millimeter minimum half-extent. Automatic spheres use the largest bounds
-half-extent as their radius. A box's full size is twice its half-extents.
+default-pose bounds multiplied by each axis of the object's scale; thin dimensions
+have a one-millimeter minimum half-extent. Automatic spheres use the largest bounds
+half-extent as their radius. A sphere can't stretch into an ellipsoid, so an
+automatic sphere on an object whose scale components differ throws; give it an
+explicit `radius` or use another shape. A box's full size is twice its half-extents.
 
 Explicit dimensions use physical meters and are independent of visual model
 scale. `halfExtents` applies only to boxes, and `radius` only to spheres; supplying
@@ -122,8 +124,8 @@ at most 256 vertices; complex models are approximated. Empty, flat, or otherwise
 invalid hulls throw while preserving the previous body.
 
 The engine builds and caches one normalized hull per model asset in each scene.
-Instances and scale changes reuse it. Hull size follows object scale (at least
-0.000001 meters); explicit
+Instances and scale changes reuse it. Hull size follows each axis of the object's
+scale (at least 0.000001 meters); explicit
 `halfExtents` and `radius` are unavailable. `offset` relocates the hull's bounds
 center in local meters, using the same convention as primitive colliders.
 Animation and skinning do not deform the hull: it remains a rigid default-pose
@@ -149,7 +151,8 @@ colliders for moving bodies. Static mesh pairs do not collide with one another.
 The engine welds shared vertices, removes duplicate/degenerate triangles, and
 caches a collision tree per model asset in each scene. A mesh with no valid
 triangles throws while preserving the previous body. Instances and scale changes
-reuse the tree. Scale must be at least 0.000001 meters. `halfExtents` and `radius`
+reuse the tree, which stretches with each axis of the object's scale. Each scale
+component must be at least 0.000001 meters. `halfExtents` and `radius`
 are unavailable; `offset` relocates the bounds center in local meters.
 
 Triangles collide on their front side, determined by counterclockwise winding.
@@ -445,6 +448,8 @@ The existing position/rotation setters teleport static and dynamic bodies while
 retaining velocity. On kinematic bodies they set the next simulation target.
 `setObjectScale` rebuilds the collider and preserves dynamic velocity. Automatic
 sizes/centers follow the new model scale; explicit sizes/offsets stay unchanged.
+If the collider can't be rebuilt, such as an automatic sphere given unequal
+components, the call throws and the previous scale and body remain.
 Visibility affects drawing/selection; a hidden body remains in the simulation.
 Collision event delivery is opt-in as described below.
 

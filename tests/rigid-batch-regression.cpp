@@ -10,7 +10,7 @@ int main(){
    renderer.scene.objects.resize(2);for(auto buffer:retired)assert(!glIsBuffer(buffer));auto &asset=renderer.scene.assets[2];deleteModel(asset);asset={};
    assert(loadModelFile(std::string("assets/samples/")+name+"/"+name+".glb",asset));uploadModel(asset);
    for(int i=0;i<6;i++){
-    Object object{};object.id=i+3;object.asset=3;object.x=(i%3-1)*.18f;object.y=-.1f+(i/3)*.16f;object.scale=.22f;object.yaw=i*.1f;object.pitch=i*.04f;
+    Object object{};object.id=i+3;object.asset=3;object.x=(i%3-1)*.18f;object.y=-.1f+(i/3)*.16f;object.scale.fill(.22f);object.yaw=i*.1f;object.pitch=i*.04f;
     if(asset.hasAnimation){object.animationPose=std::make_shared<ModelPose>();animation::Playback state;state.clip=std::string(name)=="InterpolationTest"?1:0;state.time=.1*i;evaluateModelPose(asset,state,*object.animationPose);uploadModelPose(*object.animationPose);}
     renderer.scene.objects.push_back(std::move(object));
    }
@@ -32,7 +32,7 @@ int main(){
      for(auto head:{physics::Vec3{0,.1f,-.7f},physics::Vec3{.3f,.3f,-1.5f},physics::Vec3{-.3f,.3f,-1.5f}})for(int eye=0;eye<2;eye++){
       rigidBatchEnabled=false;auto expected=renderer.renderSet({1,3,4,5,6,7,8},head,eye);
       // External writes between renders must not poison the new pass cache.
-      glUniform1f(glGetUniformLocation(renderer.program,"modelScale"),17);
+      glUniform3f(glGetUniformLocation(renderer.program,"modelScale"),17,17,17);
       rigidBatchEnabled=true;rigidBatchStats={};auto actual=renderer.renderSet({1,3,4,5,6,7,8},head,eye);
       if(asset.rigidBatchEligible&&alpha==0)assert(rigidBatchStats.mergedParts>0);assert(expected==actual);assert(std::any_of(expected.begin(),expected.end(),[](auto x){return x!=0;}));++views;
      }

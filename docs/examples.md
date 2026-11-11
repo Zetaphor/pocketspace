@@ -31,7 +31,7 @@ and their documented controls.
 | [sheen.js](../scripts/sheen.js) | Grabbable fabric materials, direct/environment light switching and lighting toggle |
 | [pbr.js](../scripts/pbr.js) | Opt-in PBR lighting, environment reflections, and hand rotation |
 | [avocado.js](../scripts/avocado.js) | Load and place one model |
-| [sample-gallery.js](../scripts/sample-gallery.js) | Multiple assets and animated object transforms |
+| [sample-gallery.js](../scripts/sample-gallery.js) | Multiple assets and animated object transforms, including per-axis scale |
 | [full-sphere-gallery.js](../scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |
 | [grabbing.js](../scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, distant yaw/depth controls, and reading where a grab left the box |
 | [input.js](../scripts/input.js) | Controller pose/raw input and haptics; right stick moves the box, right bumper toggles it |

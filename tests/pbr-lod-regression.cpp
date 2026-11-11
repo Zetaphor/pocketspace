@@ -29,7 +29,7 @@ int main(int argc,char **argv){
    }
   }
   a.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(a.environment);
-  Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale=.3f;o.pitch=.2f;o.yaw=.3f;Object other=o;other.id=2;other.asset=3;other.x=.1f;other.z=-.1f;other.scale=.2f;r.scene.objects={o,other};
+  Object o{};o.id=1;o.asset=int(r.scene.assets.size());o.scale.fill(.3f);o.pitch=.2f;o.yaw=.3f;Object other=o;other.id=2;other.asset=3;other.x=.1f;other.z=-.1f;other.scale.fill(.2f);r.scene.objects={o,other};
   // Independently route the reduced streams through the ordinary full-detail
   // draw path, then require identical color/depth/overlap pixels in both eyes.
   for(int level:{1,2})for(int eye=0;eye<2;eye++)for(auto members:{std::vector<int>{1},std::vector<int>{1,2}}){
@@ -42,7 +42,7 @@ int main(int argc,char **argv){
   }
   r.scene.objects.resize(1);
   for(float size:{.05f,.16f,.4f})for(int angle=0;angle<3;angle++)for(int eye=0;eye<2;eye++){
-   auto &object=r.scene.objects[0];object.scale=size;object.pitch=.15f+angle*.2f;object.yaw=angle*.7f;a.lighting.environmentRotation=angle*.4f;
+   auto &object=r.scene.objects[0];object.scale.fill(size);object.pitch=.15f+angle*.2f;object.yaw=angle*.7f;a.lighting.environmentRotation=angle*.4f;
    object.lodLevel=0;auto full=r.renderSet({1},{0,.1f,-1.2f},eye);
    for(int level:{1,2}){
     object.lodLevel=level;auto image=r.renderSet({1},{0,.1f,-1.2f},eye);size_t mask=0,coverage=0,changed=0;double squared=0;
@@ -127,7 +127,7 @@ int main(int argc,char **argv){
    setenv("SF_PBR_LOD","1",1);r.scene.assets.emplace_back();auto &asset=r.scene.assets.back();asset.pbr=true;assert(loadModelFile("assets/samples/ToyCar/ToyCar.glb",asset));uploadModel(asset);asset.environment=loadLightingEnvironment("assets/environments/studio.psenv");assert(asset.environment&&asset.environment->upload());const int id=int(r.scene.assets.size());
 
    std::vector<int> members;
-   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale=count==1?.7f:.25f;o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
+   for(int i=0;i<count;i++){Object o{};o.id=i+1;o.asset=id;o.scale.fill(count==1?.7f:.25f);o.x=count==1?0:(i%4-1.5f)*.25f;o.y=count==1?0:(i/4-1.5f)*.25f;o.pitch=.2f;o.yaw=.3f;r.scene.objects.push_back(o);members.push_back(o.id);}
 
    for(int variant:{1,2})for(int stage=0;stage<4;stage++){
     const int mode=stage==1||stage==2?variant:0;for(auto &o:r.scene.objects)o.lodLevel=mode;double cpu=0,wall=0,gpu=0;GLuint query=0;gen(1,&query);

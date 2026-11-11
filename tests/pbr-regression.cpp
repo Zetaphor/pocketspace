@@ -23,7 +23,7 @@ int main(){
   {
    renderer.scene.assets.emplace_back();auto &a=renderer.scene.assets.back();a.pbr=true;
    assert(loadModelFile("assets/samples/Box/Box.glb",a));uploadModel(a);
-   Object o{};o.id=1;o.asset=int(renderer.scene.assets.size());o.scale=.6f;renderer.scene.objects={o};auto &p=a.primitives[0];
+   Object o{};o.id=1;o.asset=int(renderer.scene.assets.size());o.scale.fill(.6f);renderer.scene.objects={o};auto &p=a.primitives[0];
    p.materialUnlit=true;p.factor[0]=.25f;p.factor[1]=.5f;p.factor[2]=.75f;
    auto image=renderer.renderSet({1},{0,0,-1.2f},0);size_t solid=0;
    for(size_t i=0;i<image.size();i+=4)if(image[i+3]==255){assert(std::abs(int(image[i])-137)<=1&&std::abs(int(image[i+1])-188)<=1&&std::abs(int(image[i+2])-225)<=1);++solid;}assert(solid>100);
@@ -41,7 +41,7 @@ int main(){
   {
    const int first=int(renderer.scene.assets.size())+1;
    for(bool lit:{false,true}){renderer.scene.assets.emplace_back();auto &a=renderer.scene.assets.back();a.pbr=lit;assert(loadModelFile("assets/samples/Box/Box.glb",a));uploadModel(a);for(auto &p:a.primitives){std::fill_n(p.factor,4,1.f);p.materialUnlit=true;}}
-   Object a{},b{};a.id=1;a.asset=first;a.scale=.4f;a.x=-.1f;b=a;b.id=2;b.x=.1f;b.z=-.12f;b.y=.1f;renderer.scene.objects={a,b};
+   Object a{},b{};a.id=1;a.asset=first;a.scale.fill(.4f);a.x=-.1f;b=a;b.id=2;b.x=.1f;b.z=-.12f;b.y=.1f;renderer.scene.objects={a,b};
    for(int alpha=0;alpha<3;alpha++){
     for(int asset:{first,first+1})for(auto &p:renderer.scene.assets[asset-1].primitives){p.alphaMode=alpha;p.factor[3]=alpha==2?.6f:1.f;p.doubleSided=alpha==2;}
     for(auto mode:{ModelInstancing::Off,ModelInstancing::Instanced}){
@@ -54,6 +54,40 @@ int main(){
    }
    renderer.instancing.mode=ModelInstancing::Off;
   }
+  // A stretched object must shade like the same mesh with its scale baked into
+  // positions, inverse-transpose normals and scaled tangents. Unadjusted normals must differ.
+  for(const char *path:{"assets/physics/YellowSphere.glb","assets/samples/NormalTangentTest/NormalTangentTest.glb"}){
+   // Baked copies keep the largest axis as their uniform scale so the harness crops them identically.
+   const std::array<float,3> stretch{.7f,.3f,.45f},bake{1.f,.3f/.7f,.45f/.7f};
+   const int first=int(renderer.scene.assets.size())+1;
+   for(int variant=0;variant<3;variant++){
+    renderer.scene.assets.emplace_back();auto &a=renderer.scene.assets.back();a.pbr=true;a.lod=false;assert(loadModelFile(path,a));
+    a.lighting.ambient=.05f;a.lighting.direction[0]=-.6f;a.lighting.direction[1]=.7f;a.lighting.direction[2]=.4f;
+    if(variant>0){
+     for(int axis=0;axis<3;axis++){a.low[axis]*=bake[axis];a.high[axis]*=bake[axis];}
+     for(auto &part:a.primitives){
+      for(size_t v=0;v<part.vertices.size();v+=5)for(int axis=0;axis<3;axis++)part.vertices[v+axis]*=bake[axis];
+      if(variant==2)continue;
+      for(size_t v=0;v<part.surface.size();v+=9){
+       float n[3],t[3],nl=0,tl=0;
+       for(int axis=0;axis<3;axis++){n[axis]=part.surface[v+axis]/bake[axis];t[axis]=part.surface[v+3+axis]*bake[axis];nl+=n[axis]*n[axis];tl+=t[axis]*t[axis];}
+       for(int axis=0;axis<3;axis++){part.surface[v+axis]=n[axis]/std::sqrt(nl);part.surface[v+3+axis]=t[axis]/std::sqrt(tl);}
+      }
+     }
+    }
+    uploadModel(a);
+   }
+   Object o{};o.id=1;o.asset=first;o.scale=stretch;o.pitch=.35f;o.yaw=-.5f;o.roll=.2f;renderer.scene.objects={o};
+   auto stretched=renderer.renderSet({1},{0,0,-1.2f},0);
+   renderer.scene.objects[0].asset=first+1;renderer.scene.objects[0].scale.fill(stretch[0]);auto baked=renderer.renderSet({1},{0,0,-1.2f},0);
+   renderer.scene.objects[0].asset=first+2;auto unadjusted=renderer.renderSet({1},{0,0,-1.2f},0);
+   int maxDelta=0,wrongDelta=0;size_t covered=0;
+   for(size_t i=0;i<baked.size();i++){maxDelta=std::max(maxDelta,std::abs(int(stretched[i])-int(baked[i])));wrongDelta=std::max(wrongDelta,std::abs(int(unadjusted[i])-int(baked[i])));}
+   for(size_t i=3;i<baked.size();i+=4)covered+=baked[i]==255;
+   std::printf("PBR stretched normals %s: max_delta=%d unadjusted_delta=%d covered=%zu\n",path,maxDelta,wrongDelta,covered);
+   assert(covered>1000&&maxDelta<=1&&wrongDelta>=24);
+   images+=3;
+  }
   for(const char *name:{"Box","ToyCar","Avocado","Fox","RiggedSimple","AnimatedMorphCube","InterpolationTest","NormalTangentTest","NormalTangentMirrorTest","NegativeScaleTest","MetalRoughSpheres","MetalRoughSpheresNoTextures","TextureEncodingTest","UnlitTest","EmissiveStrengthTest"}){
    const std::string path=std::string(name)=="Avocado"?"assets/Avocado.glb":std::string("assets/samples/")+name+"/"+name+".glb";
    assert(std::filesystem::exists(path));
@@ -62,7 +96,7 @@ int main(){
    if(std::string(name)=="ToyCar")assert(std::any_of(a.primitives.begin(),a.primitives.end(),[](const auto &p){return p.lod[0].vbo&&p.lod[0].surfaceVbo&&p.lod[0].budgetBytes>0;}));
    assert(pbrLodBudget.used<=PbrLodBudget::limit);
    for(const auto &p:a.primitives){assert(p.surface.size()==size_t(p.vertexCount)*9&&p.surfaceVbo&&!p.indexBuffer&&!p.lod[0].indexBuffer);for(float v:p.surface)assert(std::isfinite(v));for(size_t v=0;v<p.surface.size();v+=9){V n{p.surface[v],p.surface[v+1],p.surface[v+2]},t{p.surface[v+3],p.surface[v+4],p.surface[v+5]};assert(std::abs(dot(n,n)-1)<1e-4f&&std::abs(dot(t,t)-1)<1e-4f&&std::abs(dot(n,t))<1e-4f);assert(std::abs(p.surface[v+6])==1);}}
-   Object object{};object.id=1;object.asset=int(renderer.scene.assets.size());object.scale=.65f;object.pitch=.15f;object.yaw=.25f;renderer.scene.objects={object};
+   Object object{};object.id=1;object.asset=int(renderer.scene.assets.size());object.scale.fill(.65f);object.pitch=.15f;object.yaw=.25f;renderer.scene.objects={object};
    std::vector<unsigned char> first;
    for(int phase=0;phase<3;phase++){
     auto &o=renderer.scene.objects[0];
@@ -97,7 +131,7 @@ int main(){
    setModelLighting(a,{get ambient(){loadModel('assets/samples/Lantern/Lantern.glb');return .15;}});
    setModelLighting(a,{direction:[1,2,3],color:[1,.8,.6],intensity:4,ambient:.1,exposure:1.2});
    const owner=createSceneContainer();createObject(a,0,0,0,.2,{container:owner});
-   const snap=captureSceneContainer(owner);check(snap.version===1&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
+   const snap=captureSceneContainer(owner);check(snap.version===2&&snap.models[0].pbr&&snap.models[0].lighting.intensity===4);
    for(const options of [{direction:[0,0,0]},{direction:[1,2]},{color:[-1,0,0]},{intensity:-1},{exposure:0},{ambient:Infinity}])fails(()=>setModelLighting(a,options));
    fails(()=>setModelLighting(a,{get ambient(){throw Error('getter');}}));
    check(JSON.stringify(captureSceneContainer(owner))===JSON.stringify(snap));
