@@ -2,6 +2,8 @@
 #include <GLES3/gl3.h>
 #include <string>
 #include <vector>
+#include <optional>
+#include <array>
 #include "picking_bvh.h"
 #include "animation.h"
 #include "surface_frame.h"
@@ -97,6 +99,13 @@ struct ModelAsset {
   ModelLighting lighting;
   std::shared_ptr<LightingEnvironment> environment;
   std::shared_ptr<SheenLookup> sheenLookup;
+};
+// A per-object replacement for a PBR model's base color and finish; an unset
+// field keeps each primitive's own value.
+struct MaterialOverride {
+  std::optional<std::array<float,3>> color;
+  std::optional<shapeMesh::Finish> finish;
+  bool operator==(const MaterialOverride&)const=default;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
 // Builds a PBR asset from validated parts, one primitive per distinct color and

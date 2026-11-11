@@ -75,7 +75,7 @@ and visual acceptance.
 | [collision-api-smoke.js](collision-api-smoke.js) | Collision event API and filtering options. |
 | [convex-api-smoke.js](convex-api-smoke.js) | Convex hull collider creation, caching, state, and validation. |
 | [custom-collider-api-smoke.js](custom-collider-api-smoke.js) | Explicit collider dimensions and offsets. |
-| [shape-asset-regression.cpp](shape-asset-regression.cpp) | Generated shape bounds, normals, closed winding and triangle counts; `createShapeAsset` placement, material sharing, finishes, validation, limits, unload and save refusal; drawing every shape; 256-part build and upload timing. |
+| [shape-asset-regression.cpp](shape-asset-regression.cpp) | Generated shape bounds, normals, closed winding and triangle counts; `createShapeAsset` placement, material sharing, finishes, validation, limits, unload and save refusal; drawing every shape; material overrides against baked materials, on imported PBR models and in snapshots; 256-part build and upload timing. |
 | [stretched-collider-api-smoke.js](stretched-collider-api-smoke.js) | Box, convex and mesh colliders on per-axis scaled objects, automatic sphere rejection, explicit radius and scale rollback. |
 | [engine-stats-api-smoke.js](engine-stats-api-smoke.js) | Statistics field availability before the first runtime sample. |
 | [eye-calibration-smoke.js](eye-calibration-smoke.js) | Calibration file validation, save/load round-trip, and activation. |

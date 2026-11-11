@@ -154,7 +154,7 @@ int main(){
     bad(s=>s.objects[0].x=null);bad(s=>delete s.objects[0].visible);
     fails(()=>restoreSceneContainer(null));const cycle={};cycle.self=cycle;fails(()=>restoreSceneContainer(cycle));
     bad(s=>s.note="x".repeat(16*1024*1024));
-    bad(s=>s.version=1);bad(s=>s.version=14);bad(s=>s.format='sf-overlay-engine.scene-container');bad(s=>s.format='other');
+    bad(s=>s.version=2);bad(s=>s.version=14);bad(s=>s.format='sf-overlay-engine.scene-container');bad(s=>s.format='other');
     for(const key of ['joints','panels','lights','containers','rootContainer'])bad(s=>delete s[key]);
     bad(s=>delete s.objects[0].physics);bad(s=>delete s.objects[0].animation);bad(s=>delete s.objects[0].container);bad(s=>delete s.models[0].pbr);bad(s=>delete s.models[0].lighting);bad(s=>delete s.models[0].lighting.environment);bad(s=>s.objects[0].scale=.15);bad(s=>s.objects[0].scale=[.15,.3,.05]);bad(s=>delete s.objects[0].scale.z);bad(s=>s.objects[0].scale.y=0);bad(s=>s.objects[0].scale.x=-.1);bad(s=>s.objects[0].scale.z=2.5);bad(s=>s.objects[0].scale.y='.3');bad(s=>s.objects[0].x=Infinity);
     bad(s=>s.objects[0].visible=1);bad(s=>s.objects[0].grabButton='invalid');bad(s=>s.objects[1].id=o);

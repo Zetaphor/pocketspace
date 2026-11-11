@@ -657,6 +657,47 @@ static JSValue jsCreateShapeAsset(JSContext *ctx,JSValueConst,int argc,JSValueCo
   JS_SetPropertyStr(ctx,result,"extent",JS_NewFloat64(ctx,extent));JS_SetPropertyStr(ctx,result,"center",point);
   return result;
 }
+// Reads {color: [r, g, b], finish} with at least one field; throws and returns false on failure.
+static bool materialValue(JSContext *ctx,JSValueConst value,MaterialOverride &out){
+  if(!JS_IsObject(value)||JS_IsArray(value)||JS_IsFunction(ctx,value)){JS_ThrowTypeError(ctx,"material must be {color, finish} or null");return false;}
+  JSValue color=JS_GetPropertyStr(ctx,value,"color");if(JS_IsException(color))return false;
+  if(!JS_IsUndefined(color)){
+    std::array<float,3> rgb{};int64_t length=0;bool valid=JS_IsArray(color)&&JS_GetLength(ctx,color,&length)==0&&length==3;
+    for(uint32_t c=0;valid&&c<3;c++){JSValue component=JS_GetPropertyUint32(ctx,color,c);valid=JS_IsNumber(component)&&number(ctx,component,rgb[c])&&rgb[c]>=0&&rgb[c]<=1;JS_FreeValue(ctx,component);}
+    JS_FreeValue(ctx,color);
+    if(!valid){if(!JS_HasException(ctx))JS_ThrowRangeError(ctx,"material color must be three numbers from 0 to 1");return false;}
+    out.color=rgb;
+  }
+  JSValue finish=JS_GetPropertyStr(ctx,value,"finish");if(JS_IsException(finish))return false;
+  if(!JS_IsUndefined(finish)){
+    const char *name=JS_IsString(finish)?JS_ToCString(ctx,finish):nullptr;JS_FreeValue(ctx,finish);
+    const auto parsed=name?shapeMesh::finish(name):std::nullopt;if(name)JS_FreeCString(ctx,name);
+    if(!parsed){if(!JS_HasException(ctx))JS_ThrowRangeError(ctx,"material finish must be matte, glossy, metal or glow");return false;}
+    out.finish=*parsed;
+  }
+  if(!out.color&&!out.finish){JS_ThrowTypeError(ctx,"material needs a color, a finish or both");return false;}
+  return true;
+}
+static JSValue jsSetObjectMaterial(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<2||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"setObjectMaterial(id, {color, finish} | null)");
+  std::optional<MaterialOverride> material;
+  if(!JS_IsNull(argv[1])){MaterialOverride value;if(!materialValue(ctx,argv[1],value))return JS_EXCEPTION;material=value;}
+  // Resolve after reading: getters may have removed the object.
+  auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  if(material&&!currentScene->assets[size_t(object->asset)-1].pbr)return JS_ThrowRangeError(ctx,"material overrides need a PBR model");
+  object->material=material;return JS_UNDEFINED;
+}
+static JSValue materialObject(JSContext *ctx,const MaterialOverride &material){
+  JSValue result=JS_NewObject(ctx);
+  if(material.color){JSValue rgb=JS_NewArray(ctx);for(uint32_t c=0;c<3;c++)JS_SetPropertyUint32(ctx,rgb,c,JS_NewFloat64(ctx,(*material.color)[c]));JS_SetPropertyStr(ctx,result,"color",rgb);}
+  if(material.finish)for(auto [name,value]:shapeMesh::finishNames)if(value==*material.finish)JS_SetPropertyStr(ctx,result,"finish",JS_NewStringLen(ctx,name.data(),name.size()));
+  return result;
+}
+static JSValue jsGetObjectMaterial(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  int id=0;if(argc<1||JS_ToInt32(ctx,&id,argv[0])<0)return JS_ThrowTypeError(ctx,"getObjectMaterial(id)");
+  const auto *object=findObject(id);if(!object)return JS_ThrowRangeError(ctx,"unknown object id");
+  return object->material?materialObject(ctx,*object->material):JS_NULL;
+}
 static JSValue jsUnloadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
  double value=0;int id=0;if(!argc||!JS_IsNumber(argv[0])||JS_ToFloat64(ctx,&value,argv[0])<0||!std::isfinite(value)||value<1||value>=INT_MAX||value!=std::floor(value)||!loadedAsset(*currentScene,id=int(value)))return JS_ThrowRangeError(ctx,"unloadModel requires a live asset ID");
  if(std::any_of(currentScene->objects.begin(),currentScene->objects.end(),[&](const Object &object){return object.asset==id;}))return JS_ThrowRangeError(ctx,"model is used by a live object");
@@ -1331,6 +1372,8 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
   bind(candidate.ctx,"createShapeAsset",jsCreateShapeAsset,1);
+  bind(candidate.ctx,"setObjectMaterial",jsSetObjectMaterial,2);
+  bind(candidate.ctx,"getObjectMaterial",jsGetObjectMaterial,1);
   bind(candidate.ctx,"setModelLighting",jsSetModelLighting,2);
   bind(candidate.ctx,"createDirectionalLight",jsCreateDirectionalLight,1);
   bind(candidate.ctx,"setDirectionalLight",jsSetDirectionalLight,2);

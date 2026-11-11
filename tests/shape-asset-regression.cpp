@@ -107,6 +107,75 @@ int main(){
     closeScript(host);
   }
   {
+    // Material overrides: API, snapshots and rollback on a PBR model.
+    const auto materials=dir/"materials.js";
+    std::ofstream(materials)<<R"JS(
+      function check(v,message='material assertion'){if(!v)throw Error(message);}
+      function fails(fn){let caught=false;try{fn();}catch(_){caught=true;}check(caught,'expected rejection');}
+      const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+      const lit=loadModel('assets/samples/Box/Box.glb',512,{pbr:true}),flat=loadModel('assets/Avocado.glb');
+      const owner=createSceneContainer();
+      globalThis.box=createObject(lit,0,0,0,.2,{container:owner});
+      check(getObjectMaterial(box)===null);
+      setObjectMaterial(box,{color:[1,.5,0],finish:'metal'});check(same(getObjectMaterial(box),{color:[1,.5,0],finish:'metal'}));
+      setObjectMaterial(box,{finish:'glow'});check(same(getObjectMaterial(box),{finish:'glow'}));
+      setObjectMaterial(box,{color:[0,0,1]});check(same(getObjectMaterial(box),{color:[0,0,1]}));
+      const copy=getObjectMaterial(box);copy.color[0]=1;check(same(getObjectMaterial(box),{color:[0,0,1]}));
+      for(const bad of [{},[],1,'red',undefined,{color:[1,0]},{color:[1,0,2]},{color:[-.1,0,0]},{color:['1',0,0]},{color:{r:1}},{finish:'shiny'},{finish:1}])
+        fails(()=>setObjectMaterial(box,bad));
+      check(same(getObjectMaterial(box),{color:[0,0,1]}));
+      fails(()=>setObjectMaterial(box,{get color(){throw Error('getter');}}));check(same(getObjectMaterial(box),{color:[0,0,1]}));
+      const unlit=createObject(flat,0,0,0,.2);fails(()=>setObjectMaterial(unlit,{finish:'glow'}));setObjectMaterial(unlit,null);check(getObjectMaterial(unlit)===null);
+      fails(()=>setObjectMaterial(9999,null));fails(()=>getObjectMaterial(9999));fails(()=>setObjectMaterial(box));
+      setObjectMaterial(box,{color:[.25,.5,.75],finish:'glossy'});
+      const plain=createObject(lit,.3,0,0,.2,{container:owner});
+      // Snapshots keep each object's override or null.
+      const snap=captureSceneContainer(owner);check(snap.version===3);
+      check(same(snap.objects[0].material,{color:[.25,.5,.75],finish:'glossy'})&&snap.objects[1].material===null);
+      saveSceneContainer(owner,'materials');const loaded=loadSceneContainer('materials');
+      check(same(getObjectMaterial(loaded.objectMap[box]),{color:[.25,.5,.75],finish:'glossy'})&&getObjectMaterial(loaded.objectMap[plain])===null);
+      disposeSceneContainer(loaded.containerId);
+      function bad(edit){const s=JSON.parse(JSON.stringify(snap));edit(s);fails(()=>restoreSceneContainer(s));}
+      bad(s=>delete s.objects[0].material);bad(s=>s.objects[0].material={});bad(s=>s.objects[0].material=[]);
+      bad(s=>s.objects[0].material.color=[2,0,0]);bad(s=>s.objects[0].material.color=[1,0]);bad(s=>s.objects[0].material.finish='shiny');
+      bad(s=>s.version=2);
+      setObjectMaterial(box,null);check(getObjectMaterial(box)===null&&captureSceneContainer(owner).objects[0].material===null);
+    )JS";
+    ScriptHost host;assert(loadScript(host,materials.string()));
+    // Rejected restores leave no objects behind.
+    size_t live=host.scene.objects.size();assert(live==3);
+    closeScript(host);
+    puts("PASS material overrides: set, partial, replace, copies, validation, getters, non-PBR rejection, removal, snapshot save/load, invalid snapshots and version");
+  }
+  {
+    // An override renders exactly like a shape asset built with that color and finish,
+    // and changes an imported PBR model.
+    Renderer renderer;renderer.scene.objects.clear();
+    auto shapeAsset=[&](V color,shapeMesh::Finish finish){
+      std::vector<shapeMesh::Part> parts(1);parts[0].shape=Shape::Sphere;parts[0].scale={.3f,.3f,.3f};parts[0].color=color;parts[0].finish=finish;
+      renderer.scene.assets.emplace_back();auto &asset=renderer.scene.assets.back();float extent;std::array<float,3> center;buildShapeAsset(parts,asset,extent,center);uploadModel(asset);
+      return int(renderer.scene.assets.size());
+    };
+    const int white=shapeAsset({1,1,1},shapeMesh::Finish::Matte);
+    for(auto finish:{shapeMesh::Finish::Matte,shapeMesh::Finish::Glossy,shapeMesh::Finish::Metal,shapeMesh::Finish::Glow}){
+      const int expectedAsset=shapeAsset({.8f,.3f,.1f},finish);
+      Object o{};o.id=1;o.asset=expectedAsset;o.scale.fill(.5f);o.yaw=.4f;renderer.scene.objects={o};
+      const auto expected=renderer.renderSet({1},{0,0,-1.2f},0);
+      renderer.scene.objects[0].asset=white;renderer.scene.objects[0].material=MaterialOverride{std::array<float,3>{.8f,.3f,.1f},finish};
+      const auto actual=renderer.renderSet({1},{0,0,-1.2f},0);
+      renderer.scene.objects[0].material.reset();const auto plain=renderer.renderSet({1},{0,0,-1.2f},0);
+      assert(actual==expected&&plain!=actual);
+    }
+    renderer.scene.assets.emplace_back();auto &box=renderer.scene.assets.back();box.pbr=true;assert(loadModelFile("assets/samples/Box/Box.glb",box));uploadModel(box);
+    Object o{};o.id=1;o.asset=int(renderer.scene.assets.size());o.scale.fill(.5f);o.yaw=.4f;o.pitch=.3f;renderer.scene.objects={o};
+    const auto original=renderer.renderSet({1},{0,0,-1.2f},0);
+    renderer.scene.objects[0].material=MaterialOverride{std::array<float,3>{0,1,0},std::nullopt};const auto green=renderer.renderSet({1},{0,0,-1.2f},0);
+    size_t greener=0;for(size_t p=0;p<green.size();p+=4)if(green[p+3]==255&&green[p+1]>green[p]+40&&green[p+1]>green[p+2]+40)++greener;
+    assert(green!=original&&greener>1000);
+    renderer.scene.objects[0].material.reset();assert(renderer.renderSet({1},{0,0,-1.2f},0)==original);
+    puts("PASS material override rendering: matches baked shape materials for every finish, recolors an imported PBR model, removal restores it");
+  }
+  {
     // Each shape draws lit, and the glow finish emits without light.
     Renderer renderer;renderer.scene.objects.clear();
     const char *names[]={"cube","sphere","cylinder","cone","wedge","pyramid","torus","arch"};

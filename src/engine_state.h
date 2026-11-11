@@ -70,6 +70,7 @@ struct Object {
   std::shared_ptr<ModelPose> animationPose;
   int renderGroup=0,renderTile=0;
   int lodLevel=0,container=0;
+  std::optional<MaterialOverride> material; // PBR objects only
 };
 inline float largestScale(const Object &object){return std::max({object.scale[0],object.scale[1],object.scale[2]});}
 inline bool validScale(const std::array<float,3> &scale){for(float s:scale)if(!std::isfinite(s)||s<=0||s>2)return false;return true;}

@@ -110,14 +110,12 @@ While building, each part is an object on one of eight shared one-part shape
 assets, colored per object, so a Thing in progress costs no extra assets.
 
 - `setObjectMaterial(id, {color, finish})` overrides the base color factor and
-  finish of every material primitive of that object; `setObjectMaterial(id,
-  null)` removes the override. It works on any PBR object, not only shapes.
-  `getObjectMaterial(id)` returns the override or `null`.
-- Ordered GPU instancing either carries the override in its per-instance stream
-  or places overridden objects in their own batches. The choice follows a
-  measurement on the headset with 200 colored parts, recorded under
-  `tests/results/`.
-- Snapshots store the override.
+  finish of every material primitive of that object; either field may be given
+  alone. `setObjectMaterial(id, null)` removes the override. It works on any PBR
+  object, not only shapes. `getObjectMaterial(id)` returns the override or `null`.
+- PBR objects are not GPU-instanced, and each already sets its material
+  uniforms per draw, so an override adds no draws or shader programs.
+- Snapshots store the override; the snapshot version is 3.
 
 ### 4. Snapshots of shape assets
 
@@ -291,7 +289,7 @@ miniature off spawns a full-size copy.
 | --- | --- | --- |
 | Per-axis scale | Transform round trip; rotated non-uniform picking and grabbing; normals in each draw path against reference images; crop and LOD sizes; box, convex and mesh colliders; sphere rejection; snapshot round trip; invalid values | JavaScript API reference, physics API |
 | Shape assets | Each shape's bounds, normals and triangle counts; part and material limits; normalization; picking BVH hits; unload and asset limit; invalid part lists; build time at 256 parts | JavaScript API reference, architecture asset section |
-| Material overrides | Rendered color and finish; removal; instanced and non-instanced paths; invalid IDs and values | Lighting API |
+| Material overrides | Rendered color and finish against baked shape materials; removal; imported PBR models; non-PBR rejection; invalid IDs and values; snapshots | Lighting API |
 | Shape-asset snapshots | Save, restore and capture; validation failure leaves the scene intact; container subtrees | Scene persistence format |
 | Text input | Open, change, done, cancel; cancellation by another script and by stopping; the chosen backend through `SF_TEST_HOOKS` fault injection | JavaScript API reference, input architecture |
 | Builder | `examples-regression` loads it and drives build mode, spawning, stretch, snapping, clone, delete, undo/redo, painting, naming, baking, saving, reopening and spin-off | `docs/demos.md`: controls, saved state and limits |
@@ -303,8 +301,8 @@ demo and assets.
 
 - Focused regressions while building each piece, one job at a time; the full
   regression set, docs lint and site build before each commit.
-- Headset measurements for the shape-asset build time, the instancing choice for
-  material overrides, and render grouping, recorded under `tests/results/`.
+- Headset measurements for the shape-asset build time and render grouping,
+  recorded under `tests/results/`.
 - Headset acceptance by the user: building with the hands feels direct, stretch
   and snapping do what you expect, painting is reliable, and frame rate holds
   with a 200-part Thing beside the other demos. The builder is stopped and
@@ -314,7 +312,7 @@ demo and assets.
 
 1. Text input spike: done, see [steamvr-keyboard.md](../tests/results/steamvr-keyboard.md).
 2. Per-axis object scale: done.
-3. Shape assets: done. Then material overrides, then shape-asset snapshots.
+3. Shape assets and material overrides: done. Then shape-asset snapshots.
 4. Text input on the SteamVR keyboard.
 5. Builder version 1, in commits for build mode and palette, manipulation and
    snapping, undo/redo, color, then naming, baking, saving and reopening.

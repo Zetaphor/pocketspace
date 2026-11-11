@@ -402,6 +402,28 @@ lighting and tone mapping, and `KHR_materials_emissive_strength` scales emission
 
 View the imported car materials under environment lighting: [pbr.js](../scripts/pbr.js).
 
+## Object material overrides
+
+`setObjectMaterial(id, {color, finish})` changes how one object's PBR model looks
+without changing the model or other objects that share it.
+`setObjectMaterial(id, null)` removes the override, and `getObjectMaterial(id)`
+returns a copy of it or `null`. The override applies to every material of the
+object's model:
+
+- `color`, a linear `[r, g, b]` from 0 to 1, replaces the base color factor.
+  Alpha and any base-color texture still apply.
+- `finish` is `matte`, `glossy`, `metal` or `glow`, the same values as
+  [shape assets](javascript-api.md#shape-assets). It sets metallic and roughness
+  factors, which metallic/roughness textures still multiply, and emission:
+  `glow` emits the object's color, and the other finishes emit nothing.
+
+Either field may be given alone; the other keeps each material's own value. An
+override needs at least one field, and an object whose model is not PBR throws.
+Overrides change only shader values, so they add no draw calls or shader
+programs. [Scene snapshots](scene-persistence.md) keep them.
+
+Recolor a copy of a shape asset: [shapes.js](../scripts/shapes.js).
+
 ## Environment lighting and reflections
 
 The supplied studio bake has a clear horizon and bright windows, so metals

@@ -18,7 +18,7 @@ setPhysicsJoint(spring,{maxDistance:.35,spring:{frequency:3,damping:.7}});
 setObjectRotation(b,0,0,.65);setObjectPosition(b,-.5+.25*Math.cos(.65),.25*Math.sin(.65),0);
 setObjectVelocity(b,.12,.23,.34);setObjectAngularVelocity(b,.3,.2,.1);
 const sourceAngle=getPhysicsJoint(hinge).angle;check(Math.abs(sourceAngle)>.5,'hinge must be away from zero');
-const snap=captureSceneContainer(owner);check(snap.version===2&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
+const snap=captureSceneContainer(owner);check(snap.version===3&&snap.joints.length===3&&snap.objects.every(o=>o.physics));
 saveSceneContainer(owner,'physics');
 const copy=loadSceneContainer('physics');check(copy.jointIds.length===3&&copy.objectIds.length===6);
 const restored=captureSceneContainer(copy.containerId);
@@ -45,7 +45,7 @@ bad(s=>s.joints[0].objectA=999);bad(s=>s.joints[0].objectB=s.joints[0].objectA);
 bad(s=>s.objects[0].physics=null);bad(s=>s.joints[1].id=s.joints[0].id);
 bad(s=>s.joints[1].settings.breakForce=-1);bad(s=>s.joints[2].settings.spring.frequency=0);
 bad(s=>s.joints[0].motor.maxTorque=-1);bad(s=>s.joints[0].referenceA.pitch=null);
-bad(s=>s.joints=Array(513).fill(s.joints[0]));bad(s=>s.version=1);
+bad(s=>s.joints=Array(513).fill(s.joints[0]));bad(s=>s.version=2);
 const outside=createObject(asset,2,0,0,.1);setObjectPhysics(outside,{type:'static'});
 const cross=createPhysicsJoint(outside,f,{type:'distance'});fails(()=>captureSceneContainer(owner));removePhysicsJoint(cross);removeObject(outside);
 for(const mode of ['velocity','off']){

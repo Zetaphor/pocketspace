@@ -92,7 +92,7 @@ std::vector<unsigned char> Renderer::renderSet(const std::vector<int> &ids,physi
               activePbr.lights(drawLights,0,-.2f,0);
               activePbr.shadows(spotShadows,drawLights,0,-.2f,0);
             }
-            activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0);
+            activePbr.material(asset,part,object.animationPose?object.animationPose->geometry.primitives[primitive]:part,object.animationPose?0:object.lodLevel,pass<0,object.material?&*object.material:nullptr);
             if(object.animationPose)drawPosePrimitive(part,*object.animationPose,primitive);else drawModelPrimitive(part,0,object.lodLevel);
             activePbr.release();glUseProgram(program);continue;
           }

@@ -171,7 +171,7 @@ Save supported body and joint state while keeping callbacks in the script: [phys
 
 ## Format
 
-The `format` string is `pocketspace.scene-container` and `version` is `2`. Restore
+The `format` string is `pocketspace.scene-container` and `version` is `3`. Restore
 rejects any other format or version.
 
 All fields below are required unless a table says otherwise.
@@ -199,6 +199,7 @@ All fields below are required unless a table says otherwise.
 | `visible`, `laserPassThrough`, `grabbable`, `directGrab` | Booleans |
 | `laserYaw`, `laserPitchWithStickClick`, `depthAdjust`, `handPitch`, `handYaw`, `handRoll` | Booleans |
 | `grabButton` | `"trigger"`, `"grip"`, or `"both"` |
+| `material` | `null`, or a [material override](lighting-api.md#object-material-overrides) `{color, finish}` with at least one field; PBR models only |
 | `physics` | `null`, or `{settings, velocity, angularVelocity}` as described below |
 | `animation` | `null`, or the playback object described below |
 

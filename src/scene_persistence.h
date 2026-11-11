@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <sys/stat.h>
 namespace scenePersistence {
-constexpr int snapshotVersion=2;
+constexpr int snapshotVersion=3;
 struct Value {
   JSContext *ctx;JSValue value;
   Value(JSContext *c,JSValue v):ctx(c),value(v){}
@@ -79,6 +79,7 @@ static JSValue capture(JSContext *ctx,int owner){
     for(auto [key,member]:flags)put(ctx,item,key,JS_NewBool(ctx,o.*member));
     put(ctx,item,"grabButton",JS_NewString(ctx,o.grabButton==GrabButton::Both?"both":o.grabButton==GrabButton::Grip?"grip":"trigger"));
     put(ctx,item,"physics",state?bodyValue(ctx,*state):JS_NULL);
+    put(ctx,item,"material",o.material?materialObject(ctx,*o.material):JS_NULL);
     put(ctx,item,"animation",animationValue(ctx,o,currentScene->assets.at(o.asset-1)));
     putIndex(ctx,objects,index++,item);
   }
@@ -130,12 +131,12 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
   for(auto [id,parent]:newParents){stagedContainers.insert(id);stagedParents[id]=parent;}
 
   require(scene.objects.size()+no<=256&&scene.nextId<=INT_MAX-int(no),"object limit reached");
-  std::vector<ModelAsset> pending;std::vector<int> assets;std::set<std::string> paths;
+  std::vector<ModelAsset> pending;std::vector<int> assets;std::vector<bool> modelPbr;std::set<std::string> paths;
   for(uint32_t i=0;i<nm;i++){
     Value m(ctx,JS_GetPropertyUint32(ctx,models,i));auto path=field(ctx,m,"path");ModelAsset a;a.path=string(ctx,path);require(!a.path.empty()&&paths.insert(a.path).second,"empty or duplicate model path");
     a.eyePixels=int(number(ctx,m,"eyePixels",256,2048,true));require(a.eyePixels%64==0,"eyePixels must be a multiple of 64");
     a.optimizeVertexCache=boolean(ctx,m,"optimizeVertexCache");a.gpuInstancing=boolean(ctx,m,"gpuInstancing");a.lod=boolean(ctx,m,"lod");
-    a.pbr=boolean(ctx,m,"pbr");auto lighting=field(ctx,m,"lighting");
+    a.pbr=boolean(ctx,m,"pbr");modelPbr.push_back(a.pbr);auto lighting=field(ctx,m,"lighting");
     a.lighting.intensity=float(number(ctx,lighting,"intensity",0,64));a.lighting.ambient=float(number(ctx,lighting,"ambient",0,16));a.lighting.exposure=float(number(ctx,lighting,"exposure",.001,64));
     for(auto [name,values,isColor]:{std::tuple{"direction",a.lighting.direction,false},std::tuple{"color",a.lighting.color,true}}){auto array=field(ctx,lighting,name);require(length(ctx,array,3)==3,"lighting vectors must have three components");for(int c=0;c<3;c++){Value v(ctx,JS_GetPropertyUint32(ctx,array,c));double n=0;require(JS_IsNumber(v)&&JS_ToFloat64(ctx,&n,v)==0&&std::isfinite(n)&&n>=(isColor?0:-64)&&n<=64,"invalid lighting vector");values[c]=float(n);}}
     double magnitude=0;for(float v:a.lighting.direction)magnitude+=double(v)*v;require(magnitude>=1e-12,"light direction must be nonzero");
@@ -164,6 +165,17 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
      require(validScale(o.scale),"each scale component must be greater than zero and at most 2");}
     for(auto [key,member]:flags)o.*member=boolean(ctx,item,key);
     auto button=field(ctx,item,"grabButton");auto name=string(ctx,button);require(name=="both"||name=="trigger"||name=="grip","invalid grabButton");o.grabButton=name=="both"?GrabButton::Both:name=="grip"?GrabButton::Grip:GrabButton::Trigger;
+    {auto material=field(ctx,item,"material");require(!JS_IsUndefined(material),"missing material field");
+     if(!JS_IsNull(material)){
+      require(JS_IsObject(material)&&!JS_IsArray(material),"material must be an object or null");require(modelPbr.at(model),"material overrides need a PBR model");
+      MaterialOverride value;auto color=field(ctx,material,"color");
+      if(!JS_IsUndefined(color)){require(length(ctx,color,3)==3,"material color must have three components");std::array<float,3> rgb{};
+       for(uint32_t c=0;c<3;c++){Value v(ctx,JS_GetPropertyUint32(ctx,color,c));double n=0;require(JS_IsNumber(v)&&JS_ToFloat64(ctx,&n,v)==0&&n>=0&&n<=1,"material color components must be from 0 to 1");rgb[c]=float(n);}
+       value.color=rgb;}
+      auto finish=field(ctx,material,"finish");
+      if(!JS_IsUndefined(finish)){const auto parsed=shapeMesh::finish(string(ctx,finish));require(parsed.has_value(),"invalid material finish");value.finish=*parsed;}
+      require(value.color||value.finish,"material needs a color or a finish");o.material=value;
+     }}
     auto body=field(ctx,item,"physics");
     require(!JS_IsUndefined(body),"missing physics field");if(!JS_IsNull(body)){bodyMap[source]=o.id;bodies.push_back({o.id,bodyRead(ctx,body,o)});}
     auto animation=field(ctx,item,"animation");std::optional<SavedAnimation> saved;

@@ -18,11 +18,11 @@ const spot=createSpotLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setSpotLight(spot,{enabled:true}));
 setDirectionalLight(sun,{enabled:false});setSpotLight(spot,{enabled:true});
 fails(()=>setDirectionalLight(sun,{enabled:true}));setSpotLight(spot,{enabled:false});setDirectionalLight(sun,{enabled:true});removeSpotLight(spot);
-const saved=captureSceneContainer(owner);check(saved.version===2&&saved.lights[0].shadow.depth===5);
+const saved=captureSceneContainer(owner);check(saved.version===3&&saved.lights[0].shadow.depth===5);
 fails(()=>restoreSceneContainer(saved));
 setDirectionalLight(sun,{shadow:{enabled:false}});
 const state=JSON.stringify(getSceneContainerState(owner));
-for(const mutate of [s=>delete s.lights[0].shadow,s=>delete s.lights[0].shadow.center,s=>s.lights[0].shadow.depth=0,s=>s.lights[0].shadow.size=65,s=>s.lights[0].shadow.center=[0,0,Infinity],s=>s.lights[0].shadow.near=.1,s=>s.version=1]){
+for(const mutate of [s=>delete s.lights[0].shadow,s=>delete s.lights[0].shadow.center,s=>s.lights[0].shadow.depth=0,s=>s.lights[0].shadow.size=65,s=>s.lights[0].shadow.center=[0,0,Infinity],s=>s.lights[0].shadow.near=.1,s=>s.version=2]){
  const bad=JSON.parse(JSON.stringify(saved));mutate(bad);fails(()=>restoreSceneContainer(bad));check(JSON.stringify(getSceneContainerState(owner))===state);
 }
 const restored=restoreSceneContainer(saved),copy=getDirectionalLight(restored.lightMap[sun]);

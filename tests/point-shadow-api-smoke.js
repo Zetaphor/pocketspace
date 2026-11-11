@@ -22,7 +22,7 @@ const second=createPointLight({enabled:false,shadow:{enabled:true}});
 fails(()=>setPointLight(second,{enabled:true}));check(!getPointLight(second).enabled);
 setPointLight(spot,{enabled:false});setPointLight(second,{enabled:true});
 fails(()=>setPointLight(spot,{enabled:true}));setPointLight(second,{shadow:{enabled:false}});setPointLight(spot,{enabled:true});removePointLight(second);
-const snapshot=captureSceneContainer(owner);check(snapshot.version===2&&snapshot.lights[0].shadow.enabled);
+const snapshot=captureSceneContainer(owner);check(snapshot.version===3&&snapshot.lights[0].shadow.enabled);
 const before=JSON.stringify(snapshot),state=JSON.stringify(getSceneContainerState(owner));
 fails(()=>restoreSceneContainer(snapshot));check(JSON.stringify(captureSceneContainer(owner))===before);
 for(const mutate of [s=>delete s.lights[0].shadow,s=>s.lights[0].shadow.resolution=2048,s=>s.lights[0].shadow.maxTriangles=0,s=>s.lights[0].shadow.maxGpuMs=0,s=>s.lights[0].shadow.near=4,s=>delete s.lights[0].shadow.near]) {

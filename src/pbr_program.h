@@ -322,8 +322,14 @@ void main(){
  void object(float pitch,float yaw,float roll,const std::array<float,3> &scale,float x,float y,float z)const{
   scalar("pitch",pitch);scalar("yaw",yaw);scalar("roll",roll);vector("modelScale",scale.data());float offset[3]={x,y,z};vector("offset",offset);
  }
- void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0,bool depthOnly=false)const{
-  vectors4("factor",p.factor,1);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
+ void material(const ModelAsset &asset,const PrimitiveAsset &p,const PrimitiveAsset &geometry,int lodLevel=0,bool depthOnly=false,const MaterialOverride *override=nullptr)const{
+  float factor[4]={p.factor[0],p.factor[1],p.factor[2],p.factor[3]},metallic=p.metallic,roughness=p.roughness,emissive[3]={p.emissive[0],p.emissive[1],p.emissive[2]};
+  if(override){
+    // Color keeps the primitive's alpha; a finish also decides emission.
+    if(override->color)for(int c=0;c<3;c++)factor[c]=(*override->color)[c];
+    if(override->finish){const auto values=shapeMesh::values(*override->finish);metallic=values.metallic;roughness=values.roughness;for(int c=0;c<3;c++)emissive[c]=values.emissive?factor[c]:0;}
+  }
+  vectors4("factor",factor,1);integer("alphaMode",p.alphaMode);scalar("alphaCutoff",p.alphaCutoff);
   if(depthSupport){
     integer("depthOnly",depthOnly);
     if(depthOnly){
@@ -332,7 +338,7 @@ void main(){
       return;
     }
   }
-  scalar("metallic",p.metallic);scalar("roughness",p.roughness);scalar("normalScale",p.normalScale);scalar("occlusionStrength",p.occlusionStrength);vector("emissive",p.emissive);
+  scalar("metallic",metallic);scalar("roughness",roughness);scalar("normalScale",p.normalScale);scalar("occlusionStrength",p.occlusionStrength);vector("emissive",emissive);
   vector("sheenColor",p.sheen);scalar("sheenRoughness",p.sheenRoughness);
   const bool hasSheen=!p.materialUnlit&&asset.sheenLookup&&std::any_of(p.sheen,p.sheen+3,[](float c){return c>0;});
   integer("sheenEnabled",hasSheen);
