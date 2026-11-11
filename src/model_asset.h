@@ -11,6 +11,7 @@
 #include "animation_profile.h"
 #include "gpu_skinning.h"
 #include "rigid_batching.h"
+#include "shape_mesh.h"
 
 // External depth passes draw an occluder only where it can cover the target, so
 // large static primitives keep a second copy of their full-detail triangles in
@@ -71,6 +72,8 @@ struct PrimitiveAsset {
 };
 struct ModelAsset {
   std::string path;
+  // Built by createShapeAsset rather than loaded; path is an internal name, not a file.
+  bool generated=false;
   int eyePixels=768;
   std::vector<PrimitiveAsset> primitives;
   std::vector<picking::Triangle> pickTriangles;
@@ -96,6 +99,11 @@ struct ModelAsset {
   std::shared_ptr<SheenLookup> sheenLookup;
 };
 bool loadModelFile(const std::string &path,ModelAsset &out);
+// Builds a PBR asset from validated parts, one primitive per distinct color and
+// finish, centered and normalized like an imported model. `extent` is the
+// largest side and `center` the bounds center, both in the parts' frame with
+// object conventions (+Z forward).
+void buildShapeAsset(const std::vector<shapeMesh::Part> &parts,ModelAsset &out,float &extent,std::array<float,3> &center);
 void uploadModel(ModelAsset &asset);
 void deleteModel(ModelAsset &asset);
 // An expanded override is used for per-instance CPU-deformed geometry.

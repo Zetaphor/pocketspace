@@ -311,6 +311,41 @@ bool loadModelFile(const std::string &path,ModelAsset &out) {
   std::fflush(stdout);
   return true;
 }
+void buildShapeAsset(const std::vector<shapeMesh::Part> &parts,ModelAsset &out,float &extent,std::array<float,3> &center){
+  using shapeMesh::V;
+  out.pbr=true;out.generated=true;
+  std::vector<std::pair<std::array<float,4>,size_t>> materials;
+  float low[3]={std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()},high[3]={-low[0],-low[1],-low[2]};
+  for(const auto &part:parts){
+    const std::array<float,4> key{part.color[0],part.color[1],part.color[2],float(part.finish)};
+    auto found=std::find_if(materials.begin(),materials.end(),[&](const auto &m){return m.first==key;});
+    if(found==materials.end()){
+      PrimitiveAsset primitive;primitive.rgba={255,255,255,255};primitive.untextured=true;
+      const auto finish=shapeMesh::values(part.finish);primitive.metallic=finish.metallic;primitive.roughness=finish.roughness;
+      for(int c=0;c<3;c++){primitive.factor[c]=part.color[c];primitive.emissive[c]=finish.emissive?part.color[c]:0;}
+      out.primitives.push_back(std::move(primitive));materials.push_back({key,out.primitives.size()-1});found=materials.end()-1;
+    }
+    auto &primitive=out.primitives[found->second];
+    // Object conventions: scale, rotate, then place; model Z is scene Z negated.
+    for(const auto &vertex:shapeMesh::generate(part.shape,part.scale)){
+      const V p=shapeMesh::rotate(part.rotation,vertex.position),n=shapeMesh::rotate(part.rotation,vertex.normal);
+      const V world{p[0]+part.position[0],p[1]+part.position[1],p[2]-part.position[2]};
+      // Any unit tangent perpendicular to the normal; shape assets have no normal map.
+      const V axis=std::abs(n[0])<.9f?V{1,0,0}:V{0,1,0};
+      const auto t=surfaceFrame::unit(surfaceFrame::cross(surfaceFrame::cross(n,axis),n));
+      primitive.vertices.insert(primitive.vertices.end(),{world[0],world[1],world[2],0,0});
+      primitive.surface.insert(primitive.surface.end(),{n[0],n[1],n[2],t[0],t[1],t[2],1,0,0});
+      for(int a=0;a<3;a++){low[a]=std::min(low[a],world[a]);high[a]=std::max(high[a],world[a]);}
+    }
+  }
+  for(auto &primitive:out.primitives)primitive.vertexCount=GLsizei(primitive.vertices.size()/5);
+  extent=std::max({high[0]-low[0],high[1]-low[1],high[2]-low[2]});
+  const float scale=1.f/extent;out.normalization=scale;
+  for(int a=0;a<3;a++){out.center[a]=(low[a]+high[a])*.5f;out.low[a]=(low[a]-high[a])*.5f*scale;out.high[a]=(high[a]-low[a])*.5f*scale;}
+  center={out.center[0],out.center[1],-out.center[2]};
+  for(auto &primitive:out.primitives)for(size_t i=0;i<primitive.vertices.size();i+=5)for(int a=0;a<3;a++)primitive.vertices[i+a]=(primitive.vertices[i+a]-out.center[a])*scale;
+  picking::build(out);
+}
 static void uploadLod(const ModelAsset &asset,PrimitiveAsset &part,const mesh::Indexed &indexed){
   if(!asset.lod||asset.hasAnimation||asset.hasSkin||asset.hasMorph||part.alphaMode!=0||part.vertexCount<300)return;
   const float weights[2]={.1f,.1f};const size_t vertices=indexed.vertices.size()/5;

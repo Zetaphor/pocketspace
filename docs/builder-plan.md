@@ -73,8 +73,9 @@ of scale, and uniform scale is the case where all three are equal.
 
 ### 2. Shape assets
 
-`createShapeAsset(parts, options = {})` returns an asset ID for a model generated
-in the engine, with no file. `parts` is an array of
+`createShapeAsset(parts, options = {})` builds a model in the engine, with no
+file, and returns `{assetId, extent, center}`: the asset ID, the largest side in
+meters and the bounds center in the parts' frame. `parts` is an array of
 `{shape, position: [x, y, z], rotation: [pitch, yaw, roll], scale: [x, y, z],
 color: [r, g, b], finish}`, in meters, radians and linear 0–1 color, all in one
 local frame. A single part is a one-element array.
@@ -82,22 +83,24 @@ local frame. A single part is a one-element array.
 - **Shapes:** `cube`, `sphere`, `cylinder`, `cone`, `wedge` (a triangular prism),
   `pyramid` (square base), `torus` and `arch` (a half ring with a square
   cross-section). Each fills the unit box from −0.5 to 0.5 before its scale, so
-  a part's scale is its size in meters. The torus and arch have fixed
-  proportions; stretching changes their outer size, not their thickness.
-  Generators live in a new `src/shape_mesh.h`, with flat normals on flat faces
-  and smooth normals on curved ones, at fixed tessellation chosen by
-  profiling.
+  a part's scale is its size in meters. The torus and arch are generated at
+  their real size, with one axis setting their thickness: the torus's Y is its
+  tube's thickness, and the arch's Z is the side of its square cross-section.
+  Generators live in `src/shape_mesh.h`, with flat normals on flat faces and
+  smooth normals on curved ones, at 24 segments and 12 rings.
 - **Finishes:** `matte`, `glossy`, `metal` and `glow`, as fixed PBR
   metallic/roughness/emissive values. Shape assets always use PBR lighting and
-  accept the `loadModel` options that apply to generated geometry (`lod`,
-  `gpuInstancing`, `optimizeVertexCache`).
+  accept the `loadModel` options that apply to generated geometry (`eyePixels`,
+  `lod`, `gpuInstancing`, `optimizeVertexCache`).
 - Parts with the same color and finish share one material primitive, so a
   baked Thing draws once per distinct material rather than once per part. At
   most 64 distinct materials and 256 parts per asset.
 - The result goes through the same path as an imported model: centered and
   normalized to unit maximum extent, with CPU triangles for picking, bounds and
-  colliders, a picking BVH, and GPU upload. Building it is synchronous; a
-  256-part Thing has to fit within a frame budget measured on the headset.
+  colliders, a picking BVH, and GPU upload. Building it is synchronous. Typical
+  Things build in under a millisecond; the worst case of 256 tori takes about
+  250 ms with its upload, a one-time hitch accepted for a deliberate bake
+  ([measurement](../tests/results/shape-asset-build.md)).
 - Shape assets count toward the 32-asset scene limit and are released with
   `unloadModel`. Identical part lists are not deduplicated.
 
@@ -212,9 +215,9 @@ and two-hand stretch apply to every move.
 
 - **Name** opens text input with the current name. New Things are called
   "Thing 1", "Thing 2" and so on until renamed.
-- **Done** bakes the parts: the builder computes the parts' bounds, passes the
-  part list relative to their center to `createShapeAsset`, creates one object
-  at the center with the Thing's extent as its scale, and removes the part
+- **Done** bakes the parts: the builder passes the part list to
+  `createShapeAsset`, creates one object at the returned center
+  with the returned extent as its scale, and removes the part
   objects. Baking a Thing with no parts does nothing.
 - Each Thing is saved with `saveScriptData` as `{id, name, parts, derivedFrom}`
   under its own name, within the 64 KiB saved-data limit (about 500 parts, more
@@ -311,7 +314,7 @@ demo and assets.
 
 1. Text input spike: done, see [steamvr-keyboard.md](../tests/results/steamvr-keyboard.md).
 2. Per-axis object scale: done.
-3. Shape assets, then material overrides, then shape-asset snapshots.
+3. Shape assets: done. Then material overrides, then shape-asset snapshots.
 4. Text input on the SteamVR keyboard.
 5. Builder version 1, in commits for build mode and palette, manipulation and
    snapping, undo/redo, color, then naming, baking, saving and reopening.

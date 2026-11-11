@@ -111,7 +111,7 @@ set(SF_HARNESS_TESTS directional-light-regression environment-regression instanc
     multi-script-render-regression pbr-depth-regression pbr-index-production-regression pbr-lod-regression pbr-regression
     point-light-regression render-occlusion-regression rigid-batch-regression sheen-regression spot-shadow-regression
     spotlight-cone-regression spotlight-regression asset-lifetime-regression auto-lod-regression culling-regression
-    pbr-cost-profile)
+    pbr-cost-profile shape-asset-regression)
 foreach(test ${SF_HARNESS_TESTS} animation-blend-regression animation-regression cli-regression control-regression event-bus-regression
     examples-regression gpu-skinning-regression lifecycle-script-regression morph-regression multi-script-lifecycle-regression
     physics-api-regression scene-container-regression scene-persistence-regression script-recovery-regression

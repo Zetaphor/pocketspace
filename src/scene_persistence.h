@@ -63,7 +63,7 @@ static JSValue capture(JSContext *ctx,int owner){
     const bool body=currentScene->physics&&currentScene->physics->contains(o.id);
     std::optional<physics::State> state;if(body){state=currentScene->physics->get(o.id);o.x=state->pose.position.x;o.y=state->pose.position.y;o.z=state->pose.position.z;o.pitch=state->pose.pitch;o.yaw=state->pose.yaw;o.roll=state->pose.roll;}
     if(!modelIds.count(o.asset)){
-      const auto &a=currentScene->assets.at(o.asset-1);const int i=int(modelIds.size());modelIds[o.asset]=i;
+      const auto &a=currentScene->assets.at(o.asset-1);require(!a.generated,"shape assets can't be saved yet");const int i=int(modelIds.size());modelIds[o.asset]=i;
       JSValue m=JS_NewObject(ctx);put(ctx,m,"path",JS_NewString(ctx,a.path.c_str()));put(ctx,m,"eyePixels",JS_NewInt32(ctx,a.eyePixels));
       put(ctx,m,"optimizeVertexCache",JS_NewBool(ctx,a.optimizeVertexCache));put(ctx,m,"gpuInstancing",JS_NewBool(ctx,a.gpuInstancing));put(ctx,m,"lod",JS_NewBool(ctx,a.lod));put(ctx,m,"pbr",JS_NewBool(ctx,a.pbr));
       Value lighting(ctx,JS_NewObject(ctx));
@@ -142,7 +142,7 @@ static JSValue restore(JSContext *ctx,JSValueConst snapshot){
     auto environment=field(ctx,lighting,"environment");a.lighting.environment=string(ctx,environment);require(a.lighting.environment.size()<=4096,"invalid environment path");
     a.lighting.environmentIntensity=float(number(ctx,lighting,"environmentIntensity",0,64));a.lighting.environmentRotation=float(number(ctx,lighting,"environmentRotation",-10000,10000));
     require(a.pbr||a.lighting.environment.empty(),"environment requires PBR");
-    int id=0;for(size_t j=0;j<scene.assets.size();j++)if(scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod&&old.pbr==a.pbr&&(!a.pbr||old.lighting==a.lighting),"cached model options conflict");id=int(j)+1;break;}
+    int id=0;for(size_t j=0;j<scene.assets.size();j++)if(!scene.assets[j].generated&&scene.assets[j].path==a.path){const auto &old=scene.assets[j];require(old.eyePixels==a.eyePixels&&old.optimizeVertexCache==a.optimizeVertexCache&&old.gpuInstancing==a.gpuInstancing&&old.lod==a.lod&&old.pbr==a.pbr&&(!a.pbr||old.lighting==a.lighting),"cached model options conflict");id=int(j)+1;break;}
     if(!id){require(loadedAssetCount(scene)+pending.size()<32&&scene.assets.size()+pending.size()<size_t(INT_MAX-1),"model asset limit reached");id=int(scene.assets.size()+pending.size())+1;pending.push_back(std::move(a));}assets.push_back(id);
   }
   std::set<int> occupied,sourceIds;for(const auto &o:scene.objects)if(o.renderGroup)occupied.insert(o.renderGroup);

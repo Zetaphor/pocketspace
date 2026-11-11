@@ -75,6 +75,7 @@ and visual acceptance.
 | [collision-api-smoke.js](collision-api-smoke.js) | Collision event API and filtering options. |
 | [convex-api-smoke.js](convex-api-smoke.js) | Convex hull collider creation, caching, state, and validation. |
 | [custom-collider-api-smoke.js](custom-collider-api-smoke.js) | Explicit collider dimensions and offsets. |
+| [shape-asset-regression.cpp](shape-asset-regression.cpp) | Generated shape bounds, normals, closed winding and triangle counts; `createShapeAsset` placement, material sharing, finishes, validation, limits, unload and save refusal; drawing every shape; 256-part build and upload timing. |
 | [stretched-collider-api-smoke.js](stretched-collider-api-smoke.js) | Box, convex and mesh colliders on per-axis scaled objects, automatic sphere rejection, explicit radius and scale rollback. |
 | [engine-stats-api-smoke.js](engine-stats-api-smoke.js) | Statistics field availability before the first runtime sample. |
 | [eye-calibration-smoke.js](eye-calibration-smoke.js) | Calibration file validation, save/load round-trip, and activation. |
@@ -168,6 +169,7 @@ and visual acceptance.
 | [results/gl-call-reduction.md](results/gl-call-reduction.md) | PBR uniform value cache and bound-unit release: CPU submit time per frame 2.6–3.0 to 1.5–1.8 ms with all demos. |
 | [results/model-loading.md](results/model-loading.md) | Script start stall by loading phase; parallel image decoding and PBR LOD preparation, lighting-studio about 3.1 to 1.9 s. |
 | [results/steamvr-keyboard.md](results/steamvr-keyboard.md) | SteamVR keyboard for overlay text input on Steam Frame: per-key events in minimal mode, backspace and arrow encodings, no physical keyboard. |
+| [results/shape-asset-build.md](results/shape-asset-build.md) | `createShapeAsset` build and upload time on Steam Frame, from one cube to the 256-torus worst case. |
 | [results/memory-retention.md](results/memory-retention.md) | Memory kept after scripts stop: allocator free space (now trimmed), Mesa buffer reuse and the SteamVR client's reservation; no leak across cycles. |
 | [results/memory-reload.md](results/memory-reload.md) | Reload RSS growth attributed mainly to reusable free allocator space. |
 | [results/multi-script-soak.md](results/multi-script-soak.md) | Ten-minute two-script soak: FPS, CPU, RSS, heap and clean shutdown. |

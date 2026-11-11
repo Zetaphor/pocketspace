@@ -177,6 +177,13 @@ parallel before its primitives are built, and PBR LOD simplification prepares
 every primitive, with both levels concurrently, before uploads publish them in
 order ([model loading](../tests/results/model-loading.md)).
 
+Shape assets come from `src/shape_mesh.h` instead of a file. Each part's shape is
+generated at its size with explicit normals, transformed with object conventions
+and grouped into one untextured PBR primitive per distinct color and finish.
+The result is then centered and normalized and gets the same picking BVH,
+upload, LOD and colliders as an imported model. Building is synchronous on the
+calling script's frame ([build cost](../tests/results/shape-asset-build.md)).
+
 Static GPU geometry deduplicates exact position/UV tuples into vertex and index
 buffers, choosing 16- or 32-bit indices as appropriate. This changes storage,
 not the CPU geometry. Optional vertex-cache optimization reorders eligible

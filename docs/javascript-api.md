@@ -92,6 +92,7 @@ for example `createObject(asset, 0, getFloorHeight() + height / 2, .5, height)`.
 | `setModelLighting(assetId, options)` | Set directional light, color, intensity, ambient and exposure for a PBR asset; see [lighting](lighting-api.md). |
 | `loadModel(path, eyePixels = 768, options = {})` | Load a GLB and return an asset ID. Reference resolution must be a multiple of 64 from 256 through 2048; render groups use it as a maximum and sample distant members at [display density](#shared-render-group-behavior). Boolean option `pbr` enables [model lighting](lighting-api.md) and defaults to `false`. Boolean option `optimizeVertexCache` defaults to `false`; `gpuInstancing` and `lod` default to `true`; see shared geometry, ordered GPU instancing and automatic LOD below. Runtime buffers may crop transparent margins at the same model pixel density. The same exact path is cached; a conflicting explicit resolution or option throws. Up to 32 simultaneously loaded assets per scene; `unloadModel` releases unused assets. |
 | `unloadModel(assetId)` | Release a loaded model only when no live object uses it; released IDs remain invalid. See [asset lifetime](scene-containers.md#releasing-unused-model-assets) and [asset-lifetime.js](../scripts/asset-lifetime.js). |
+| `createShapeAsset(parts, options = {})` | Build a PBR model from generated shapes and return `{assetId, extent, center}`; see [shape assets](#shape-assets). Counts toward the 32-asset limit and is released with `unloadModel`. |
 | `createObject(assetId, x, y, z, scale, options = {})` | Return an object ID; finite coordinates are required. `scale` is a number for equal axes or `{x, y, z}`, with each component greater than zero and at most 2 meters. Up to 256 objects. Optional `container` assigns [lifetime ownership](scene-containers.md). Optional `renderGroup` is an integer from 0 through 256; zero gives an independent overlay, positive IDs share a stereo surface. |
 | `setRenderGroupAutoSplit(groupId, options = {})` | Opt a logical render group into stable automatic subdivision. `options` accepts `maxSurfaces` (integer 1–16, default 4) and `targetEyePixels` (multiple of 64 from 256–4096, default 2048), plus boolean `merge` and `rebalance` (both default `false`). Pass `false` to stop future adaptation; existing tiles remain. |
 | `setObjectPosition(id, x, y, z)` | Set position. |
@@ -130,6 +131,45 @@ reference physical extent within the cropped surface. Allocation estimates count
 the actual current buffers, including crops.
 
 Load several models and update their transforms: [sample-gallery.js](../scripts/sample-gallery.js).
+
+### Shape assets
+
+`createShapeAsset(parts, options = {})` builds a model from generated shapes,
+with no file. `parts` is an array of 1 to 256 objects:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `shape` | Required | `cube`, `sphere`, `cylinder`, `cone`, `wedge`, `pyramid`, `torus` or `arch`. |
+| `position` | `[0, 0, 0]` | `[x, y, z]` meters, each within 10 meters, with object conventions (+Z forward). |
+| `rotation` | `[0, 0, 0]` | `[pitch, yaw, roll]` radians, applied like `setObjectRotation`. |
+| `scale` | `[.1, .1, .1]` | `[x, y, z]` size in meters along the part's own axes, each greater than 0 and at most 2. |
+| `color` | `[1, 1, 1]` | Linear `[r, g, b]`, each from 0 to 1. |
+| `finish` | `'matte'` | `matte`, `glossy`, `metal` or `glow`; `glow` emits its color without light. |
+
+Each shape fills its scale box. Cylinders, cones and pyramids stand along Y, and
+a wedge slopes down toward its local −Z, with its tall side at +Z. The torus lies flat: X and Z set its outer size
+and Y its tube's thickness, which must be less than both. The arch rises along Y
+over a span along X, with a square cross-section whose side is Z; Z must be less
+than half of X and less than Y. A part means what an object with the same
+position, rotation and scale would mean, relative to the Thing's origin.
+
+The result is `{assetId, extent, center}`. Like an imported model, the asset is
+centered and normalized to a unit largest side, so
+`createObject(assetId, center.x, center.y, center.z, extent)` shows the Thing at
+the size and place its parts describe, relative to the same origin. Parts with
+the same color and finish share one material; at most 64 such pairs are
+allowed. Shape assets always use PBR lighting and accept `setModelLighting`.
+`options` accepts `eyePixels` (as for `loadModel`, default 768) and boolean
+`lod`, `gpuInstancing` and `optimizeVertexCache` with `loadModel`'s defaults.
+
+Building is synchronous. A Thing of tens of parts builds in under a millisecond;
+the 256-part worst case of curved shapes takes about 250 ms including its first
+upload ([measurement](../tests/results/shape-asset-build.md)). Invalid parts or
+options throw before anything is built. Identical part lists are not shared, and
+`loadModel` never returns a shape asset. Saving a container that uses a shape
+asset throws until shape-asset snapshots are supported.
+
+Build a small table from parts: [shapes.js](../scripts/shapes.js).
 
 ### Choosing an object rendering approach
 

@@ -559,7 +559,7 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
     if(explicitLod&&!JS_IsBool(option)){JS_FreeValue(ctx,option);return JS_ThrowTypeError(ctx,"lod must be a boolean");}
     if(explicitLod)lod=JS_ToBool(ctx,option)>0;JS_FreeValue(ctx,option);
   }
-  for(size_t i=0;i<currentScene->assets.size();i++)if(currentScene->assets[i].path==name){
+  for(size_t i=0;i<currentScene->assets.size();i++)if(!currentScene->assets[i].generated&&currentScene->assets[i].path==name){
     if(argc>1&&currentScene->assets[i].eyePixels!=eyePixels)return JS_ThrowRangeError(ctx,"model already loaded at a different eyePixels resolution");
     if(explicitCache&&currentScene->assets[i].optimizeVertexCache!=optimizeVertexCache)return JS_ThrowRangeError(ctx,"model already loaded with different optimizeVertexCache options");
     if(explicitInstancing&&currentScene->assets[i].gpuInstancing!=gpuInstancing)return JS_ThrowRangeError(ctx,"model already loaded with different gpuInstancing options");
@@ -574,6 +574,88 @@ static JSValue jsLoadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *ar
   asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;asset.lod=lod;
   currentScene->assets.push_back(std::move(asset));
   return JS_NewInt32(ctx,(int)currentScene->assets.size());
+}
+// Reads an optional three-number array; returns false with an exception pending.
+static bool shapeVector(JSContext *ctx,JSValueConst part,const char *name,shapeMesh::V &out,size_t index){
+  JSValue value=JS_GetPropertyStr(ctx,part,name);if(JS_IsException(value))return false;
+  if(JS_IsUndefined(value))return true;
+  bool valid=JS_IsArray(value);int64_t length=0;
+  if(valid)valid=JS_GetLength(ctx,value,&length)==0&&length==3;
+  for(uint32_t axis=0;valid&&axis<3;axis++){
+    JSValue component=JS_GetPropertyUint32(ctx,value,axis);
+    valid=JS_IsNumber(component)&&number(ctx,component,out[axis]);JS_FreeValue(ctx,component);
+  }
+  JS_FreeValue(ctx,value);
+  if(!valid&&!JS_HasException(ctx))JS_ThrowTypeError(ctx,"createShapeAsset part %zu: %s must be an array of three finite numbers",index,name);
+  return valid;
+}
+static JSValue jsCreateShapeAsset(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
+  if(!currentScene)return JS_ThrowTypeError(ctx,"createShapeAsset requires a scene");
+  if(argc<1||!JS_IsArray(argv[0]))return JS_ThrowTypeError(ctx,"createShapeAsset(parts, options = {}) requires an array of parts");
+  int64_t count=0;if(JS_GetLength(ctx,argv[0],&count))return JS_EXCEPTION;
+  if(count<1||count>int64_t(shapeMesh::kMaxParts))return JS_ThrowRangeError(ctx,"createShapeAsset needs 1 to %zu parts",shapeMesh::kMaxParts);
+  std::vector<shapeMesh::Part> parts(static_cast<size_t>(count));std::vector<std::array<float,4>> materials;
+  for(size_t i=0;i<parts.size();i++){
+    JSValue item=JS_GetPropertyUint32(ctx,argv[0],uint32_t(i));if(JS_IsException(item))return item;
+    ScopeExit freeItem{[&]{JS_FreeValue(ctx,item);}};
+    if(!JS_IsObject(item)||JS_IsArray(item))return JS_ThrowTypeError(ctx,"createShapeAsset part %zu must be an object",i);
+    auto &part=parts[i];
+    auto text=[&](const char *name,std::string &out){
+      JSValue value=JS_GetPropertyStr(ctx,item,name);if(JS_IsException(value))return false;
+      if(JS_IsUndefined(value))return true;
+      if(!JS_IsString(value)){JS_FreeValue(ctx,value);JS_ThrowTypeError(ctx,"createShapeAsset part %zu: %s must be a string",i,name);return false;}
+      const char *chars=JS_ToCString(ctx,value);JS_FreeValue(ctx,value);if(!chars)return false;out=chars;JS_FreeCString(ctx,chars);return true;
+    };
+    std::string shape,finish="matte";
+    if(!text("shape",shape)||!text("finish",finish))return JS_EXCEPTION;
+    const auto parsedShape=shapeMesh::shape(shape);
+    if(!parsedShape)return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: shape must be cube, sphere, cylinder, cone, wedge, pyramid, torus or arch",i);
+    const auto parsedFinish=shapeMesh::finish(finish);
+    if(!parsedFinish)return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: finish must be matte, glossy, metal or glow",i);
+    part.shape=*parsedShape;part.finish=*parsedFinish;part.scale={.1f,.1f,.1f};
+    if(!shapeVector(ctx,item,"position",part.position,i)||!shapeVector(ctx,item,"rotation",part.rotation,i)||
+       !shapeVector(ctx,item,"scale",part.scale,i)||!shapeVector(ctx,item,"color",part.color,i))return JS_EXCEPTION;
+    for(float v:part.position)if(std::abs(v)>10)return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: position components must be within 10 meters",i);
+    if(!validScale(part.scale))return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: scale components must be greater than 0 and at most 2 meters",i);
+    for(float v:part.color)if(v<0||v>1)return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: color components must be from 0 to 1",i);
+    if(const char *error=shapeMesh::sizeError(part.shape,part.scale))return JS_ThrowRangeError(ctx,"createShapeAsset part %zu: %s",i,error);
+    const std::array<float,4> key{part.color[0],part.color[1],part.color[2],float(part.finish)};
+    if(std::find(materials.begin(),materials.end(),key)==materials.end()){
+      if(materials.size()>=shapeMesh::kMaxMaterials)return JS_ThrowRangeError(ctx,"createShapeAsset allows at most %zu distinct color and finish pairs",shapeMesh::kMaxMaterials);
+      materials.push_back(key);
+    }
+  }
+  int eyePixels=kDefaultEyePixels;bool optimizeVertexCache=false,gpuInstancing=true,lod=true;
+  if(argc>1&&!JS_IsUndefined(argv[1])){
+    if(!JS_IsObject(argv[1])||JS_IsNull(argv[1]))return JS_ThrowTypeError(ctx,"shape asset options must be an object");
+    JSValue value=JS_GetPropertyStr(ctx,argv[1],"eyePixels");if(JS_IsException(value))return value;
+    if(!JS_IsUndefined(value)){
+      double pixels=0;const bool valid=JS_IsNumber(value)&&JS_ToFloat64(ctx,&pixels,value)==0&&pixels>=256&&pixels<=2048&&pixels==std::floor(pixels)&&int(pixels)%64==0;
+      JS_FreeValue(ctx,value);if(!valid)return JS_ThrowRangeError(ctx,"eyePixels must be a multiple of 64 from 256 to 2048");eyePixels=int(pixels);
+    }
+    for(auto [name,destination]:{std::pair{"optimizeVertexCache",&optimizeVertexCache},std::pair{"gpuInstancing",&gpuInstancing},std::pair{"lod",&lod}}){
+      value=JS_GetPropertyStr(ctx,argv[1],name);if(JS_IsException(value))return value;
+      if(!JS_IsUndefined(value)&&!JS_IsBool(value)){JS_FreeValue(ctx,value);return JS_ThrowTypeError(ctx,"%s must be a boolean",name);}
+      if(!JS_IsUndefined(value))*destination=JS_ToBool(ctx,value)>0;JS_FreeValue(ctx,value);
+    }
+  }
+  // Getters may have run script code; check the limit only after reading everything.
+  if(!currentScene)return JS_ThrowTypeError(ctx,"createShapeAsset requires a scene");
+  if(loadedAssetCount(*currentScene)>=32||currentScene->assets.size()>=size_t(INT_MAX-1))return JS_ThrowRangeError(ctx,"model asset limit reached (32 live assets)");
+  ModelAsset asset;float extent=0;std::array<float,3> center{};
+  const auto started=std::chrono::steady_clock::now();
+  buildShapeAsset(parts,asset,extent,center);
+  const double buildMs=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();
+  asset.path="shape:"+std::to_string(currentScene->assets.size()+1);
+  asset.eyePixels=eyePixels;asset.optimizeVertexCache=optimizeVertexCache;asset.gpuInstancing=gpuInstancing;asset.lod=lod;
+  size_t triangles=0;for(const auto &p:asset.primitives)triangles+=size_t(p.vertexCount)/3;
+  std::fprintf(stdout,"[model] built %s parts=%zu materials=%zu triangles=%zu build_ms=%.3f\n",asset.path.c_str(),parts.size(),asset.primitives.size(),triangles,buildMs);std::fflush(stdout);
+  currentScene->assets.push_back(std::move(asset));
+  JSValue result=JS_NewObject(ctx),point=JS_NewObject(ctx);const char *axes[3]={"x","y","z"};
+  for(int axis=0;axis<3;axis++)JS_SetPropertyStr(ctx,point,axes[axis],JS_NewFloat64(ctx,center[axis]));
+  JS_SetPropertyStr(ctx,result,"assetId",JS_NewInt32(ctx,int(currentScene->assets.size())));
+  JS_SetPropertyStr(ctx,result,"extent",JS_NewFloat64(ctx,extent));JS_SetPropertyStr(ctx,result,"center",point);
+  return result;
 }
 static JSValue jsUnloadModel(JSContext *ctx,JSValueConst,int argc,JSValueConst *argv){
  double value=0;int id=0;if(!argc||!JS_IsNumber(argv[0])||JS_ToFloat64(ctx,&value,argv[0])<0||!std::isfinite(value)||value<1||value>=INT_MAX||value!=std::floor(value)||!loadedAsset(*currentScene,id=int(value)))return JS_ThrowRangeError(ctx,"unloadModel requires a live asset ID");
@@ -1248,6 +1330,7 @@ bool loadScriptSource(ScriptHost &active,const std::string &path,const std::stri
   bind(candidate.ctx,"panelSetVisible",jsPanelVisible,2);
   bind(candidate.ctx,"removePanel",jsPanelRemove,1);
   bind(candidate.ctx,"loadModel",jsLoadModel,1);
+  bind(candidate.ctx,"createShapeAsset",jsCreateShapeAsset,1);
   bind(candidate.ctx,"setModelLighting",jsSetModelLighting,2);
   bind(candidate.ctx,"createDirectionalLight",jsCreateDirectionalLight,1);
   bind(candidate.ctx,"setDirectionalLight",jsSetDirectionalLight,2);

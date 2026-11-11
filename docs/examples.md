@@ -32,6 +32,7 @@ and their documented controls.
 | [pbr.js](../scripts/pbr.js) | Opt-in PBR lighting, environment reflections, and hand rotation |
 | [avocado.js](../scripts/avocado.js) | Load and place one model |
 | [sample-gallery.js](../scripts/sample-gallery.js) | Multiple assets and animated object transforms, including per-axis scale |
+| [shapes.js](../scripts/shapes.js) | A table and lamp built from generated shapes, placed at their returned center and extent |
 | [full-sphere-gallery.js](../scripts/full-sphere-gallery.js) | Placement in front, beside, and behind the viewer |
 | [grabbing.js](../scripts/grabbing.js) | Both-hand lasers, grip/trigger selection, hand rotation, distant yaw/depth controls, and reading where a grab left the box |
 | [input.js](../scripts/input.js) | Controller pose/raw input and haptics; right stick moves the box, right bumper toggles it |
@@ -78,6 +79,7 @@ Each script starts with its purpose and controls; inline comments explain units,
 ownership, input-source differences and other behavior that is easy to misread.
 
 - Models/transforms and full-sphere placement: `avocado`, `sample-gallery`, `full-sphere-gallery`.
+- Models built from generated shapes: `shapes`.
 - Grabbing, grip/trigger policies and custom model input: `grabbing`, `input`, `mesh-pointer`.
 - Retained canvas, pointer clicks, placement and panel lifetime: `panels`, `panel-placement`, `panel-save`.
 - Clip playback, seeking/stopping, blending, skeletal/morph instances: `animation`, `blending`, `skinning`, `morph`, `animation-save`.
